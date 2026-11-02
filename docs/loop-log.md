@@ -104,3 +104,8 @@ unwritten and the next pass retries after a `cargo login`. Nothing was created o
    panel can preview a decision on hover instead of on click. Filed here as an `S-NN` when the editor needs it.
 5. **A moving emitter's pan on the `mixer` backend.** rodio's `SpatialPlayer` can be re-positioned; a mixer-owned voice
    cannot today, which is the one thing Bevy's path does that ours does not.
+
+**CI.** The repository's first three pushes could not run: every sibling repo has a self-hosted runner registered and this
+new one had none, so GitHub failed each run in 0 seconds with no job. The runner is now deployed
+(`bevy-coven/bevy_siren 1` in `home-cloud/gh-runners/repos.txt`, `deploy.sh`, `big-s1 online`); the next push is the
+first real CI run.
