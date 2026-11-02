@@ -40,7 +40,7 @@ file; `active_duck_db` takes the time *since the duck fired*, not the score's cl
 `showwavespic` on a gain curve draws an unreadable blob, so a bus plot is a line; and `ebur128` reads −70 LUFS for any
 clip shorter than one gating block, whatever its level.
 
-**Commit.** `PENDING_SHA`. Gate: build, test (41 + 4), serde (48 + 4), mixer (41 + 4), clippy, fmt, doc, examples — all
+**Commit.** `4e99c64`. Gate: build, test (41 + 4), serde (48 + 4), mixer (41 + 4), clippy, fmt, doc, examples — all
 green; nothing was red at the baseline.
 
 **Next 5.**
