@@ -4,7 +4,7 @@
 //! is deliberately not a file. A cue has *variants* (several recordings of the same event, so a player
 //! does not hear one sample sixty times), a bus, a gain, a pitch range, a repeat rule, a polyphony
 //! limit, a priority and a spatial model. The sound files are named separately, in
-//! [`SirenSounds`](crate::SirenSounds), so a cue can be written before an artist delivers anything and
+//! [`SirenSounds`](crate::sounds::SirenSounds), so a cue can be written before an artist delivers anything and
 //! a delivered file can replace another without touching the table.
 //!
 //! This is the shape Simon Franco's *Artificial Sound Designer* argues for (Game AI Pro, ch. 46): a
@@ -99,7 +99,7 @@ impl Cue {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct SoundSlot {
-    /// The key [`SirenSounds`](crate::SirenSounds) maps to a file.
+    /// The key [`SirenSounds`](crate::sounds::SirenSounds) maps to a file.
     pub sound: String,
     /// A trim for this recording, so variants mastered at different levels play at one level.
     #[cfg_attr(feature = "serde", serde(default))]
@@ -391,7 +391,7 @@ impl CueTable {
     }
 
     /// Everything wrong with the table against the crate's own four buses
-    /// ([`DEFAULT_BUSES`](crate::DEFAULT_BUSES)).
+    /// ([`DEFAULT_BUSES`]).
     pub fn problems(&self) -> Vec<CueProblem> {
         self.problems_with(&DEFAULT_BUSES)
     }

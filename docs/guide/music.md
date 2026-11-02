@@ -38,6 +38,10 @@ layers.write(MusicLayers::new(vec![("calm".to_owned(), -12.0)]).now());
 tool, and a frame that lands exactly on the bar is *on* it rather than past it. With `tempo_bpm: 0.0` there is no grid,
 and every transition is immediate: a pad, not a song.
 
+A layer's `gain_db` is the layer's own place in the mix, and it **adds** to its cue's `gain_db`: the cue's is the
+recording's trim (two masters, two levels), the layer's is what gameplay moves. Keep the level on the layer so a log
+line reads the number a person set.
+
 Gains ease at `MIX_TAU_S` (50 ms), so a layer moves without a click. A layer moved to `SILENT_DB` is not stopped; it is
 silent and still playing, which is what makes bringing it back in the same performance.
 

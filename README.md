@@ -90,7 +90,7 @@ cargo run --example mixer
 ```
 
 The panel: every bus with its level, its duck and its live voice count, the cue table, and the log of the last
-decisions. `SIREN_KEYS=duck,steal,layer` stages a run so a capture shows the three things this crate exists for.
+decisions. `SIREN_KEYS=steal,layer,duck` stages a run so a capture shows the three things this crate exists for.
 
 ```sh
 cargo run --example music

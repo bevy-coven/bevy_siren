@@ -13,8 +13,8 @@
 //!
 //! # The floor is one number
 //!
-//! [`SILENT_DB`](crate::model::SILENT_DB) is where a gain becomes silence, both on the way in
-//! ([`db_to_gain`](crate::model::db_to_gain)) and on the way out
+//! [`SILENT_DB`] is where a gain becomes silence, both on the way in
+//! ([`db_to_gain`]) and on the way out
 //! ([`gain_to_db`](crate::model::gain_to_db)), so "is this bus audible" has one answer rather than an
 //! epsilon each caller guesses.
 //!

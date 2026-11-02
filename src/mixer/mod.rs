@@ -7,7 +7,7 @@
 //! game thread and a duck is twenty writes rather than one.
 //!
 //! This backend builds the graph a game mixer builds (Böttcher 2008; Gregory §14.5.8's categories): one
-//! [`rodio::Mixer`] per bus, each fed into the device through a [`BusGain`] source that multiplies every
+//! [`rodio`] `Mixer` per bus, each fed into the device through a `BusGain` source that multiplies every
 //! sample by the bus's current gain, read from an `AtomicU32`. A frame that moves a bus writes one number;
 //! the audio thread does the summing. A voice is a [`rodio::Player`] connected to its bus's mixer, with its own
 //! gain as a second atomic, so a duck is one store per bus and nothing per voice.
@@ -22,7 +22,7 @@
 //! # Failing like Bevy fails
 //!
 //! [`MixerBackend::open`] returns `None` and warns `No audio device found.` — the same sentence Bevy's own path
-//! prints — when there is no output device, and the plugin then inserts no [`Output`](crate::Output), so voices
+//! prints — when there is no output device, and the plugin then inserts no [`Output`](crate::output::Output), so voices
 //! fall back to Bevy's `AudioPlayer`. A headless machine runs with the feature on and hears nothing.
 
 use std::collections::HashMap;
@@ -40,7 +40,7 @@ use crate::output::AudioOutput;
 /// The one graph: the device, and one track per bus.
 ///
 /// Built by [`SirenPlugin`](crate::SirenPlugin) and reachable in the world as
-/// [`Output`](crate::Output). A game never builds one.
+/// [`Output`](crate::output::Output). A game never builds one.
 #[derive(Resource)]
 pub struct MixerBackend {
     device: MixerDeviceSink,

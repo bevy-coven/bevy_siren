@@ -3,7 +3,7 @@
 //! Adaptive music is vertical layering, not new tracks: the same performance with each instrument's gain
 //! keyed to game state, so calm exploration and the combat that interrupts it are the same tempo, the same
 //! beat, the same musicians (Khan et al. 2023, *Adaptive Background Music for a Fighting Game*,
-//! 10.48550/arXiv.2303.15734). That is why a layer at [`SILENT_DB`](crate::model::SILENT_DB) stays in the
+//! 10.48550/arXiv.2303.15734). That is why a layer at [`SILENT_DB`] stays in the
 //! mix: it costs one silent voice and keeps every layer phase-aligned, which is what makes an entry sound
 //! like the same band getting louder rather than a second song starting.
 //!
@@ -17,7 +17,7 @@
 //! # One play path
 //!
 //! The plugin never spawns a voice itself. It writes [`Play`] for each layer, and adopts the entity that
-//! [`Played`](crate::Played) reports — so a music layer is a voice like any other: gated, budgeted, logged,
+//! [`Played`] reports — so a music layer is a voice like any other: gated, budgeted, logged,
 //! and mixed by the one mix system. A second spawn path would be a second set of rules.
 
 use bevy::prelude::*;
@@ -134,7 +134,7 @@ pub struct MusicLayer {
     /// The looping cue this layer plays. It should name the `Music` bus.
     pub cue: String,
     /// Where the layer sits when the score starts. Most start at
-    /// [`SILENT_DB`](crate::model::SILENT_DB) and are brought in by gameplay.
+    /// [`SILENT_DB`] and are brought in by gameplay.
     #[cfg_attr(feature = "serde", serde(default))]
     pub gain_db: f32,
 }
@@ -173,7 +173,7 @@ pub struct MusicLayers {
     /// The layers to move, and where.
     pub targets: Vec<(String, f32)>,
     /// How long the move takes once it starts. `0` is the crate's
-    /// [`MIX_TAU_S`](crate::model::MIX_TAU_S) easing, which is what a layer wants.
+    /// [`MIX_TAU_S`] easing, which is what a layer wants.
     pub fade_s: f32,
     /// When it starts.
     pub when: When,

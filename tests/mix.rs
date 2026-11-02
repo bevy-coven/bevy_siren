@@ -208,3 +208,33 @@ fn problems_names_each_mistake() {
     assert!(SirenSettings::default().problems().is_empty(), "{:?}", SirenSettings::default().problems());
     let _ = table;
 }
+
+/// **Several requests in one frame respect the bus cap together.** A snapshot of the live voices taken before the
+/// loop lets three requests in one frame each see an empty bus and all three play, which is the cap broken by the
+/// very frame that asked most for it. The budget is re-counted per request, including the voices this frame made.
+#[test]
+fn three_requests_in_one_frame_fill_a_cap_of_two_with_no_third() {
+    let settings = SirenSettings {
+        max_voices: 8,
+        buses: vec![BusLevel::new("Effects").max_voices(2)],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    let table = CueTable::new(vec![cue("hit", "Effects", 0, 0)]);
+    let mut app = app(table, settings, sounds(&["hit"]), false);
+
+    for _ in 0..3 {
+        app.world_mut().write_message(Play::cue("hit"));
+    }
+    app.update();
+
+    let answers = played(&mut app);
+    assert_eq!(live_voices(&mut app), 2, "two voices sound, whichever frame asked: {answers:?}");
+    let stole = app
+        .world()
+        .resource::<SirenLog>()
+        .iter()
+        .filter(|e| matches!(e, Entry::Stopped { why, .. } if why.starts_with("stolen by")))
+        .count();
+    assert_eq!(stole, 1, "the third request took a voice back rather than sounding a third: {answers:?}");
+}

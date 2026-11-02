@@ -13,7 +13,7 @@
 //! - `SIREN_SHOT_DIR=<dir>` also keeps every `SIREN_SHOT_EVERY`th frame from `SIREN_SHOT_FROM` there as
 //!   `f_%04d.png`, for a GIF.
 //! - `SIREN_SIZE=<w>x<h>` sets the window size (default 1280x720).
-//! - `SIREN_KEYS=duck,steal,layer` stages one step every `SIREN_KEY_EVERY` frames (default 20) from frame 30:
+//! - `SIREN_KEYS=steal,layer,duck` stages one step every `SIREN_KEY_EVERY` frames (default 20) from frame 30, cycling:
 //!   `duck` plays a line of dialogue, `steal` fills the bus capped at two, `layer` brings the combat layer in on
 //!   the next bar.
 //!
@@ -72,6 +72,31 @@ enum Kind {
     Log,
     Cues,
     Header,
+    BusesHeading,
+    CuesHeading,
+    LogHeading,
+}
+
+/// A body line: one `Text` a panel section fills.
+fn row(kind: Kind) -> impl Bundle {
+    (
+        Text::new(""),
+        TextFont { font_size: FontSize::Px(17.0), ..default() },
+        TextColor(Color::srgb(0.74, 0.79, 0.90)),
+        PanelText(kind),
+    )
+}
+
+/// A section title.
+fn heading(label: &str, kind: Kind) -> impl Bundle {
+    let size = if kind == Kind::Header { 30.0 } else { 18.0 };
+    let ink = if kind == Kind::Header { Color::srgb(0.92, 0.94, 1.0) } else { Color::srgb(0.55, 0.62, 0.75) };
+    (
+        Text::new(label.to_owned()),
+        TextFont { font_size: FontSize::Px(size), ..default() },
+        TextColor(ink),
+        PanelText(kind),
+    )
 }
 
 fn main() {
@@ -145,6 +170,15 @@ fn cues() -> CueTable {
             gain_db: -2.0,
             ..Cue::new("sword.hit")
         },
+        Cue {
+            sounds: vec![SoundSlot::new("engine_loop")],
+            bus: "Effects".to_owned(),
+            mode: Mode::Loop,
+            priority: 5,
+            max_instances: 2,
+            gain_db: -14.0,
+            ..Cue::new("engine.idle")
+        },
         Cue { sounds: vec![SoundSlot::new("click")], priority: 20, gain_db: -6.0, ..Cue::new("ui.click") },
         Cue {
             sounds: vec![SoundSlot::new("line_01"), SoundSlot::new("line_02")],
@@ -165,7 +199,6 @@ fn cues() -> CueTable {
             bus: "Music".to_owned(),
             mode: Mode::Loop,
             priority: 200,
-            gain_db: -4.0,
             ..Cue::new("track.calm")
         },
         Cue {
@@ -190,7 +223,7 @@ fn score() -> MusicScore {
             MusicLayer::new("calm", "track.calm").at_db(-4.0),
             MusicLayer::new("combat", "track.combat"),
         ],
-        tempo_bpm: 100.0,
+        tempo_bpm: 160.0,
         beats_per_bar: 4.0,
     }
 }
@@ -199,10 +232,11 @@ fn setup(mut commands: Commands, mut sounds: ResMut<SirenSounds>, mut assets: Re
     commands.spawn((Camera2d, SpatialListener::new(1.0)));
 
     // Every key the table names, as a synthesised sample: the panel is about decisions, not recordings.
-    let keys: [(&str, f32, u32, f32); 10] = [
+    let keys: [(&str, f32, u32, f32); 11] = [
         ("step_01", 220.0, 120, 30.0),
         ("step_02", 260.0, 120, 30.0),
         ("hit_01", 90.0, 260, 18.0),
+        ("engine_loop", 55.0, 1_500, 0.0),
         ("click", 1_100.0, 60, 60.0),
         ("line_01", 330.0, 320, 6.0),
         ("line_02", 392.0, 320, 6.0),
@@ -228,66 +262,16 @@ fn setup(mut commands: Commands, mut sounds: ResMut<SirenSounds>, mut assets: Re
         },
         BackgroundColor(Color::srgb(0.06, 0.07, 0.09)),
         children![
-            (
-                Text::new("bevy_siren — the mix"),
-                TextFont { font_size: FontSize::Px(30.0), ..default() },
-                TextColor(Color::srgb(0.92, 0.94, 1.0)),
-                PanelText(Kind::Header)
-            ),
-            (
-                Text::new("Buses"),
-                TextFont { font_size: FontSize::Px(18.0), ..default() },
-                TextColor(Color::srgb(0.55, 0.62, 0.75)),
-                PanelText(Kind::Cues)
-            ),
-            (
-                Text::new(""),
-                TextFont { font_size: FontSize::Px(20.0), ..default() },
-                TextColor(Color::srgb(0.80, 0.86, 1.0)),
-                PanelText(Kind::Bus("Music"))
-            ),
-            (
-                Text::new(""),
-                TextFont { font_size: FontSize::Px(20.0), ..default() },
-                TextColor(Color::srgb(0.80, 0.86, 1.0)),
-                PanelText(Kind::Bus("Effects"))
-            ),
-            (
-                Text::new(""),
-                TextFont { font_size: FontSize::Px(20.0), ..default() },
-                TextColor(Color::srgb(0.80, 0.86, 1.0)),
-                PanelText(Kind::Bus("Ambience"))
-            ),
-            (
-                Text::new(""),
-                TextFont { font_size: FontSize::Px(20.0), ..default() },
-                TextColor(Color::srgb(0.80, 0.86, 1.0)),
-                PanelText(Kind::Bus("Dialogue"))
-            ),
-            (
-                Text::new("Cues"),
-                TextFont { font_size: FontSize::Px(18.0), ..default() },
-                TextColor(Color::srgb(0.55, 0.62, 0.75)),
-                PanelText(Kind::Cues)
-            ),
-            (
-                Text::new(""),
-                TextFont { font_size: FontSize::Px(17.0), ..default() },
-                TextColor(Color::srgb(0.70, 0.76, 0.88)),
-                PanelText(Kind::Cues)
-            ),
-            (
-                Text::new("Log"),
-                TextFont { font_size: FontSize::Px(18.0), ..default() },
-                TextColor(Color::srgb(0.55, 0.62, 0.75)),
-                PanelText(Kind::Cues)
-            ),
-            (
-                Text::new(""),
-                TextFont { font_size: FontSize::Px(16.0), ..default() },
-                TextColor(Color::srgb(0.62, 0.68, 0.80)),
-                PanelText(Kind::Log)
-            ),
+            heading("bevy_siren: the mix", Kind::Header),
+            heading("Buses", Kind::BusesHeading),
+            row(Kind::Bus("Music")),
+            row(Kind::Bus("Effects")),
+            row(Kind::Bus("Ambience")),
+            row(Kind::Bus("Dialogue")),
+            heading("Cues", Kind::CuesHeading),
+            row(Kind::Cues),
+            heading("Log", Kind::LogHeading),
+            row(Kind::Log),
         ],
     ));
 }
@@ -312,6 +296,7 @@ fn wav_bytes(hz: f32, ms: u32, decay: f32) -> Vec<u8> {
     out.extend_from_slice(&data_len.to_le_bytes());
     for i in 0..count {
         let t = i as f32 / RATE as f32;
+        // `decay` 0 is a flat tone: the envelope is 1 and the loop does not fade.
         let envelope = (-t * decay).exp().min(1.0);
         let sample = (t * hz * std::f32::consts::TAU).sin() * envelope * 0.35;
         out.extend_from_slice(&((sample * f32::from(i16::MAX)) as i16).to_le_bytes());
@@ -320,6 +305,10 @@ fn wav_bytes(hz: f32, ms: u32, decay: f32) -> Vec<u8> {
 }
 
 /// The panel's numbers, from [`SirenMix`] and [`SirenLog`] — the same resources a game's meter reads.
+///
+/// A heading is static text and is never rewritten; a bus row owns one bus; the cue list and the log own their
+/// blocks. Nothing is duplicated: the screenshot showed the whole cue list three times when three nodes shared one
+/// `Kind::Cues`, which is exactly the kind of defect a capture exists to catch.
 fn draw_panel(
     mix: Res<SirenMix>,
     table: Res<CueTable>,
@@ -330,11 +319,12 @@ fn draw_panel(
     for (panel, mut text) in &mut texts {
         let next = match panel.0 {
             Kind::Header => format!(
-                "bevy_siren — {} cues, {} buses, {} voices",
+                "bevy_siren: {} cues, {} buses, {} voices",
                 table.cues.len(),
                 settings.buses.len(),
                 mix.voices.values().sum::<usize>()
             ),
+            Kind::BusesHeading | Kind::CuesHeading | Kind::LogHeading => continue,
             Kind::Bus(bus) => {
                 let db = mix.bus_db(bus);
                 let duck = mix.ducked.get(bus).copied().unwrap_or(0.0);
@@ -357,7 +347,7 @@ fn draw_panel(
                 })
                 .collect::<Vec<_>>()
                 .join("\n"),
-            Kind::Log => log.recent(9).map(Entry::line).collect::<Vec<_>>().join("\n"),
+            Kind::Log => log.recent(10).map(Entry::line).collect::<Vec<_>>().join("\n"),
         };
         if text.0 != next {
             text.0 = next;
@@ -381,19 +371,20 @@ fn stage(
     if since % every != 0 {
         return;
     }
-    let Some(step) = c.keys.get((since / every) as usize) else {
+    // The steps cycle, so a long capture keeps showing the three things the panel is for: the last one before the
+    // still is the duck, which is still holding when the screenshot is taken.
+    let Some(step) = c.keys.get(((since / every) as usize) % c.keys.len()) else {
         return;
     };
     match step {
         Step::Duck => {
-            plays.write(Play::cue("ambience.wind"));
             plays.write(Play::cue("dialogue.greeting"));
         }
         Step::Steal => {
-            // The `Effects` bus is capped at two, so the third footstep steals the first.
-            for _ in 0..3 {
-                plays.write(Play::cue("footstep.grass"));
-            }
+            // The `Effects` bus is capped at two: two idle loops fill it, and the hit takes the oldest back, so the
+            // bus stays at two and the log keeps `stolen by sword.hit` as the evidence.
+            plays.write(Play::cue("engine.idle"));
+            plays.write(Play::cue("engine.idle"));
             plays.write(Play::cue("sword.hit"));
         }
         Step::Layer => {

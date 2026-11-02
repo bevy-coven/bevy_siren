@@ -121,7 +121,7 @@ pub enum Refusal {
     /// The cue has no variants, so there is nothing to play.
     NoSounds,
     /// The cue's chosen variant names a `sound` key with no handle in
-    /// [`SirenSounds`](crate::SirenSounds).
+    /// [`SirenSounds`].
     MissingSound {
         /// The key with no handle.
         sound: String,
@@ -167,7 +167,7 @@ pub struct Voice {
     /// The bus it plays on.
     pub bus: String,
     /// The cue's priority: higher survives a full budget. At or above
-    /// [`UNSTEALABLE_PRIORITY`](crate::mix::UNSTEALABLE_PRIORITY) it is never taken.
+    /// [`UNSTEALABLE_PRIORITY`] it is never taken.
     pub priority: u8,
     /// When it started, on real time.
     pub start_s: f64,
@@ -273,6 +273,35 @@ impl Default for SirenChoices {
     }
 }
 
+/// One voice as the budget sees it: what `room_for` needs, owned so a request this frame can add its own voice
+/// without borrowing a query it cannot see.
+#[derive(Clone, Debug, PartialEq)]
+struct Live {
+    entity: Entity,
+    cue: String,
+    bus: String,
+    priority: u8,
+    start_s: f64,
+    unstealable: bool,
+}
+
+impl Live {
+    fn of((entity, voice): (Entity, &Voice)) -> Self {
+        Self {
+            entity,
+            cue: voice.cue.clone(),
+            bus: voice.bus.clone(),
+            priority: voice.priority,
+            start_s: voice.start_s,
+            unstealable: voice.unstealable,
+        }
+    }
+
+    fn candidate(&self, index: usize) -> Candidate {
+        Candidate { index, priority: self.priority, start_s: self.start_s, unstealable: self.unstealable }
+    }
+}
+
 /// What a request resolved to, before it becomes an entity.
 struct Started {
     variant: usize,
@@ -307,18 +336,31 @@ pub fn play_requests(
     mut commands: Commands,
 ) {
     let now = real.elapsed_secs_f64();
-    let live: Vec<(Entity, &Voice)> = voices.iter().collect();
+    // **The live list shrinks as this frame's own requests fill the budget.** A snapshot taken before the loop
+    // would let three requests in one frame each see an empty bus and all three play, which breaks a cap the
+    // crate promises to keep; a voice this frame marked stopping no longer counts.
+    let mut live: Vec<Live> = voices.iter().map(Live::of).collect();
     for request in requests.read() {
         match answer(request, table.as_ref(), &sounds, &settings, &mut choices, &listener, &live, now) {
             Ok(started) => {
                 for victim in &started.stolen {
                     let why = format!("stolen by {}", request.cue);
                     commands.entity(*victim).insert(Stopping { since_s: now, why: why.clone() });
-                    if let Some((_, voice)) = live.iter().find(|(e, _)| e == victim) {
+                    if let Some(voice) = live.iter().find(|v| v.entity == *victim) {
                         log.push(Entry::Stopped { at_s: now, cue: voice.cue.clone(), why });
                     }
+                    live.retain(|v| v.entity != *victim);
                 }
                 let entity = spawn_voice(&mut commands, request, &started, now, backend.0);
+                // This frame's own voice counts against the next request in the list.
+                live.push(Live {
+                    entity,
+                    cue: request.cue.clone(),
+                    bus: started.bus.clone(),
+                    priority: started.priority,
+                    start_s: now,
+                    unstealable: started.priority >= UNSTEALABLE_PRIORITY,
+                });
                 if settings.ducks.iter().any(|d| d.source == started.bus) {
                     clock.fire_all(&settings, &started.bus, now);
                     for duck in settings.ducks.iter().filter(|d| d.source == started.bus) {
@@ -362,7 +404,7 @@ fn answer(
     settings: &SirenSettings,
     choices: &mut SirenChoices,
     listener: &Query<(&GlobalTransform, &SpatialListener)>,
-    live: &[(Entity, &Voice)],
+    live: &[Live],
     now: f64,
 ) -> Result<Started, Refusal> {
     let Some(cue) = table.get(&request.cue) else {
@@ -431,7 +473,7 @@ fn answer(
 ///
 /// Three caps, in the order a project thinks of them: the cue's own polyphony, its bus's voices, and the
 /// table's whole budget. Each is hard: a voice that cannot be freed is a refusal, never a 33rd voice.
-fn room_for(live: &[(Entity, &Voice)], cue: &Cue, settings: &SirenSettings) -> Option<Vec<Entity>> {
+fn room_for(live: &[Live], cue: &Cue, settings: &SirenSettings) -> Option<Vec<Entity>> {
     let bus = cue.bus_name();
     let total = usize::from(settings.max_voices);
     let bus_limit = settings.bus_voice_limit(bus);
@@ -439,13 +481,13 @@ fn room_for(live: &[(Entity, &Voice)], cue: &Cue, settings: &SirenSettings) -> O
 
     // The cue's own polyphony: its oldest voices go.
     if cue.max_instances > 0 {
-        let same: Vec<&(Entity, &Voice)> = live.iter().filter(|(_, v)| v.cue == cue.name).collect();
+        let same: Vec<&Live> = live.iter().filter(|v| v.cue == cue.name).collect();
         let excess = (same.len() + 1).saturating_sub(usize::from(cue.max_instances));
-        for (entity, voice) in same.iter().take(excess) {
+        for voice in same.iter().take(excess) {
             if voice.unstealable {
                 return None;
             }
-            stop.push(*entity);
+            stop.push(voice.entity);
         }
     }
 
@@ -453,7 +495,7 @@ fn room_for(live: &[(Entity, &Voice)], cue: &Cue, settings: &SirenSettings) -> O
     let on_bus: Vec<usize> = live
         .iter()
         .enumerate()
-        .filter(|(_, (e, v))| v.bus == bus && !stop.contains(e))
+        .filter(|(_, v)| v.bus == bus && !stop.contains(&v.entity))
         .map(|(i, _)| i)
         .collect();
     let after = on_bus.len();
@@ -463,7 +505,7 @@ fn room_for(live: &[(Entity, &Voice)], cue: &Cue, settings: &SirenSettings) -> O
         if chosen.len() < need {
             return None;
         }
-        stop.extend(chosen.into_iter().map(|index| live[index].0));
+        stop.extend(chosen.into_iter().map(|index| live[index].entity));
     }
 
     // The table's budget, across every bus.
@@ -471,36 +513,25 @@ fn room_for(live: &[(Entity, &Voice)], cue: &Cue, settings: &SirenSettings) -> O
     if after >= total {
         let need = after + 1 - total;
         let all: Vec<usize> =
-            live.iter().enumerate().filter(|(_, (e, _))| !stop.contains(e)).map(|(i, _)| i).collect();
+            live.iter().enumerate().filter(|(_, v)| !stop.contains(&v.entity)).map(|(i, _)| i).collect();
         let chosen = steal(&candidates_of(live, &all), need, total);
         if chosen.len() < need {
             return None;
         }
-        stop.extend(chosen.into_iter().map(|index| live[index].0));
+        stop.extend(chosen.into_iter().map(|index| live[index].entity));
     }
     Some(stop)
 }
 
-fn candidates_of(live: &[(Entity, &Voice)], indices: &[usize]) -> Vec<Candidate> {
-    indices
-        .iter()
-        .map(|index| {
-            let (_, voice) = live[*index];
-            Candidate {
-                index: *index,
-                priority: voice.priority,
-                start_s: voice.start_s,
-                unstealable: voice.unstealable,
-            }
-        })
-        .collect()
+fn candidates_of(live: &[Live], indices: &[usize]) -> Vec<Candidate> {
+    indices.iter().map(|index| live[*index].candidate(*index)).collect()
 }
 
 /// Spawns the voice entity and starts its sound.
 ///
 /// With Bevy's backend the entity carries `AudioPlayer` + `PlaybackSettings`, and Bevy starts it — including the
 /// spatial two-ear path when the play had a position. With the crate's mixer, the entity carries [`Samples`] and
-/// no `AudioPlayer`: [`start_pending`](crate::playback::start_pending) starts the sample on the mixer's own bus
+/// no `AudioPlayer`: [`start_pending`] starts the sample on the mixer's own bus
 /// and inserts [`MixerVoice`], so the two backends can never both play one request.
 fn spawn_voice(
     commands: &mut Commands,
