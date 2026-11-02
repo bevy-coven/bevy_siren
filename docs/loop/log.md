@@ -60,9 +60,17 @@ that wants a started voice needs a **resolved** `AudioSource` handle, not `Handl
 a `MixerVoice` only once the bytes exist, so a default handle tests the loading state instead. (3) `errno=28` from
 `ld` on this Mac is a full disk, not a code error — `/tmp` held 6.6 GB of my own probe build.
 
-**Commit.** see below. Gate: build, test (41 + 4), serde (48 + 4), mixer (45 + 4), clippy, fmt, doc, examples all green
-at the end; the mixer-example link failed once with `errno=28` while the disk was at 100 %, and passed after my own
-throwaway crate was removed.
+**Commit.** `6a62195`, pushed to `main`; CI run 41545567270 is **success** on `big-s1`. Gate: build, test (41 + 4),
+serde (48 + 4), mixer (45 + 4), clippy, fmt, doc, examples, and the README quick start, all green. The mixer-example
+link failed once with `errno=28` while the disk was at 100 % — the loop's documented trap, not a code error — and
+passed after my own throwaway crate and the editor's build directory were removed.
+
+**The Cauldron was not re-verified, and cannot be by this run.** `bevy_cauldron` pins `bevy_siren` at
+`rev = "7029b20"`, so `audio_panel_reads_the_crates_file` compiles the *old* crate: it would prove nothing about this
+change. It was attempted anyway and died of `No space left on device` during the 8.3 GB build. The public API did not
+move (no type, field or message changed), so the panel's four reads — `SirenMix::db`, `ducked`, `voices_on`, the
+`SirenLog` tail — keep their shapes; what changes for the panel is the number in `voices_on`, which is the fix. Its
+next pin should move to this commit.
 
 **Next 5.**
 
