@@ -1,7 +1,58 @@
 # bevy_siren — the loop log
 
 One entry per iteration: what shipped, what was measured, the captures, and the ranked backlog the next iteration
-starts from. Rules and traps are in `AGENTS.md`; the design rules and their sources are in `docs/research/siren.md`.
+starts from. Entries are **newest first**; iteration 0 is the repository's creation. Rules and traps are in
+`AGENTS.md`; the design rules and their sources are in `../research/siren.md`; the fixed cases every iteration runs are
+in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and three-pass review are in
+[`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
+[`needs-decision/`](needs-decision/README.md).
+
+## Iteration 1 — 2026-11-02 — the loop's eyes: a render harness and a case table
+
+**Change.** The loop now has a way to judge audio it cannot hear, and none of it touches `src/`:
+
+- `examples/render.rs` — renders every cue variant, every refusal, a ducked bus envelope, a mix and 8/64/256 voices to
+  22.05 kHz mono WAVs plus a `render.txt` of numbers, with no `AudioPlugin` and no `SirenPlugin`: it drives
+  `bevy_siren::model`, where every decision's arithmetic lives.
+- `examples/perfcheck.rs` — µs per frame and per voice at 8, 64 and 256 voices, an upper bound on `update_mix`.
+- `docs/loop/cues.yaml` — 19 fixed cases, each naming its behaviour, its observation and its green condition, with the
+  source for every number. The case table is the contract a run is judged against.
+- `docs/loop/` — `log.md` (moved from `docs/loop-log.md`), `runs/README.md` and `needs-decision/README.md` describing
+  the shape of a run and of a question the loop will not decide itself.
+- `.omp/commands/build-loop.md` — rewritten to this brief with this machine's measured facts in it.
+
+**Why.** The loop's brief demands spectrograms, loudness numbers and panel screenshots before anything ships. The crate
+had a panel and a panel is not an ear; nothing could render a cue to a file that `ffmpeg` could measure.
+
+**Evidence.** `runs/2026-11-02-01/`: `eval.md` (the baseline, the case table, loudness), `research.md` (BS.1770-4,
+Gregory, the panner), `plan.md`, `perf.md`, `review.md`, and `evidence/` with 23 WAVs and text, four spectrograms and
+waveforms, and the duck's gain plot as a line.
+
+**Measured.** 256 voices cost 1.253 µs a frame — 0.0075 % of a 60 fps frame. A cue at −6 dB authors −6.00 dB and reads
+−24.4 LUFS (looped past the 0.4 s gating block) at −12.1 dBFS true peak. The duck leaves 0 dB at 1.00 s, reaches
+−7.96 dB, and recovers by 1.97 s against a 0.25 s hold and a 0.6 s fade.
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT — with one caveat written down: `voices-8.wav` peaks at
+3.419 because the harness sums without the voice budget, which is case 19's and the budget's question.
+
+**Traps recorded in the command.** A bus gain is a step function between frames, so one sample per frame is a 4 ms
+file; `active_duck_db` takes the time *since the duck fired*, not the score's clock, or the duck never recovers;
+`showwavespic` on a gain curve draws an unreadable blob, so a bus plot is a line; and `ebur128` reads −70 LUFS for any
+clip shorter than one gating block, whatever its level.
+
+**Commit.** `PENDING_SHA`. Gate: build, test (41 + 4), serde (48 + 4), mixer (41 + 4), clippy, fmt, doc, examples — all
+green; nothing was red at the baseline.
+
+**Next 5.**
+
+1. **Case 19:** teach `examples/render` to model the voice budget, or move the case into `perf.md`, so a mix's evidence
+   says how many voices it holds.
+2. `tests/cues.rs` automating cases 1–4 and 17, so `cues.yaml` and the suite cannot drift.
+3. The Cauldron's audio panel should surface the last refusal — a refused audition is a log line today, not a panel row.
+4. Occlusion and a low-pass on the `mixer` backend (backlog, iteration 0).
+5. Loudness targets per bus: BS.1770-4 is the measure, the target is a `needs-decision/` question.
+
+---
 
 ## Iteration 0 — 2026-11-02 — repository setup
 

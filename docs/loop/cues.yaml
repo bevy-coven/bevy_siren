@@ -1,0 +1,157 @@
+# The cues this loop judges by.
+#
+# The fixed cases every iteration runs before it picks an item, and again after its change: the contract a game would
+# write, in the crate's own words. Each case names the behaviour it should show, the observation that proves it, and
+# how it is observed with no ear. `cues.yaml` is read by a person and, when a case is worth automating, by a test in
+# `tests/cues.rs` — the fields here are the assertion.
+#
+# `green_when` is the assertion. `source` cites the number the case rests on, or says `design default`. A case that
+# fails after a change is a failure of that iteration, whatever else it shipped.
+
+cases:
+  - id: 1
+    cue: footstep.grass
+    authored: { variants: 3, repeat: { avoid_repeat: 1 } }
+    behaviour: Variants do not repeat back to back.
+    observed_by: "64 plays, the `sound` of each `Played`."
+    green_when: No two adjacent sounds are equal, and all three variants appear.
+
+  - id: 2
+    cue: footstep.stone
+    authored: { variants: 2, repeat: { avoid_repeat: 4 } }
+    behaviour: A window wider than the variant list still refuses the pick immediately before.
+    observed_by: 8 plays.
+    green_when: No two adjacent sounds are equal.
+
+  - id: 3
+    cue: gun.burst
+    authored: { variants: 1, repeat: shuffle, pitch: exact }
+    behaviour: A burst repeats one sample and does not vary its pitch.
+    observed_by: "8 plays, `sound` and `pitch`."
+    green_when: One distinct sound; every pitch equal to the authored one.
+
+  - id: 4
+    cue: footstep.grass
+    authored: { pitch: { low: -1.0, high: 1.0 } }
+    behaviour: Pitch jitter stays inside the authored range.
+    observed_by: 64 plays.
+    green_when: Every pitch in -1.0..=1.0, and at least two distinct values.
+
+  - id: 5
+    cue: ui.cancel
+    authored: { gain_db: -6.0, bus: Effects, bus_gain_db: 0.0 }
+    behaviour: A gain is the cue's own and its bus is the one it names.
+    observed_by: "One `Played`, and `SirenMix` after it."
+    green_when: gain_db == -6.0; bus == "Effects"; the mix holds the four default buses.
+    source: The cue's gain is authored; 0 dB is full scale.
+
+  - id: 6
+    cue: dialogue.greeting
+    authored: { bus: Dialogue, ducks: default }
+    behaviour: A dialogue voice ducks Music by 8 dB and Effects by 4 dB, holds 0.25 s, recovers over 0.6 / 0.4 s.
+    observed_by: "`SirenMix::ducked` per frame at 30 fps."
+    green_when: Both ducks reach their depth within 50 ms; both read 0 dB at hold + fade + 50 ms.
+    source: Gregory, Game Engine Architecture 3e, 14.6.3 (docs/research/siren.md).
+
+  - id: 7
+    cue: footstep.grass
+    authored: { max_instances: 2 }
+    behaviour: A third play takes the oldest back rather than sounding a third.
+    observed_by: "Live `Voice` count and `SirenLog`."
+    green_when: Two live voices; one entry whose reason starts "stolen by".
+
+  - id: 8
+    cue: engine.idle
+    authored: { bus: Effects, bus_max_voices: 2, priority: 5, mode: Loop }
+    behaviour: A bus cap holds when three requests arrive in one frame.
+    observed_by: "Live `Voice` count and `SirenLog` after one frame."
+    green_when: "Two voices live, one steal logged, and no third `Played` from that frame."
+
+  - id: 9
+    cue: dialogue.greeting
+    authored: { bus: Dialogue, priority: 180, bus_full: true }
+    behaviour: A voice a player is listening to is never stolen; the request is refused instead.
+    observed_by: "`Refused` and the live count."
+    green_when: Refusal::VoiceLimit, nothing spawned, the dialogue voice still live.
+    source: UNSTEALABLE_PRIORITY, design default (docs/research/siren.md).
+
+  - id: 10
+    cue: footstep.snow
+    authored: { in_table: false }
+    behaviour: An unknown cue is refused by name.
+    observed_by: "`Refused`."
+    green_when: "Refusal::UnknownCue, no `Voice`, no `Played`."
+
+  - id: 11
+    cue: footstep.grass
+    authored: { variant_key_without_handle: true }
+    behaviour: A missing file is refused, naming the key.
+    observed_by: "`Refused`."
+    green_when: "Refusal::MissingSound whose `sound` is that key."
+
+  - id: 12
+    cue: bang
+    authored: { bus: Reverb, bus_in_table: false }
+    behaviour: An unknown bus is refused, never moved to Effects.
+    observed_by: "`Refused`."
+    green_when: Refusal::UnknownBus with bus "Reverb".
+
+  - id: 13
+    cue: bang
+    authored: { spatial: true, position: true, listener: false }
+    behaviour: A spatial play with no ears is refused, carrying the position.
+    observed_by: "`Refused`."
+    green_when: Refusal::SpatiallyMute at that position.
+
+  - id: 14
+    cue: bang
+    authored: { spatial: true, attenuation: { inverse: { near_m: 4.0, rolloff: 1.0 } }, listener: true }
+    behaviour: Distance decides the gain.
+    observed_by: "`Played::gain_db` at 4 m and at 8 m."
+    green_when: 0 dB at the near radius and -6.02 dB at twice it, each within 0.01.
+    source: inverse-distance falloff; -6.02 dB is the amplitude ratio of 1/2.
+
+  - id: 15
+    cue: music.calm + music.combat
+    authored: { score_layers: 2, tempo_bpm: 160.0, beats_per_bar: 4.0 }
+    behaviour: A layer change lands on the bar, and a silent layer stays in the mix.
+    observed_by: "`MusicState::target_db` per frame, and the live layer voices."
+    green_when: The target moves on a multiple of 1.5 s, and both layers have a live voice throughout.
+    source: 1.5 s is 4 beats at 160 bpm.
+
+  - id: 16
+    cue: music.stinger
+    authored: { stinger: { duck_db: -9.0 } }
+    behaviour: A stinger plays at once and ducks the music it plays over.
+    observed_by: "`SirenMix::ducked(\"Music\")` on the frame of the stinger, and `SirenLog`."
+    green_when: "-9.0 dB on that frame, and a Ducked entry whose `by` is \"stinger\"."
+    source: design default for the depth; immediate is the stinger rule.
+
+  - id: 17
+    cue: any two cues
+    authored: { seed: fixed, order: fixed, runs: 2 }
+    behaviour: The same seed replays the same sounds, gains and pitches.
+    observed_by: "Two `Played` streams."
+    green_when: Equal field for field.
+
+  - id: 18
+    cue: a broken table
+    authored: { no_sounds: 1, duplicate: 1, unknown_bus: 1, inverted_pitch: 1 }
+    behaviour: problems() names each mistake in a sentence.
+    observed_by: "`CueTable::problems_with`."
+    green_when: One sentence per mistake, each naming its cue.
+
+  - id: 19
+    cue: any
+    authored: { voices: [8, 64, 256] }
+    behaviour: The mix does not slow a case it did not target.
+    observed_by: perf.md at the three voice counts, against the recorded baseline.
+    green_when: Frame cost within 10 % of the baseline.
+
+# Two notes on judging.
+#
+# - A refusal is green when it is the *right* refusal. Cases 10-13 would pass vacuously if the crate refused
+#   everything, so each is paired with a play that succeeds (5, 6, 14): a build that refuses too much is red there.
+# - The numbers are the sources' numbers, not invented ones. 8 dB and 4 dB are Gregory's dialogue duck (Game Engine
+#   Architecture 3e, 14.6.3); -6.02 dB is half amplitude; a bar at 160 bpm is 1.5 s. A case that needs a number no
+#   source gives says `design default` and is argued in the iteration's research.md.

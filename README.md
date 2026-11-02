@@ -134,7 +134,7 @@ be checked against the tempo.
 
 - The design rules and their sources: [docs/research/siren.md](https://github.com/bevy-coven/bevy_siren/blob/main/docs/research/siren.md).
 - Every guide page: [docs/guide](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/README.md).
-- What each iteration did and what is next: [docs/loop-log.md](https://github.com/bevy-coven/bevy_siren/blob/main/docs/loop-log.md).
+- What each iteration did and what is next: [docs/loop/log.md](https://github.com/bevy-coven/bevy_siren/blob/main/docs/loop/log.md).
 
 ## A Coven crate
 

@@ -5,6 +5,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- `examples/render` — renders every cue variant, every refusal, a ducked bus envelope, a mix and 8/64/256 voices to
+  WAVs and a `render.txt`, so a change can be judged by spectrogram and loudness without an ear. No public API
+  changes: it drives `bevy_siren::model` directly.
+- `examples/perfcheck` — µs per frame and per voice at 8, 64 and 256 voices.
+- `docs/loop/cues.yaml` — the 19 fixed cases every iteration runs, each with its observation and the source for its
+  number; `docs/loop/runs/` and `docs/loop/needs-decision/` for a run's evidence and the questions the loop will not
+  decide itself. `docs/loop-log.md` becomes `docs/loop/log.md`.
+
 ## [0.1.0] - 2026-11-02
 
 The first release: sound for Bevy 0.20 as data, mixed in buses.

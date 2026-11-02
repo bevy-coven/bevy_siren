@@ -1,168 +1,238 @@
 ---
-description: One iteration of the bevy_siren improvement loop
-argument-hint: "[optional focus, e.g. 'occlusion' or 'dialogue queue']"
+description: One build iteration of the bevy_siren loop
+argument-hint: "[optional focus, e.g. 'ducking' or 'release']"
 ---
 
-One run of this command is one iteration of a long-running loop on bevy_siren, a Bevy 0.20 crate that gives a game
-sound worth having: a cue table as data, buses that duck, a voice budget that refuses politely, layered music that
-changes on the bar, and a log of what played and why. Do ONE improvement per iteration, the single most valuable one
-from a game developer's point of view, finish it completely, then stop.
+# bevy_siren: Build the Next Most Valuable Piece
 
-README and docs follow https://github.com/bevy-coven/.github/blob/main/DOCUMENTATION.md; a feature is not done until
-its README line and, if visible, its GIF exist.
+You are one iteration of a build loop on bevy_siren, a Bevy 0.20 audio crate published as 0.1.0: cues with variants,
+four buses (Ambience, Dialogue, Effects, Music), `Played` / refused messages, a `problems` report, and a mix table,
+wired into the Cauldron's audio panel in bevy_grimoire. Pick the single most valuable thing to build, ground it in the
+literature, prove it by measurement and by looking, ship it, log it. Then stop. $ARGUMENTS
 
-This crate must be **easy, right, and cheap**: a cue a game cannot play in one line is not done, a mix that disagrees
-with its own log is not done, and a system that scans every voice every frame for nothing is not done. Its API is the
-family's: flat re-exports and no prelude, independent plugins, systems in `SirenSystems`, settings as serde data,
-engine-free maths in `model`. Its design rules are in `docs/research/siren.md`.
+"Valuable" means: a game developer gets audio that sounds right with little authoring, fails loudly when authored
+wrong, costs little to run, and can be heard and judged in the Cauldron without leaving the editor.
 
-You do all the work yourself, including looking at the images and judging them. Do not delegate visual review.
+## Directory (every agent uses exactly this)
 
-Extra instructions for this run (a focus such as "occlusion"): $ARGUMENTS
-They override the choice of item in section 4, not the gates.
+```
+docs/loop/
+  log.md            cues.yaml       needs-decision/
+  runs/YYYY-MM-DD-NN/
+    research.md  plan.md  eval.md  perf.md  review.md
+    evidence/
+      before/  after/  spectrograms/  panel/  plots/
+```
 
-State lives in `docs/loop-log.md`; rules and traps live in `AGENTS.md`. Follow them; do not re-derive them.
-
-## Every pass ships: commit, push, publish, docs, demos
-
-1. **Commit and push.** Everything the pass made is committed and pushed to `main` (through the gate) before the pass
-   ends. Nothing stays only in the clone.
-2. **Publish.** A pass that changed what the package ships releases it in the same pass. A publish crates.io refuses
-   with `429` is logged once and not retried in this pass.
-3. **Docs.** A change to behaviour or API updates its documentation in the same pass: the README line, the
-   `docs/guide/` section, rustdoc and the CHANGELOG. Images and links in a README are absolute URLs.
-4. **Demos.** A change anyone can see ships its demo in the same pass: a GIF or still recorded from `examples/mixer`'s
-   capture knobs, shown in the README or `docs/guide/`, and listed in `docs/media/README.md`.
-5. **Read the last audit first.** Anything the previous pass left undone (`push`, `release`, `docs`, `demo?`) is this
-   pass's first job, ahead of its item; only a broken gate comes before it.
+`docs/loop/log.md` and `docs/loop/cues.yaml` already exist; an iteration appends to the first and does not rewrite the
+second except to add a case a new behaviour needs. A run directory is created **before** any code, named by date and
+the iteration's number in `log.md` (so the newest is `-03` after `-02`, never a reused name).
 
 ## 1. Orient
 
-1. `AGENTS.md`: rules, traps, gates.
-2. `docs/loop-log.md`: what earlier iterations did, found and deferred, and the newest iteration's ranked backlog. The
-   next iteration number is the last one plus one.
-3. `git log` since the last logged iteration.
-4. The `docs/research/<system>.md` note of any system you may touch.
-5. `git status --short`. If you find tracked changes you did not make, stop and log them; do not commit or revert them.
-
-Before choosing an item, triage the repository's issues:
+Read `docs/loop/log.md`, `docs/loop/cues.yaml`, `CHANGELOG.md`, `git log --oneline -12`, open issues
+(`gh issue list -R bevy-coven/bevy_siren --state open`), and the README. Then run the baseline **and record exactly
+what is already red**, in `runs/<dir>/eval.md` before anything else:
 
 ```sh
-gh issue list --repo bevy-coven/bevy_siren --state open --limit 100 --json number,title,labels,createdAt \
-  --jq '.[] | "#\(.number) \(.title)"'
+cargo build
+cargo test
+cargo test --features serde
+cargo test --features mixer
+cargo test --doc
+cargo clippy --all-targets --all-features -- -D warnings
+cargo fmt --check
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
+cargo build --examples
 ```
 
-Then in this order: a `bug` issue; a `consumer` issue (a game or the Cauldron is waiting); any other open enhancement,
-oldest first. Only when all are done, blocked or released does section 4 choose a feature of your own. A blocked issue
-gets a `gh issue comment` saying exactly what it needs and is skipped; it never stops the pass. An empty issue list
-costs nothing: write one line saying so and continue.
+If an earlier iteration left work half done — an uncommitted change, a branch, a `runs/` directory with no `review.md`
+verdict — finish or revert it first; a new item on top of a broken one measures nothing.
 
-## 2. Capture the current state
+**Machine facts this command relies on, measured 2026-11-02 on this Mac:**
+
+- The default `stable` toolchain is **1.94**, older than Bevy 0.20's floor of 1.97.1, so `cargo` refuses the crate
+  itself. This repository pins `rust-toolchain.toml` to 1.99.0; every `cargo` call here uses it. A **stock** toolchain
+  at Bevy's exact floor is `1.98.1` — `rustup run 1.98.1 cargo …` — and that is what step 7's consumer proof uses,
+  because 1.98.1 *is* the floor rather than one above it. If Bevy's floor moves, update `rust-version`, the README's
+  status line, and this paragraph together.
+- `ffmpeg` 9.0.2 has `ebur128`, `loudnorm`, `showspectrumpic`, `showwavespic` and `astats`, so the judging in step 6
+  needs nothing installed.
+- Disk has run to 100 % in this project twice. Before a release build, check `df -h ~`: a Bevy release build wants
+  ~2 GB and a full disk fails as `ld: write() failed, errno=28`, which looks like a code error and is not one.
+
+## 2. Choose the single most valuable item
+
+Run the fixed cases in `docs/loop/cues.yaml` against the crate as it stands and put the result in
+`runs/<dir>/eval.md` (a table: case, green/red, the observation, the reason). That table — not an impression — is the
+input to the ranking. A cue that is red is usually the item.
+
+Rank by developer impact:
+
+1. **Bugs and wrong output:** a cue that plays wrong, a refusal that should not happen, a missing refusal, a message
+   dropped or doubled, a gain or pitch outside what was authored, a duck that does not recover.
+2. **Missing core behaviour a game needs:** ducking and sidechain between buses, spatial attenuation, music transitions
+   and layering, voice limiting and priority, no-immediate-repeat selection, pitch and gain randomisation, fades.
+3. **Authoring ergonomics:** the definitions file, error messages, the `problems` report, what a host must know.
+4. **Cauldron integration:** what the audio panel shows and lets you do.
+5. **Performance, docs, polish.**
+
+**A refusal is the most valuable bug of all**, because it is silent: a cue that never plays and never says why is the
+hardest thing in a game to find. The `Refusal` variants are `UnknownCue`, `NoSounds`, `MissingSound { sound }`,
+`UnknownBus { bus }`, `VoiceLimit { bus }`, `SpatiallyMute(position)`; a new one needs step 4's decision file.
+
+State in one sentence why the pick beats the runner-up, and record the ranked list in `runs/<dir>/plan.md`. Carve an
+oversized item to the most valuable slice and say what was carved off.
+
+## 3. Research first
+
+Use home-still before any code (`distill_search`; if the bridge answers `401 Refresh token expired`, use
+`hs distill search "<query>" --output json`, which refreshes its own token). Ask about the item's subject: game audio
+mixing and ducking, loudness standards (ITU-R BS.1770 / EBU R128), voice management and virtual voices, procedural
+audio variation, adaptive music, spatial attenuation models, perceptual loudness.
+
+Fill a gap with `paper_search` then `paper_download` for the DOI. Write `runs/<dir>/research.md` with:
+
+- **Sources**, each with its DOI, ISBN or vendored source path, and the number it reports (an attack time, a duck
+  depth, a LUFS target).
+- **The technique**, in the source's terms.
+- **Parameters the sources report**, as a table.
+- **What good sounds like**, described so a plot can be judged against it.
+
+Then `runs/<dir>/plan.md`: the design, the modules touched, every new field on `CueTable` / `SirenSettings` /
+`MusicScore` with its default and its citation (or the words **design default**), and the tests that will prove it.
+**No research, no build.**
+
+## 4. Build within the crate's rules
+
+- **Every rate, curve and threshold is a named field on a serde type.** Every default cites its source or says
+  **design default** outright. No magic constant in a system.
+- **Fail loud, one path per feature.** No fallbacks, stubs or silent degradation. A bad cue is refused with a reason,
+  never played wrong. A new refusal is a `Refusal` variant carrying what is missing.
+- **One writer per voice gain** — `update_mix` — and the music moves targets, never sinks. A second spawn path is a
+  second set of rules.
+- **No `unwrap`/`expect`/`panic!` outside tests.** Audio-thread code (`src/mixer/`) does not allocate or block in
+  `next()`.
+- **Randomness is seeded and reproducible**: `SirenSettings::seed`, `model::Rng`, and `tests/` prove a stream repeats.
+- **Bevy API questions are answered from the local source** at
+  `~/.cargo/registry/src/index.crates.io-*/bevy-0.20.1/` (and `rodio-0.22.2/` for the mixer), never the web.
+- **The crate knows no game.** `tests/leaf.rs` enforces the closed dependency list and forbids a game's or the
+  editor's names; keep it passing and add a row only with the sentence that argues for it.
+- **Changes to the public API, the message types, or the definitions-file schema go to `docs/loop/needs-decision/`**
+  as one markdown file: options, tradeoffs, a recommendation, and what each option costs a consumer. Do not decide
+  them. The run continues with the rest of the item, or with the next item if the decision is the whole item.
+- **Consumer breakage is fixed in `bevy_grimoire`, as its own commit in that repo.** Do not touch its four known red
+  palette tests (`a_person_finds_and_runs_a_command_in_the_palette`), which fail identically with the feature off.
+
+## 5. Test
+
+- A unit test per behaviour touched, against **the number the source reports** — a ducking curve measured at its
+  attack, hold and release; a distance law at two distances; a boundary at a tempo.
+- **A determinism test:** the same `seed` and the same spawn order produce an identical `Played` stream, field for
+  field.
+- **A test per refusal touched**, including the one that must *not* happen (a cue that should play, plays).
+- Re-run the whole baseline from step 1 and the `cues.yaml` table; a case that went red is this iteration's failure.
+- Measure CPU per frame at **8, 64 and 256** simultaneous voices into `runs/<dir>/perf.md`, before and after:
+  `cargo run --release --example perfcheck` prints µs per frame and µs per voice for the three counts. Note the
+  machine's state (a shared machine's load belongs in the numbers or they mean nothing), and say whether the figure
+  is the crate's per-frame work or the audio thread's — the example measures the first, as an upper bound, because
+  `update_mix` skips a voice whose gain did not move. A change must not slow a case it did not target by more than
+  10 %.
+- The Cauldron's panel tests: `cargo test -p bevy_cauldron --features bevy_siren --test editor
+  audio_panel_reads_the_crates_file` in `~/bevy_grimoire`. Use `CARGO_TARGET_DIR=/tmp/grimoire-target` there and
+  **remove it afterwards** — it is 14 GB.
+
+## 6. Inspect it (a mandatory gate)
+
+You cannot hear the result, so judge what can be measured and seen. `examples/render` is the harness:
 
 ```sh
-cargo build --release --examples
-mkdir -p /tmp/sN/before
-SIREN_FRAMES=200 SIREN_SHOT=/tmp/sN/before/mixer.png SIREN_KEYS=duck,steal,layer SIREN_KEY_EVERY=20 \
-  SIREN_SIZE=1280x720 target/release/examples/mixer
+cargo run --release --example render -- docs/loop/runs/<dir>/evidence/after
+cargo run --release --example render -- docs/loop/runs/<dir>/evidence/before   # from a clean checkout of the base
 ```
 
-Record the `siren: frames … mean_ms …` line: it is the performance baseline. Anything a state change shows (a duck, a
-steal, a layer entering) needs the state staged before the shot: add a `SIREN_KEYS` token rather than describing it
-unseen.
+It writes, at 22.05 kHz mono 16-bit so `ffmpeg` reads them without conversion:
 
-## 3. Inspect closely (you judge the images yourself)
+- `cue-<name>-<variant>.wav` — the authored sample at the gain and speed a play gives it.
+- `refusal-<case>.txt` — a refusal is a decision, written down rather than sounded.
+- `bus-<name>.wav` — a bus's gain over time for a scripted duck: **one frame's gain repeated for that frame's
+  samples**, because a gain is a step function between frames.
+- `mix.wav`, `voices-<n>.wav` — the sum, and many voices at once.
+- `render.txt` — peak, RMS, the gain at each scripted moment, and the bar a tempo gives.
 
-Read each image with `read` and zoom in. Quote pixel values when a number settles it. Always view one actual-resolution
-full frame. Write the **audio-panel checklist** to `/tmp/sN/findings.md`, each line with a measurement or a file and
-region:
+Then produce and **look at**:
 
-- each bus row's dB against `SirenMix` for that frame, and the duck against the `Duck` rule;
-- each bus row's voice count against the live `Voice` count;
-- the log pane against the `SirenLog` tail (a row that does not match a `Played`, `Refused` or `Stopped` is a defect);
-- a stolen voice visible as a `Stopped { why: "stolen by …" }` line and a bus at its cap;
-- the music layer's entry on a bar, from the printed transition time against the tempo.
+```sh
+# Per cue: spectrogram and waveform, zoomed on the attack and the tail.
+ffmpeg -y -i cue-<name>-0.wav -lavfi "showspectrumpic=s=900x300:legend=1:scale=log:color=intensity" spectrograms/<name>-spectrum.png
+ffmpeg -y -i cue-<name>-0.wav -lavfi "showwavespic=s=900x200:colors=white" spectrograms/<name>-wave.png
+ffmpeg -y -i cue-<name>-0.wav -lavfi "atrim=0:0.05,showspectrumpic=s=900x300" spectrograms/<name>-attack.png
+ffmpeg -y -sseof -0.1 -i cue-<name>-0.wav -lavfi "showspectrumpic=s=900x300" spectrograms/<name>-tail.png
 
-## Owner input: recommend, record, proceed
+# Loudness: integrated, short-term and true peak per bus and for the master.
+ffmpeg -nostats -i mix.wav -af ebur128=peak=true -f null - 2>&1 | tail -20
+```
 
-**This loop may run automated.** When a pass needs the owner's input (a design choice, an API shape, a default), it
-answers the question itself:
+- **Read every image with `read`.** A spectrogram is where a click, a clipping edge, a gap, a denormal tail or an abrupt
+  gain step shows as a vertical line, a flat shelf or a hole. Compare the attack and tail against the source's
+  described envelope.
+- **Loudness:** integrated LUFS and true peak per bus and for the master, against the target in `research.md` (a game
+  mix is usually mastered lower than −14 LUFS; a single cue is not a master).
+  **`ebur128` reports −70 LUFS for any clip shorter than one gating block (0.4 s)**, however loud it is, because its
+  gate has nothing to integrate. So measure a short cue **looped** — `-af "aloop=loop=3:size=<samples>,ebur128"` — and
+  measure its amplitude with `astats` (`Peak level dB`, `RMS level dB`). A −70 in the table means the clip was short,
+  not silent; that distinction is worth an iteration, so check it before reporting a cue as quiet.
+- **Bus plots:** plot a bus's gain over time as a **line** — an SVG written by a small script, not `showwavespic`,
+  which draws audio and turns a gain curve into an unreadable blob. Mark the frame the duck fired.
+- **The panel:** `SIREN_SHOT` and `SIREN_SIZE` capture the Cauldron's audio panel — or `examples/mixer` when the change
+  is in the crate — at 1280×720 and 1920×1080, with a zoomed crop (`ffmpeg -vf crop=…,scale=…`) of the new control or
+  label. A panel that needs the code explained has failed pass 3.
 
-1. **Recommend.** Name the two or three real options and pick one, with one line of why. Prefer the conservative
-   choice: reversible, conventional, consistent with the existing code and the issue's stated intent.
-2. **Assume the owner chose it, and build it this pass.** A decision is never a reason to skip an item or end a pass.
-3. **Record it where the owner reviews.** On the issue, a comment beginning `Assumed decision (owner may override):`
-   with the options, the pick and why, and the label `assumed-decision`; with no issue, in the commit body and the log
-   line, beginning `Assumed decision:`.
-4. **The owner's reply wins.** An owner comment that contradicts an assumed decision overrides it.
-5. **Protected checks change only additively.** An assumed decision may add to a test or a check; it never removes,
-   loosens, skips or re-pins an existing assertion.
-6. **Never, whatever you assume.** Yanking a release or changing crate ownership; force-pushing, rewriting history or
-   deleting branches; deleting files or work this pass did not create; editing this command file; spending money or
-   sharing credentials.
+Write the verdicts in `runs/<dir>/review.md`, **three passes, each with a written critique before its verdict**:
 
-## 4. Pick the single most valuable item
+1. **Function:** does it do what the source and the cue case say? Cite the case number and the source's number.
+2. **Zoom:** read the plots and crops closely for clicks, clipping, gaps, tails and abrupt steps. Name the file and the
+   region of each defect.
+3. **Fresh eyes:** regenerate with a **different seed and a different cue set** (`--voices`, a changed table). Does it
+   still hold, and can a developer understand the panel without the code?
 
-Rank candidates against the question "what stops a game from shipping its sound?":
+Verdicts are **GREAT, NOT YET, FAIL**; only GREAT passes. Any fix returns you to the earliest pass it could affect. After
+5 failed rounds, log the blocker in `log.md` and revert to the last GREAT state.
 
-1. A cue that cannot play when it should, or plays the wrong thing.
-2. A mix that disagrees with its log, or a budget that grows past its promise.
-3. A setup that takes more lines than it should.
-4. A sound feature a shipped game expects and this crate lacks: occlusion and a low-pass, a dialogue queue with
-   subtitles, reverb zones, a probe for an editor's audition.
-5. Frame-time cost: a per-frame scan that could be a change flag.
+## 7. Ship
 
-State in one sentence why your pick beats the runner-up, and record the ranked list in the log.
+In this order: update the docs (`docs/guide/`, rustdoc, the README line, a `CHANGELOG.md` line with a `--sha`), commit,
+push, open a PR (`gh pr create -R bevy-coven/bevy_siren --fill`), merge it, `git pull --ff-only`.
 
-## 5. Research thoroughly (before any code)
+A visible change also ships its picture: a still or GIF from `examples/mixer`, listed in `docs/media/README.md` with
+the command that regenerates it. A change nobody can see says `No clip:` and why, and names its test.
 
-Every feature gets researched, with no exceptions, and every iteration cites three kinds of source: a **craft** source
-(a shipped game's audio talk or a paper on game audio), a **shipping-game** source, and a **technical** source (DSP,
-mixing, Bevy's or rodio's own source). Write or extend `docs/research/<system>.md` with `## Sources`,
-`## Craft principle`, `## How shipping games do it`, `## Model adopted`, `## Parameters`, `## Validation targets`,
-`## Deviations`, `## Pending index`, and quote the sources rather than paraphrasing from memory. Commit the note alone
-before writing code.
+**Releasing is separate and needs an explicit `release` argument or an instruction from me.** When asked:
 
-## 6. Implement within the crate's rules
+1. Bump the version in `Cargo.toml`, update `CHANGELOG.md`'s link block, commit, `cargo publish --dry-run`, and **read
+   the tarball's file list** (`tar tzf target/package/bevy_siren-<v>.crate`).
+2. **Publish from a host that has `cargo login`.** This Mac does not; `big` does
+   (`~/.cargo/credentials.toml`, a `[registry]` token, which is crates.io's own section). Clone the exact commit into
+   `~/publish/bevy_siren` there, publish, and check the registry answers
+   `https://crates.io/api/v1/crates/bevy_siren` with the new `max_version`.
+3. **Tag only the exact commit that was published, and only after the publish succeeds.** A doc fix after it is a new
+   commit; the tag does not move.
+4. **Prove it from outside:** a fresh crate in `/tmp` with nothing but `bevy = "0.20"` and `bevy_siren = "<version>"`,
+   compiled and run on `rustup run 1.98.1` (Bevy's floor) with no path or git dependency. Paste its output.
+5. `docs.rs/bevy_siren/<version>/bevy_siren/` answers 200 within a few minutes; the bare crate URL lags one sync.
+6. **Never force-push, delete, or re-point a tag or branch without asking**, including to undo your own mistake.
 
-- `src/model.rs` names no engine type; a test enforces it.
-- Every play answers exactly one `Played`/`Refused`; a new refusal is a variant with what is missing.
-- One writer per voice gain: `update_mix`. The music moves targets, never sinks.
-- The two backends answer identically: a new test must pass with and without `--features mixer`.
-- `--features serde`: a new field on `CueTable`, `SirenSettings` or `MusicScore` needs `#[serde(default)]`, a sentence
-  in `problems()` if it can be wrong, and a line in the guide.
-- No `unwrap()`/`expect()` on caller data; no game vocabulary.
+## 8. Log
 
-## 7. Prove it
+Append to `docs/loop/log.md`, newest first, under `## Iteration N — <date> — <what it is>`: the change, the rationale,
+links to `runs/<dir>/` evidence, before/after numbers, the three verdicts, the commit sha, and the **top 5 remaining
+items** (which is where the next iteration starts). One paragraph saying what the baseline was red on, if anything.
 
-- A failing-first test in the one `all` binary, then the fix, then the test green.
-- Run the example: `SIREN_FRAMES=200 … cargo run --release --example mixer`, read the image, judge it.
-- The gate, in this order: `cargo build`; `cargo test`; `cargo test --features serde`; `cargo test --features mixer`;
-  `cargo test --doc`; `cargo build --examples`; `cargo clippy --all-targets --all-features -- -D warnings`;
-  `cargo fmt --check`; `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features`.
+## Rules
 
-## 8. Ship, and log
-
-Commit and push; release if the package changed; update the docs and the demo; write the iteration into
-`docs/loop-log.md` with what shipped, what was measured, the captures, and a ranked backlog.
-
-## One test binary, not N
-
-Every file in `tests/` is a module of `tests/all.rs` (`autotests = false`), and `every_test_file_is_a_module` fails on
-an undeclared file. A new test file is a `mod` line there, or it never compiles.
-
-## The two-way street, both ways
-
-**A consumer that needs something files it here, and this loop builds it here.** A game or the Cauldron opens an issue
-on `bevy-coven/bevy_siren` labelled `enhancement` (or `bug`), `consumer` and `consumer:<project>`, titled `S-NN: <what>`
-with the next free `NN` after the highest `S-` title, whose body says why, the proposed API, the edge cases, and an
-acceptance a test in this repository can prove. An open `consumer` issue is taken right after bug issues and ahead of
-the owner's focus; the fix is made here, in its own commit with its own test, as the general form (a project is the
-example, never a name in the API), and the issue is closed only by that commit's `Fixes #N`.
-
-**This crate's own needs go the other way.** When a cue, a bus rule, a music feature or a field of `SirenSettings`
-cannot do what the Cauldron's audio panel needs, the request is filed on `bevy-coven/bevy_grimoire` labelled
-`enhancement`, `consumer` and `consumer:bevy_siren`, and the editor item waits with `Needs: bevy_grimoire#N`. Never
-patch, wrap or vendor the editor here.
-
-Both directions carry "recommend, record, proceed" and the `assumed-decision` label, so an unanswered design question
-never idles a loop.
+- **One build per iteration:** researched, tested, measured, three GREAT reviews, shipped, logged. Then stop.
+- **Nothing ships without spectrograms, loudness numbers and panel screenshots you looked at**, before and after.
+- **A number without its source or the words `design default` is a magic constant**, even in a comment.
+- **If blocked**, write the blocker in `log.md` with what was tried, and pick the next item; never idle a pass.
+  A pass that ships nothing is a failed pass.
+- **Never delete a `target/` you did not create**, and check `df -h ~` before believing a linker error is a code error.
