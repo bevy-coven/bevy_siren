@@ -3,6 +3,20 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 2, a voice that ends frees its slot
+
+There is no capture for the `mixer` backend's voice retirement, and the reason is the machine: the `mixer` example
+runs Bevy's default audio path, so a picture of it cannot show which backend retired a voice, and a headless capture
+on a Mac with no audio device would exercise the fallback path instead of the fix. The evidence is instead
+`docs/loop/runs/2026-11-02-02/evidence/{before,after}/{steady,lockout}/budget.svg` — the live voice count and the
+`VoiceLimit` refusals over a run of one-shots — and the tests
+`tests/mixer.rs::{a_one_shot_voice_ends_and_frees_its_slot, a_loop_voice_is_not_retired_when_its_source_ends,
+a_stopping_voice_is_not_retired_as_ended, a_music_layer_moves_its_mixer_voice}`.
+
+A capture that *would* show it: run `examples/mixer` with `--features mixer`, fill the Effects cap, and photograph the
+panel's voice count falling as each footstep ends. That needs an audio device in the capture environment and is the
+first thing to add to `examples/mixer` when one is available.
+
 | File | What it shows | Captured |
 |---|---|---|
 | `mixer.png` | The audio panel at frame 240 of a scripted run: four bus rows with their levels, the dialogue duck on the music, a bus at its cap after a steal, the cue table and the log tail. 1280 × 720. | 2026-11-02 |

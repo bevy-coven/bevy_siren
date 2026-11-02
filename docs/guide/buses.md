@@ -66,6 +66,12 @@ stops voices to make room in this order: the cue's own polyphony, its bus's cap,
 A stolen voice fades over `DEFAULT_FADE_S` (120 ms) rather than stopping dead — a cut is a click — but it stops
 counting against the budget the moment the steal is decided, so the new sound starts in the same frame.
 
+**A voice that simply ends frees its slot the frame after its sample does**, on either backend, and the log says
+`ended`. That is what makes the budget a budget rather than a lifetime quota: a game that has played 40 footsteps
+against a cap of 32 is refused nothing, because each ended footstep gave its voice back (Gregory §14.5.8.4: a voice
+that stops *frees its resources for use by other voices*). A loop is the exception on the other side — it has no end
+to notice, so it counts until it is stopped.
+
 ## Mute
 
 A muted bus is silence, and its level is kept: unmuting returns it. That is why `BusLevel::mute` is a flag and not a
@@ -82,3 +88,13 @@ Without the `mixer` feature, Bevy's `AudioPlayer` plays each voice and the mix w
 `AudioSink`. With it, the crate sums one graph and a bus's gain is one number per bus per frame. Either way a play
 answers `Played`, a refusal is `Refused`, and a live sound is a `Voice` — so a game, an editor panel and a test all
 see the same thing and only the sample path differs.
+
+Two consequences are worth knowing, because both are observable from a game:
+
+- **A voice's gain is written by the mix on both paths.** On Bevy's path its `AudioSink` receives the whole chain —
+  cue, compensation, bus and master. On the mixer's, the bus's number goes to the bus and the voice's own gain goes
+  to the voice, so a layer that moves on the bar or a voice that fades out is heard at the number `SirenMix` and
+  `MusicState` report.
+- **A sound's end is noticed on both paths.** Bevy's sink reports an empty sample; the mixer's player reports the
+  same. The voice is retired, its `ended` line is logged, and its slot in the budget is free for the next play —
+  which is what keeps a full bus a *steal* rather than a lockout.

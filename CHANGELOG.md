@@ -5,17 +5,38 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **A voice that ended now frees its slot on the crate's own mixer.** With the `mixer` feature, a `Mode::Once`
+  voice was never retired — the crate asked Bevy's `AudioSink`, which that backend does not create, and nothing ever
+  set `Completes` — so it kept its place in the voice budget forever. After `max_voices` (32 by default) one-shots,
+  every later play either stole an audible voice (with a full budget, silence was hidden behind a steal) or, for an
+  unstealable cue, was refused `VoiceLimit` for the life of the process. `retire_voices` now asks
+  `AudioOutput::finished`, the query the backend already implemented, and writes the same `ended` log line Bevy's
+  path writes. Gregory §14.5.8.4: a stopped voice *"frees its resources for use by other voices"*.
+- **A voice's own gain is written on both backends.** `update_mix` skipped a `MixerVoice` entirely, so a music layer
+  moved by `MusicLayers` stayed at the gain it started at, and a stop fade began from silence and despawned on its
+  first frame — a cut where the crate promises a fade. The mix now writes the voice's own gain into the mixer and
+  its whole chain into a Bevy sink, records which in `Applied`, and one writer still owns both.
+
 ### Added
 
+- `examples/budget` (`--features mixer`) — a headless run of N one-shots against a voice cap, with a scripted output
+  that ends each sample, writing the live count and the refusals per frame as a CSV, a text summary and an SVG plot.
+  It is the evidence harness for "an ended voice frees its slot", from `docs/loop/cues.yaml` cases 20 and 21.
+- `tests/mixer.rs` — three tests behind the `mixer` feature: a one-shot's slot is freed (fails on the unfixed tree), a
+  loop is not retired when its source ends, and a fading voice is not also reported ended.
 - `examples/render` — renders every cue variant, every refusal, a ducked bus envelope, a mix and 8/64/256 voices to
   WAVs and a `render.txt`, so a change can be judged by spectrogram and loudness without an ear. No public API
   changes: it drives `bevy_siren::model` directly.
 - `examples/perfcheck` — µs per frame and per voice at 8, 64 and 256 voices.
 - `.omp/skills/build-loop` — the loop itself, as a project skill: one iteration from orient to log, with the four
   traps that cost an iteration each written down where the next run reads them.
-- `docs/loop/cues.yaml` — the 19 fixed cases every iteration runs, each with its observation and the source for its
+- `docs/loop/cues.yaml` — the fixed cases every iteration runs, each with its observation and the source for its
   number; `docs/loop/runs/` and `docs/loop/needs-decision/` for a run's evidence and the questions the loop will not
   decide itself. `docs/loop-log.md` becomes `docs/loop/log.md`.
+- `docs/loop/needs-decision/remove-completes.md` — whether the public `Completes` component, which cannot ever be
+  true, is removed in the next minor version.
 
 ## [0.1.0] - 2026-11-02
 

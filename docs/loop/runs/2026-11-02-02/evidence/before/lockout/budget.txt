@@ -1,0 +1,10 @@
+plays asked: 6
+played: 4
+refused VoiceLimit: 2
+peak live voices: 4
+cap: 4
+priority: 180
+max_instances: 0
+voice mode: Once, sample life 0.050 s
+ended lines in the log: 0
+last frame live voices: 4

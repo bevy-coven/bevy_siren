@@ -7,6 +7,82 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 2 — 2026-11-02 — a voice that ends frees its slot, on both backends
+
+**Change.**
+
+- **`src/mix.rs` — `retire_voices` asks the backend that owns playback.** On the `mixer` backend there is no
+  `AudioSink`, and nothing ever set `Completes`, so a `Mode::Once` voice was never retired: it kept its place in the
+  voice budget for the life of the process. The system now asks `AudioOutput::finished` — the query the trait already
+  declared and `MixerBackend` already implemented, with **zero callers before this commit**.
+- **`src/mix.rs` — `update_mix` writes a `MixerVoice`'s own gain.** It used to `continue` past a mixer voice entirely,
+  so `Applied` was never written: a music layer moved on the bar stayed at its start gain, and a stop fade began at
+  silence and despawned the voice on its first frame — a cut where the crate promises a 120 ms fade. One writer still
+  owns both numbers; Bevy's sink gets the whole chain, the mixer's voice stage gets the voice's own gain.
+- `examples/budget.rs` (`--features mixer`) — the evidence harness: N one-shots against a cap, a scripted output whose
+  voices end after a set life, writing per-frame CSV, a text summary and an SVG plot.
+- `tests/mixer.rs` — four tests behind the feature, one of which fails on the unfixed tree.
+- `docs/loop/cues.yaml` cases 20 and 21, `docs/guide/buses.md` (both promises made exact),
+  `docs/loop/needs-decision/remove-completes.md`, a `CHANGELOG` "Fixed" pair, and a README line.
+
+**Why.** This is the loop's most valuable class of bug — a refusal that should not happen, silent, and in the
+backend whose whole point is that a bus is one number. Gregory §14.5.8.4 (*Instance Limiting*): a sound engine
+"supports only a fixed number of simultaneous voices … so we must use them wisely", and a voice that stops *"frees
+its resources for use by other voices"*. A voice that has produced its last sample and keeps its slot is exactly that
+leak. The second defect fell out of the first test: the mixer voice's gain was never written at all.
+
+**Evidence.** `runs/2026-11-02-02/`: `eval.md` (baseline green and why that was the problem; the case table, with
+cases 9 and 17 still red), `research.md` (Gregory's lines, `rodio`'s `Player::empty`/`MixerSource`), `plan.md`,
+`perf.md`, `review.md`, and `evidence/` with 46 WAVs/text from `examples/render` and four budget runs.
+
+**Measured.**
+
+| scenario | before | after |
+|---|---|---|
+| 40 one-shots, cap 32, stealable | 40 played, peak **40** live, **0** `ended`, last frame 32 live | 40 played, peak **3**, **40** `ended`, last frame 0 live |
+| 6 one-shots, cap 4, priority 180 (unstealable) | **4** played, **2** `VoiceLimit`, **0** `ended`, 4 live forever | **6** played, **0** refused, **6** `ended` |
+| a layer moved to −3 dB on the mixer | `Applied` never written; layer stayed at its start gain | `Applied { db: -3.0 }` |
+| rendered audio | — | `render.txt` and all 17 WAVs **byte-identical**; cue −24.4 LUFS / −12.1 dBFS, `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| frame cost, 8 / 64 / 256 voices | 0.062 / 0.353 / 1.396 µs | 0.065 / 0.332 / 1.233 µs (inside the noise; `perfcheck` does not drive the changed code) |
+
+**The stealable row is the one that matters.** With a stealable cue the leak is *invisible*: every play is answered
+`Played`, because the permanently-full budget steals each time — 32 footsteps, then each new one cuts off a footstep
+still sounding. The lockout row is what makes it a refusal a reader can see.
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The zoom pass found four defects **in my own plot** (a
+missing legend entry drawn outside the viewBox, the caption reporting the axis top as the peak, a cap label colliding
+with the axis, and a blank raster because CSS variables do not resolve in a rasteriser); all four were fixed before
+the verdict.
+
+**Traps for the command.** (1) An evidence plot whose legend is anchored from the right edge silently loses an entry
+when the two labels together overflow; anchor from the left and check the `x` extents. (2) A `--features mixer` test
+that wants a started voice needs a **resolved** `AudioSource` handle, not `Handle::default()`: `start_pending` gives
+a `MixerVoice` only once the bytes exist, so a default handle tests the loading state instead. (3) `errno=28` from
+`ld` on this Mac is a full disk, not a code error — `/tmp` held 6.6 GB of my own probe build.
+
+**Commit.** see below. Gate: build, test (41 + 4), serde (48 + 4), mixer (45 + 4), clippy, fmt, doc, examples all green
+at the end; the mixer-example link failed once with `errno=28` while the disk was at 100 %, and passed after my own
+throwaway crate was removed.
+
+**Next 5.**
+
+1. **Case 9 has no test.** An `UNSTEALABLE_PRIORITY` voice that must refuse rather than be stolen is the rule's other
+   half, and the budget's evidence now shows a refusal path worth pinning. It needs a full bus and a dialogue cue.
+2. **Case 17 pins the RNG, not the stream.** A determinism test over a whole `Played` sequence (two identical runs,
+   equal field for field) is the case's own observation.
+3. **`MusicLayers::fade_s` and `Stinger::duck_s` are stored and never read.** A crossfade a project asks for happens
+   at `MIX_TAU_S` (50 ms) instead; the field's default is a lie about the shape of the fade.
+4. **A `VoiceLimit` refusal names the bus even when the table's budget was the cap that failed** (`answer` always
+   passes `bus: Some(bus)`). A panel prints the wrong culprit. Changing the message shape wants a decision file.
+5. **`Completes` is public and can never be true.** `needs-decision/remove-completes.md` has the options; the fix
+   landed without it, so it is safe to remove in the next minor.
+
+**Baseline note.** Nothing was red at the start. The suite was green with the `mixer` bug present because no test gave a
+voice a `MixerVoice` and then let its sample end — which is why the first two items above are about tests rather than
+features.
+
+---
+
 ## Iteration 1 — 2026-11-02 — the loop's eyes: a render harness and a case table
 
 **Change.** The loop now has a way to judge audio it cannot hear, and none of it touches `src/`:

@@ -39,8 +39,9 @@ pub fn start_pending(
             continue;
         };
         let looping = voice.mode.is_loop();
-        // The mixer's own gain is the bus's alone: a voice's own gain is applied here, once, and the mix writes
-        // the bus. So a voice starts at its cue's gain and the mix moves it only when the cue's gain changes.
+        // The mixer's own gain stage starts at the voice's own gain, and the bus's number is written separately by
+        // `update_mix`; a duck is therefore one store per bus. The mix keeps this stage current — a music layer
+        // moving on the bar, a stop fading out — which is why `update_mix` records what it wrote in `Applied`.
         let started = output.0.play(
             &voice.bus,
             &source.bytes,

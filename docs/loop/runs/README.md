@@ -18,3 +18,20 @@ evidence/
 
 `review.md` ends with the verdict and the earliest pass a fix would return to. A run whose verdict is not GREAT does
 not ship; its `log.md` entry says what the blocker was.
+
+## The two evidence harnesses
+
+```sh
+# Every cue, bus envelope, mix and many-voice sum, to WAVs a spectrogram and `ebur128` can read.
+cargo run --release --example render -- <dir>
+
+# The voice budget over time, with a scripted output that ends each sample: CSV, a text summary, and an SVG plot.
+cargo run --release --features mixer --example budget -- <dir> [--voices 40] [--cap 32] [--life 0.05] \
+    [--priority 0] [--max-instances 0]
+```
+
+`budget` needs the `mixer` feature because a voice gets a `MixerVoice` only when that backend owns playback, and the
+question it answers — does an ended voice free its slot — is about that backend's retirement. Its SVG is the
+artifact; `var(--c1)` and friends are the reader's theme colours, so open it where those resolve (the editor, a
+browser) and rasterise with substituted colours only when you must.
+

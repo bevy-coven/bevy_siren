@@ -99,6 +99,14 @@ cargo run --example music
 A two-layer score following a scripted calm → combat → calm, printing each transition's time so a bar change can
 be checked against the tempo.
 
+```sh
+cargo run --release --features mixer --example budget -- /tmp/budget
+```
+
+The voice budget as a measurement: N one-shots against a cap, with a scripted output that ends each sample. It writes
+the live count and the refusals per frame. Before the `mixer` backend retired an ended voice, a cap of 32 held only
+the first 32 footsteps and quietly stole or refused every one after that.
+
 ## What you can do
 
 - **Name a sound once and let the crate choose the recording** — a `Cue` has variants, a gain, a pitch range, a

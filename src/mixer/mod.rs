@@ -12,6 +12,11 @@
 //! the audio thread does the summing. A voice is a [`rodio::Player`] connected to its bus's mixer, with its own
 //! gain as a second atomic, so a duck is one store per bus and nothing per voice.
 //!
+//! **A voice ends here the way it ends on Bevy's path.** There is no `AudioSink` to ask, so
+//! [`finished`](AudioOutput::finished) reads the `rodio` player: a once-voice whose source has produced its last
+//! sample reports finished, and [`retire_voices`](crate::mix::retire_voices) despawns it and frees its slot in the
+//! budget. A voice that kept its slot after it stopped sounding would turn a full bus into a permanent lockout.
+//!
 //! # What this backend does not do
 //!
 //! It does not pan. Bevy's spatial path is a two-ear [`rodio::SpatialPlayer`], and a rodio source cannot be

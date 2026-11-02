@@ -148,6 +148,24 @@ cases:
     observed_by: perf.md at the three voice counts, against the recorded baseline.
     green_when: Frame cost within 10 % of the baseline.
 
+  - id: 20
+    cue: footstep.grass
+    authored: { mode: Once, priority: 0, max_instances: 0, bus_max_voices: 32, plays: 40 }
+    behaviour: A voice that ends frees its slot, so a budget of 32 holds 40 played footsteps rather than filling up.
+    observed_by: "`SirenMix::voices`, the `ended` entries in `SirenLog`, and the live `Voice` count after the run."
+    green_when: 40 `Played`, no `VoiceLimit`, every ended voice logged `ended`, and the live count back to 0.
+    source: Gregory §14.5.8.4 — a stopped voice *frees its resources for use by other voices*.
+    evidence: "runs/2026-11-02-02/evidence/{before,after}/steady/, tests/mixer.rs::a_one_shot_voice_ends_and_frees_its_slot"
+
+  - id: 21
+    cue: dialogue.greeting
+    authored: { mode: Once, priority: 180, max_instances: 0, bus_max_voices: 4, plays: 6 }
+    behaviour: An unstealable one-shot that is never retired locks the budget; with the fix the sixth play is answered.
+    observed_by: "`Refused` count and the live `Voice` count after six plays."
+    green_when: 6 `Played`, no `VoiceLimit`, 6 `ended` lines, last-frame live count 0.
+    source: Gregory §14.5.8.4 — the case where the leak cannot be hidden by a steal.
+    evidence: "runs/2026-11-02-02/evidence/{before,after}/lockout/"
+
 # Two notes on judging.
 #
 # - A refusal is green when it is the *right* refusal. Cases 10-13 would pass vacuously if the crate refused

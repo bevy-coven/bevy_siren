@@ -440,9 +440,16 @@ pub type StoppingVoice<'a> = (
     Option<&'a MixerVoice>,
 );
 
-/// Every component the retirement check reads off a voice.
-pub type EndedVoice<'a> =
-    (Entity, &'a Voice, Option<&'a bevy::audio::AudioSink>, Option<&'a Completes>, Has<Stopping>);
+/// Every component the retirement check reads off a voice: its identity, its own voice, Bevy's sink, the mixer's
+/// own "ended" flag, whether it is already stopping, and its index in the mixer when that backend owns playback.
+pub type EndedVoice<'a> = (
+    Entity,
+    &'a Voice,
+    Option<&'a bevy::audio::AudioSink>,
+    Option<&'a Completes>,
+    Has<Stopping>,
+    Option<&'a MixerVoice>,
+);
 
 /// The last gain written into a voice's sink, so the mix writes only when a value moved.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
@@ -509,20 +516,27 @@ pub fn update_mix(
         *counts.entry(voice.bus.clone()).or_default() += 1;
         let bus_db = mix.db.get(&voice.bus).copied().unwrap_or(SILENT_DB);
         let compensation_db = compensation.map_or(0.0, |c| c.db);
-        let db = chain_db(&[voice.base_db, compensation_db, bus_db]);
-        // **A voice's gain is written once per backend.** With the mixer, the bus sums and the voice only needs
-        // its own gain, which it started at; writing the bus into it too would apply the bus twice. So a
-        // `MixerVoice` is skipped here entirely and only its bus's number moves.
-        if mixer_voice.is_some() {
+        // **One writer, two numbers.** Bevy's sink gets the whole chain, because the sink is the last stage before
+        // the device. The crate's mixer has already summed the bus, so its voice stage wants the voice's own gain
+        // and nothing else — writing the bus in too would apply it twice. Compensation divides out Bevy's panner,
+        // and the mixer does not pan, so it stays out of the mixer's number.
+        let written = if mixer_voice.is_some() {
+            voice.base_db
+        } else {
+            chain_db(&[voice.base_db, compensation_db, bus_db])
+        };
+        if applied.is_some_and(|a| (a.db - written).abs() < 0.01) {
             continue;
         }
-        if applied.is_some_and(|a| (a.db - db).abs() < 0.01) {
-            continue;
+        match (mixer_voice, backend.as_mut()) {
+            (Some(index), Some(backend)) => backend.0.set_voice_db(&voice.bus, index.0, written),
+            _ => {
+                if let Some(mut sink) = sink {
+                    sink.set_volume(bevy::audio::Volume::Linear(db_to_gain(written)));
+                }
+            }
         }
-        if let Some(mut sink) = sink {
-            sink.set_volume(bevy::audio::Volume::Linear(db_to_gain(db)));
-        }
-        commands.entity(entity).insert(Applied { db });
+        commands.entity(entity).insert(Applied { db: written });
     }
     mix.voices = counts;
 }
@@ -564,20 +578,33 @@ pub fn apply_stopping(
 
 /// **Retires voices whose sample has ended.** A `Mode::Once` cue is a voice only while it sounds; a
 /// `Mode::Loop` one lives until it is stopped, because a loop has no end to notice.
+///
+/// **Both backends answer.** Bevy's path says a voice ended when its `AudioSink` is empty; the crate's own mixer
+/// has no sink, so it is asked through [`AudioOutput::finished`](crate::output::AudioOutput::finished) — the query the
+/// backend already implements. A once-voice that is not retired keeps its slot against the budget forever, which
+/// would turn a full bus into a permanent lockout rather than a steal: Gregory §14.5.8.4's voices are a fixed
+/// resource, and a sound that stops *frees its resources for use by other voices*.
 pub fn retire_voices(
     mut commands: Commands,
     mut log: ResMut<SirenLog>,
     real: Res<Time<Real>>,
+    output: Option<ResMut<Output>>,
     voices: Query<EndedVoice>,
 ) {
     use bevy::audio::AudioSinkPlayback;
 
     let now = real.elapsed_secs_f64();
-    for (entity, voice, sink, completes, stopping) in &voices {
+    for (entity, voice, sink, completes, stopping, mixer_voice) in &voices {
         if stopping || voice.mode.is_loop() {
             continue;
         }
-        if completes.is_some_and(Completes::finished) || sink.is_some_and(AudioSinkPlayback::empty) {
+        let ended = completes.is_some_and(Completes::finished)
+            || sink.is_some_and(AudioSinkPlayback::empty)
+            || match (output.as_ref(), mixer_voice) {
+                (Some(output), Some(index)) => output.0.finished(&voice.bus, index.0),
+                _ => false,
+            };
+        if ended {
             log.push(Entry::Stopped { at_s: now, cue: voice.cue.clone(), why: "ended".to_owned() });
             commands.entity(entity).despawn();
         }

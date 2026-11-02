@@ -19,6 +19,12 @@ autotests = false
 name = "all"
 path = "tests/all.rs"
 
+# The voice-budget evidence harness. It proves a `MixerVoice` frees its slot when its sample ends, which needs the
+# crate's own mixer to exist, so it is built only with that feature — `cargo build --examples` stays green without it.
+[[example]]
+name = "budget"
+required-features = ["mixer"]
+
 [features]
 default = []
 # `serde` on the cue table, the mix table and the music score, plus `from_ron`/`to_ron`: a project saves

@@ -8,6 +8,8 @@
 mod helpers;
 mod leaf;
 mod mix;
+#[cfg(feature = "mixer")]
+mod mixer;
 mod model;
 mod music;
 mod play;
