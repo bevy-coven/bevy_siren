@@ -105,6 +105,12 @@ unwritten and the next pass retries after a `cargo login`. Nothing was created o
 5. **A moving emitter's pan on the `mixer` backend.** rodio's `SpatialPlayer` can be re-positioned; a mixer-owned voice
    cannot today, which is the one thing Bevy's path does that ours does not.
 
+**Release: not published.** `cargo publish` stops at `no token found, please run cargo login`: there is no
+`~/.cargo/credentials.toml` on this machine and `CARGO_REGISTRY_TOKEN` is unset, so crates.io answers 403 for the crate
+name and docs.rs answers 404 for it. The plan's contingency applies: the 0.1.0 commit stands, no tag is written, and
+the next pass retries after a login. `cargo publish --dry-run` packages and verifies the crate (18 files, 82.6 KiB
+compressed) on every run, so the package itself is sound.
+
 **CI.** Two things were wrong, and neither was the code. Every sibling repo has a self-hosted runner registered and
 this new one had none, so GitHub had nowhere to run; the runner is now deployed (`bevy-coven/bevy_siren 1` in
 `home-cloud/gh-runners/repos.txt`, `deploy.sh`, `big-s1 online`). And `run: cargo test … readme::` is **not valid
