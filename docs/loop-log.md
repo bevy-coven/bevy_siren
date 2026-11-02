@@ -71,11 +71,6 @@ bevy_siren --all-targets` is clean, and `boot_headless` opens the shipped projec
 message buffer after several updates lost one in the full parallel run, and a host reads every frame, so the test
 does too.
 
-**Release: refused, recorded.** `cargo publish --dry-run` packages and verifies the 0.1.0 package (18 files, 82 KiB
-compressed) — but `cargo publish` stops at `error: no token found, please run cargo login`: there is no
-`~/.cargo/credentials.toml` on this machine and `CARGO_REGISTRY_TOKEN` is unset. The 0.1.0 commit stands; the tag is
-unwritten and the next pass retries after a `cargo login`. Nothing was created on the owner's behalf.
-
 **Decided (assumed, owner may override).**
 
 - **Two backends, not one.** `bevy_audio` by default and our own `rodio` graph behind `mixer`, because a bus's gain
