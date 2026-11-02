@@ -11,6 +11,8 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   WAVs and a `render.txt`, so a change can be judged by spectrogram and loudness without an ear. No public API
   changes: it drives `bevy_siren::model` directly.
 - `examples/perfcheck` — µs per frame and per voice at 8, 64 and 256 voices.
+- `.omp/skills/build-loop` — the loop itself, as a project skill: one iteration from orient to log, with the four
+  traps that cost an iteration each written down where the next run reads them.
 - `docs/loop/cues.yaml` — the 19 fixed cases every iteration runs, each with its observation and the source for its
   number; `docs/loop/runs/` and `docs/loop/needs-decision/` for a run's evidence and the questions the loop will not
   decide itself. `docs/loop-log.md` becomes `docs/loop/log.md`.

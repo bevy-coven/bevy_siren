@@ -1,6 +1,6 @@
 ---
-description: One build iteration of the bevy_siren loop
-argument-hint: "[optional focus, e.g. 'ducking' or 'release']"
+name: build-loop
+description: One build iteration of the bevy_siren loop — pick the most valuable item, research it, build it within the crate's rules, prove it by spectrograms, EBU R128 loudness and gain plots, pass three GREAT reviews, ship and log it. Use when running a bevy_siren iteration, or when judging audio you cannot hear (it carries the four traps that have cost this project an iteration each).
 ---
 
 # bevy_siren: Build the Next Most Valuable Piece
@@ -143,9 +143,6 @@ Then `runs/<dir>/plan.md`: the design, the modules touched, every new field on `
   **remove it afterwards** — it is 14 GB.
 
 ## 6. Inspect it (a mandatory gate)
-
-The project skill `game-audio-judging` (`.omp/skills/game-audio-judging/SKILL.md`) is the procedure: read it with
-`skill://game-audio-judging` before judging, and add a trap to it when this step finds one that is not in it.
 
 You cannot hear the result, so judge what can be measured and seen. `examples/render` is the harness:
 

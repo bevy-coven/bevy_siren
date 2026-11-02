@@ -55,13 +55,15 @@ every Bevy feature and a hole in its own `[dependencies]` list cannot fail.
 - `src/log.rs` — `SirenLog` (256 entries) and `Entry`.
 - `src/lib.rs` — the plugins, `SirenSystems::{Choose, Play, Mix}`, the re-exports, the quick start doctest.
 
-## The project skill
+## The loop, as a skill
 
-`.omp/skills/game-audio-judging/SKILL.md` is how this project judges audio it cannot hear — render to WAV, read the
-spectrogram and the loudness numbers, and the four traps that have already cost an iteration each (a bus gain is a step
+`.omp/skills/build-loop/SKILL.md` is this project's build loop — one iteration: orient, pick the most valuable item,
+research it, build within the crate's rules, test, judge by spectrogram and loudness, three GREAT reviews, ship, log.
+Read it with `skill://build-loop` before an iteration. It is a **skill** rather than a slash command because it is the
+model's procedure, not a keystroke: `.omp/skills/<name>/SKILL.md` is what the native provider discovers at startup, and
+one name has one home. It also carries the four traps that have already cost an iteration each (a bus gain is a step
 function between frames; a duck takes time since it fired; a gain curve is a line, not a waveform; `ebur128` reports
-−70 LUFS for any clip under its 0.4 s gating block). Read it with `skill://game-audio-judging` before judging, and add
-a trap to it when one costs you a pass. The loop command points at it from step 6.
+−70 LUFS for any clip under its 0.4 s gating block). Add a trap to it when one costs you a pass.
 
 ## Rules
 

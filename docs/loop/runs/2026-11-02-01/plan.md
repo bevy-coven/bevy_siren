@@ -14,12 +14,15 @@ to a file that can be measured.
   a decision), one per bus envelope, a `mix.wav`, and `voices-<n>.wav`.
 - **`docs/loop/`** — `log.md` (the old `docs/loop-log.md`, moved so the loop's state is in one directory), `cues.yaml`
   as real YAML with 19 cases, `runs/README.md` and `needs-decision/README.md` describing the shape a run takes.
-- **The command** — `.omp/commands/build-loop.md` rewritten to the brief, with this machine's measured facts in it:
+- **The loop, as a project skill** — `.omp/skills/build-loop/SKILL.md`: the brief's steps in this project's terms, with
+  this machine's measured facts in it. A skill and not a command, because it is the model's procedure and one name has
+  one home.
   the toolchain pin and Bevy's floor, `ffmpeg` 9 with `ebur128`, and the disk-full failure mode.
 
 ## Modules touched
 
-`examples/render.rs` (new), `docs/loop/*` (new and moved), `.omp/commands/build-loop.md` (rewritten), `README.md` and
+`examples/render.rs` (new), `examples/perfcheck.rs` (new), `docs/loop/*` (new and moved),
+`.omp/skills/build-loop/SKILL.md` (new), `README.md` and
 `AGENTS.md` (their pointer to the log). No `src/` file changes, so no public API moves — nothing goes to
 `needs-decision/`.
 

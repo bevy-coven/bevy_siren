@@ -19,7 +19,8 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
   source for every number. The case table is the contract a run is judged against.
 - `docs/loop/` — `log.md` (moved from `docs/loop-log.md`), `runs/README.md` and `needs-decision/README.md` describing
   the shape of a run and of a question the loop will not decide itself.
-- `.omp/commands/build-loop.md` — rewritten to this brief with this machine's measured facts in it.
+- `.omp/skills/build-loop/SKILL.md` — the loop, written to this brief as a **skill** (the model reads it with
+  `skill://build-loop`), with this machine's measured facts in it.
 
 **Why.** The loop's brief demands spectrograms, loudness numbers and panel screenshots before anything ships. The crate
 had a panel and a panel is not an ear; nothing could render a cue to a file that `ffmpeg` could measure.
