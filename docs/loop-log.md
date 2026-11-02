@@ -100,11 +100,12 @@ does too.
 5. **A moving emitter's pan on the `mixer` backend.** rodio's `SpatialPlayer` can be re-positioned; a mixer-owned voice
    cannot today, which is the one thing Bevy's path does that ours does not.
 
-**Release: not published.** `cargo publish` stops at `no token found, please run cargo login`: there is no
-`~/.cargo/credentials.toml` on this machine and `CARGO_REGISTRY_TOKEN` is unset, so crates.io answers 403 for the crate
-name and docs.rs answers 404 for it. The plan's contingency applies: the 0.1.0 commit stands, no tag is written, and
-the next pass retries after a login. `cargo publish --dry-run` packages and verifies the crate (18 files, 82.6 KiB
-compressed) on every run, so the package itself is sound.
+**Release: published.** `cargo publish` from `big` (whose `~/.cargo/credentials.toml` carries the `[registry]` token;
+this Mac has none, and the first attempt here was refused for that reason) uploaded `bevy_siren 0.1.0`. The registry
+answers 200 for `https://crates.io/api/v1/crates/bevy_siren` with `max_version 0.1.0` and `Ladvien` as owner, and the
+tag `v0.1.0` is pushed at `8e14231`. `docs.rs/bevy_siren` answered 404 at the moment of the check: docs.rs builds a
+new crate after its index syncs and its queue turns, which takes longer than the upload. The README's own image URLs
+answer 200.
 
 **CI.** Two things were wrong, and neither was the code. Every sibling repo has a self-hosted runner registered and
 this new one had none, so GitHub had nowhere to run; the runner is now deployed (`bevy-coven/bevy_siren 1` in

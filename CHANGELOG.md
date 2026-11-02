@@ -5,9 +5,6 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-Not published yet: `cargo publish` needs a `cargo login` on this machine, and there is none. The 0.1.0 entry
-below is what the package will be.
-
 ## [0.1.0] - 2026-11-02
 
 The first release: sound for Bevy 0.20 as data, mixed in buses.
@@ -37,4 +34,5 @@ The first release: sound for Bevy 0.20 as data, mixed in buses.
 - `examples/mixer` — the audio panel with its capture knobs, and `examples/music` — a scripted calm → combat → calm
   that checks every transition landed on a bar.
 
-[Unreleased]: https://github.com/bevy-coven/bevy_siren/commits/main
+[Unreleased]: https://github.com/bevy-coven/bevy_siren/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/bevy-coven/bevy_siren/releases/tag/v0.1.0
