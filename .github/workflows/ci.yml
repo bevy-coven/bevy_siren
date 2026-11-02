@@ -54,7 +54,7 @@ jobs:
         run: cargo test --features mixer
 
       - name: Test (readme)
-        run: cargo test --features readme-example --test all readme::
+        run: "cargo test --features readme-example --test all readme::"
 
       # nextest skips doctests; this does not.
       - name: Doctests
