@@ -1,0 +1,346 @@
+//! **Every number the crate decides with, and no engine type.**
+//!
+//! Gains are decibels here and become a linear multiplier only where a sample path needs one, so a
+//! whole mix is summed the way a mixer sums it rather than the way `f32` addition would: two sounds at
+//! 0 dB make one at +6.02 dB, not one at 0 dB. [`SILENT_DB`] is the one floor — below it a gain is
+//! silence and the arithmetic says `0.0`, never a number small enough to pass an "is it audible" check
+//! and still cost a voice.
+//!
+//! Everything here is a pure function of its arguments, so `tests/model.rs` pins each one against a
+//! number a person can check by hand, and the systems in the rest of the crate only choose which
+//! function to call.
+
+use std::collections::VecDeque;
+
+use crate::cue::Attenuation;
+
+/// Below this a gain is silence, not a small number. −80 dB is 1/10 000 of full scale.
+pub const SILENT_DB: f32 = -80.0;
+
+/// The fade a stop or a layer change takes when nobody timed it: short enough to read as immediate,
+/// long enough not to click.
+pub const DEFAULT_FADE_S: f32 = 0.12;
+
+/// Every gain approaches its target with this time constant, so nothing steps audibly. A step is a
+/// click, and a click is the sound of a program changing a number instead of a mixer ramping one.
+pub const MIX_TAU_S: f32 = 0.05;
+
+/// How close to a musical boundary, in whole boundaries, still counts as *on* it. At 120 bpm and four
+/// beats a bar that is 2 µs, well under a frame: a frame that lands a rounding error late still
+/// changes the music on the bar rather than skipping the bar.
+const BOUNDARY_EPS: f64 = 1e-6;
+
+/// A gain in dB as a linear multiplier: `10^(db / 20)`.
+///
+/// At or below [`SILENT_DB`], and for a `db` that is not finite, the answer is exactly `0.0` — the one
+/// place silence is decided.
+pub fn db_to_gain(db: f32) -> f32 {
+    if !db.is_finite() || db <= SILENT_DB {
+        return 0.0;
+    }
+    10f32.powf(db / 20.0)
+}
+
+/// A linear multiplier as dB: `20 * log10(|gain|)`.
+///
+/// A zero gain is [`SILENT_DB`], never negative infinity, and the answer is floored at [`SILENT_DB`]
+/// for the same reason: a caller that writes this into a bus level must not be able to hand the next
+/// multiplication a value that a comparison against silence misjudges.
+pub fn gain_to_db(gain: f32) -> f32 {
+    if !gain.is_finite() || gain.abs() <= db_to_gain(SILENT_DB) {
+        return SILENT_DB;
+    }
+    let db = 20.0 * gain.abs().log10();
+    db.max(SILENT_DB)
+}
+
+/// The dB of the linear sum of `parts`: the sound of several sources playing at once.
+///
+/// This is the reason the crate works in dB and sums in linear: two 0 dB sounds are one 6.02 dB sound,
+/// and `-80 dB + -80 dB` is still silence rather than a doubling into audibility.
+pub fn sum_db(parts: &[f32]) -> f32 {
+    let linear: f32 = parts.iter().map(|db| db_to_gain(*db)).sum();
+    gain_to_db(linear)
+}
+
+/// The dB of gains applied one after another: a cue's gain, then its slot's, then the bus's, then the
+/// master's.
+///
+/// Chaining multiplies linear gains, which is adding dB — so this adds, and then applies the one floor
+/// [`SILENT_DB`]: **any stage at or below it makes the whole chain silence**, because a silent stage
+/// multiplied by anything is still silent. [`sum_db`] is its opposite — several sources heard at once —
+/// and using that here would turn a cue at −80 dB back into an audible one.
+pub fn chain_db(parts: &[f32]) -> f32 {
+    let mut total = 0.0f32;
+    for db in parts {
+        if !db.is_finite() || *db <= SILENT_DB {
+            return SILENT_DB;
+        }
+        total += *db;
+    }
+    total.max(SILENT_DB)
+}
+
+/// The loudness the audio backend adds by itself to a spatial voice heard from `emitter` between ears
+/// at `left` and `right`, so the crate can divide it back out.
+///
+/// Bevy's and rodio's spatial path pans by distance: each ear's channel is multiplied by
+/// `min(1, 1/d²) * (0.5 + ((d_this - d_other) / |left - right| + 1) / 4)`. That is a distance law as well
+/// as a pan, and the crate's own [`distance_gain`] is the one a project writes in a cue table — so a
+/// spatial voice's sink volume is `distance gain / backend gain`, and the sample a player hears follows
+/// the cue's curve with the backend's stereo placement intact.
+///
+/// The formula is mirrored from `rodio-0.22.2/src/source/spatial.rs` (`Spatial::set_positions`), which
+/// both backends' spatial path uses. `tests/model.rs` pins it at two geometries.
+pub fn backend_spatial_gain(emitter: [f32; 3], left: [f32; 3], right: [f32; 3]) -> f32 {
+    fn dist_sq(a: [f32; 3], b: [f32; 3]) -> f32 {
+        a.iter().zip(b.iter()).map(|(a, b)| (a - b) * (a - b)).sum()
+    }
+    let ear_gap = dist_sq(left, right).sqrt();
+    if !ear_gap.is_finite() || ear_gap <= 0.0 {
+        // The backend asserts two distinct ears; one ear is no pan, so no extra gain to divide out.
+        return 1.0;
+    }
+    let left_sq = dist_sq(left, emitter).max(f32::MIN_POSITIVE);
+    let right_sq = dist_sq(right, emitter).max(f32::MIN_POSITIVE);
+    let left_d = left_sq.sqrt();
+    let right_d = right_sq.sqrt();
+    let left_pan = (((left_d - right_d) / ear_gap + 1.0) / 4.0 + 0.5).min(1.0);
+    let right_pan = (((right_d - left_d) / ear_gap + 1.0) / 4.0 + 0.5).min(1.0);
+    let left_gain = left_pan * (1.0 / left_sq).min(1.0);
+    let right_gain = right_pan * (1.0 / right_sq).min(1.0);
+    let average = (left_gain + right_gain) * 0.5;
+    if average.is_finite() { average.clamp(f32::MIN_POSITIVE, 1.0) } else { 1.0 }
+}
+
+/// A pitch in semitones as a playback rate: `2^(semitones / 12)`, clamped to `1/16 ..= 16`.
+///
+/// The clamp is four octaves each way: past it a rate is a resampling artefact rather than a pitch, and
+/// one that reaches zero or infinity breaks the decoder's span arithmetic instead of sounding wrong.
+pub fn semitones_to_ratio(semitones: f32) -> f32 {
+    if !semitones.is_finite() {
+        return 1.0;
+    }
+    (2f32.powf(semitones / 12.0)).clamp(1.0 / 16.0, 16.0)
+}
+
+/// The gain of a source `distance_m` from the listener, by the cue's [`Attenuation`].
+///
+/// `Inverse` is `near / (near + rolloff * (d - near).max(0))`: exactly `1.0` anywhere inside `near_m`,
+/// then falling away as a physical point source does. `Linear` is `1 - (d / max).clamp(0, 1)`: exactly
+/// `0.0` at and past `max_m`. `None` is `1.0`.
+///
+/// A distance that is not finite, or negative, is treated as `0.0`: a caller handing in a `NaN`
+/// transform gets a sound at the listener's feet, not a `NaN` volume that silences the whole bus.
+pub fn distance_gain(model: Attenuation, distance_m: f32) -> f32 {
+    let d = if distance_m.is_finite() { distance_m.max(0.0) } else { 0.0 };
+    match model {
+        Attenuation::None => 1.0,
+        Attenuation::Inverse { near_m, rolloff } => {
+            let near = if near_m.is_finite() { near_m.max(f32::MIN_POSITIVE) } else { 1.0 };
+            let rolloff = if rolloff.is_finite() { rolloff.max(0.0) } else { 0.0 };
+            (near / (near + rolloff * (d - near).max(0.0))).clamp(0.0, 1.0)
+        }
+        Attenuation::Linear { max_m } => {
+            let max = if max_m.is_finite() { max_m } else { 0.0 };
+            if max <= 0.0 { 0.0 } else { (1.0 - (d / max)).clamp(0.0, 1.0) }
+        }
+    }
+}
+
+/// The duck `by_db` still holds `since_s` seconds after it started: full strength for `hold_s`, then a
+/// linear recovery to 0 dB over `fade_s`.
+///
+/// `by_db` is negative for a duck. A `fade_s` of zero or less recovers at once after the hold — a duck a
+/// game wants to be a step, not a ramp — and a `since_s` before the start is the full duck, because a
+/// caller one frame early is not a reason to hear a duck leak.
+pub fn active_duck_db(by_db: f32, since_s: f64, hold_s: f32, fade_s: f32) -> f32 {
+    if !by_db.is_finite() || by_db >= 0.0 {
+        return 0.0;
+    }
+    let since = if since_s.is_finite() { since_s.max(0.0) } else { 0.0 };
+    let hold = if hold_s.is_finite() { f64::from(hold_s.max(0.0)) } else { 0.0 };
+    if since < hold {
+        return by_db;
+    }
+    let fade = if fade_s.is_finite() { f64::from(fade_s) } else { 0.0 };
+    if fade <= 0.0 {
+        return 0.0;
+    }
+    let through = ((since - hold) / fade).clamp(0.0, 1.0) as f32;
+    let left = by_db * (1.0 - through);
+    // A thousandth of a dB is nothing to hear, and float division lands a hair short of 0 at the end of the fade;
+    // reporting exactly 0 makes "is this bus ducked" one comparison instead of an epsilon each caller guesses.
+    if left > -1e-3 { 0.0 } else { left }
+}
+
+/// A gain one frame closer to `target`: `current + (target - current) * (1 - exp(-dt / tau))`.
+///
+/// This is what makes a bus move without a click. A `tau` or a `dt` of zero or less returns `target`:
+/// there is no smoothing to do with no time, and a caller that wants a step asks for one this way
+/// rather than by special-casing it.
+pub fn approach(current: f32, target: f32, tau: f32, dt: f32) -> f32 {
+    if !current.is_finite() || !target.is_finite() {
+        return target;
+    }
+    if tau <= 0.0 || dt <= 0.0 || !tau.is_finite() || !dt.is_finite() {
+        return target;
+    }
+    current + (target - current) * (1.0 - (-dt / tau).exp())
+}
+
+/// The next musical boundary at or after `now_s`, for `tempo_bpm` quarter notes with `beats` per
+/// boundary: `beats = 1` is the next beat, `beats = 4` the next bar.
+///
+/// A boundary already passed at `now_s` *is* the answer, so a frame that lands exactly on the bar
+/// changes the music on that frame rather than on the next one. `tempo_bpm <= 0` or `beats <= 0` means
+/// there is no beat grid and the answer is `now_s`, which makes every transition immediate.
+pub fn next_boundary(now_s: f64, tempo_bpm: f32, beats: f64) -> f64 {
+    if !tempo_bpm.is_finite() || tempo_bpm <= 0.0 || !beats.is_finite() || beats <= 0.0 || !now_s.is_finite()
+    {
+        return now_s;
+    }
+    let period = f64::from(60.0 / tempo_bpm) * beats;
+    if !period.is_finite() || period <= 0.0 {
+        return now_s;
+    }
+    let ratio = now_s.max(0.0) / period;
+    let nearest = ratio.round();
+    if (ratio - nearest).abs() < BOUNDARY_EPS {
+        return nearest * period;
+    }
+    ratio.ceil() * period
+}
+
+/// Deterministic xorshift64\*, seeded once per simulation and threaded through every choice.
+///
+/// A game that wants its sounds reproducible — a replay, a capture, a test — seeds this and gets the
+/// same sequence; one that does not still gets a sequence, because a `0` seed is mapped to a constant.
+/// Never seeded from the clock inside this crate: a sound that cannot be reproduced cannot be debugged.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Rng(u64);
+
+impl Rng {
+    /// A generator from `seed`. A zero seed is replaced by a fixed constant, because xorshift's state
+    /// must never be zero — it would produce zero forever.
+    pub fn new(seed: u64) -> Self {
+        Self(if seed == 0 { 0x5EED_51AE_0000_0001 } else { seed })
+    }
+
+    /// The next 32 bits.
+    pub fn next_u32(&mut self) -> u32 {
+        let mut x = self.0;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.0 = x;
+        (x >> 32) as u32
+    }
+
+    /// A number in `[0, 1)`, from the top 24 bits so every value is exactly representable in `f32`.
+    pub fn next_f32(&mut self) -> f32 {
+        ((self.next_u32() >> 8) as f32) / (1u32 << 24) as f32
+    }
+}
+
+/// Which variant of a cue to play, without repeating one of the last few choices.
+///
+/// `avoid` is how many recent picks are refused: `1` never plays the same sample twice in a row, which
+/// is what a footstep needs; a burst weapon sets `0` and takes the plain random draw. When every variant
+/// is inside the avoided window — a cue with two sounds and `avoid: 4` — the most recent one is still
+/// refused, because repeating it immediately is the one thing the window exists to prevent.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct VariantPicker {
+    history: VecDeque<usize>,
+}
+
+impl VariantPicker {
+    /// A picker that remembers the last `capacity` picks.
+    pub fn new(capacity: usize) -> Self {
+        Self { history: VecDeque::with_capacity(capacity) }
+    }
+
+    /// Picks a variant index in `0..len`, or `None` when the cue has no variant to play.
+    pub fn pick(&mut self, len: usize, avoid: u8, rng: &mut Rng) -> Option<usize> {
+        if len == 0 {
+            return None;
+        }
+        if len == 1 {
+            self.remember(0);
+            return Some(0);
+        }
+        let refused = usize::from(avoid).min(len);
+        let recent: Vec<usize> = self.history.iter().rev().take(refused).copied().collect();
+        let mut choices = Vec::with_capacity(len);
+        for i in 0..len {
+            if !recent.contains(&i) {
+                choices.push(i);
+            }
+        }
+        // Every variant is inside the window: refuse only the pick immediately before this one.
+        if choices.is_empty() {
+            let last = self.history.back().copied();
+            for i in 0..len {
+                if Some(&i) != last.as_ref() {
+                    choices.push(i);
+                }
+            }
+        }
+        let at = ((rng.next_f32() * choices.len() as f32) as usize).min(choices.len() - 1);
+        let picked = choices[at];
+        self.remember(picked);
+        Some(picked)
+    }
+
+    /// Forgets every pick, so the next one is unconstrained.
+    pub fn reset(&mut self) {
+        self.history.clear();
+    }
+
+    fn remember(&mut self, index: usize) {
+        let capacity = self.history.capacity();
+        if capacity == 0 {
+            return;
+        }
+        if self.history.len() == capacity {
+            self.history.pop_front();
+        }
+        self.history.push_back(index);
+    }
+}
+
+/// One live voice, as the limiter sees it: its `index` in the caller's list is what is returned.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Candidate {
+    /// The caller's index for this voice.
+    pub index: usize,
+    /// Its cue's priority; lower is stolen first.
+    pub priority: u8,
+    /// When it started, in seconds on the simulation's clock; the older of two equal priorities goes
+    /// first, so the newest sound is the one a player hears keep playing.
+    pub start_s: f64,
+    /// A voice the voice budget may never take: the music, a line of dialogue, a stinger.
+    pub unstealable: bool,
+}
+
+/// The voices to stop so that `need` more fit inside `max`: lowest priority first, then oldest first,
+/// and never one marked `unstealable`.
+///
+/// **An empty answer means nothing has to be stopped *or* that the room cannot be made.** The caller
+/// tells the two apart with `candidates.len() + need > max`, and refuses the request in the second case
+/// rather than breaking its own budget — a game that says 32 voices gets 32, not 33 with a warning.
+pub fn steal(candidates: &[Candidate], need: usize, max: usize) -> Vec<usize> {
+    let room = max.saturating_sub(candidates.len());
+    if room >= need {
+        return Vec::new();
+    }
+    let wanted = need - room;
+    let mut stealable: Vec<&Candidate> = candidates.iter().filter(|c| !c.unstealable).collect();
+    if stealable.len() < wanted {
+        return Vec::new();
+    }
+    stealable.sort_by(|a, b| {
+        a.priority.cmp(&b.priority).then(a.start_s.total_cmp(&b.start_s)).then(a.index.cmp(&b.index))
+    });
+    stealable.into_iter().take(wanted).map(|c| c.index).collect()
+}

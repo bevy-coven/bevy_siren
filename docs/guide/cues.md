@@ -1,0 +1,114 @@
+# Cues: a sound, named once
+
+A **cue** is the thing gameplay asks for. Not a file: `"footstep.grass"` is a name with several recordings behind it,
+a bus, a level, a pitch range, a repeat rule and a voice limit. Gameplay says what happened; the crate decides what
+that sounds like.
+
+```rust
+use bevy_siren::*;
+
+let mut table = CueTable::new(vec![
+    Cue {
+        sounds: vec![SoundSlot::new("step_01"), SoundSlot::new("step_02"), SoundSlot::new("step_03")],
+        gain_db: -4.0,
+        pitch: PitchRange { low: -1.5, high: 1.5 },
+        repeat: Repeat::AvoidRepeat { avoid: 2 },
+        max_instances: 2,
+        priority: 10,
+        ..Cue::new("footstep.grass")
+    },
+    Cue {
+        sounds: vec![SoundSlot::new("burst_01")],
+        repeat: Repeat::Shuffle,
+        bus: "Effects".to_owned(),
+        ..Cue::new("gun.burst")
+    },
+]);
+```
+
+Ask for it with a message:
+
+```rust
+play.write(Play::cue("footstep.grass"));
+play.write(Play::cue("footstep.grass").at(position));   // a position, for a spatial cue
+play.write(Play::cue("ui.cancel").gain(-3.0));          // this play only
+```
+
+Everything a play decides comes back as one `Played`:
+
+```rust
+for answer in played.read() {
+    // answer.sound is the recording; answer.bus the bus; answer.gain_db and answer.pitch the level and detune.
+    // answer.entity is the voice, for StopVoice or for your own data.
+}
+```
+
+## When it cannot play, it says why
+
+There is no silent failure. Every refused play is a `Refused` with a reason that names what is missing:
+
+| Reason | What was missing |
+|---|---|
+| `UnknownCue` | no cue of that name |
+| `NoSounds` | the cue has no variants |
+| `MissingSound { sound }` | no handle for that `sound` key in `SirenSounds` |
+| `UnknownBus { bus }` | the cue names a bus the mix table does not have |
+| `VoiceLimit { bus }` | the budget could not be made room in |
+| `SpatiallyMute(position)` | `Play::at(..)` with no `SpatialListener` in the world |
+
+A refusal names what a project has to supply. It never falls back to another bus or a guessed file, because a
+sound that plays the wrong thing is worse than one that says what is missing.
+
+## The keys and the files
+
+A cue's `sound` is an opaque key. `SirenSounds` maps keys to loaded handles:
+
+```rust
+sounds.insert("step_01", assets.load("audio/step_01.ogg"));
+// or, when a key and a file share one name under one directory:
+let asked = sounds.load_table(&assets, &table, "audio");
+```
+
+Nothing in the crate opens a path it guessed. A key is data, a file is the project's business, and the mapping is one
+place — so a delivered recording replaces another without touching the table, and a cue table can be written before an
+artist delivers anything.
+
+`sounds.missing(&table)` is every key still unanswered (an editor shows it), and `sounds.failed(&assets_server, &table)`
+is every key whose load the server reported as failed.
+
+## Checking a table
+
+`CueTable::problems()` returns `CueProblem`s in sentences a person reads on a status line: a cue with no sounds, a
+duplicate name, a bus the mix table does not have, an inverted pitch range, an attenuation constant that cannot
+produce a gain, and `max_instances: 0` (no per-cue limit, which is almost never meant). Call it once at load, and
+print what it says.
+
+```rust
+for problem in table.problems() {
+    eprintln!("siren: {problem}");
+}
+```
+
+## As data
+
+With `serde` on, a table is a RON file:
+
+```ron
+(
+    cues: [
+        (name: "footstep.grass", sounds: [(sound: "step_01"), (sound: "step_02")], gain_db: -4.0),
+        (name: "wind", sounds: [(sound: "wind_loop")], bus: "Ambience", mode: Loop),
+    ],
+)
+```
+
+Every field but `name` has a default, so a hand-written file needs only what a person cared about; `deny_unknown_fields`
+means a typo is an error and not a silently ignored line. `CueTable::from_ron` and `to_ron` are the pair, and the
+round trip is a test.
+
+## Repeat rules
+
+`Repeat::AvoidRepeat { avoid: n }` refuses the last `n` variants, and the default `avoid: 1` is what stops the
+machine-gun footstep. When every variant is inside the window — two sounds and `avoid: 4` — the pick immediately
+before is still refused, because repeating it is the one thing the window exists to prevent. `Repeat::Shuffle` is a
+plain draw, repeats included: a burst weapon wants one sample and no variation.

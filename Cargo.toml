@@ -1,0 +1,61 @@
+[package]
+name = "bevy_siren"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97.1"
+description = "Sound for Bevy games: a cue table as data, buses that duck, a voice budget, layered music on the bar, and a log of what played and why."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/bevy-coven/bevy_siren"
+keywords = ["bevy", "gamedev", "audio", "sound", "music"]
+categories = ["game-development", "multimedia::audio"]
+# `docs/` holds the still, the GIF and the research notes, so it is out of the package; the README is
+# anchored so `docs/guide/` and `docs/media/` READMEs (relative links, for GitHub) stay out too.
+include = ["src/**", "Cargo.toml", "/README.md", "LICENSE-*"]
+# Every file in `tests/` is a module of `tests/all.rs`: one test executable, so Bevy is linked once.
+# `every_test_file_is_a_module` fails on an undeclared file.
+autotests = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[features]
+default = []
+# `serde` on the cue table, the mix table and the music score, plus `from_ron`/`to_ron`: a project saves
+# them as data and the Cauldron edits them in `<project>/family/bevy_siren.ron`.
+serde = ["dep:serde", "dep:ron"]
+# Our own mixer on rodio: true per-bus summing, where a bus's gain is one number the frame writes.
+# Without it the crate plays through Bevy's `AudioPlayer` and applies bus gain per voice.
+mixer = ["dep:rodio"]
+# Nothing enables this in normal use. `tests/readme.rs` checks the README's quick start against the
+# crate-root doctest, so the two cannot drift.
+readme-example = []
+
+[dependencies]
+# The umbrella with defaults off. A game already has the full `bevy`, so these features cost it nothing;
+# `cargo build` compiles exactly this list, which is the check that a consumer's build works.
+#
+# `bevy_time` and `bevy_transform` are deliberately absent: measured in `bevy_internal-0.20.0/Cargo.toml`,
+# both are non-optional dependencies, so `Time<Real>` and `GlobalTransform` need no feature. Naming one
+# would be a hard error, not a no-op.
+bevy = { version = "0.20.0", default-features = false, features = [
+    "bevy_asset", # Handle<AudioSource> in SirenSounds
+    "bevy_audio", # AudioPlayer, PlaybackSettings, AudioSink
+    "bevy_log",   # warn! for a cue table that fails its own checks
+    "std",
+] }
+serde = { version = "1", features = ["derive"], optional = true }
+ron = { version = "0.12", optional = true }
+# The `mixer` backend only. Same version as `bevy_audio`'s own, so the graph has one rodio.
+#
+# `wav` and `vorbis` are the two formats a game's sounds arrive in — WAV for effects, Vorbis for music,
+# which is also Bevy's default audio format — and `Decoder::new` returns `UnrecognizedFormat` for
+# anything else, which the backend warns about rather than panicking on. Enabling them here rather than
+# relying on the game's `bevy/wav` keeps the backend's promises its own.
+rodio = { version = "0.22", default-features = false, features = ["playback", "wav", "vorbis"], optional = true }
+
+# **Tests and examples only.** `wav` is the format the examples synthesise, and the full umbrella here
+# cannot reach a consumer's dependency graph. `tests/leaf.rs` reads `[dependencies]` only, deliberately.
+[dev-dependencies]
+bevy = { version = "0.20.0", features = ["wav"] }
+ron = "0.12"

@@ -1,0 +1,3 @@
+# The style this repository was written in: wide lines and compact struct literals / call arguments.
+max_width = 110
+use_small_heuristics = "Max"

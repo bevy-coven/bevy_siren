@@ -1,0 +1,65 @@
+# CI for bevy_siren.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    name: fmt + clippy + doc
+    runs-on: [self-hosted, big]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: "rustfmt, clippy" }
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo doc --no-deps --all-features
+        env: { RUSTDOCFLAGS: "-D warnings" }
+
+  build:
+    name: build (standalone) + test
+    needs: lint
+    runs-on: [self-hosted, big]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # **The load-bearing step, and it is `build` rather than `test` deliberately.** `cargo test` compiles the
+      # dev-dependency, which is the FULL `bevy` umbrella (the examples need a window), and Cargo unifies features
+      # across a build — so under `cargo test` the crate silently receives every Bevy feature and a hole in its own
+      # `[dependencies]` feature list cannot fail.
+      - name: Build with only the declared features
+        run: cargo build
+
+      # Includes tests/leaf.rs (the boundary ratchet) and every other file in tests/, which are modules of the one
+      # `all` binary.
+      - name: Test
+        run: cargo test
+
+      - name: Test (serde)
+        run: cargo test --features serde
+
+      - name: Test (mixer)
+        run: cargo test --features mixer
+
+      - name: Test (readme)
+        run: cargo test --features readme-example --test all readme::
+
+      # nextest skips doctests; this does not.
+      - name: Doctests
+        run: cargo test --doc
+
+      # The examples need a window at run time, not build time, so building them is the check that fits in CI.
+      - name: Build examples
+        run: cargo build --examples

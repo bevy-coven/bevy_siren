@@ -1,0 +1,150 @@
+# bevy_siren
+
+> ⚠️ **Vibe Coded.** Written by AI agents working from a human's direction, covered by tests rather than a line-by-line human review. Read the code before you rely on it for something you care about.
+
+Sound for Bevy 0.20: a cue table as data, buses that duck, a voice budget that refuses politely, layered music
+that changes on the bar, and a log of what played and why.
+
+[![crates.io](https://img.shields.io/crates/v/bevy_siren.svg)](https://crates.io/crates/bevy_siren)
+[![docs.rs](https://docs.rs/bevy_siren/badge.svg)](https://docs.rs/bevy_siren)
+[![CI](https://github.com/bevy-coven/bevy_siren/actions/workflows/ci.yml/badge.svg)](https://github.com/bevy-coven/bevy_siren/actions/workflows/ci.yml)
+[![Bevy](https://img.shields.io/badge/bevy-0.20-blue.svg)](https://bevyengine.org)
+[![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](#who-and-licence)
+
+![The audio panel: four bus rows with their levels, the Dialogue row ducking Music by 8 dB, the Effects row at two of two voices after a steal, the cue table below and the log tail showing the duck, the steal and a music layer entering on the bar](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/mixer.gif)
+
+*`examples/mixer`: a scripted run — a line of dialogue ducks the music, a third footstep steals a voice from a bus
+capped at two, and the combat layer comes in on the bar.*
+
+![The same panel at rest: Music at −2 dB, Effects at 0 dB with one voice, Ambience at −6 dB, Dialogue at 0 dB, the eight cues with their buses, modes and priorities, and eight log lines](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/mixer.png)
+
+*The still: 1280 × 720.*
+
+**Status:** usable · Bevy 0.20 · MSRV 1.97.1
+
+**Why:** Bevy gives you an `AudioPlayer` and a mixer. What every game still rebuilds on top is the part that
+decides *what* to play and *how loud*: a cue with several recordings so a footstep does not machine-gun, a bus
+structure so dialogue steps the music back, a voice budget so a firefight does not spawn four hundred sinks, music
+layered by instrument so combat starts without cutting the track, and a log that says why the music went quiet.
+`bevy_siren` makes that one crate's worth of it shared.
+
+## Quick start
+
+```sh
+cargo add bevy_siren
+```
+
+```rust,no_run
+use bevy::prelude::*;
+use bevy_siren::*;
+
+fn main() {
+    App::new().add_plugins((DefaultPlugins, SirenPlugin)).add_systems(Startup, setup).run();
+}
+
+fn setup(mut cue_table: ResMut<CueTable>, mut sounds: ResMut<SirenSounds>, assets: Res<AssetServer>) {
+    // A cue with two variants: the picker never plays the same one twice in a row.
+    cue_table.insert(Cue {
+        sounds: vec![SoundSlot::new("step_01"), SoundSlot::new("step_02")],
+        ..Cue::new("footstep.grass")
+    });
+    sounds.load_table(&assets, &cue_table, "audio");
+}
+
+fn walk(mut play: MessageWriter<Play>) {
+    play.write(Play::cue("footstep.grass"));
+}
+
+fn hear(mut played: MessageReader<Played>, mut log: ResMut<SirenLog>) {
+    for answer in played.read() {
+        // Which recording the player heard, and why it was chosen.
+        log.push(Entry::Played {
+            at_s: 0.0,
+            cue: answer.cue.clone(),
+            sound: answer.sound.clone(),
+            bus: answer.bus.clone(),
+            gain_db: answer.gain_db,
+        });
+    }
+}
+```
+
+The README's quick start is the crate-root doctest (`tests/readme.rs` fails if the two drift), and
+`cargo test --features readme-example --test all readme::` is the check.
+
+From git, for changes not released yet:
+
+```toml
+[dependencies]
+bevy_siren = { git = "https://github.com/bevy-coven/bevy_siren" }
+```
+
+Features: `serde` (the cue table, the mix table and the score as RON, with `from_ron`/`to_ron`) and `mixer` (the
+crate's own summing graph on `rodio`, one number per bus per frame). Both answer `Played`, `Refused` and `Voice`
+identically; only the sample path differs.
+
+## Try it
+
+```sh
+cargo run --example mixer
+```
+
+The panel: every bus with its level, its duck and its live voice count, the cue table, and the log of the last
+decisions. `SIREN_KEYS=duck,steal,layer` stages a run so a capture shows the three things this crate exists for.
+
+```sh
+cargo run --example music
+```
+
+A two-layer score following a scripted calm → combat → calm, printing each transition's time so a bar change can
+be checked against the tempo.
+
+## What you can do
+
+- **Name a sound once and let the crate choose the recording** — a `Cue` has variants, a gain, a pitch range, a
+  repeat rule (`AvoidRepeat { avoid: 1 }` never plays the same variant twice in a row), a polyphony limit, a
+  priority and a spatial model. Every play answers with `Played` or `Refused`, never silence:
+  [cues](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/cues.md).
+- **Mix in buses, not in sounds** — `Music`, `Effects`, `Ambience` and `Dialogue` out of the box, each with its own
+  level, mute and voice cap; `Dialogue` ducks `Music` by 8 dB and `Effects` by 4 dB while a line plays, holding a
+  quarter second and recovering over half a second. `SirenMix` is this frame's mix, one number per bus, for your
+  own meter or an editor panel: [buses](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/buses.md).
+- **Spend voices on what a player is listening to** — a full budget steals the lowest priority, then the oldest,
+  and a cue at `UNSTEALABLE_PRIORITY` (music, a stinger, a line) is never taken; a request that cannot be made room
+  in is `Refused { VoiceLimit }` with nothing spawned, so a game that says 32 voices gets 32.
+- **Change the music on the bar** — `MusicScore` is the layers a track is made of and its tempo; `MusicLayers`
+  moves their gains on the next beat or bar (`next_boundary` from tempo, no beat map needed), and a layer at
+  −80 dB stays in the mix so every layer is phase-aligned. A `Stinger` is the exception: it arrives at once and
+  ducks the music it plays over: [music](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/music.md).
+- **Place a sound in the world** — `Play::cue("bang").at(position)` attenuates by the cue's `Attenuation`
+  (`Inverse` at 4 m and rolloff 1 by default), refusing with `SpatiallyMute` when there is no `SpatialListener`
+  rather than guessing: [spatial](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/spatial.md).
+- **Ship the sound as data, and edit it in the Cauldron** — with `serde`, the cue table, the mix table and the score
+  are RON files; `bevy_grimoire`'s audio panel edits this crate's own types in
+  `<project>/family/bevy_siren.ron`, never a second schema:
+  [cauldron](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/cauldron.md).
+
+## Bevy compatibility
+
+| `bevy_siren` | Bevy | MSRV |
+|---|---|---|
+| 0.1 | 0.20 | 1.97.1 |
+
+## Learn more
+
+- The design rules and their sources: [docs/research/siren.md](https://github.com/bevy-coven/bevy_siren/blob/main/docs/research/siren.md).
+- Every guide page: [docs/guide](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/README.md).
+- What each iteration did and what is next: [docs/loop-log.md](https://github.com/bevy-coven/bevy_siren/blob/main/docs/loop-log.md).
+
+## A Coven crate
+
+Part of the [Bevy Coven](https://github.com/bevy-coven): small crates that each do one thing for a Bevy game and
+say what they do not own. `bevy_siren` does not open files, does not own the output device, and does not own the
+game's states: Bevy's `AudioPlugin` opens the device, the game says when to pause, and `SirenSounds` maps the keys
+a project names.
+
+## Who and licence
+
+Written by [C. Thomas Brittain](https://github.com/Ladvien) and the agents of the Coven.
+
+MIT OR Apache-2.0, at your option.
