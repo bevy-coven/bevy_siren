@@ -58,10 +58,18 @@ stopped and pushes what it started, and
 `tests/mix.rs::three_requests_in_one_frame_fill_a_cap_of_two_with_no_third` pins it.
 
 **Cauldron wiring (S-01).** `bevy_grimoire`'s `bevy_cauldron` hosts this crate behind an optional `bevy_siren`
-feature pinned at `22c39a4`; `src/audio_panel.rs` reads `<project>/family/bevy_siren.ron` into the crate's own
+feature, landed as `aea2456` and merged in `d6c6579`, pinned at `7029b20`; `src/audio_panel.rs` reads `<project>/family/bevy_siren.ron` into the crate's own
 `SirenSettings` and `CueTable`, draws the bus rows from `SirenMix` and the log tail from `SirenLog`, and auditions the
 selected cue with `Play::cue`. `bevy_siren#1` (S-01) and `bevy_grimoire#274` are the two records the two-way street
 asks for, both filed in this pass.
+
+Verified on the merged editor tree: `cargo test -p bevy_cauldron --features bevy_siren --test editor` → 1144 passed,
+4 failed, and the four are `a_person_finds_and_runs_a_command_in_the_palette`, which fail identically with the
+feature off (checked: 0 passed, 4 failed) — they predate this work. `cargo clippy -p bevy_cauldron --features
+bevy_siren --all-targets` is clean, and `boot_headless` opens the shipped project on both feature sets: 12 frames,
+2048 entities, no panic. The four panel tests read `Played`/`Refused` through a reader system: draining the doubled
+message buffer after several updates lost one in the full parallel run, and a host reads every frame, so the test
+does too.
 
 **Release: refused, recorded.** `cargo publish --dry-run` packages and verifies the 0.1.0 package (18 files, 82 KiB
 compressed) — but `cargo publish` stops at `error: no token found, please run cargo login`: there is no
