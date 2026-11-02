@@ -144,6 +144,9 @@ Then `runs/<dir>/plan.md`: the design, the modules touched, every new field on `
 
 ## 6. Inspect it (a mandatory gate)
 
+The project skill `game-audio-judging` (`.omp/skills/game-audio-judging/SKILL.md`) is the procedure: read it with
+`skill://game-audio-judging` before judging, and add a trap to it when this step finds one that is not in it.
+
 You cannot hear the result, so judge what can be measured and seen. `examples/render` is the harness:
 
 ```sh

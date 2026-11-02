@@ -55,6 +55,14 @@ every Bevy feature and a hole in its own `[dependencies]` list cannot fail.
 - `src/log.rs` — `SirenLog` (256 entries) and `Entry`.
 - `src/lib.rs` — the plugins, `SirenSystems::{Choose, Play, Mix}`, the re-exports, the quick start doctest.
 
+## The project skill
+
+`.omp/skills/game-audio-judging/SKILL.md` is how this project judges audio it cannot hear — render to WAV, read the
+spectrogram and the loudness numbers, and the four traps that have already cost an iteration each (a bus gain is a step
+function between frames; a duck takes time since it fired; a gain curve is a line, not a waveform; `ebur128` reports
+−70 LUFS for any clip under its 0.4 s gating block). Read it with `skill://game-audio-judging` before judging, and add
+a trap to it when one costs you a pass. The loop command points at it from step 6.
+
 ## Rules
 
 - **`src/model.rs` names no engine type.** It is the half that can be tested with no app, and `tests/all.rs` enforces
