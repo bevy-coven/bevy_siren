@@ -92,7 +92,9 @@ pub fn search(
     k: usize,
     floor: Floor,
 ) -> Result<Answer, SearchProblem> {
-    if &index.stamp != loaded {
+    // **One rule, in one place.** `Index::accepts` honours a recorded override pinned to the model it was granted for;
+    // asking it here is what makes `#20`'s escape hatch usable rather than decorative.
+    if !index.accepts(loaded) {
         return Err(SearchProblem::StampMismatch);
     }
     if embedding.len() != index.stamp.dimension {
@@ -216,7 +218,9 @@ pub fn search_ranked(
     query: &Query,
     request: &Ranked,
 ) -> Result<RankedAnswer, SearchProblem> {
-    if &index.stamp != loaded {
+    // **One rule, in one place.** `Index::accepts` honours a recorded override pinned to the model it was granted for;
+    // asking it here is what makes `#20`'s escape hatch usable rather than decorative.
+    if !index.accepts(loaded) {
         return Err(SearchProblem::StampMismatch);
     }
     if request.embedding.len() != index.stamp.dimension {

@@ -665,3 +665,59 @@ fn a_matching_load_reports_no_override() {
     let allowed = Index::from_bytes_allowing(&index.to_bytes(), &stamp, true).expect("a matching load");
     assert_eq!(allowed.overridden, None, "nothing was overridden, so nothing is reported");
 }
+
+/// **`#20`'s override has to be usable, and it was not.** An index the user deliberately overrode could never be
+/// queried: `Index::overridden` was recorded and nothing read it, so every search answered `StampMismatch` — measured
+/// before this fix. `Index::accepts` is the one rule, and this is the case that proves it end to end.
+#[test]
+fn an_overridden_index_can_actually_be_queried() {
+    use bevy_siren::semantic::query::Query;
+    use bevy_siren::semantic::rank::Floor;
+    use bevy_siren::semantic::search::{Ranked, SearchProblem, search_ranked};
+    use bevy_siren::semantic::weights::Weights;
+
+    let written = ModelStamp { model: "clap".into(), version: "a".into(), sample_rate: 48_000, dimension: 3 };
+    let loaded = ModelStamp { model: "clap".into(), version: "b".into(), sample_rate: 48_000, dimension: 3 };
+    let third = ModelStamp { model: "clap".into(), version: "c".into(), sample_rate: 48_000, dimension: 3 };
+
+    let mut index = Index::new(written.clone());
+    let _ = index.insert(1, vec![1.0, 0.0, 0.0]);
+    let _ = index.insert(2, vec![0.0, 1.0, 0.0]);
+    let bytes = index.to_bytes();
+
+    let query = Query::new("anything").expect("a query");
+    let features = std::collections::BTreeMap::new();
+    let weights = Weights::default();
+    let request = Ranked {
+        embedding: &[1.0, 0.0, 0.0],
+        anchor: 0,
+        features: &features,
+        k: 3,
+        floor: Floor::default(),
+        weights: &weights,
+    };
+
+    // **Without the override it is refused**, which must stay true.
+    let strict = Index::from_bytes_allowing(&bytes, &loaded, true).expect("allowed");
+    assert!(strict.overridden.is_some());
+    assert!(strict.accepts(&loaded), "the override was granted for THIS model");
+    let answer = search_ranked(&strict, &loaded, &query, &request).expect("the override makes it queryable");
+    assert_eq!(answer.matches.len(), 2, "and it ranks the vectors it holds");
+
+    // **A plain load refuses**, so the override is the only way through.
+    assert!(matches!(Index::from_bytes(&bytes, &loaded), Err(IndexProblem::ModelMismatch(_))));
+    assert!(
+        !Index::new(written.clone()).accepts(&loaded),
+        "an un-overridden index refuses a different model"
+    );
+
+    // **The override is pinned**: consenting to `b` is not consenting to `c`.
+    assert!(!strict.accepts(&third), "a third model is a different claim about the vectors");
+    assert!(matches!(search_ranked(&strict, &third, &query, &request), Err(SearchProblem::StampMismatch)));
+
+    // A matching stamp is always accepted, whether or not anything was overridden.
+    let matching = Index::from_bytes(&bytes, &written).expect("the stamps match");
+    assert!(matching.overridden.is_none());
+    assert!(matching.accepts(&written));
+    assert!(!matching.accepts(&loaded));
+}

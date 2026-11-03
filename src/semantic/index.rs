@@ -386,6 +386,30 @@ impl Index {
         self.records.is_empty()
     }
 
+    /// **Whether `loaded` may query this index**, which is the rule every search shares.
+    ///
+    /// Two ways to be usable:
+    ///
+    /// 1. the stamps match, which is the ordinary case; or
+    /// 2. the stamps differ **and** this index was loaded through a recorded override *for exactly this loaded model*.
+    ///
+    /// The second clause is what makes `#20`'s override actually work, and it was missing. `Index::overridden` was written
+    /// by [`Index::load_allowing`] and this type's own doc claimed every search built from it would carry the fact — but
+    /// nothing read it, and every search refused on a stamp mismatch, so an override produced an index that could
+    /// never be queried. Measured before the fix: `search_ranked` answered `StampMismatch` for an index loaded with
+    /// `allow_override = true`.
+    ///
+    /// **The override is pinned to the model it was granted for.** An index overridden for `version b` is not queryable
+    /// with `version c`, because the user consented to one specific mismatch and a third model is a different claim about
+    /// the vectors. Without that clause a recorded override would be a standing permission to rank noise, which is the bug
+    /// the stamp exists to prevent.
+    pub fn accepts(&self, loaded: &ModelStamp) -> bool {
+        if &self.stamp == loaded {
+            return true;
+        }
+        self.overridden.as_ref().is_some_and(|mismatch| &mismatch.loaded == loaded)
+    }
+
     /// Insert or replace one vector. Refused when it is the wrong length, because a short vector would compare
     /// against a full one and produce a score from nothing.
     pub fn insert(&mut self, hash: u64, vector: Vec<f32>) -> Result<(), IndexProblem> {

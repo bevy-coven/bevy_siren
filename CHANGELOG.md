@@ -5,6 +5,15 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **`#20`'s stamp override could not be used.** `Index::overridden` was written by `load_allowing` and its own doc claimed
+  every search would see it, but **nothing read it** and both search entry points refused on any stamp mismatch — so an
+  index loaded through the override **could never be queried**, measured as `Some(StampMismatch)`. A user who followed
+  the refusal's own advice (*"re-index"*) got a second refusal contradicting the first. `Index::accepts` is now the one
+  rule both searches ask: the stamps match, **or** the index carries an override **granted for exactly that model** — so
+  consenting to one mismatch is not consenting to a third model, which would be a standing permission to rank noise.
+
 ### Added
 
 - **A busy GPU is waited out, bounded and visible** — `#37`. `budget::Deferral { wait_s: 30.0, poll_s: 0.5 }` (both
