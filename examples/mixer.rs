@@ -34,8 +34,8 @@ use bevy::text::FontSize;
 use bevy::ui::widget::Text;
 use bevy::window::WindowResolution;
 use bevy_siren::{
-    BusLevel, Cue, CueTable, Entry, Mode, MusicLayer, MusicLayers, MusicPlugin, MusicScore, Play, SirenLog,
-    SirenMix, SirenPlugin, SirenSettings, SirenSounds, SoundSlot,
+    BusLevel, Cue, CueTable, Entry, Mode, MusicLayer, MusicLayers, MusicPlugin, MusicScore, MusicState, Play,
+    SirenLog, SirenMix, SirenPlugin, SirenSettings, SirenSounds, SoundSlot,
 };
 
 /// The capture, present only when `SIREN_FRAMES` is set.
@@ -74,10 +74,12 @@ enum Kind {
     Bus(&'static str),
     Log,
     Cues,
+    Music,
     Problems,
     Header,
     BusesHeading,
     CuesHeading,
+    MusicHeading,
     LogHeading,
     ProblemsHeading,
 }
@@ -310,6 +312,8 @@ fn setup(mut commands: Commands, mut sounds: ResMut<SirenSounds>, mut assets: Re
             row(Kind::Bus("Effects")),
             row(Kind::Bus("Ambience")),
             row(Kind::Bus("Dialogue")),
+            heading("Music", Kind::MusicHeading),
+            row(Kind::Music),
             heading("Cues", Kind::CuesHeading),
             row(Kind::Cues),
             heading("Problems", Kind::ProblemsHeading),
@@ -368,6 +372,7 @@ fn draw_panel(
     table: Res<CueTable>,
     settings: Res<SirenSettings>,
     log: Res<SirenLog>,
+    music: Res<MusicState>,
     mut texts: Query<(&PanelText, &mut Text)>,
 ) {
     for (panel, mut text) in &mut texts {
@@ -378,7 +383,11 @@ fn draw_panel(
                 settings.buses.len(),
                 mix.voices.values().sum::<usize>()
             ),
-            Kind::BusesHeading | Kind::CuesHeading | Kind::LogHeading | Kind::ProblemsHeading => continue,
+            Kind::BusesHeading
+            | Kind::CuesHeading
+            | Kind::MusicHeading
+            | Kind::LogHeading
+            | Kind::ProblemsHeading => continue,
             Kind::Bus(bus) => {
                 let db = mix.bus_db(bus);
                 let duck = mix.ducked.get(bus).copied().unwrap_or(0.0);
@@ -405,15 +414,48 @@ fn draw_panel(
                 let cap = settings.bus_voice_limit(bus);
                 format!("{bus:<10} {db:+7.1} dB{duck}   {} / {cap} voices", mix.voices_on(bus))
             }
+            // **The score, as the plugin sees it.** `MusicState` exposes seven panel-facing accessors —
+            // `layer_db`, `target_db`, `names`, `moving`, `live`, `next_change_s`, `voice` — and this panel drew none of
+            // them, so the example shipped a two-layer score whose `Layer` step really crossfades on the bar and the
+            // picture showed `track.calm` and `track.combat` as ordinary cues. One row per layer: where it is, where it
+            // is going, and whether it is still moving.
+            Kind::Music => {
+                // **One line for the whole score.** A row per layer cost a full line more than the three cue rows it
+                // displaced, and the column has no scroll — the log was clipped again the moment this block was added
+                // (measured: margin 12 px -> 1 px). Two layers fit on one line in 41 of the ~114 columns available, so
+                // the block costs one heading and one line and the log keeps its eight.
+                let parts: Vec<String> = music
+                    .names()
+                    .map(|name| {
+                        let db = music.layer_db(name).unwrap_or(bevy_siren::model::SILENT_DB);
+                        let target = music.target_db(name).unwrap_or(db);
+                        if (db - target).abs() >= 0.01 {
+                            format!("{name} {db:+.1} -> {target:+.1}")
+                        } else {
+                            format!("{name} {db:+.1} dB")
+                        }
+                    })
+                    .collect();
+                if parts.is_empty() { "none".to_owned() } else { parts.join("   ") }
+            }
             Kind::Cues => {
                 // **A bad cue is marked on its own row, and the sentence lives in the `Problems` block.** The marker
                 // is deliberately a short word: a full sentence here wrapped onto a second line and broke the column's
                 // alignment (caught by looking at the 1280 capture), and it repeated what the block below already
                 // says. One form per idea: the row says *which* cue, the block says *what*.
                 let problems = table.problems_in(&settings);
+                // **A cue a score owns is shown by the Music block, not here.** Three of the nine cues are music; the
+                // block shows them with their live gain and target, which the static row cannot, and the column has
+                // finite height — measured, three cue rows is almost exactly what a three-line block needs.
+                let owned: Vec<String> = music
+                    .score
+                    .as_ref()
+                    .map(|s| s.layers.iter().map(|l| l.cue.clone()).collect())
+                    .unwrap_or_default();
                 table
                     .cues
                     .iter()
+                    .filter(|cue| !owned.contains(&cue.name))
                     .map(|cue| {
                         let mode = if cue.mode.is_loop() { "loop" } else { "once" };
                         let bad = problems.iter().any(|p| problem_names(p, &cue.name));
@@ -456,10 +498,12 @@ fn draw_panel(
                     }
                 }
             }
-            // **Eight, which is the budget the crate documents.** `SirenLog::CAPACITY`'s own doc says *"a panel shows
-            // eight"*, and this panel drew ten in a fixed column that fits about 8.5: the last line was clipped
-            // mid-glyph in every capture, including the README's. Measured by looking, not by arithmetic.
-            Kind::Log => log.recent(8).map(Entry::line).collect::<Vec<_>>().join("\n"),
+            // **Seven, because the `Music` block costs a heading and a line.** `SirenLog::CAPACITY`'s doc says *"a panel
+            // shows eight"*, and this column fits eight — until a block is added above the log. Measured from the
+            // captures: the Music block is 68 px (heading 40 + line 28) against the 63 px three removed cue rows freed,
+            // so eight lines leaves **1 px** of margin — a clipped glyph, the defect iteration 32 fixed. Seven restores
+            // it. The crate's number describes a panel; this panel has one more block than that sentence knew about.
+            Kind::Log => log.recent(7).map(Entry::line).collect::<Vec<_>>().join("\n"),
         };
         if text.0 != next {
             text.0 = next;

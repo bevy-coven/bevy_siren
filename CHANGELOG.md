@@ -18,6 +18,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   voice is refused with nothing stolen, and a stealable voice still plays beside one so neither can pass vacuously. No
   `src/` file changed; the mutation check (`steal` ignoring `unstealable`) reddens both new tests **and** the old one.
 
+### Added
+
+- **`examples/mixer`'s panel shows the music score.** It shipped a two-layer score and drew none of `MusicState`'s seven
+  panel-facing accessors, so `track.calm` and `track.combat` appeared as ordinary cue rows and the `Layer` step's real
+  crossfade on the bar was invisible. A `Music` block now lists the layers with their live gain and, while a layer moves,
+  `-> target` — `calm -4.0 dB   combat -80.0 dB` at rest, `calm -79.9 -> -80.0   combat -3.1 -> -3.0` mid-crossfade. The cue
+  list no longer repeats a cue the score owns, and the log shows **seven** lines instead of eight: the block costs 68 px
+  against the 63 px the three cue rows freed, measured from the captures, and seven keeps an 11 px margin where eight
+  leaves 1 px and a clipped glyph.
+
 ### Fixed
 
 - **`MusicScore::problems`'s doc lists all nine checks it performs, and `MusicLayer::cue` says `must`, not `should`.**
@@ -127,6 +137,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `answer`'s `UnknownBus` check, `update_mix` and `SirenSettings::problems()` all read — had every cue on a custom bus
   reported as `UnknownBus` while the crate accepted and mixed it. `problems_in` reads `settings.bus_names()`, the same
   answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
+
+### Added
+
+- **`examples/mixer`'s panel shows the music score.** It shipped a two-layer score and drew none of `MusicState`'s seven
+  panel-facing accessors, so `track.calm` and `track.combat` appeared as ordinary cue rows and the `Layer` step's real
+  crossfade on the bar was invisible. A `Music` block now lists the layers with their live gain and, while a layer moves,
+  `-> target` — `calm -4.0 dB   combat -80.0 dB` at rest, `calm -79.9 -> -80.0   combat -3.1 -> -3.0` mid-crossfade. The cue
+  list no longer repeats a cue the score owns, and the log shows **seven** lines instead of eight: the block costs 68 px
+  against the 63 px the three cue rows freed, measured from the captures, and seven keeps an 11 px margin where eight
+  leaves 1 px and a clipped glyph.
 
 ### Fixed
 
@@ -363,6 +383,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   first frame — a cut where the crate promises a fade. The mix now writes the voice's own gain into the mixer and
   its whole chain into a Bevy sink, records which in `Applied`, and one writer still owns both.
 
+### Added
+
+- **`examples/mixer`'s panel shows the music score.** It shipped a two-layer score and drew none of `MusicState`'s seven
+  panel-facing accessors, so `track.calm` and `track.combat` appeared as ordinary cue rows and the `Layer` step's real
+  crossfade on the bar was invisible. A `Music` block now lists the layers with their live gain and, while a layer moves,
+  `-> target` — `calm -4.0 dB   combat -80.0 dB` at rest, `calm -79.9 -> -80.0   combat -3.1 -> -3.0` mid-crossfade. The cue
+  list no longer repeats a cue the score owns, and the log shows **seven** lines instead of eight: the block costs 68 px
+  against the 63 px the three cue rows freed, measured from the captures, and seven keeps an 11 px margin where eight
+  leaves 1 px and a clipped glyph.
+
 ### Fixed
 
 - **`MusicScore::problems`'s doc lists all nine checks it performs, and `MusicLayer::cue` says `must`, not `should`.**
@@ -487,6 +517,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [0.1.0] - 2026-11-02
 
 The first release: sound for Bevy 0.20 as data, mixed in buses.
+
+### Added
+
+- **`examples/mixer`'s panel shows the music score.** It shipped a two-layer score and drew none of `MusicState`'s seven
+  panel-facing accessors, so `track.calm` and `track.combat` appeared as ordinary cue rows and the `Layer` step's real
+  crossfade on the bar was invisible. A `Music` block now lists the layers with their live gain and, while a layer moves,
+  `-> target` — `calm -4.0 dB   combat -80.0 dB` at rest, `calm -79.9 -> -80.0   combat -3.1 -> -3.0` mid-crossfade. The cue
+  list no longer repeats a cue the score owns, and the log shows **seven** lines instead of eight: the block costs 68 px
+  against the 63 px the three cue rows freed, measured from the captures, and seven keeps an 11 px margin where eight
+  leaves 1 px and a clipped glyph.
 
 ### Fixed
 

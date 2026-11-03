@@ -34,8 +34,12 @@ The GIF is captured with `SIREN_FAULTS=1`, which adds two deliberate mistakes to
 the row markers have something to show through the whole animation. The **still** is the clean panel, which reads
 `Problems / none` — that is the state a project ships, and it is what `README.md` shows at rest.
 
-The log shows **eight** lines — `SirenLog::CAPACITY`'s own doc says *"a panel shows eight"*, and the column fits about
-8.5: at ten the last entry was clipped mid-glyph in every capture until iteration 32.
+A **`Music` block** shows the score's layers with their live gain, and `-> target` while a layer moves — the crate's
+adaptive music, visible. The cue list below it carries only cues that are **not** layers.
+
+The log shows **seven** lines: `CAPACITY`'s doc says *"a panel shows eight"*, and the column fits eight — until a block is
+added above the log. Measured, the `Music` block costs 68 px against the 63 px the three music cue rows freed, so eight
+leaves 1 px and a clipped glyph; seven leaves 11 px.
 
 A bus row reads `duck -8.0 dB by dialogue.greeting` while a duck holds — how far *and* by what, from the `Entry::Ducked`
 the log already carries (iteration 31) — and drops the clause the frame the duck releases.
