@@ -38,11 +38,14 @@ one of them.
 asset otherwise. On real audio in `bmb`: **3 of 4**, and the miss is a **0.006** tie between two clips both generated
 from white noise. That tie is the argument for a score on every result: a bare "best match" would have hidden it.
 
-**Four defects the tests found.** `batch_sizes` built its capacity from the model's own cost, so a dynamic graph
+**Five defects the tests found.** `batch_sizes` built its capacity from the model's own cost, so a dynamic graph
 reported **one** size — an optimistic number that fails at run time and passes a test that only checks it is non-zero.
 The tiny ONNX fixture's `MatMul` assumed a fixed 8 tokens. A constant `assert!` clippy rejected and that should have
-been in a `const` block. And `ort`'s API had moved in four places, all recorded in ADR 0002 because a consumer hits them
-too.
+been in a `const` block. `ort`'s API had moved in four places, all recorded in ADR 0002 because a consumer hits them
+too. And **`Model::load` created an ONNX Runtime environment per call**, which `ort` refuses — *"only one environment is
+allowed per process"* — so it worked in a test that loaded one model and would have failed in every real application,
+which loads at least a text tower and an audio tower. Found only because the suite ran together rather than one test at
+a time; fixed with a `OnceLock`, in `1be5ee7`.
 
 **The resampler, measured rather than argued.** `rubato 0.16.2` builds in 2.12 s and keeps a 1 kHz tone at **0.9763**
 of its energy and a 15 kHz one intact, where `rodio`'s converter discards samples. So `#12`'s decision is now one
@@ -63,7 +66,7 @@ like a linker error.
 **Evidence.** `runs/2026-11-03-63/`: `research.md` (four measured sources), `plan.md`, `perf.md`, `eval.md`,
 `review.md` (three passes), and `evidence/` — `ort-probe.txt`, `resampler-probe.txt`, `e2e.txt`, `spike/{text,space,e2e}.json`.
 
-**Commits.** `81a6a1f` text tower + floor, `f52d79f` `ort` + session, `f317a27` search + model.
+**Commits.** `81a6a1f` text tower + floor, `f52d79f` `ort` + session, `f317a27` search + model, `1be5ee7` the environment singleton.
 
 **Top 5 remaining**
 
