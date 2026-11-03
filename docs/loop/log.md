@@ -7,6 +7,61 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 44 — 2026-11-03 — a music layer waiting for a voice says so
+
+**Baseline.** Green on every step, no open issues. Nothing red.
+
+**Change.**
+1. **`MusicState::blocked(layer)`** — the **virtual voice** state. A score may name more layers than the budget has room
+   for; when a layer's `Play` is refused the plugin records the live count and retries when it falls below. That field
+   was private, so the `Music` block drew `-80.0 dB` for a layer **waiting for a voice** and `-80.0 dB` for one authored
+   silent — one string, two answers to the question a panel exists for. The accessor is additive: no variant, field or
+   exhaustive `match`.
+2. **The panel appends `waiting`** to a layer's gain when `blocked` is `Some`.
+3. **`SIREN_TIGHT=1`** gives the `Music` bus one voice so the state occurs in a capture; the cap is on the bus, not the
+   table.
+4. **`cues.yaml` gains cases 32 and 33** — iteration 43's parented despawn, and this iteration's virtual voice. 31 → 33.
+
+**Rationale.** Gregory §14.5.8: *"a **virtual voice** is a sound the game believes is playing but that has no hardware
+voice"*. The state existed and was correct; only the reading was missing, and a panel that cannot tell a refusal from a
+silence is the silent-failure class this loop exists for. Beats the runner-up (writing case 32 as the item): the case is
+bookkeeping until the state it describes is observable.
+
+**Not built: case 31** (a non-finite cue `gain_db` in `problems()`) — still **blocked** on
+`needs-decision/bad-gain-problem.md`. Its own recommendation is *"C now, A at the next minor"*; the crate is 0.1.0, so A
+waits for the release that moves it. Nothing was built from a blocked decision.
+
+**Evidence.** `runs/2026-11-03-44/`: `research.md` (S1 Gregory's virtual voice, S2 `blocked_at`'s own doc, S3
+`MusicState::live`, S4 the suppression rule), `plan.md`, `perf.md`, `eval.md`, `review.md` (three passes, GREAT),
+`evidence/{panel,after}`, and `docs/media/mixer-waiting.png`.
+
+| | before | after |
+|---|---|---|
+| a layer the budget refused | `combat -80.0 dB` — same as a silent layer | `combat -80.0 dB **waiting**` |
+| a layer the score lacks | — | `blocked` answers `None` |
+| after one slot frees | — | `(calm: None, combat: Some(1))` |
+| `SIREN_TIGHT` scope | table-wide, **starved the whole script** | the `Music` bus only |
+| `cues.yaml` | 31 cases | **33** |
+| tests | 122 / 129 / 132 + 5 | unchanged — the assertions went into an existing test |
+| perf | 0.06 / 0.20–0.36 / 0.41–1.28 µs at load 5.7–6.3 | noise; `perfcheck` builds no `MusicScore` |
+
+**A defect in this iteration's own capture, found by looking**: the first `SIREN_TIGHT` capped the **table** at one voice,
+so the capture proved the waiting marker by refusing every other play in the script — six `refused` lines, every bus at
+`0 / 1`. Scoping the cap to the `Music` bus isolated the point: `Effects 2 / 2`, the bus steal intact, and only the two
+music lines that matter.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md` (a public enum; its own recommendation defers to the next minor).
+2. The `Music` header could show `live() of names().count()`; the block shows each layer but not the total.
+3. `docs/media/mixer.gif` captures at ~8 fps; a fade shorter than 120 ms falls between frames.
+4. No capture shows the panel with a **missing sound** refused (iteration 39 showed `unknown-cue` only).
+5. `SirenSettings::problems` has no test that every sentence it can emit is reachable — a report nobody can trigger is a
+   sentence nobody trusts.
+
 ## Iteration 43 — 2026-11-03 — a parented sound says it stopped when its owner is despawned
 
 **Baseline.** Green on every step, no open issues. Nothing red.

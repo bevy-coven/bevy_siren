@@ -656,13 +656,37 @@ fn a_refused_layer_start_is_tried_again_when_room_frees() {
         "the score's layers were refused: {:#?}",
         refused(&mut app)
     );
+    // **A refused layer is a *virtual voice*, and `blocked` is how a panel says so.** Gregory §14.5.8: *"a virtual voice
+    // is a sound the game believes is playing but that has no hardware voice"*. Without this accessor the panel drew
+    // `-80.0 dB` for the waiting layer and `-80.0 dB` for a layer authored silent — the same string for two different
+    // answers. The mutation (never setting `blocked_at`, or returning `None`) reddens this and the retry below, because
+    // the retry is gated on the same number.
+    let state = app.world().resource::<MusicState>();
+    let blocked: Vec<Option<usize>> = state.names().map(|n| state.blocked(n)).collect();
+    assert!(
+        blocked.iter().all(Option::is_some),
+        "both layers wait for a voice, and each says so: {blocked:?}"
+    );
+    assert_eq!(
+        state.blocked("calm"),
+        Some(1),
+        "and the count it waits for is the one live when it was refused"
+    );
+    assert_eq!(state.blocked("nope"), None, "a layer the score does not have waits for nothing");
 
     app.world_mut().resource_mut::<Messages<StopCue>>().write(StopCue { cue: "bed".into() });
     run_for(&mut app, 2.0, 1.0 / 60.0);
 
-    assert!(
-        app.world().resource::<MusicState>().live() > 0,
-        "a layer is live now that the bed freed its slot"
+    let state = app.world().resource::<MusicState>();
+    assert!(state.live() > 0, "a layer is live now that the bed freed its slot");
+    // **One voice, two layers: the one that got it is no longer waiting, and the one that did not still is.** With
+    // `max_voices: 1` only one slot frees, so asserting *every* layer is unblocked would be asserting something the
+    // budget forbids — the pair in this assertion is the whole point of the accessor.
+    let still: Vec<(&str, Option<usize>)> = state.names().map(|n| (n, state.blocked(n))).collect();
+    assert_eq!(
+        (state.blocked("calm"), state.blocked("combat")),
+        (None, Some(1)),
+        "the layer that got its voice stopped waiting; the other still is: {still:?}"
     );
 }
 

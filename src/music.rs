@@ -351,6 +351,20 @@ impl MusicState {
         self.layers.iter().filter(|l| (l.db - l.target_db).abs() >= 0.01).count()
     }
 
+    /// **Whether this layer is a virtual voice** — believed playing, with no hardware voice — and the live count it
+    /// waits for.
+    ///
+    /// `Some(n)` means the layer's `Play` was refused when `n` voices were live, and it is retried when that count
+    /// falls below `n`; until then it sounds nothing. `None` means it was never refused.
+    ///
+    /// Gregory §14.5.8 (*Game Engine Architecture*, 3rd ed.): *"a **virtual voice** is a sound the game believes is
+    /// playing but that has no hardware voice"*. A panel that draws only the layer's gain shows `-80.0 dB` for this
+    /// state and `-80.0 dB` for a layer authored silent — the same string for two different answers to the one question
+    /// a panel exists to answer.
+    pub fn blocked(&self, layer: &str) -> Option<usize> {
+        self.layers.iter().find(|l| l.name == layer).and_then(|l| l.blocked_at)
+    }
+
     /// How many layer voices are live.
     pub fn live(&self) -> usize {
         self.layers.iter().filter(|l| l.voice.is_some()).count()

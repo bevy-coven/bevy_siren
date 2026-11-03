@@ -175,10 +175,15 @@ fn window_size() -> WindowResolution {
 /// The buses the panel draws: two with room, one capped at two so a steal is visible, and the default dialogue
 /// duck between them.
 fn settings() -> SirenSettings {
+    // **`SIREN_TIGHT=1` gives the `Music` bus one voice, so the second layer becomes a virtual voice.** The default
+    // table has room for both layers, so the `waiting` marker would never appear and its one line could not be proved
+    // by looking. The cap is on the **bus**, not the table: the other buses keep their room, so the picture isolates the
+    // waiting layer instead of refusing every play in the script.
+    let tight = std::env::var("SIREN_TIGHT").is_ok_and(|v| v != "0");
     SirenSettings {
         max_voices: 12,
         buses: vec![
-            BusLevel::new("Music").gain_db(-2.0),
+            BusLevel::new("Music").gain_db(-2.0).max_voices(if tight { 1 } else { 0 }),
             BusLevel::new("Effects").max_voices(2),
             BusLevel::new("Ambience").gain_db(-6.0),
             BusLevel::new("Dialogue"),
@@ -499,10 +504,15 @@ fn draw_panel(
                     .map(|name| {
                         let db = music.layer_db(name).unwrap_or(bevy_siren::model::SILENT_DB);
                         let target = music.target_db(name).unwrap_or(db);
+                        // **A layer the budget could not give a voice is a *virtual voice*.** `MusicState` records the
+                        // live count it was refused at and retries when that count falls, and the panel drew
+                        // `-80.0 dB` for it exactly as for a layer authored silent — two answers, one string. Gregory
+                        // §14.5.8: the game believes it plays; only the panel could tell you otherwise.
+                        let waiting = if music.blocked(name).is_some() { " waiting" } else { "" };
                         if (db - target).abs() >= 0.01 {
-                            format!("{name} {db:+.1} -> {target:+.1}")
+                            format!("{name} {db:+.1} -> {target:+.1}{waiting}")
                         } else {
-                            format!("{name} {db:+.1} dB")
+                            format!("{name} {db:+.1} dB{waiting}")
                         }
                     })
                     .collect();

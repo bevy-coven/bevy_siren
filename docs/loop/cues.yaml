@@ -267,3 +267,21 @@ cases:
 # - The numbers are the sources' numbers, not invented ones. 8 dB and 4 dB are Gregory's dialogue duck (Game Engine
 #   Architecture 3e, 14.6.3); -6.02 dB is half amplitude; a bar at 160 bpm is 1.5 s. A case that needs a number no
 #   source gives says `design default` and is argued in the iteration's research.md.
+
+  - id: 32
+    cue: engine.idle
+    authored: { bus: Effects, mode: Loop, play: { on: owner, then: despawn_owner } }
+    behaviour: A sound whose owner is despawned stops, and the log says which sound and why.
+    observed_by: "`SirenLog`'s `Stopped` entry for the cue and `SirenMix::voices_on` after the despawn."
+    green_when: "One entry whose `why` is \"owner despawned\" naming the cue; the bus counts one fewer voice; a game's own unparented despawn writes nothing."
+    source: "`Play::on`'s doc — the parent's despawn is the ordinary end of such a sound; crate rule R6 — every play's outcome is readable"
+    evidence: "runs/2026-11-03-43/review.md, tests/play.rs::a_despawned_owner_stops_its_sound_and_says_so, tests/mixer.rs::a_despawned_voices_mixer_slot_is_freed"
+
+  - id: 33
+    cue: track.combat
+    authored: { score_layers: 2, max_voices: 1 }
+    behaviour: A layer the budget refused is a virtual voice, and the state says so until it starts.
+    observed_by: "`MusicState::blocked(layer)` before and after a voice frees."
+    green_when: "`Some(n)` with `n` the live count at the refusal; `None` once that layer has a voice. A layer the score does not have answers `None`."
+    source: "Gregory, Game Engine Architecture 3e §14.5.8 — `\"a virtual voice is a sound the game believes is playing but that has no hardware voice\"`"
+    evidence: "runs/2026-11-03-44/review.md, tests/music.rs::a_refused_layer_start_is_tried_again_when_room_frees"

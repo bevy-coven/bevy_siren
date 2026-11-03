@@ -167,3 +167,19 @@ cargo run --example music
 
 A scripted calm → combat → calm, printing each transition and checking that every one landed on a bar (2.4 s at
 100 bpm).
+
+## A layer with no voice yet
+
+A score can name more layers than the budget has room for. When `Play` is refused, the layer is a **virtual voice** —
+Gregory §14.5.8 (*Game Engine Architecture*, 3rd ed.): *"a sound the game believes is playing but that has no hardware
+voice"*. The plugin records the live count at the refusal and asks again when that count falls below it, rather than
+retrying every frame into a log a panel reads.
+
+`MusicState::blocked(layer)` is that state, for a panel:
+
+```rust
+let waiting = music.blocked("combat");   // Some(1): refused while one voice was live
+```
+
+`None` means the layer was never refused. A panel that draws only `layer_db` cannot tell a waiting layer from one
+authored silent — both read `-80.0 dB` — which is why `examples/mixer` appends `waiting` to the gain.

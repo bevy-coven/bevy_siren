@@ -5,6 +5,17 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **`MusicState::blocked(layer)` reports a virtual voice.** A score may name more layers than the budget has room for;
+  when the layer's `Play` is refused the plugin records the live count and asks again when it falls below. That state
+  was private, so a panel drawing only `layer_db` printed `-80.0 dB` for a layer **waiting for a voice** and `-80.0 dB`
+  for one authored silent — the same string for two different answers to *"why is the music quiet"*. The accessor
+  returns `Some(n)` (the count it waits for) or `None`, and is additive: no variant, field or exhaustive `match`
+  changes. Gregory §14.5.8 — *"a virtual voice is a sound the game believes is playing but that has no hardware
+  voice"*. Proved by `tests/music.rs::a_refused_layer_start_is_tried_again_when_room_frees`, whose mutation (returning
+  `None`) reddens it.
+
 ### Fixed
 
 - **A sound whose owner is despawned now says it stopped.** `Play::on(entity)` parents the voice with `ChildOf`, so
@@ -21,6 +32,10 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`examples/mixer` shows a music layer waiting for a voice.** The `Music` block appends `waiting` to a layer's gain
+  when the budget could not give it a voice — `combat -80.0 dB waiting` — and `SIREN_TIGHT=1` gives the `Music` bus one
+  voice so the state occurs in a capture (`docs/media/mixer-waiting.png`). The cap is on the bus, not the table, so the
+  other buses keep their room and the picture isolates the point.
 - **`examples/mixer` shows a parented sound ending.** A `parent` step spawns an owner, plays `engine.idle` on it with
   `Play::on`, and despawns the owner two frames later — so the panel's log now carries
   `0.68s stopped \`engine.idle\`: owner despawned` beside `Effects 1 / 2 voices`. The script is now

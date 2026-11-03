@@ -26,6 +26,14 @@ a_duck_whose_source_keeps_playing_holds, a_second_line_extends_the_duck}`.
 
 ![the same panel as a still](mixer.png)
 
+![the Music block with one layer waiting for a voice](mixer-waiting.png)
+
+`mixer-waiting.png` is the same panel under `SIREN_TIGHT=1`, which gives the `Music` bus **one** voice: the score's second
+layer's `Play` is refused, so it becomes a **virtual voice** — Gregory §14.5.8's *"sound the game believes is playing but
+that has no hardware voice"* — and the block says `combat -80.0 dB waiting`. Without it the block drew `-80.0 dB` for a
+waiting layer and `-80.0 dB` for one authored silent, two different answers to one question. `SIREN_TIGHT` caps the
+**bus**, not the table, so the other buses keep their room and the picture isolates the waiting layer.
+
 The crate's visible harness: every bus with its level, its duck and its live voice count; the cue table **with the
 crate's own verdict on it** and, for a placed cue, the attenuation law and the gain its distance gives
 (`bang … inverse at 8 m -6.02 dB`) (`Problems`, and `<- problem` beside a cue that cannot play); the log of what played and why —
@@ -72,8 +80,11 @@ SIREN_FAULTS=1 SIREN_FRAMES=260 SIREN_SIZE=1280x720 SIREN_SHOT_DIR=/tmp/frames S
 ffmpeg -y -framerate 10 -i /tmp/frames/f_%04d.png \
   -vf "scale=960:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" -loop 0 docs/media/mixer.gif
 
-SIREN_FRAMES=90 SIREN_SHOT=docs/media/mixer.png SIREN_SIZE=1280x720 \
+SIREN_FRAMES=96 SIREN_SHOT=docs/media/mixer.png SIREN_SIZE=1280x720 \
   cargo run --release --example mixer          # the still, just after a parented sound lost its owner
+
+SIREN_TIGHT=1 SIREN_FRAMES=40 SIREN_SHOT=docs/media/mixer-waiting.png SIREN_SIZE=1280x720 \
+  cargo run --release --example mixer          # the still, with a music layer waiting for a voice
 ```
 
 Iteration 25 gave the capture a **default script**: `SIREN_KEYS` unset used to panic on `% 0` and write no still, so
