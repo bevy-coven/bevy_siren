@@ -48,7 +48,9 @@ looking catches. (3) `problems_in(&settings)`, not `problems()`: an example with
 from the default-four wrapper. (4) A capture that proves a view needs a **faulty** input; keep it behind a knob so the
 shipped picture stays clean. (5) `hs distill` GPU-blocked (twenty-fifth iteration).
 
-**Commit.** `4ccd29a`; CI on `main`.
+**Commit.** `4ccd29a`, pushed to `main`; CI run 41593125114 is **success** on `big-s1`. Gate: build, test (109 + 5),
+serde (116 + 5), mixer (117 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
