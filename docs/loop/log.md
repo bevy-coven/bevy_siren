@@ -7,6 +7,52 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 107 — 2026-11-03 — the same list, in the other score
+
+**Change.** `MusicScore::problems()`'s doc said *"Nine checks, and this list is the whole of them"*. The nine were
+correct — **by hand**, checked only when someone counted. Measured: adding a tenth check to `problems` left the suite green
+and the sentence still claiming completeness. `music::MUSIC_CHECKS` is now the one list; the doc names it and
+`a_score_reports_every_fault_its_doc_lists` walks it.
+
+**Rationale.** Iteration 106's recorded criticism, and the same **Information Leakage** (Ousterhout): the set of checks is
+one decision written in the doc, the bullets and the test, with nothing forcing agreement.
+
+**Proved the guard fails.** Adding a tenth check **and its name** gives `9 != 10`, naming the whole list. Reverted; green.
+
+**Iteration 106's criticism was half wrong, and the record now says so.** It claimed this type was *"one inspection away
+from the same drift"*. There **was** a test, with nine needles, whose own doc records that the list once said four while the
+code performed nine. The gap was narrower — the counts agreed, nothing kept them agreeing — and a criticism that overstates
+misleads as much as a doc that does.
+
+**A measurement of mine was wrong, and it is the most useful thing here.** My first attempt added the tenth **check** without
+a tenth **name**, the test passed, and I wrote that the guard had failed. It had not: the constant *is* the list, so ten
+checks and nine names is a state the constant does not describe. **A check not in `MUSIC_CHECKS` is not a documented
+check.** The research file records the mistake in its own section rather than quietly fixing the sentence.
+
+**Before/after.** No audio changed — **all 21 rendered wavs byte-identical**, master **−21.5 LUFS, −7.5 dBFS true peak**.
+Per-frame cost unchanged and inside the band iteration 102 recorded; the change adds a `const` and a test comparison.
+
+**Verdicts.** Function **GREAT**, zoom **GREAT**, fresh eyes **GREAT**. The zoom read `music-calm.png`: a 1.55 s looping
+bed, flat sustained partials to the end with **no decay** — correct for a loop, the one clip shape where a missing decay is
+right — and no vertical seam at the wrap point.
+
+**Recorded, not fixed.** `CueTable::problems` is the third of three with this shape and still has no constant. Two
+iterations have done this pattern one type at a time; the third is mechanical and remains the follow-up.
+
+**Evidence.** [`runs/2026-11-03-107/`](runs/2026-11-03-107/) — `research.md`, `plan.md`, `eval.md`, `perf.md`,
+`review.md`, `evidence/after/` (32 files), `evidence/spectrograms/`.
+
+**Baseline:** nothing red — 199 / 6 / **436 semantic** / **460 all-features** / 109 lib / 6 doc, clippy, fmt and docs
+clean.
+
+**Top 5 remaining — all blocked outside this repository.**
+
+1. **`#28` the MCP server** — one line of `Cargo.toml` and one `leaf.rs` row. Everything it wraps exists and is tested.
+2. **`CueTable::problems` gets the same constant** — the third of three, this iteration's recorded follow-up.
+3. **`#35` golden set** — labelled real recordings; also what `#23`'s reverb measure and `evalbench`'s `corpus()` wait on.
+4. **`#32`–`#34` the editor panel** — everything it needs is built, in `bevy_grimoire`.
+5. **`#[non_exhaustive]` on the print-only diagnostic enums** — iteration 105's decision file.
+
 ## Iteration 106 — 2026-11-03 — a guarantee the test did not provide
 
 **Change.** `SirenSettings::problems()`'s doc said *"**Twelve checks**, and `tests/mix.rs::problems_names_every_mistake`
