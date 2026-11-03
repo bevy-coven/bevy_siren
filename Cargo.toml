@@ -31,6 +31,13 @@ required-features = ["mixer"]
 name = "indexbench"
 required-features = ["semantic"]
 
+# #47's query latency bench: the scan and the full path, p50 and p99, at 1 000 and 10 000 assets. Separate from
+# `indexbench` for the reason that one is separate from `perfcheck` — a per-query figure and a batch figure must never
+# be read as the same number.
+[[example]]
+name = "querybench"
+required-features = ["semantic"]
+
 [features]
 default = []
 # `serde` on the cue table, the mix table and the music score, plus `from_ron`/`to_ron`: a project saves

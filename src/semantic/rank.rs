@@ -20,6 +20,44 @@ use std::cmp::Ordering;
 use super::index::Index;
 use super::provenance::Provenance;
 
+/// **The query latency budget**, measured rather than hoped for — `#47`.
+///
+/// A panel that stalls on a keystroke is a panel nobody uses, so the crate's own per-query work has a **ceiling stated
+/// as a number**, and this constant is it. `examples/querybench` is what produces the figures:
+///
+/// | assets | index scan p50 | p99 | full path p50 | p99 |
+/// |---|---|---|---|---|
+/// | 1 000 | **0.41 ms** | **0.91 ms** | 0.39 ms | 0.87 ms |
+/// | 10 000 | **4.30 ms** | **4.55 ms** | 4.26 ms | 4.55 ms |
+///
+/// 120 queries per size, `k = 3`, 512 dimensions, a released build on this Mac. "Full path" adds the stamp check, the
+/// hard acoustic rules, the ensemble breakdown and the re-sort, so the two rows say the **ranking dominates and the rest
+/// is noise** — the whole retrieval path costs what the scan costs.
+///
+/// # Why 10 ms, when the measurement is 4.55
+///
+/// Twice the worst case at 10 000 assets, which is the largest library the crate's own examples model. The headroom is
+/// for the machine rather than the algorithm: a library twice this size would land at ~9 ms, and a slower host or a
+/// busier one could double the figure without the code changing. A budget equal to the measurement would be a tripwire
+/// that fires on a laptop.
+///
+/// # What happens when it is exceeded
+///
+/// **Nothing automatic**, and that is the decision rather than an omission: silently narrowing `k` would return a
+/// different answer to the one asked for, which is the class of bug this crate refuses everywhere else. A caller that
+/// measures over budget has the two facts it needs — [`PER_QUERY_BUDGET_MS`] and its own timing — and can decide for
+/// itself. What this constant forbids is shipping a regression without noticing.
+///
+/// # The half this does not cover
+///
+/// The **text encode** is not in these numbers: it needs the ONNX graph and `ort`, which the bench does not link. ADR
+/// 0002 measured the text tower at **5.28 ms per query** on an M4 CPU, so the encode is the larger half of a cold query
+/// and a panel that feels slow is waiting on the model, not on this crate.
+pub const PER_QUERY_BUDGET_MS: f64 = 10.0;
+
+/// The asset count the budget is stated for.
+pub const BUDGET_ASSETS: usize = 10_000;
+
 /// Why a query could not be ranked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RankProblem {
