@@ -36,6 +36,7 @@ pub mod resample;
 pub mod search;
 pub mod session;
 pub mod tokenizer;
+pub mod weights;
 
 /// The sample rate CLAP's feature extractor resamples to before it builds a mel spectrogram.
 ///
