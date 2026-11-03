@@ -13,10 +13,32 @@
 //! assumed one accepted any batch would be wrong half the time, so [`Model::loaded`] carries what the runtime said and
 //! [`crate::semantic::session::Session::batch_sizes`] is the only thing that decides.
 
+use std::sync::OnceLock;
+
 use ort::session::Session as OrtSession;
 use ort::value::Tensor;
 
 use super::session::{LoadProblem, Loaded};
+
+/// **One ONNX Runtime environment per process**, created once.
+///
+/// `ort` refuses a second: *"only one environment is allowed per process"*. That is not a detail a caller should have
+/// to know, and a `Model::load` that created one each time would work in a test that loads one model and **fail in
+/// every real application**, which loads at least a text tower and an audio tower.
+///
+/// Found by the tests running together rather than one at a time — `ids_and_mask_of_different_lengths…` passed alone
+/// and failed in the suite, which is exactly the shape of a process-wide constraint.
+static ENVIRONMENT: OnceLock<ort::environment::Environment> = OnceLock::new();
+
+fn environment() -> Result<&'static ort::environment::Environment, String> {
+    if let Some(env) = ENVIRONMENT.get() {
+        return Ok(env);
+    }
+    let built = ort::environment::init().build().map_err(|e| e.to_string())?;
+    // A race here means another caller built one first, and `get()` returns theirs.
+    let _ = ENVIRONMENT.set(built);
+    ENVIRONMENT.get().ok_or_else(|| String::from("the ONNX Runtime environment could not be initialised"))
+}
 
 /// A loaded ONNX graph.
 pub struct Model {
@@ -37,8 +59,8 @@ impl Model {
     /// symbolic — measured facts about the file, not assumptions about the model.
     pub fn load(path: &str) -> Result<Model, LoadProblem> {
         let unreadable = |e: String| LoadProblem::Unreadable { path: path.to_string(), error: e };
-        let env = ort::environment::init().build().map_err(|e| unreadable(e.to_string()))?;
-        let session = OrtSession::builder(&env)
+        let env = environment().map_err(unreadable)?;
+        let session = OrtSession::builder(env)
             .map_err(|e| unreadable(e.to_string()))?
             .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)
             .map_err(|e| unreadable(e.to_string()))?
