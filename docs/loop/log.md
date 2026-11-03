@@ -7,6 +7,74 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 27 — 2026-11-03 — a duck ends its hold when the voice that justified it stops
+
+**Change.**
+
+- **`src/mix.rs` — `DuckClock::source_went_quiet(live, settings, now)`**, called once per frame in `update_mix` before the
+  bus loop. A rule whose `source` bus has **no live voice** has its clock rewound **once**, by the hold that had not yet
+  elapsed, so the fade is already underway and keeps advancing.
+- **`update_mix` counts live voices before the bus loop**, with the same predicate `SirenMix::voices` uses (`not
+  Stopping`), so the duck and the panel agree on what a player hears. `duck_db` keeps its signature and is the single
+  read; a vestigial `duck_db_with` was deleted.
+- Three tests (one failing on the base commit, two guards); a `buses.md` paragraph; a CHANGELOG line; and
+  `needs-decision/duck-recovers-entry.md` for the log entry this does **not** add.
+
+**Why.** `Duck`'s own doc says a duck holds because *"a voice starting on `source`"* is playing; `DuckClock` ran the full
+hold whatever happened to the source. A line stopped on frame 0 kept `Music` at −8 dB for another 15 frames and spent
+0.6 s recovering — **0.85 s of duck for a sound that had already stopped**. The skill names *"a duck that does not
+recover"* as rank-1; this was that failure arriving late.
+
+**Evidence.** `runs/2026-11-03-27/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/duck-hold{,-before}.txt`.
+
+**Measured.**
+
+| case | before | after |
+|---|---|---|
+| the line is **stopped** on frame 0 | `+0.0` at frame **60** | `+0.0` at frame **40** |
+| a **loop** keeps playing (guard) | `+0.0` at 60 | unchanged |
+| a **second line** at frame 20 (guard) | extended past 70 | unchanged |
+| a **one-shot that ends by itself** (guard) | `+0.0` at 60 | unchanged |
+| every rendered cue, the mix | — | **byte-identical** (21/21); `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| frame cost, 8 / 64 / 256 | median 1.219 µs at 256 | median 1.338 µs, load 16.9–8.5 — a 2.5× spread within one binary; the change is per **rule**, not per voice |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. **One row of four moves**, which is what a correct fix looks
+like: only a voice a player can no longer hear releases the hold early, and a one-shot keeps its hold because it is still
+live until `retire_voices` despawns it.
+
+**Traps for the command.** (1) An envelope keyed on *when it fired* cannot notice that its justification has gone away;
+the clock needs the fact, not just the time. (2) **Clamping** an elapsed time (`max(elapsed, hold)`) pins a fade at the
+hold boundary **every frame** so it never advances — the duck held forever, worse than the bug; a **one-time rewind**
+moves it forward. (3) Count "what a player hears" with the **same predicate** the panel uses (`not Stopping`), or the
+duck and the fader disagree. (4) A fix that leaves a method nothing calls is a vestige; clippy caught `duck_db_with`.
+(5) `hs distill` GPU-blocked (twenty-sixth iteration).
+
+**Commit.** `9bf836a`; CI on `main`.
+
+**Next 5.**
+
+1. **Answer the `CueProblem` question, or route around it** — now **five** items wait on a public-enum decision
+   (`empty-sound-key.md`, `duplicate-sound-problem.md`, `bad-gain-problem.md`, `not-a-loop-refusal.md`,
+   `duck-recovers-entry.md`). Asked in iteration 24; not re-asked since.
+2. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+3. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+4. Quantise a **retarget** onto the bar (iteration 14).
+5. `Refusal` payload naming the cap — `needs-decision/refusal-names-its-cap.md`.
+
+**The hunt, sixteenth pass.** The duck class is now closed on the **release** side. What it has never been probed for is
+the **attack**: a duck that fires while another is already recovering, and whether the deeper of the two wins as
+`duck_db`'s doc claims (*"two ducks do not stack: the deeper one wins"*). Next probe: fire `Dialogue -> Music` at −8 dB,
+let it recover halfway, then fire a second rule `Effects -> Music` at −12 dB, and check `ducked("Music")` is the deeper
+one on every frame rather than a sum.
+
+**Baseline note.** Nothing was red; the suite had 109 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPlugin`'s plugin counterpart and declares
+`pub mod audio_panel` twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 26 — 2026-11-03 — the panel shows the crate's verdict on its own table
 
 **Change.**
