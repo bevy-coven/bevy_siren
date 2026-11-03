@@ -7,6 +7,73 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 74 — 2026-11-03 — CLAP's spectrogram, in Rust, exactly
+
+**Baseline.** Green on every step: 198 / 367 + 6, clippy, fmt, rustdoc. Working tree clean at `7ad8c54`. No case in
+`cues.yaml` red.
+
+**The item.** Iteration 73's first item, and *"the largest blocker that is not a decision"*: the log-mel spectrogram
+`ClapFeatureExtractor` produces, implemented in the crate. It is the mel path `indexer::build`'s seam has been waiting
+for — after this, a caller can be given a real embedder.
+
+**Every constant read from the model, not remembered.** 48 000 Hz; window **1024**, Hann; hop **480**; **64** mel bands;
+**50 – 14 000 Hz**; filterbank **`(64, 513)`**; `1e-10` floor (−100 dB). The pipeline was read from
+`transformers.audio_utils.spectrogram` line by line: **reflect-pad by `frame/2`**, Hann, `rfft`, `|z|²`, mel matmul
+floored at `1e-10`, `10·log10`.
+
+**It is the same spectrogram, not one that looks right.**
+
+| band | this crate | `ClapFeatureExtractor` | Δ |
+|---|---|---|---|
+| 0 | 16.570843 | 16.570843 | **0** |
+| 1 | 16.544992 | 16.544992 | **0** |
+| 2 | 16.996017 | 16.996021 | 4 × 10⁻⁶ |
+| 3 | 17.427809 | 17.427816 | 7 × 10⁻⁶ |
+| 5 | 18.320272 | 18.320274 | 2 × 10⁻⁶ |
+
+Five of six agree to **six decimal places**; the differences are `f32` rounding. The fixture is the model's own 32,832
+weights, checked in, so the comparison cannot drift and needs no Python to re-run.
+
+**The defect worth remembering, and it is the ninth of its kind here.** `mel_filters` is **`(64, 513)`, band-major**. My
+first version assumed `(513, 64)` and applied the transpose — which produces a spectrogram of the **right shape and the
+wrong content**: 101 frames of 64 bands either way, no error, no crash, and every downstream comparison quietly wrong.
+**Only the numbers caught it; the shape could not.**
+
+**One deliberate difference, named.** `ClapFeatureExtractor`'s fusion path picks its three crop windows **at random**,
+which makes an embedding depend on a dice roll — the one thing this crate's determinism rule forbids. `fusion_channels`
+uses fixed front/middle/back instead. For a clip that fits one window all four channels describe the same audio, so the
+difference shows only on a long track, where a deterministic choice is also the reproducible one.
+
+**`Model::embed_audio` is written but not exercised against a real graph** — the 116 MB audio tower lives on `bmb` and a
+runtime check needs `ort` there. The spectrogram, which is the hard part and the part with numbers, is exact.
+
+**Verdicts.** Pass 1 **GREAT**, pass 2 **GREAT**, pass 3 **GREAT**.
+
+**Gate.** **198 default / 367 all-features** plus **10 mel unit tests**, clippy 0, fmt, rustdoc — green.
+
+**The visual gate is unchanged**, which is the check that the audio path was not disturbed: 32 render files, **14
+distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS**, the duck recovering by **1.97 s** — identical to iteration 67. The
+footstep spectrogram still shows three partials at ~90/220/340 Hz decaying by 0.21 s, with no click line, no clipping
+shelf and no gap.
+
+**Evidence.** `runs/2026-11-03-74/`: `research.md`, `plan.md`, `eval.md`, `review.md` (three passes),
+`evidence/after/` (32 files), `evidence/spectrograms/`.
+
+**Commits.** `7bea69b`.
+
+**Top 5 remaining**
+
+1. **Wire the mel path into `indexer::build`** — it is now one closure: `mel::input_features` then
+   `Model::embed_audio`. The indexer has the seam and the mel module has the data; joining them is small and makes the
+   feature runnable end to end.
+2. **Documentation** — the semantic layer still has **zero** README mentions and no guide page. This is now the cheapest
+   large gap, and it is what makes the work discoverable.
+3. **Exercise the audio tower against the real graph** on `bmb`, which is the one part of this chain not yet run.
+4. **Where the weights live** — `needs-decision/weights-live-where.md` recommends a fourth ungated section plus a
+   companion commit in `bevy_grimoire`; actionable and non-breaking.
+5. **`#28`** the MCP tool host, then `#29` `search_music` and `#44` `explain_match`, which now have an index, a
+   spectrogram and an embedding path to call.
+
 ## Iteration 73 — 2026-11-03 — the indexer: every part existed and nothing composed them
 
 **Baseline.** Green on every step: 198 / 356 + 6, clippy, fmt, rustdoc. Working tree clean at `6f86607`. **No case in
