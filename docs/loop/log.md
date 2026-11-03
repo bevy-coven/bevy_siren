@@ -7,6 +7,82 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 3 — 2026-11-02 — the seed a project writes, and the hold a stinger promises
+
+**Change.**
+
+- **`src/play.rs`, `src/lib.rs` — `SirenSettings::seed` is the stream.** `SirenChoices` was built once from a crate
+  constant and never rebuilt, so a project's `seed:` reached nothing: `seed: 7` and `seed: 99` produced
+  byte-identical `Played` streams. A new `play::seed_choices` system in `SirenSystems::Choose` replaces the stream —
+  and every variant history with it — when the mix table's seed changes. It runs before the music starts a layer, so
+  a score started on the same frame draws from the new stream too.
+- **`src/music.rs` — a stinger's `duck_s` is a hold.** `play_stingers` passed it as `DuckClock::manual`'s *fade*
+  argument with a hold of zero, so the `Music` bus began recovering on the frame the stinger fired. It now holds for
+  `duck_s` and releases over `DEFAULT_FADE_S` (0.12 s), the release every stop and every steal already uses.
+- `examples/render.rs` — a **bus-gain plot** beside the stinger envelope, with both readings of `duck_s` in one run;
+  `tests/play.rs` and `tests/music.rs` — five tests, two of which fail on the unfixed tree;
+  `docs/loop/needs-decision/stinger-release.md`; `cues.yaml` case 17 rewritten and case 22 added; the cues and music
+  guides, the CHANGELOG and a README line.
+
+**Why.** Both are the loop's first-ranked class — wrong output, silent, from a number a person wrote whose sentence
+said something else. Case 17 existed to prove reproducibility and could not, because a project could not choose a
+stream; the stinger's `duck_s` was documented as a hold and passed as a fade, so the music swelled back underneath the
+punctuation mark. Neither needed a new model: `active_duck_db` already had the shape, and the seed field already
+existed.
+
+**Evidence.** `runs/2026-11-02-03/`: `eval.md` (baseline green; the four next-5 items checked against the code — one of
+iteration 2's was **wrong**, case 9 *does* have tests), `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/` with both render trees, the stinger envelope plot and its zoom, and the cue spectrograms.
+
+**Measured.**
+
+| measurement | before | after |
+|---|---|---|
+| `seed: 7` vs `seed: 99`, 8 plays | **identical** (variant, gain, pitch) | different from the first play |
+| `seed: 7` twice, two processes | identical | identical |
+| `Music` halfway through a 0.6 s, −9 dB stinger | **−5.01 dB** | **−8.99 dB** |
+| every rendered cue and the mix | — | **byte-identical** (16/16 WAVs) |
+| frame cost, 8 / 64 / 256 voices | 0.075 / 0.326 / 1.090 µs | 0.023 / 0.135 / 0.508 µs — the machine's load fell 4× between runs; neither fix is on this path |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The zoom pass found three defects **in my own plot** (no
+legend; the caption reporting the axis top as the peak; the "duck fires" label on the axis, crossing the release
+curve) and one in my reading of it — the blue shelf looked like a slope at 900 px until the emitted polyline was
+checked frame by frame: frames 39–48 are exactly −9.00 dB. All fixed; the zoom file shows the shelf as a shelf.
+
+**Traps for the command.** (1) An evidence harness that hard-codes the *fixed* shape cannot show the old one — print
+**both readings** of a changed argument in one run and let the numbers disagree, rather than rendering "before" from a
+reverted tree that the harness does not read. (2) A plot's y-scale must include the cap/depth or a flat shelf sits on
+the axis and reads as a curve; check the polyline's y values, not the thumbnail. (3) A `find ~ -iname …` for a paper
+takes minutes on this disk — the corpus is on `big`, not here. (4) The home-still embedder was GPU-blocked for all 23
+attempts of this iteration (`gpu busy: 4222 MB free < 5000 MB required`); `research.md` records that rather than
+pretending a source was read.
+
+**Commit.** `f4fca21`, pushed to `main`; CI run 41549988083 is **success** on `big-s1`. Gate: build, test (44 + 4), serde (51 + 4), mixer (48 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The Cauldron panel test was not run:
+`bevy_cauldron` still pins `bevy_siren` at `rev = "7029b20"`, so it would compile this iteration's *predecessor* and
+prove nothing; no public type, field or message moved this time either.
+
+**Next 5.**
+
+1. **`MusicLayers::fade_s` is stored in `Pending` and never read.** Every layer move eases at `MIX_TAU_S` (50 ms), so
+   an authored 800 ms crossfade is silently 50 ms. Internal only — carry the fade into `LiveLayer`, or set the easing
+   time constant from it — so no decision file is needed.
+2. **A `VoiceLimit` refusal names the bus even when the table's budget was the cap that failed** (`answer` always
+   passes `bus: Some(bus)`). A panel prints the wrong culprit; the message shape change wants a decision file.
+3. **`needs-decision/remove-completes.md`** — the public `Completes` component cannot ever be true. One line to remove
+   it in the next minor, if the owner agrees.
+4. **`needs-decision/stinger-release.md`** — a project-chosen stinger release, shipped this iteration at the crate's
+   `DEFAULT_FADE_S`. The field is additive; the default keeps behaviour identical.
+5. **`Rng::next_f32` uses the top 24 bits of a xorshift64\* output.** Fine for a variant pick; worth a look before
+   anyone uses `SirenChoices::rng` for anything wider, because the low bits of xorshift64\* are the weak ones and this
+   implementation discards them deliberately — a sentence in `model.rs` would stop the next reader re-deriving it.
+
+**Baseline note.** Nothing was red at the start, and the suite had 44 tests: the two fixed defects were both invisible
+to it, one because no test had ever written a seed and the other because the stinger test read the duck only on the
+frame it fired.
+
+---
+
 ## Iteration 2 — 2026-11-02 — a voice that ends frees its slot, on both backends
 
 **Change.**
