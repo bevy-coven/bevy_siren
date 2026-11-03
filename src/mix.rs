@@ -384,6 +384,37 @@ impl SirenMix {
         self.db.get(bus).copied().unwrap_or(SILENT_DB)
     }
 
+    /// **The worst-case peak `bus` can reach this frame, in dBFS, if every live voice of it were at full scale.**
+    ///
+    /// `n` voices summing in linear is `n` times one voice; times the bus's own gain (master and ducks included). That
+    /// is an **upper bound**, not a measurement: the crate mixes samples and never reads their amplitude, so it cannot
+    /// know what a recording peaks at. A bus with none of the three at unity is not at risk; a bus whose bound is above
+    /// `0.0 dBFS` may clip its device, and nothing in the budget prevents it — `max_voices` is *"fewer than a mixer's
+    /// worth of sample cost"* (`docs/research/siren.md`), a **sample-cost** budget, not a headroom guarantee. That is
+    /// why this is a method and not a `Refusal`: the table is legal, and a game asking "can my eight effects sum past
+    /// full scale" gets the arithmetic instead of guessing.
+    ///
+    /// ```
+    /// # use bevy_siren::SirenMix;
+    /// let mut mix = SirenMix::default();
+    /// mix.db.insert("Effects".to_owned(), -6.0);
+    /// mix.voices.insert("Effects".to_owned(), 2);
+    /// // two voices at full scale, −6 dB of bus gain: +0.02 dBFS, just over the rail.
+    /// assert!(mix.worst_peak_db("Effects") > 0.0);
+    /// ```
+    pub fn worst_peak_db(&self, bus: &str) -> f32 {
+        let voices = self.voices_on(bus);
+        if voices == 0 {
+            // Nothing playing is not `SILENT_DB` — it is *no peak at all*, and `SILENT_DB` would read as a bus mixed
+            // into the floor rather than a bus with nothing on it.
+            return SILENT_DB;
+        }
+        // Each voice at full scale (0 dB) plus the bus's own gain, summed in linear — the same arithmetic
+        // `docs/research/siren.md`'s R6 states for "several sounds sum in linear".
+        let per_voice = self.bus_db(bus);
+        crate::model::sum_db(&vec![per_voice; voices])
+    }
+
     /// How many voices `bus` has live this frame.
     pub fn voices_on(&self, bus: &str) -> usize {
         self.voices.get(bus).copied().unwrap_or(0)

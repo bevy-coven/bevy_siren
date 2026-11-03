@@ -552,7 +552,29 @@ fn draw_panel(
                         }
                     })
                     .collect();
-                if parts.is_empty() { "none".to_owned() } else { parts.join("   ") }
+                // **A bus whose live voices can sum past full scale says so here, not in `Problems`.** `problems()`
+                // describes the *table*, which does not change; a peak depends on this frame's voices, so it belongs with
+                // the mix. `worst_peak_db` is an upper bound — each voice at full scale, summed in linear, times the bus's
+                // gain (`docs/research/siren.md` R6: *"several sounds sum in linear"*). Nothing in `max_voices` prevents
+                // it: that budget is a sample cost, and the example's own `Effects` reaches +6.0 dBFS with two voices.
+                let hot: Vec<String> = mix
+                    .voices
+                    .iter()
+                    .filter(|(_, n)| **n > 0)
+                    .filter_map(|(bus, n)| {
+                        let peak = mix.worst_peak_db(bus);
+                        // **`>= 0.0`, not `> 0.0`**: a bus at exactly full scale has no headroom at all, and one voice at
+                        // unity is exactly 0 dBFS — the case the shipped table is in most frames.
+                        (peak >= 0.0).then(|| format!("{bus} {peak:+.1} dBFS / {n}"))
+                    })
+                    .collect();
+                let headroom =
+                    if hot.is_empty() { String::new() } else { format!("   peak {}", hot.join("  ")) };
+                if parts.is_empty() {
+                    format!("none{headroom}")
+                } else {
+                    format!("{}{headroom}", parts.join("   "))
+                }
             }
             Kind::Cues => {
                 // **A bad cue is marked on its own row, and the sentence lives in the `Problems` block.** The marker

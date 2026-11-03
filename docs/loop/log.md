@@ -7,6 +7,65 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 49 — 2026-11-03 — a bus's worst-case peak is readable, and the harness stops calling clipping the budget's job
+
+**Baseline.** Green on every step, no open issues. Nothing red.
+
+**Change.**
+1. **`SirenMix::worst_peak_db(bus)`** — a bus's worst-case peak this frame in dBFS: `n` live voices at full scale, plus
+   the bus's gain, via `model::sum_db`. An **upper bound** (the crate never reads a sample's amplitude), `SILENT_DB` for
+   a bus with no voices. Additive — a new method, no field or variant.
+2. **`examples/render`'s line** said *"307 samples would clip (**the budget's job, not the gain's**)"* — false, and now
+   corrected to name the sample-cost budget and the new method.
+3. **The panel draws it** in the `Music` block's tail: `peak Effects +6.0 dBFS / 2  Music +4.0 dBFS / 2`.
+
+**Rationale.** Four iterations of `problems()` wording, so this one went back to **sound output**: the render harness,
+its spectrograms and its loudness numbers — a gate the skill names that had not been read since iteration 42. `ebur128`
+on `mix.wav` integrates at **−4.3 LUFS with a true peak of +0.2 dBFS**, and `voices-8.wav` has **307 samples at the
+rail** measured from the WAV itself, against a comment that called it the budget's job. `max_voices` is *"fewer than a
+mixer's worth of sample cost"* — a sample cost, never headroom — and R6 has always said *"several sounds sum in linear"*.
+Nothing in the crate let a game ask, so even the harness's author assumed the budget covered it.
+
+**Two things checked and found correct first**, recorded so the next iteration does not repeat them: `bus-Music:
+recovered by 1.97 s` against a 0.85 s hold+fade is right — `update_mix` eases toward the duck's already-shaped envelope
+with `MIX_TAU_S`, and `cues.yaml` case 6's own `green_when` says *"hold + fade + **50 ms**"*; and `ebur128` returning
+nothing for `voices-64`/`voices-256` is all-rail input, not a measurement bug.
+
+**Not built: case 31** — still blocked on `needs-decision/bad-gain-problem.md`.
+
+**Evidence.** `runs/2026-11-03-49/`: `research.md` (S1 R6's linear sum, S2 `max_voices` as a sample cost, S3 `sum_db`
+already existed, S4 `SirenMix` held both inputs, S5 a new method is additive), `plan.md`, `perf.md`, `eval.md`,
+`review.md` (three passes, GREAT), `evidence/{panel,after}`.
+
+| | before | after |
+|---|---|---|
+| 307 samples past full scale in `voices-8.wav` | *"the budget's job, not the gain's"* — **false** | *"the budget is a sample cost, not headroom"* |
+| a game asking "can my table clip" | no API | **`SirenMix::worst_peak_db(bus)`** |
+| the shipped table, two voices on `Effects` | invisible | **`+6.0 dBFS / 2`** |
+| the shipped table, two voices on `Music` | invisible | **`+4.0 dBFS / 2`** |
+| the `Problems` block | `none` | **`none`** — the table is not wrong, and a peak was never its question |
+| tests | 127 / 134 / 138 + 5 | **128 / 136 / 139 + 6 doctests** |
+| perf | — | 1.157 / 1.241 µs at 256 voices, load **8.2** — the same host spread since iteration 41 |
+
+**Two defects in this iteration's own work, both caught by looking.** (1) The peak first went into the **`Problems`**
+block, which then said `none` *and* `bus \`Effects\` can reach +6.0 dBFS` at once — one block answering two questions,
+one of them about the frame rather than the table; moved to the `Music` block. (2) That move left the old line in place
+twice because `cargo fmt` had reflowed the block and both `replace`s silently missed — caught by **re-reading the
+capture** and seeing the sentence still there.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`Duck::new`'s zero hold/fade defaults** — reported since iteration 46, but the constructor still hands back an inert
+   rule where `by_db` gets a real `-6.0`. Changing it is a behaviour change and needs a decision file.
+3. **The shipped table clips**: `Effects` reaches **+6.0 dBFS** and `Music` **+4.0 dBFS** with two voices. The panel now
+   says so; whether `examples/mixer`'s buses should be trimmed a few dB is an art decision, not a bug.
+4. No capture shows the panel with a **missing sound** refused (iteration 39 showed `unknown-cue` only).
+5. `docs/media/mixer.gif` captures at ~8 fps; a fade shorter than 120 ms falls between frames.
+
 ## Iteration 48 — 2026-11-03 — a bus cap above the table's budget is reported
 
 **Baseline.** Green on every step, no open issues. Nothing red.

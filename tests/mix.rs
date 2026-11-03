@@ -1131,3 +1131,47 @@ fn a_cue_polyphony_above_its_bus_is_the_buss_cap_and_unreported() {
         "eight requests, two voices: the bus's cap is what bounds it, not the cue's 8"
     );
 }
+
+/// **`SirenMix::worst_peak_db` is the headroom arithmetic R6 already states, and it says when a bus can clip.**
+///
+/// `docs/research/siren.md`'s R6: *"several sounds **sum in linear** (two 0 dB sounds are one at +6.02 dB)"*. Eight
+/// effects at 0 dB on a 0 dB bus is +18.06 dBFS; the budget does not prevent it and never claimed to — `max_voices` is
+/// *"fewer than a mixer's worth of sample cost"*. So a game asking *"can my table clip the device"* gets the arithmetic.
+#[test]
+fn worst_peak_is_the_linear_sum_of_the_live_voices() {
+    let mut mix = SirenMix::default();
+
+    // Nothing playing: not a peak at all, and `SILENT_DB` is the crate's one word for "nothing to hear".
+    assert_eq!(mix.worst_peak_db("Effects"), bevy_siren::model::SILENT_DB);
+
+    // One voice at unity: exactly full scale.
+    mix.db.insert("Effects".to_owned(), 0.0);
+    mix.voices.insert("Effects".to_owned(), 1);
+    assert!((mix.worst_peak_db("Effects") - 0.0).abs() < 1e-3, "{}", mix.worst_peak_db("Effects"));
+
+    // Two at unity: +6.02 dB, which is the number R6 names.
+    mix.voices.insert("Effects".to_owned(), 2);
+    assert!(
+        (mix.worst_peak_db("Effects") - 6.0206).abs() < 1e-2,
+        "two 0 dB sounds are one at +6.02 dB: {}",
+        mix.worst_peak_db("Effects")
+    );
+
+    // Eight on a 0 dB bus: +18.06 dBFS — over the rail, and nothing in the budget says otherwise.
+    mix.voices.insert("Effects".to_owned(), 8);
+    assert!(
+        (mix.worst_peak_db("Effects") - 18.0618).abs() < 1e-2,
+        "eight voices: {}",
+        mix.worst_peak_db("Effects")
+    );
+
+    // The bus's own gain is in the sum: −6 dB of bus takes two voices to +0.02 dBFS, still over the rail.
+    mix.voices.insert("Effects".to_owned(), 2);
+    mix.db.insert("Effects".to_owned(), -6.0);
+    let six = mix.worst_peak_db("Effects");
+    assert!((six - 0.0206).abs() < 1e-2, "two voices at −6 dB: {six}");
+
+    // And enough bus gain removes the risk entirely, which is what the number is for.
+    mix.db.insert("Effects".to_owned(), -20.0);
+    assert!(mix.worst_peak_db("Effects") < 0.0, "−20 dB bus, two voices: {}", mix.worst_peak_db("Effects"));
+}

@@ -5,7 +5,23 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **`SirenMix::worst_peak_db(bus)` — the worst-case peak a bus can reach this frame, in dBFS.** The crate could mix
+  past full scale and had no way for a game to ask: `max_voices` is a **sample cost** (*"fewer than a mixer's worth of
+  sample cost"*, `docs/research/siren.md`), never a headroom guarantee, and nothing combined a bus's gain with its live
+  voice count — though `model::sum_db` already held the arithmetic R6 states (*"several sounds **sum in linear**"*).
+  Eight sources at 0 dB sum to **+18.06 dB**; two on a −6 dB bus reach **+0.02 dBFS**. It is an **upper bound** — the
+  crate mixes samples and never reads their amplitude — and reads `SILENT_DB` for a bus with no voices. Additive: a new
+  method, no field or variant. The shipped example's own table reaches **+6.0 dBFS** on `Effects` and **+4.0 dBFS** on
+  `Music` with two voices, which the panel now shows.
+
 ### Fixed
+
+- **`examples/render` no longer calls clipping "the budget's job".** Its line read *"307 samples would clip (the budget's
+  job, not the gain's)"* — `voices-8.wav` has **307 samples at the rail**, measured from the WAV, and the budget is a
+  sample cost that never claimed to bound the sum. It now says so and names `SirenMix::worst_peak_db`.
+
 
 - **A bus asking for more voices than the table allows is reported.** `SirenSettings::bus_voice_limit` is
   `min(cap, total)`, so `BusLevel::new("Effects").max_voices(16)` under `max_voices: 4` mixes **four** — and neither

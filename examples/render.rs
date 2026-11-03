@@ -264,7 +264,8 @@ fn main() {
     let at = stats(&summed);
     let clipped = summed.iter().filter(|s| s.abs() > 1.0).count();
     report.push(format!(
-        "voices-{voices}: peak {:.3}, rms {:.3}, {clipped} samples would clip (the budget's job, not the gain's)",
+        "voices-{voices}: peak {:.3}, rms {:.3}, {clipped} samples past full scale — the budget is a sample cost, not \
+headroom: `SirenMix::worst_peak_db` is how a game asks",
         at.0, at.1
     ));
 
