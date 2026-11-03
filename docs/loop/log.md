@@ -48,7 +48,9 @@ the **pending queue** in the same module — when fixing a reconcile, list every
 what stops that. (4) Measure *when the effect happens* (walk the clock to the observable), not what the accessor reports —
 they agreed here, and that agreement is worth knowing. (5) `hs distill` GPU-blocked (thirty-second iteration).
 
-**Commit.** `397b123`; CI on `main`.
+**Commit.** `397b123`, pushed to `main`; CI run 41597804924 is **success** on `big-s1`. Gate: build, test (116 + 5),
+serde (123 + 5), mixer (125 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
