@@ -7,6 +7,69 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 6 — 2026-11-02 — a refused sample names the sound, not the cue
+
+**Change.**
+
+- **`src/playback.rs` — a decode failure names the sound key.** `start_pending` reported
+  `MissingSound { sound: voice.cue }` — the cue's name in a field documented as the key a project maps to a file — so a
+  corrupt `step_03.wav` sent a person looking for `footstep.grass`. It now recovers the key from the same cue and
+  variant `answer` chose (`key_of`), and reads `Res<CueTable>` to do it. No public type, field or message changed.
+- **`src/play.rs` — one sentence for the variant's two causes:** *"no handle or undecodable bytes for sound
+  `step_03`"*, with the doc saying which two call sites produce it.
+- `examples/budget.rs` — a `missing-sound.txt` probe that runs both causes side by side in the real ECS;
+  `tests/mixer.rs` — a `refuses_samples` mode on the fake output (the same `None` the real mixer returns when
+  `rodio::Decoder::new` errors) and two tests; `tests/play.rs` — the sentence; `cues.yaml` case 25;
+  `needs-decision/undecodable-sound.md`; the cues guide, the CHANGELOG and a media note.
+
+**Why.** Top of iteration 5's next-5, and its own class: a refusal confidently naming the wrong subject, in the crate
+whose refusals exist to name what is missing. Found by iteration 5's probe, which fed four zero bytes to the mixer and
+got `no handle for sound \`line\`` for a cue whose key was also `line` — a coincidence that hid it from every test.
+
+**Evidence.** `runs/2026-11-02-06/`: `eval.md` (baseline green; the table's gap named — case 11 covers only the
+missing-handle cause), `research.md`, `plan.md`, `perf.md`, `review.md`, and `evidence/{before,after}/` with both
+render trees, the two-cause probe and the cue spectrograms.
+
+**Measured.**
+
+| cause | before | after |
+|---|---|---|
+| a key with no handle | `sound: "step_03"` (true) | `sound: "step_03"` |
+| a key whose bytes do not decode | **`sound: "footstep.grass"`** (the cue) | `sound: "step_03"` |
+| every rendered cue and the mix | — | **byte-identical** (16/16 WAVs) |
+| frame cost, 8 / 64 / 256 voices | 0.059 / 0.329 / 0.827 µs | not on this path; the machine's load was 6.2 against 2.7 in iteration 5, which is the whole difference |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The zoom pass found one defect in my own work: a third test
+tried to resolve a default handle's id so a waiting voice would reach the code under test, and `Assets::insert` on that
+id does not make `assets.get` succeed — the test proved nothing on any tree and was removed rather than contorted.
+
+**Traps for the command.** (1) A default `Handle::<AudioSource>` **never** resolves, however you insert into `Assets`
+afterwards: a test that wants "bytes arrive later" must build a real handle and hold *that*. (2) A cue and its key
+having the same name (`line`/`line`, as in `examples/budget`) hides this whole class of bug — the probe's first run
+looked correct for exactly that reason. (3) `hs distill` is still GPU-blocked (`bge-m3` wants 5000 MB; a 14.8 GB VLLM
+engine holds the card), so the rule is argued from the vendored `bevy_asset`/`rodio` sources and the crate's own R6.
+
+**Commit.** `409eac6`, pushed to `main`; CI run 41553622842 is **success** on `big-s1`. Gate: build, test (53 + 4), serde (60 + 4), mixer (59 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The Cauldron panel test still pins
+`rev = "7029b20"`; this change's host effect is a corrected `Entry::Refused` sentence, which the panel prints verbatim.
+
+**Next 5.**
+
+1. **A variant that distinguishes "never mapped" from "corrupt file"** — `needs-decision/undecodable-sound.md`. A new
+   `match` arm for a consumer, so not decided here; option 4 in that file (log the cause) is one line and needs no
+   answer.
+2. **A payload that also names the cap** — `needs-decision/refusal-names-its-cap.md`.
+3. **`Completes` is public and can never be true** — `needs-decision/remove-completes.md`.
+4. **The mixer's decode error is discarded** at `mixer/mod.rs:147` (`Decoder::new(..).ok()?`); carrying it into the
+   refusal would tell a project *why* the file failed, not only which one. Wants the same decision as item 1.
+5. **A crossfade a second change interrupts** replaces target and fade rather than queueing; a design question the log
+   names.
+
+**Baseline note.** Nothing was red, and the suite had 52 tests. Case 11 proves the missing-handle cause; no case could
+reach the decode cause through `SirenSounds` alone, which is why iteration 5's probe found it by accident.
+
+---
+
 ## Iteration 5 — 2026-11-02 — a refusal names the bus only when the bus refused
 
 **Change.**
