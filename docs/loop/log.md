@@ -7,6 +7,53 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 103 — 2026-11-03 — the escape hatch that did not open (#20)
+
+**Change.** Not an open issue: a **defect in code iteration 100 shipped**. `Index::overridden` was written by
+`load_allowing`, and its own doc claimed *"every search built from this index can see it without a second lookup"* — but
+`grep` found **no reader**, and both `search` and `search_ranked` refused on any stamp mismatch. So an index loaded through
+`#20`'s override **could never be queried**. Measured before the fix, with a probe: `Some(StampMismatch)`.
+
+**Why it matters more than a missing feature.** A user hits `ModelMismatch`, whose message says *"Re-index the library with
+this model"* — or they take the documented escape. Taking it produced a **second refusal contradicting the first**. A user
+told to do something, doing it, and being told again is the worst shape a refusal can take.
+
+**The fix.** `Index::accepts(&ModelStamp)`: the stamps match, **or** the index carries an override granted for **exactly
+that model**. Both search entry points ask it, so the rule exists once — this very bug is what two copies of the stamp
+check cost.
+
+**Why pinned.** Consenting to `version b` is not consenting to `version c`. A recorded override that honoured any model
+would be a standing permission to rank noise, which is the failure `docs/adr/0004` exists to prevent, reached another way.
+
+**Found by reading, not by a failing test.** Nothing compared the doc's claim with the code's behaviour; the 31 index and 8
+search tests were all green throughout. `an_overridden_index_can_actually_be_queried` is what makes the claim a fact, and it
+asserts four things at once: the override works, a plain load still refuses, nothing was loosened for a different model,
+and the pin holds.
+
+**Before/after.** No audio changed — **all 21 rendered wavs byte-identical**, master **−21.5 LUFS, −7.5 dBFS true peak**.
+Per-frame cost unchanged, and no claim is made from the figures: iteration 102 recorded a 3.1× spread at 256 voices across
+runs of *unchanged* code, and this run's 1.339 µs sits inside that band.
+
+**Verdicts.** Function **GREAT**, zoom **GREAT**, fresh eyes **GREAT**. Recorded rather than fixed: `SearchProblem::Stamp-
+Mismatch` carries **neither** stamp, so a caller cannot say what to re-index to. `IndexProblem::ModelMismatch` carries both;
+adding one to a public enum goes to `needs-decision/` rather than being smuggled in.
+
+**Evidence.** [`runs/2026-11-03-103/`](runs/2026-11-03-103/) — `research.md`, `plan.md`, `eval.md`, `perf.md`,
+`review.md`, `evidence/after/` (32 files), `evidence/spectrograms/`.
+
+**Baseline:** nothing red — 198 / 6 / **430 semantic** / **110 lib** / 6 doc, clippy, fmt and docs clean.
+
+**Top 5 remaining — all blocked outside this repository.**
+
+1. **`#28` the MCP server** — one line of `Cargo.toml` and one `leaf.rs` row is the entire blocker. Six tools, the error
+   shape and the idempotency table exist and are tested.
+2. **`#35` golden set** — labelled real recordings. It is also what `#23`'s reverb measure and `evalbench`'s `corpus()`
+   wait on: the code is built, the labels are a person's work.
+3. **`SearchProblem` naming which stamps differed** — this iteration's recorded criticism; a public-enum change, so a
+   decision file.
+4. **`#32`–`#34` the editor panel** — everything it needs is built, in `bevy_grimoire`.
+5. **`#39` music encoder** — a licence audit and a second index space.
+
 ## Iteration 102 — 2026-11-03 — a busy GPU is waited out, bounded and visible
 
 **Change.** `#37`. `budget::Deferral { wait_s: 30.0, poll_s: 0.5 }` (both design defaults), `budget::WaitState`, and
