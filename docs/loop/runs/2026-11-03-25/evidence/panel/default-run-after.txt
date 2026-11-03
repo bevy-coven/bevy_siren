@@ -1,0 +1,4 @@
+fixed commit, the same command:
+2026-11-03T06:51:00.369416Z  INFO bevy_winit::system: Creating new window bevy_siren: the audio panel (67v0)
+siren: frames 140 mean_ms 13.647
+  still written: yes

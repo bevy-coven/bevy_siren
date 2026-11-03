@@ -401,8 +401,12 @@ fn stage(
 
 fn capture_config() -> Capture {
     let at = std::env::var("SIREN_FRAMES").ok().and_then(|n| n.parse().ok()).unwrap_or(120);
-    let keys = std::env::var("SIREN_KEYS")
-        .unwrap_or_default()
+    // **A capture with no `SIREN_KEYS` uses the documented default script.** An empty list used to reach
+    // `% c.keys.len()` in `stage_keys` and panic with *"attempt to calculate the remainder with a divisor of zero"*
+    // on the **default** run — the very command the module doc tells a person to type. The default is the three
+    // things the panel exists to show, in the order the doc names them.
+    let keys: Vec<Step> = std::env::var("SIREN_KEYS")
+        .unwrap_or_else(|_| "steal,layer,duck".to_owned())
         .split(',')
         .filter_map(|token| match token.trim() {
             "duck" => Some(Step::Duck),
@@ -411,6 +415,18 @@ fn capture_config() -> Capture {
             _ => None,
         })
         .collect();
+    let keys = if keys.is_empty() {
+        // **Louder than a silent fallback:** a token nobody recognises is a typo, and a capture that quietly staged
+        // something else would put the wrong picture in the evidence folder.
+        if std::env::var("SIREN_KEYS").is_ok_and(|v| !v.trim().is_empty()) {
+            eprintln!(
+                "siren: SIREN_KEYS has no step this example knows; staging the default steal,layer,duck"
+            );
+        }
+        vec![Step::Steal, Step::Layer, Step::Duck]
+    } else {
+        keys
+    };
     Capture {
         at,
         frame: 0,

@@ -1,0 +1,8 @@
+base commit, SIREN_FRAMES set and SIREN_KEYS unset (the doc's default path):
+  thread panicked at examples/mixer.rs:376:33:
+  attempt to calculate the remainder with a divisor of zero
+  (no still written)
+
+thread 'Compute Task Pool (5)' (10193342) panicked at examples/mixer.rs:376:33:
+attempt to calculate the remainder with a divisor of zero
+  /tmp/base2.png exists: no

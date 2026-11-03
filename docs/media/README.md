@@ -3,6 +3,26 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## `mixer-panel.gif` — the audio panel, as a program
+
+![the audio panel](mixer-panel.gif)
+
+The crate's visible harness: every bus with its level, its duck and its live voice count; the cue table; the log of what
+played and why — driven by a scripted run so the capture shows a duck firing, a voice being stolen, and a music layer
+entering on the bar.
+
+```sh
+cargo run --release --example mixer            # the panel, interactive
+SIREN_FRAMES=200 SIREN_SIZE=1280x720 SIREN_SHOT_DIR=/tmp/frames SIREN_SHOT_FROM=30 SIREN_SHOT_EVERY=10 \
+  cargo run --release --example mixer          # 18 frames at 6 fps
+ffmpeg -y -framerate 6 -i /tmp/frames/f_%04d.png \
+  -vf "scale=960:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" -loop 0 docs/media/mixer-panel.gif
+```
+
+Iteration 25 gave the capture a **default script**: `SIREN_KEYS` unset used to panic on `% 0` and write no still, so
+until then this harness could not produce a picture at all. `SIREN_KEYS=steal,layer,duck` is the default; a token it does
+not know prints one line and stages that default.
+
 ## No clip: iteration 24, a refusal outlives a burst of plays
 
 No clip: the change is **which entry leaves a full `SirenLog`**, and every rendered cue is byte-identical (21 of 21) —

@@ -20,6 +20,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`examples/mixer` no longer panics on the command its own doc gives.** Its capture knobs are documented as optional
+  beside three that default, but `SIREN_KEYS` had none: unset gave an empty step list, and `stage_keys` evaluated
+  `% c.keys.len()` — `% 0` — so `SIREN_FRAMES=140 cargo run --release --example mixer` died with *"attempt to calculate
+  the remainder with a divisor of zero"* **and wrote no still**. The default is now the documented `steal,layer,duck`
+  script, and a `SIREN_KEYS` that parses to nothing prints one line naming the typo before using it — a capture that
+  silently staged something else would put the wrong picture in an evidence folder. The explicit paths are unchanged.
+
 - **A `Refused` entry outlives a burst of `Played` ones.** `SirenLog` evicted the oldest entry whatever it was, so one
   refusal was pushed out by exactly `CAPACITY` (256) plays — at a 32-voice scene writing 640 entries a second, about
   **0.4 s**, which is the silent-failure class the log exists to prevent: the line explaining why nothing played,
@@ -52,6 +59,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
 
 ### Fixed
+
+- **`examples/mixer` no longer panics on the command its own doc gives.** Its capture knobs are documented as optional
+  beside three that default, but `SIREN_KEYS` had none: unset gave an empty step list, and `stage_keys` evaluated
+  `% c.keys.len()` — `% 0` — so `SIREN_FRAMES=140 cargo run --release --example mixer` died with *"attempt to calculate
+  the remainder with a divisor of zero"* **and wrote no still**. The default is now the documented `steal,layer,duck`
+  script, and a `SIREN_KEYS` that parses to nothing prints one line naming the typo before using it — a capture that
+  silently staged something else would put the wrong picture in an evidence folder. The explicit paths are unchanged.
 
 - **A `Refused` entry outlives a burst of `Played` ones.** `SirenLog` evicted the oldest entry whatever it was, so one
   refusal was pushed out by exactly `CAPACITY` (256) plays — at a 32-voice scene writing 640 entries a second, about
@@ -211,6 +225,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`examples/mixer` no longer panics on the command its own doc gives.** Its capture knobs are documented as optional
+  beside three that default, but `SIREN_KEYS` had none: unset gave an empty step list, and `stage_keys` evaluated
+  `% c.keys.len()` — `% 0` — so `SIREN_FRAMES=140 cargo run --release --example mixer` died with *"attempt to calculate
+  the remainder with a divisor of zero"* **and wrote no still**. The default is now the documented `steal,layer,duck`
+  script, and a `SIREN_KEYS` that parses to nothing prints one line naming the typo before using it — a capture that
+  silently staged something else would put the wrong picture in an evidence folder. The explicit paths are unchanged.
+
 - **A `Refused` entry outlives a burst of `Played` ones.** `SirenLog` evicted the oldest entry whatever it was, so one
   refusal was pushed out by exactly `CAPACITY` (256) plays — at a 32-voice scene writing 640 entries a second, about
   **0.4 s**, which is the silent-failure class the log exists to prevent: the line explaining why nothing played,
@@ -258,6 +279,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 The first release: sound for Bevy 0.20 as data, mixed in buses.
 
 ### Fixed
+
+- **`examples/mixer` no longer panics on the command its own doc gives.** Its capture knobs are documented as optional
+  beside three that default, but `SIREN_KEYS` had none: unset gave an empty step list, and `stage_keys` evaluated
+  `% c.keys.len()` — `% 0` — so `SIREN_FRAMES=140 cargo run --release --example mixer` died with *"attempt to calculate
+  the remainder with a divisor of zero"* **and wrote no still**. The default is now the documented `steal,layer,duck`
+  script, and a `SIREN_KEYS` that parses to nothing prints one line naming the typo before using it — a capture that
+  silently staged something else would put the wrong picture in an evidence folder. The explicit paths are unchanged.
 
 - **A `Refused` entry outlives a burst of `Played` ones.** `SirenLog` evicted the oldest entry whatever it was, so one
   refusal was pushed out by exactly `CAPACITY` (256) plays — at a 32-voice scene writing 640 entries a second, about
