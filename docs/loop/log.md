@@ -7,6 +7,74 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 61 — 2026-11-03 — the Cauldron's `bevy_siren` feature never compiled
+
+**Baseline.** `bevy_siren` green on every step. But the **consumer** was red, and had been for a long time: two commands
+the skill names every iteration had never been run here.
+
+**Change (all in `bevy_grimoire`, its own commit `d6bb032`, per the repo rules).**
+1. **Deleted the duplicate `pub mod audio_panel;`** — declared at `lib.rs:53` unconditionally and again at `109` behind
+   the feature, so `--features bevy_siren` failed with `E0428`.
+2. **Defined `AudioPanelPlugin`** — `editor.rs:2428` has been adding it; `audio_panel.rs` never had it (`E0425`). It now
+   registers `AudioPanel`, `read_audio` in `PreUpdate`, and `on_audition` as an observer.
+3. **Carried the `music` section**: a `music: MusicScore` with `#[serde(default)]` in the reader and the writer, and
+   `AudioPanel::score` to hold it.
+
+**Both compile faults are pre-existing**, confirmed by stashing the only local edit and re-checking: the same two errors
+on a clean tree.
+
+**The score was dropped, measured** with a standalone program using the same `serde`+`ron` types:
+
+| | before | after |
+|---|---|---|
+| read `(settings, cues, music)` | `File { settings, cues }` — **music gone** | tempo **120.0** carried |
+| write back | `(settings:32,cues:0)` — 2 keys | 3 keys, lossless |
+| read a file with **no** `music` | n/a | `MusicScore::default()` |
+
+The panel's own module doc says the file is `SirenSettings`, `CueTable` **and `MusicScore`**, and `read_file`'s says *"a
+score is a third section and is optional"* — "optional" had been implemented as "unread", because RON ignores an unknown
+key without `deny_unknown_fields`.
+
+**A shape that would have refused every real file.** `Option<MusicScore>` with `#[serde(default)]` is the obvious fix and
+it fails with `ExpectedOption`: RON parses a bare struct into an `Option` only when the field is spelled `Some(..)`. The
+correct shape is a **plain `MusicScore` with `#[serde(default)]`**, whose default is the same value the serde field
+default uses — which is iteration 53's fix that made `MusicScore::default()` four beats.
+
+**Tests.** `--test editor audio_panel`: **5 passed, 0 failed**, including the existing round trip and the new
+`a_music_score_survives_the_panels_file`. The four `a_person_finds_and_runs_a_command_in_the_palette` tests fail
+**identically with the feature off**, as `CLAUDE.md` records — not mine.
+
+**A trap the skill names, which caught the loop anyway.** The first test attempt reported compiler errors on a dozen
+crates; the real message was **`No space left on device`**. The Cauldron's test target pulls `wgpu` and needs several GB;
+the machine had 2.5 GB. `cargo clean` in `bevy_siren` (37.3 GiB of compiled artifacts, nothing tracked) freed 32 GB, asked
+and approved because it is a target this loop did not create.
+
+**No perf figure this iteration**, and `perf.md` says why: the cleanup predates the release rebuild, and `src/` did not
+change.
+
+**What this says about the loop.** Twenty-odd iterations ran crate-side work while the *consumer* was never built. The
+skill names `cargo test -p bevy_cauldron --features bevy_siren --test editor audio_panel_reads_the_crates_file` in step 5
+every time. A feature that has never compiled, and a file type that silently drops a third of its input, are both
+invisible from inside `bevy_siren` — whose own tests were green throughout.
+
+**Evidence.** `runs/2026-11-03-61/`: `research.md` (S1 the module doc, S2 `read_file`'s doc, S3 the `editor.rs` call site,
+S4 `deny_unknown_fields` on the crate's types but not the panel's, S5 iteration 53's default), `plan.md`, `perf.md`,
+`eval.md`, `review.md` (three passes, GREAT), `evidence/after`.
+
+**Commit.** `d6bb032` in `bevy_grimoire`; this repository records the iteration.
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`AvoidRepeat`'s window that cannot be honoured is unreported** — `pick_from`'s comment promises `problems()` names
+   it. Same open enum decision.
+3. **A stinger on the wrong bus writes only a log line, not a `Refused`** — `needs-decision/stinger-refusal.md`; same
+   decision.
+4. **The Cauldron's panel now compiles but draws nothing from the score** — `AudioPanel::score` is read and written, and
+   no UI row shows the layers. The next Cauldron iteration's obvious work.
+5. `needs-decision/exact-pitch-draw.md` — option B for the next minor.
+
 ## Iteration 60 — 2026-11-03 — a draw that cannot change its answer
 
 **Baseline.** Green on every step, no open issues. Nothing red.

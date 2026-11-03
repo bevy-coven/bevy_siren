@@ -1101,3 +1101,16 @@ fn a_default_score_quantises_to_the_bar() {
     assert!((due - 2.0).abs() < 1e-6, "the next bar at 120 bpm from 0.3 s is 2.0 s: {due}");
     assert_eq!(state.target_db("combat"), Some(bevy_siren::model::SILENT_DB), "nothing moved before the bar");
 }
+/// **A `MusicScore` round-trips through its own RON**, which is what a file carrying three sections relies on.
+#[cfg(feature = "serde")]
+#[test]
+fn a_music_score_round_trips_its_own_ron() {
+    let score = bevy_siren::MusicScore {
+        layers: vec![bevy_siren::MusicLayer::new("calm", "track.calm").at_db(-4.0)],
+        tempo_bpm: 120.0,
+        beats_per_bar: 4.0,
+    };
+    let text = score.to_ron().expect("writes");
+    let again = bevy_siren::MusicScore::from_ron(&text).expect("reads");
+    assert_eq!(again, score);
+}
