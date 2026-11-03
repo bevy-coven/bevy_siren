@@ -49,7 +49,9 @@ refuses" and "never a 33rd voice" both held, and both are now known rather than 
 part of the baseline for a reason — it caught a redundant intra-doc link in a doc-only change. (5) `hs distill` GPU-blocked
 (thirty-fourth iteration).
 
-**Commit.** `6974c51`; CI on `main`.
+**Commit.** `6974c51`, pushed to `main`; CI run 41599158877 is **success** on `big-s1`. Gate: build, test (119 + 5),
+serde (126 + 5), mixer (128 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
