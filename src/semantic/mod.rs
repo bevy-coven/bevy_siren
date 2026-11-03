@@ -32,6 +32,7 @@ pub mod filter;
 pub mod incremental;
 pub mod index;
 pub mod indexer;
+pub mod key;
 pub mod loudness;
 pub mod mel;
 pub mod model;
