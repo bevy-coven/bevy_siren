@@ -49,7 +49,9 @@ subject: two rules about one bus can be two faults, and one rule pair about one 
 test is the cheapest specification you have — the old `problems_names_each_mistake` caught the over-merge before it
 shipped. (5) `hs distill` GPU-blocked (nineteenth iteration).
 
-**Commit.** `see git log`; CI on `main`.
+**Commit.** `8a41eae`, pushed to `main`; CI run 41584532000 is **success** on `big-s1`. The Cauldron's
+`audio_panel_reads_the_crates_file` passes (4 tests). Gate: build, test (96 + 4), serde (103 + 4), mixer (104 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green.
 
 **Next 5.**
 
