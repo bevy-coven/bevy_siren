@@ -7,6 +7,75 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 63 — 2026-11-03 — the last decision points, and a pipeline that works end to end
+
+**Baseline.** Fully green: 174 / 183 / 184 + 6, clippy, fmt, rustdoc, examples. Iteration 62 left no uncommitted work.
+Case 31 is still the only red case and still blocked on the `CueProblem` enum decision.
+
+**The item.** The three remaining decision points on the semantic critical path, done in the order their dependencies
+require: `#10` gates `ort`, which gates `#17`, which gates `#26`. **Three closed, one narrowed by measurement.**
+
+**What the text tower measured.** 124,645,632 parameters, **501.4 MB**, 1,016 nodes, 31 standard operators, cosine
+**0.999999969**. Its **token axis is dynamic** — 4 and 15 tokens ran in one graph — which is the opposite of the audio
+tower, whose batch axis is baked into a `Reshape`. Query latency **5.28 ms** on an M4 CPU, six times cheaper than
+indexing a clip.
+
+**The finding that changed code.** An exact export says nothing about whether a description lands near the sound it
+describes. Measured on six clips and five descriptions: four of five winners correct, and the bands are
+**correct 0.126–0.429, incorrect −0.104–+0.150** — they **overlap**. A floor of 0.5, the number intuition reaches
+for, would reject **every correct match**. So `Floor`'s default stays `0.0`, and a `const` assertion now stops the
+**build** if a later measurement ever finds the bands separated. `an_intuitive_floor_would_have_rejected_every_correct_match`
+pins the trap.
+
+**`ort` landed, measured first.** It builds in 3.2 s and then **fails to link** without `download-binaries`; that alone
+**fails to compile** without a TLS feature. **Two features, not one** — exactly the thing a consumer adds one of and
+abandons the crate over. With both, it loads the 501 MB graph, reports `[-1, -1]`, and returns a unit-norm vector. The
+default build is proven unchanged: **413 dependency lines with no features, 424 with `semantic`**, and `ort` in exactly
+one of them.
+
+**The pipeline, end to end.** `search.rs` takes a validated `Query`, an index, an embedding and a floor, and returns an
+`Answer` that **counts what it dropped** — because a search returning 1 of 3 is indistinguishable from a library of one
+asset otherwise. On real audio in `bmb`: **3 of 4**, and the miss is a **0.006** tie between two clips both generated
+from white noise. That tie is the argument for a score on every result: a bare "best match" would have hidden it.
+
+**Four defects the tests found.** `batch_sizes` built its capacity from the model's own cost, so a dynamic graph
+reported **one** size — an optimistic number that fails at run time and passes a test that only checks it is non-zero.
+The tiny ONNX fixture's `MatMul` assumed a fixed 8 tokens. A constant `assert!` clippy rejected and that should have
+been in a `const` block. And `ort`'s API had moved in four places, all recorded in ADR 0002 because a consumer hits them
+too.
+
+**The resampler, measured rather than argued.** `rubato 0.16.2` builds in 2.12 s and keeps a 1 kHz tone at **0.9763**
+of its energy and a 15 kHz one intact, where `rodio`'s converter discards samples. So `#12`'s decision is now one
+dependency wide, with a number to implement against and one implementation note: the final partial chunk must be
+**flushed** or a file loses up to `input_frames_next()` samples.
+
+**Verdicts.** Pass 1 **GREAT**, pass 2 **GREAT**, pass 3 **GREAT**.
+
+**Gate.** 174 default / 183 serde / 184 mixer / **265 all-features**, clippy, fmt, rustdoc, examples — all green.
+
+**Perf.** **5.28 ms** per query, **3.2 s** to build `ort`, **2.12 s** for `rubato`. `perfcheck` not run and `perf.md`
+says why: no audio-path code changed, so it would measure iteration 62's crate and report it as new.
+
+**A machine note that matters next time.** Local disk ended at **1.2 GB free**; `target` is 22 GB. A release build
+needs ~2 GB, so the next iteration that wants `cargo run --release` must free space first, and a full disk will look
+like a linker error.
+
+**Evidence.** `runs/2026-11-03-63/`: `research.md` (four measured sources), `plan.md`, `perf.md`, `eval.md`,
+`review.md` (three passes), and `evidence/` — `ort-probe.txt`, `resampler-probe.txt`, `e2e.txt`, `spike/{text,space,e2e}.json`.
+
+**Commits.** `81a6a1f` text tower + floor, `f52d79f` `ort` + session, `f317a27` search + model.
+
+**Top 5 remaining**
+
+1. **`#12`** — add `rubato` with the argument, flush the final chunk, and prove a 44.1 kHz file arrives at 48 kHz with
+   its tone intact. The probe's numbers are the target.
+2. **A tokeniser** — the one thing between `Query::text()` and `Model::embed_text`. Its own dependency argument, and the
+   last piece of the walking skeleton that is not built.
+3. **CUDA on `big`** — the probe ran `CPUExecutionProvider`; `P-01`'s throughput target needs the 3090.
+4. **`V-01`** — the labelled set, which is what would turn the floor from a design default into a measured threshold
+   and stop `T-05`'s explanations being qualitative.
+5. `cues.yaml` case 31 — still the only red case, still blocked on the same public-enum decision.
+
 ## Iteration 62 — 2026-11-03 — the semantic critical path, bottom-up
 
 **Baseline.** Fully green in `bevy_siren` — 163 / 172 / 173 + 6, clippy, fmt, rustdoc, examples. Iteration 61 left no

@@ -76,11 +76,31 @@ vector, and **nothing fails** — which is exactly the failure mode Option C was
 So **Option A is out**, measured rather than assumed. `rodio` decodes, and does not resample well enough to feed a
 model.
 
+## Measured: `rubato` is a real resampler
+
+`runs/2026-11-03-63/evidence/resampler-probe.txt` ran `rubato 0.16.2`'s `FftFixedInOut` from 44.1 kHz to 48 kHz:
+
+| | |
+|---|---|
+| builds | **2.12 s** |
+| 0.5 s in | 22050 samples |
+| 0.5 s out | **23520** samples = 24000 minus the unflushed final chunk |
+| 1 kHz tone | **0.9763** of its energy survives |
+| 15 kHz tone | **0.488094** of 0.500000 — intact |
+
+So Option B's second dependency is a resampler that filters rather than drops. **One implementation note:** the last
+partial chunk must be flushed or a file loses up to `input_frames_next()` samples — the probe shows the 480-sample
+gap, and a real implementation must close it.
+
 ## Recommendation
 
-**Option B: `ort` plus an explicit resampler.** `rodio` is ruled out by its own documentation (above), and Option C is
-ruled out for the same reason that made rodio unsuitable: this repository keeps paying for defects that produce a
-plausible number instead of a failure, and an aliased embedding is precisely that.
+**Option B: `ort` plus `rubato`.** `ort` has landed ([#10](https://github.com/bevy-coven/bevy_siren/issues/10)), and
+`rubato` is measured above as a real resampler. `rodio` is ruled out by its own documentation, and Option C — a
+hand-rolled converter — for the same reason that made rodio unsuitable: this repository keeps paying for defects that
+produce a plausible number instead of a failure, and an aliased embedding is precisely that.
+
+**What is still needed before it lands:** a flush for the final partial chunk, and a test that a 44.1 kHz file arrives
+at the model's rate with its tone intact — the probe's numbers are the target.
 
 **What must be recorded before either lands:**
 

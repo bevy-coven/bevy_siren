@@ -1,0 +1,43 @@
+# The resampler question, measured — 2026-11-03 on this Mac
+
+`docs/loop/needs-decision/semantic-dependencies.md` rules out `rodio`'s converter by its own documentation
+(*"discards samples for down-sampling"*) and recommends `ort` plus an explicit resampler. This measures whether
+`rubato` is a resampler worth a dependency.
+
+## Build
+
+    rubato = "0.16"
+    Compiling rubato v0.16.2
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.12s
+
+## Does it convert correctly?
+
+`FftFixedInOut::<f32>::new(44100, 48000, 1024, 1)`, a 1 kHz tone, 0.5 s:
+
+    input  22050 samples at 44100 Hz
+    output 23520 samples at 48000 Hz
+    duration in  0.500000 s
+    duration out 0.490000 s
+    1 kHz energy  in 0.500000  out 0.488167  ratio 0.9763
+    15 kHz energy in 0.500000  out 0.488094
+
+**The rate ratio is right**: 22050 × 48000/44100 = **24000**, and 23520 samples is that minus the final partial chunk
+of 480, which the loop does not flush. A real implementation must flush; this records the number so a later one has a
+target to check.
+
+**The tones survive**: 1 kHz at **0.9763** of its energy and 15 kHz intact. An FFT resampler band-limits rather than
+dropping samples, so a 44.1 kHz asset arrives at 48 kHz as the same sound rather than an aliased one.
+
+## The comparison that decided it
+
+| Converter | 1 kHz tone | Why |
+|---|---|---|
+| `rodio`'s `SampleRateConverter` | **not measured, ruled out by its own docs** | *"simple linear interpolation for up-sampling and discards samples for down-sampling"* |
+| linear interpolation (this crate, removed in iteration 62) | kept, but band-limited badly | interpolates between two samples; a tone near Nyquist aliases |
+| `rubato` 0.16.2 `FftFixedInOut` | **0.9763** of its energy, tones to 15 kHz intact | an FFT resampler with a filter |
+
+## What this settles
+
+`rubato` is a real resampler and earns its entry in `tests/leaf.rs`. It does **not** settle that it should be added
+now: the crate's dependency list is a published promise, and this iteration's job was the critical path's decision
+points, not the next one's. The measurement is recorded so `#12`'s remaining work starts from a number.
