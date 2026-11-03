@@ -1,0 +1,3 @@
+Backend(false), no Output   : AudioPlayer 1, Samples 1, MixerVoice 0
+Backend(true),  NO Output   : AudioPlayer 0, Samples 1, MixerVoice 0
+Backend(true),  with Output : AudioPlayer 0, Samples 1, MixerVoice 0

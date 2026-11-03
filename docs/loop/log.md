@@ -7,6 +7,69 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 17 — 2026-11-02 — the backend flag does not decide ownership alone
+
+**Change.**
+
+- **`src/play.rs` — a voice is mixer-owned only when a mixer is there to own it.** `Backend` is a public resource whose
+  flag a host may set, and `spawn_voice` decided *"the mixer owns playback"* from that flag alone. With `Backend(true)`
+  and no `Output`, a voice carried **no `AudioPlayer`** and had **no mixer**: it could not sound, so it never ended, so
+  it was never retired — it held its budget slot for the life of the process while `Played` said it had played.
+  Ownership is now `backend.0 && output.is_some()`.
+- `tests/play.rs` — two tests: the fallback (**fails on the base commit**) and the guard (with an `Output`, the voice
+  still carries no `AudioPlayer`, so the two paths cannot both play it). Plus a CHANGELOG line and a media note.
+
+**Why.** Iteration 16's lead was the **two-backend** promise. Probed, a **steal** logs identically on both paths and a
+scripted **duck** gives identical `bus_db`/`ducked` (min −8.000 dB on each) — the claim holds. The defect was one level
+down: not *do the backends answer the same*, but *can a backend answer nothing at all*. It ranks 1 because a leaked slot
+is not a missing sound, it is a budget that never comes back — the failure `cues.yaml` cases 20 and 21 were written to
+catch, arriving by a route they do not construct.
+
+**Evidence.** `runs/2026-11-02-17/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/backend{,-before}.txt`.
+
+**Measured.**
+
+| row | before | after |
+|---|---|---|
+| `Backend(true)`, no `Output` | **`AudioPlayer 0`** — silent, unretirable | `AudioPlayer 1`; `Played` answered |
+| `Backend(true)`, with `Output` | `AudioPlayer 0` | **unchanged** — the guard row |
+| `Backend(false)`, no `Output` | `AudioPlayer 1` | unchanged |
+| a steal, both paths | identical `SirenLog` | unchanged |
+| a duck, both paths, 90 frames | identical `bus_db`/`ducked`, min −8.000 dB | unchanged |
+| every rendered cue, the mix | — | **byte-identical** (21/21); `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| frame cost | 0.064 / 0.351 / 0.734 µs | 0.077 / 0.370 / 0.713 µs, load 8.25/9.79/14.97 — within noise, and off the path `perfcheck` costs |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. One test defect caught at Fresh eyes: the fallback test
+asserted "no `AudioPlayer`" without removing the `Output` the plugin inserts when the `mixer` feature opens a device —
+a test whose precondition is "no `Output`" must say so.
+
+**Traps for the command.** (1) A **flag** is not a **fact**: `Backend(true)` says "a mixer started", and a resource a
+host can set is not evidence that it did. Read the resource the claim is about. (2) A voice that cannot sound cannot
+**end**, so it cannot be **retired**: silent loss and a leaked budget slot are one bug, and the leak is the worse half.
+(3) When a test's precondition is "this resource is absent", remove it — with a feature on, the plugin may have
+inserted it before the test ran. (4) The guard half of a fix (`AudioPlayer 0` with an `Output`) must be its own test,
+or a fix that always inserts a player passes the other one. (5) `hs distill` GPU-blocked (sixteenth iteration).
+
+**Commit.** `see git log`; CI on `main`.
+
+**Next 5.**
+
+1. **`Refusal::NotALoop { layer, cue }`** — `needs-decision/not-a-loop-refusal.md` (iteration 16's item 1).
+2. **Re-time a restarted stem to the bar** — `needs-decision/restart-on-the-bar.md`.
+3. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+4. A `Refusal` variant separating "never mapped" from "corrupt" — `needs-decision/undecodable-sound.md`.
+5. Quantise a **retarget** onto the bar (iteration 14's item 1).
+
+**The hunt, sixth pass.** The **two-backend** class is clean for steal and duck, and this iteration closed the "answers
+nothing" case. The untested surface left is the **`AudioOutput` trait's own contract**: `set_voice_db` is called by
+`update_mix` on **every** voice each frame, but nothing proves a backend that ignores it (as `FakeOutput` does) cannot
+desynchronise `Applied`. Next hunt: what `mix.rs`'s `Applied` records versus what the backend was actually told.
+
+**Baseline note.** Nothing was red; the suite had 83 tests.
+
+---
+
 ## Iteration 16 — 2026-11-02 — a layer that names a cue which ends
 
 **Change.**

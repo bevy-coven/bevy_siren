@@ -493,3 +493,71 @@ fn stop_cue_still_stops_every_voice_of_a_cue() {
         .count();
     assert_eq!(stopped, 2, "both voices of the cue are stopped");
 }
+
+/// **`Backend(true)` with no `Output` must not give a voice nobody plays.**
+///
+/// `Backend` is a public resource whose flag a host may set, and `spawn_voice` decided "the mixer owns playback" from
+/// that flag alone. With `Backend(true)` and no [`Output`], a voice carried **no `AudioPlayer`** (the mixer owns it) and
+/// had **no mixer** (none exists) — it could not sound, could not end, and so could not be retired: it held its budget
+/// slot for the life of the process while `Played` said it had played. `start_pending`'s doc already promises the
+/// fallback (*"without an `Output` … Bevy's `AudioPlayer` owns every voice"*); the spawn never read the resource that
+/// promise is about.
+#[test]
+fn a_backend_with_no_output_still_gives_the_voice_a_player() {
+    let mut app = crate::helpers::app(
+        CueTable::new(vec![Cue { sounds: vec![SoundSlot::new("shot")], ..Cue::new("shot") }]),
+        SirenSettings::default(),
+        crate::helpers::sounds(&["shot"]),
+        false,
+    );
+    // `SirenPlugin` inserts an `Output` when a device opened (the `mixer` feature does on this machine), so the state
+    // under test is made explicit: `Backend(true)` and **no** `Output`, which is what a host gets by setting the flag.
+    app.world_mut().remove_resource::<bevy_siren::output::Output>();
+    app.insert_resource(bevy_siren::output::Backend(true));
+    app.update();
+    app.world_mut().resource_mut::<Messages<Play>>().write(Play::cue("shot"));
+    app.update();
+
+    let with_player = app.world_mut().query::<&bevy::audio::AudioPlayer>().iter(app.world()).count();
+    assert_eq!(with_player, 1, "the voice has Bevy's player, so it can sound and end");
+    assert_eq!(played(&mut app).len(), 1, "and the play is answered");
+}
+
+/// **The same cue with a live `Output` is owned by the mixer, and carries no `AudioPlayer`** — the two paths must not
+/// both play one request.
+///
+/// This is the other half of the rule above: the fallback must not turn the mixer path into a double-play.
+#[cfg(feature = "mixer")]
+#[test]
+fn a_backend_with_an_output_leaves_the_voice_to_the_mixer() {
+    use bevy::prelude::*;
+    use bevy_siren::output::{AudioOutput, Backend, Output};
+
+    struct Silent;
+    impl AudioOutput for Silent {
+        fn set_bus_db(&mut self, _: &str, _: f32) {}
+        fn set_voice_db(&mut self, _: &str, _: usize, _: f32) {}
+        fn stop_voice(&mut self, _: &str, _: usize) {}
+        fn play(&mut self, _: &str, _: &std::sync::Arc<[u8]>, _: f32, _: f32, _: bool) -> Option<usize> {
+            Some(0)
+        }
+        fn finished(&self, _: &str, _: usize) -> bool {
+            false
+        }
+    }
+
+    let mut app = crate::helpers::app(
+        CueTable::new(vec![Cue { sounds: vec![SoundSlot::new("shot")], ..Cue::new("shot") }]),
+        SirenSettings::default(),
+        crate::helpers::sounds(&["shot"]),
+        false,
+    );
+    app.insert_resource(Output(Box::new(Silent)));
+    app.insert_resource(Backend(true));
+    app.update();
+    app.world_mut().resource_mut::<Messages<Play>>().write(Play::cue("shot"));
+    app.update();
+
+    let with_player = app.world_mut().query::<&bevy::audio::AudioPlayer>().iter(app.world()).count();
+    assert_eq!(with_player, 0, "the mixer owns it, so Bevy must not also play it");
+}

@@ -3,6 +3,15 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 17, the backend flag does not decide ownership alone
+
+No clip: the change is **which entity component a voice gets**, visible only as a missing or present `AudioPlayer`,
+and every rendered cue is byte-identical (21 of 21) because no rendered cue was in the lost state. The evidence is
+`runs/2026-11-02-17/evidence/backend{,-before}.txt`: before, `Backend(true)` with no `Output` printed
+`AudioPlayer 0` — silent and unretirable — and after prints `AudioPlayer 1`, while the `Backend(true)` **with** an
+`Output` row stays `0`. Tests: `tests/play.rs::{a_backend_with_no_output_still_gives_the_voice_a_player (fails before),
+a_backend_with_an_output_leaves_the_voice_to_the_mixer (the guard)}`.
+
 ## No clip: iteration 16, a layer that names a cue which ends
 
 No clip: the change is **a play that is not written**, so nothing is rendered and every WAV is byte-identical (21 of

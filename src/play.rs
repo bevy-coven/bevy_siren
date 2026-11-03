@@ -372,6 +372,7 @@ pub fn play_requests(
     listener: Query<(&GlobalTransform, &SpatialListener)>,
     voices: Query<(Entity, &Voice, Option<&crate::music::MusicVoice>), Without<Stopping>>,
     backend: Res<crate::output::Backend>,
+    output: Option<Res<crate::output::Output>>,
     mut played: MessageWriter<Played>,
     mut refused: MessageWriter<Refused>,
     mut commands: Commands,
@@ -392,7 +393,15 @@ pub fn play_requests(
                     }
                     live.retain(|v| v.entity != *victim);
                 }
-                let entity = spawn_voice(&mut commands, request, &started, now, backend.0);
+                // **A voice is mixer-owned only when a mixer is there to own it.** `Backend` is a public resource
+                // whose flag a host may set, and `Backend(true)` with no `Output` used to give a voice **no
+                // `AudioPlayer` and no mixer** - it could not sound, could not end, and could not be retired, so it
+                // held its budget slot for the life of the process while `Played` said it had played.
+                // `start_pending`'s doc already promises the fallback ("without an `Output` ... Bevy's `AudioPlayer`
+                // owns every voice"); this is what makes that promise true rather than a claim about a resource the
+                // spawn never read.
+                let mixer_owns = backend.0 && output.is_some();
+                let entity = spawn_voice(&mut commands, request, &started, now, mixer_owns);
                 // This frame's own voice counts against the next request in the list.
                 live.push(Live {
                     entity,

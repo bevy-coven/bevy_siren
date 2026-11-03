@@ -20,6 +20,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`Backend(true)` with no `Output` no longer gives a voice nobody plays.** `Backend` is a public resource whose flag a
+  host may set, and `spawn_voice` decided *"the mixer owns playback"* from that flag alone: with the flag set and no
+  `Output`, a voice carried **no `AudioPlayer`** (the mixer owns it) and had **no mixer** (none exists), so it could not
+  sound — and a voice that cannot sound never ends, so it was never retired and held its budget slot for the life of the
+  process while `Played` said it had played. Ownership is now `backend.0 && output.is_some()`, which is what
+  `start_pending`'s doc already promised (*"without an `Output` … Bevy's `AudioPlayer` owns every voice"*). A world with
+  a mixer is unchanged: its voices still carry no `AudioPlayer`, so the two paths cannot both play one request.
 - **A music layer naming a cue that ends no longer machine-guns the play path.** `MusicScore::problems` states the rule
   — *"names cue `hit`, which is not a loop, so it cannot hold a layer"* — and the plugin ignored it: a `Mode::Once` cue
   was started, its voice was retired (a once voice **ends**; `retire_voices` only skips loops), and the layer was asked
