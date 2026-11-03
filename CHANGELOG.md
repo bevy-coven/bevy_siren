@@ -7,6 +7,31 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`examples/indexbench` — indexing throughput, split into decode and inference.** `#36` has been owed for three
+  iterations while three costs were added to `build`, and one number cannot say which stage is the slow one. Measured on
+  an M4, on a generated corpus so the figure is reproducible:
+
+  | clips | decode | total |
+  |---|---|---|
+  | 200 | **2 411 clips/s** | 1 856 clips/s |
+  | 500 | **2 636 clips/s** | 1 812 clips/s |
+  | 1 000 | **2 724 clips/s** | 1 846 clips/s |
+
+  **5 000 clips: 3 s** at the measured rate, stable within 10 % across the three sizes. `decode` **includes the loudness
+  measurement**, because `embed_measured` measures on the decode side — so the cost iterations 85–86 added is inside
+  that number rather than missing from it.
+
+  The second stage is a **synthetic** 262 144 multiply-adds, labelled as such, because the real bound needs the model:
+  ADR 0002 measured the audio tower at **34.9 ms/clip** on a CPU against a decode of **0.37 ms/clip**, so **inference
+  dominates on CPU** by ~100×. It is a separate example from `perfcheck` on purpose, per `#36`'s own note: a per-frame
+  cost and a batch job must never be read as the same number.
+
+  A `bug` found by running it: the bench's own corpus varied frequency by `seed % 24`, so seeds 0/24/48 wrote
+  **byte-identical** files — the scan correctly returned 24 assets from 200 files, and the report printed `24 / 24`
+  because its denominator was derived from its numerator.
+
+### Documented
+
 - **A binary index, a third of the size.** `Index::to_bytes` / `from_bytes`, and `build` writes it: **10.28 MB** for
   5 000 clips against the text form's **31.88 MB**. That 3× figure has been quoted in four iterations' logs and asserted
   by nothing; it is a test now (`five_thousand_vectors_weigh_what_adr_0004_says`), and it is checked on **realistic**

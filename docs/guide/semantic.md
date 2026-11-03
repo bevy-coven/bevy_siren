@@ -127,6 +127,12 @@ indistinguishable from a file that did not move — it costs nothing *by constru
 applied wrongly. A re-encode **is** a new asset, because the bytes changed; the crate cannot tell "re-encoded" from "a
 different take", and the other guess would leave the index describing audio that is gone.
 
+**How fast is it?** `cargo run --release --features semantic --example indexbench -- <dir> [clips]` measures the
+pipeline in two stages, because one number cannot name the bound: **decode** (scan, decode, downmix, resample and
+**loudness**) and **inference**. On an M4 the decode side runs at **2 400–2 700 clips/s**, so a 5 000-clip library costs
+**3 s** of decode. The real audio tower is a different scale — ADR 0002 measured **34.9 ms/clip** on a CPU — which is why
+inference, not decoding, is what a large library waits on.
+
 `update` never writes. That is deliberate: `indexer::write` owns the file, so a caller composes the two and puts its own
 lock around the write — and a caller that only wants to preview a run writes nothing at all.
 

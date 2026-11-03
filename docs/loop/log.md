@@ -7,6 +7,85 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 88 — 2026-11-03 — indexing throughput, and the bench that reported 24 of 200 as success
+
+**Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / 373 semantic / 36 lib; clippy 0,
+fmt, rustdoc, examples. Volume held **21 GB** free.
+
+**The item was `#36`, owed for three iterations** while three costs were added to `build` — loudness measurement, sidecar
+parsing, the path→hash join — with nothing to say whether they were affordable.
+
+**`examples/indexbench`**, a separate example from `perfcheck` per `#36`'s own note: a per-frame cost and a batch job must
+never be read as the same number.
+
+| clips | decode | total |
+|---|---|---|
+| 200 | **2 411 /s** | 1 856 /s |
+| 500 | **2 636 /s** | 1 812 /s |
+| 1 000 | **2 724 /s** | 1 846 /s |
+
+**5 000 clips: 3 s**, stable within 10 % across three sizes — which is what makes the projection defensible. `decode`
+**includes the loudness measurement**, so the cost iterations 85–86 added is inside that number rather than missing.
+
+**The bound, and the refusal to overclaim.** The bench's `embed*` stage is a synthetic 262 144 multiply-adds and is
+labelled as such on the line under the table. ADR 0002 measured the real audio tower at **34.9 ms/clip** on an M4 CPU
+against a decode of **0.37 ms/clip** — so **inference dominates on CPU by ~100×**. The criterion is answered by
+comparing two measurements, not by the bench's own synthetic stage, and the file says which is which.
+
+**Three defects, all mine, all found by running it.**
+
+1. **The bench refused to create its own corpus** — it exited `"not a directory"` before the `create_dir_all` that would
+   have made it one.
+2. **The fixture lied and the report hid it.** `tone()` varied frequency by `seed % 24`, so seeds 0, 24 and 48 wrote
+   **byte-identical** files. `shasum` gives one hash for three of them. The scan then correctly reported
+   `assets 24, skipped 0, refused 0` — one content at several paths, which is what `Library::duplicated` exists for — and
+   **the bench printed `indexed 24 / 24`**, a ratio whose denominator came from its numerator and so could never fail.
+   Fixed both: every seed's bytes are now unique, and the denominator is the **corpus size**, so the same mistake would
+   print `24 / 200`.
+3. **`0.7071` is `1/√2`** — `clippy::approx_constant`, now a named constant.
+
+**The GPU half stays open, and `#36` with it.** `big` is reachable — RTX 3090, 24 576 MiB, 24 cores, confirmed this
+iteration — but holds a checkout at **`8e14231`**, older than every semantic change since iteration 62, and **no ONNX
+graph on the host**. A VRAM number needs the current commit, the 116.5 MB graph and `ort` built against CUDA. Reporting
+one from a stale checkout is exactly the *"aspiration"* the issue forbids, so the half that does not need the
+accelerator is measured and shipped and the other is named.
+
+| voices | µs/frame | iteration 87 |
+|---|---|---|
+| 8 | **0.047** | 0.062 |
+| 64 | **0.284** | 0.354 |
+| 256 | **1.051** | 1.312 |
+
+No regression — this iteration changes no `src/` at all. Across iterations 80–88 identical audio code reads
+0.047–0.084 / 0.284–0.472 / **0.501–1.576** µs.
+
+**Visual gate unchanged:** 32 render files, **14 of 14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to
+iterations 67, 71, 74, 75, 80–87.
+
+**Verdicts.** Pass 1 **GREAT** (three criteria met; the bound answered by comparing two measurements, with the synthetic
+stage labelled), pass 2 **GREAT** (both fixture defects found, and the denominator bug named as the reason a wrong report
+looked confident), pass 3 **GREAT** (one command; it makes its own corpus; the GPU gap stated rather than buried).
+
+**Docs.** The guide gains a *how fast is it* paragraph with both stages; the README says seconds not minutes;
+`CHANGELOG.md` gains the bench and the bug it found.
+
+**Evidence.** `runs/2026-11-03-88/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,spectrograms}/`.
+
+**Commits.** `f7a448d`.
+
+**Top 5 remaining**
+
+1. **Finish `#36` on the GPU.** Clone the current commit to `big`, export/transfer the audio graph, build `ort` with
+   CUDA, and record clips/s **and peak VRAM** on the RTX 3090. Everything needed is named; it is a session of its own.
+2. **`#22` spectral centroid, rolloff and noise floor** — unblocked by ADR 0003, and now cheap to cost because
+   `indexbench` exists to measure what they add.
+3. **`#28` the MCP tool host**, then `#29`/`#44`/`#30` — the largest user-facing win, consuming an index that has
+   vectors, loudness, provenance, a compact form and a measured throughput.
+4. **`#27` hard filters and penalties** — the consumer of everything since iteration 77.
+5. **`f16`, with `V-01`'s labelled set** — ADR 0004 measured it halving the file again and declined it for lack of
+   evidence about `rank::top_k`'s floor.
+
 ## Iteration 87 — 2026-11-03 — the binary index, and the fixture that made a true claim fail
 
 **Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **373 semantic** / 36 lib; clippy 0,
