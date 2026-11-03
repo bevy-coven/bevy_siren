@@ -7,6 +7,69 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 71 — 2026-11-03 — the ensemble's breakdown: a score that explains itself
+
+**Baseline.** Green on every step: 181 / 339 + 6, clippy, fmt, rustdoc. Working tree clean at `c842b6b`.
+
+**The item.** Three of iteration 70's five remaining items are **decisions this loop must not make**: where the weights
+live (a schema change), `V-01`'s labelled set (a person and a licence-cleared corpus), and `#40`'s full ensemble
+(`#39`'s encoder, behind `S-05`'s licence audit). What *is* decidable is **`#40`'s structure** — the types a score is
+carried in and the arithmetic that makes a breakdown add up — which needs no signal at all.
+
+Building it first means `#40` has somewhere to put its numbers instead of inventing them at a call site.
+
+**Where the arithmetic went, and the rule that enforces it.** `#40`'s note says to put the scoring where `src/model.rs`
+keeps its arithmetic. That is a rule and not a preference: `tests/all.rs::model_names_no_engine_type` scans **exactly one
+file**. A score defined in `semantic/` would sit outside the scan, could quietly grow a `Res<…>` parameter, and then
+nothing would test it without an `App`. So the types went into `model.rs` — and
+`the_ensemble_lives_in_the_engine_free_model` now asserts they are **there**, so moving them out fails a test instead of
+silently escaping the scan.
+
+**Four facts per signal, not one.** Each `Contribution` carries its **raw** value, its **weight**, the **product**, and a
+**`missing`** flag. The flag is the subtle one: a tempo that was never estimated and a tempo that was estimated and
+disagreed both contribute `0.0`, and conflating them misleads precisely the person the breakdown exists for. A raw cosine
+in `[−1, 1]` and a loudness penalty in decibels look identical once multiplied.
+
+**The score is a sum, not a mean.** The weights are the normalisation — a project that halves a weight is saying that
+signal matters half as much, and dividing by the total would undo the statement. `shares()` is the normalised view, for
+reporting.
+
+**A defect in my own first draft, caught by the compiler.** `strongest()` recovered which signal a contribution belonged
+to with `std::ptr::eq` — a pointer comparison standing in for a field, working only by accident of array layout. Giving
+`Contribution` a `signal` field fixed it and let `Breakdown::new` place parts by their own name, so the array order
+cannot be got wrong.
+
+**The issue's own caveat, carved off and named.** `#40` warns that raw values from different signals are on different
+scales and must be mapped before weighting. This iteration does **not** solve that — the mapping is a property of the
+signals, and there are no signals yet. What it does is make the problem **visible**: a `Contribution` reports `raw`
+beside `weight`, so a caller can see the scales differ. A breakdown showing only products would hide exactly that.
+
+**Verdicts.** Pass 1 **GREAT** on what it claims (one `#40` criterion needs signals and is named as carved off), pass 2
+**GREAT**, pass 3 **GREAT**.
+
+**Gate.** **194 default / 352 all-features**, clippy 0, fmt, rustdoc — green.
+
+**A breakdown reads as a sentence**, which is the whole of `#44`'s `explain_match` in a string:
+
+> *"semantic carried it (+0.400 from 0.4 raw at weight 1); acoustic counted against it (-0.100 from -0.2 raw); no value
+> for tempo, key"*
+
+**Evidence.** `runs/2026-11-03-71/`: `research.md`, `plan.md`, `eval.md`, `review.md` (three passes).
+
+**Commits.** the ensemble commit below.
+
+**Top 5 remaining**
+
+1. **Where the weights live** — `needs-decision/weights-live-where.md` still waits; until it is answered `Weights` is
+   unreachable from a project, and `#40`'s ensemble has nowhere to be configured from.
+2. **`#39`'s encoder** — behind `S-05`'s licence audit, and the gate on the ensemble having real signals.
+3. **`V-01`** — the labelled set, still the largest single lever: it would turn `Floor`, the band constants and the six
+   weights from design defaults into measurements.
+4. **`#28`** — the MCP tool host, then `#29` `search_music` and `#44` `explain_match`, both of which the breakdown now
+   makes possible.
+5. `cues.yaml` case 31 — still the only red case in the crate. **One public-enum decision unblocks it and four other
+   `needs-decision/` files at once**, which remains the cheapest large win.
+
 ## Iteration 70 — 2026-11-03 — ensemble weights as data, with a report of their own
 
 **Baseline.** Green on every step: 181 / 324 + 6, clippy, fmt, rustdoc. Working tree clean at `2af5529`.

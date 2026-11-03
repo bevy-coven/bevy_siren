@@ -5,6 +5,7 @@
 //! (`autotests = false` in `Cargo.toml`), so a test is `all::<file>::<name>`. A new file in `tests/` is declared
 //! here, or `every_test_file_is_a_module` fails: an undeclared file is never compiled and its tests never run.
 
+mod ensemble;
 mod helpers;
 mod leaf;
 mod library;
@@ -86,6 +87,24 @@ mod engine_free {
             assert!(
                 !body.contains(forbidden),
                 "src/model.rs names `{forbidden}`, which makes the crate's arithmetic need an app to test"
+            );
+        }
+    }
+
+    /// **The ensemble arithmetic is in the scanned file, not beside it.**
+    ///
+    /// `#40`'s own note says to put the scoring where `src/model.rs` keeps its arithmetic. That is a rule, not a
+    /// preference: `model_names_no_engine_type` scans exactly one file, so a score defined in `semantic/` would be
+    /// outside the scan and could quietly grow a `Res<…>` parameter — and then nothing tests it without an `App`.
+    ///
+    /// This asserts the types are *there*, so moving them out is a failing test rather than a silent exemption.
+    #[test]
+    fn the_ensemble_lives_in_the_engine_free_model() {
+        let src = include_str!("../src/model.rs");
+        for item in ["pub struct Breakdown", "pub struct Contribution", "pub enum Signal", "pub fn score"] {
+            assert!(
+                src.contains(item),
+                "src/model.rs must define `{item}`, so the engine-free scan covers it"
             );
         }
     }

@@ -542,3 +542,204 @@ pub fn steal(candidates: &[Candidate], need: usize, max: usize) -> Vec<usize> {
     });
     stealable.into_iter().take(wanted).map(|c| c.index).collect()
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// The ensemble: combining signals into one score, and explaining it.
+// ---------------------------------------------------------------------------------------------------------------
+//
+// An ensemble that cannot be explained is indistinguishable from a magic number, so every contribution is kept rather
+// than summed away. This lives here, not in `semantic/`, because `tests/all.rs`'s engine-free scan covers this file: a
+// score that needed an `App` to test would be a score nobody tests.
+
+/// Which signal a [`Contribution`] is about, so a breakdown is read by name rather than by position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Signal {
+    /// Embedding similarity: what the words matched.
+    Semantic,
+    /// Acoustic agreement: loudness, brightness and noise floor.
+    Acoustic,
+    /// Agreement on tempo, when both are known.
+    Tempo,
+    /// Agreement on key, when both are known.
+    Key,
+}
+
+/// Every signal, in the order a breakdown lists them.
+pub const SIGNALS: [Signal; 4] = [Signal::Semantic, Signal::Acoustic, Signal::Tempo, Signal::Key];
+
+impl Signal {
+    /// The name a breakdown prints, which is also the field name a project's weights file uses.
+    pub fn name(self) -> &'static str {
+        match self {
+            Signal::Semantic => "semantic",
+            Signal::Acoustic => "acoustic",
+            Signal::Tempo => "tempo",
+            Signal::Key => "key",
+        }
+    }
+
+    /// Where this signal sits in a [`Breakdown`]'s array.
+    pub fn index(self) -> usize {
+        match self {
+            Signal::Semantic => 0,
+            Signal::Acoustic => 1,
+            Signal::Tempo => 2,
+            Signal::Key => 3,
+        }
+    }
+}
+
+/// **One signal's contribution to a result**, with its raw value, its weight and what it contributed.
+///
+/// The three are kept separate because a caller reading a result needs them separately: the raw value says *what the
+/// signal saw*, the weight says *how much the project cared*, and the contribution is the product. A result that only
+/// carried the product would leave "why is this first" unanswered whenever a weight is small.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Contribution {
+    /// Which signal this is.
+    pub signal: Signal,
+    /// The signal's raw value, in its own units.
+    pub raw: f32,
+    /// The weight the project gave this signal.
+    pub weight: f32,
+    /// `raw * weight`, which is what entered the sum.
+    pub contribution: f32,
+    /// True when the signal had no value for this pair — a key that is unknown, a tempo that was not estimated.
+    ///
+    /// **A missing signal is not a zero.** A zero contribution from a signal that had nothing to say and a zero from
+    /// one that was consulted and disagreed are different facts, and a breakdown that conflates them misleads exactly
+    /// the person reading it to understand the ranking.
+    pub missing: bool,
+}
+
+impl Contribution {
+    /// **A signal that was consulted.** A non-finite value or weight contributes nothing and is marked missing rather
+    /// than poisoning the sum with a NaN — the same rule [`db_to_gain`] follows for a gain.
+    pub fn scored(signal: Signal, raw: f32, weight: f32) -> Contribution {
+        let usable = raw.is_finite() && weight.is_finite() && weight >= 0.0;
+        Contribution {
+            signal,
+            raw,
+            weight,
+            contribution: if usable { raw * weight } else { 0.0 },
+            missing: !usable,
+        }
+    }
+
+    /// **A signal that had no value for this pair**, so it contributes nothing and says so.
+    pub fn absent(signal: Signal, weight: f32) -> Contribution {
+        Contribution { signal, raw: f32::NAN, weight, contribution: 0.0, missing: true }
+    }
+}
+
+/// **Everything one result was scored from**, in a fixed order, so two runs compare field for field.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Breakdown {
+    /// One entry per signal, indexed by [`Signal::index`].
+    pub parts: [Contribution; 4],
+}
+
+impl Breakdown {
+    /// Build a breakdown. The parts are placed by their own `signal`, so the array order cannot be got wrong.
+    pub fn new(parts: [Contribution; 4]) -> Breakdown {
+        let mut ordered = [
+            Contribution::absent(Signal::Semantic, 0.0),
+            Contribution::absent(Signal::Acoustic, 0.0),
+            Contribution::absent(Signal::Tempo, 0.0),
+            Contribution::absent(Signal::Key, 0.0),
+        ];
+        for p in parts {
+            ordered[p.signal.index()] = p;
+        }
+        Breakdown { parts: ordered }
+    }
+
+    /// **The score**: the sum of every contribution.
+    ///
+    /// A sum rather than a mean, because the weights *are* the normalisation: a project that halves a weight is saying
+    /// that signal matters half as much, and dividing by the total would undo that. [`Breakdown::shares`] is the
+    /// normalised view for reporting.
+    pub fn score(&self) -> f32 {
+        self.parts.iter().map(|p| p.contribution).sum()
+    }
+
+    /// The contribution about one signal.
+    pub fn part(&self, signal: Signal) -> Contribution {
+        self.parts[signal.index()]
+    }
+
+    /// **Each signal's share of the score**, for a result's "why did this match".
+    ///
+    /// Returns `None` when the score is zero or not finite: there is no share of nothing, and four divisions by zero
+    /// would be four NaNs a caller then has to guard.
+    pub fn shares(&self) -> Option<[f32; 4]> {
+        let total = self.score();
+        if total == 0.0 || !total.is_finite() {
+            return None;
+        }
+        let mut shares = [0.0f32; 4];
+        for (i, p) in self.parts.iter().enumerate() {
+            shares[i] = p.contribution / total;
+        }
+        Some(shares)
+    }
+
+    /// **The strongest signal that counted for the result, and the strongest that counted against it.**
+    ///
+    /// The pair a person reads first: *"matched on semantic, penalised for loudness"*. `None` when nothing counted, so a
+    /// caller cannot report a reason that does not exist. Ties go to the earlier signal in [`SIGNALS`], so two runs
+    /// cannot disagree.
+    pub fn strongest(&self) -> Option<(Contribution, Option<Contribution>)> {
+        let mut best: Option<Contribution> = None;
+        let mut worst: Option<Contribution> = None;
+        for p in &self.parts {
+            if p.missing || p.contribution == 0.0 {
+                continue;
+            }
+            if p.contribution > 0.0 && best.is_none_or(|b| p.contribution > b.contribution) {
+                best = Some(*p);
+            }
+            if p.contribution < 0.0 && worst.is_none_or(|w| p.contribution < w.contribution) {
+                worst = Some(*p);
+            }
+        }
+        best.map(|b| (b, worst))
+    }
+
+    /// **A sentence a panel or a log can show**, naming what carried the result and what counted against it.
+    ///
+    /// The same shape this crate's refusals use: the thing, then what it was. A breakdown a person has to decode is a
+    /// breakdown that does not explain anything.
+    pub fn explain(&self) -> String {
+        let missing: Vec<&str> =
+            SIGNALS.into_iter().filter(|s| self.part(*s).missing).map(Signal::name).collect();
+
+        let Some((best, worst)) = self.strongest() else {
+            let mut s = String::from("no signal contributed");
+            if !missing.is_empty() {
+                s.push_str(&format!("; no value for {}", missing.join(", ")));
+            }
+            return s;
+        };
+
+        let mut s = format!(
+            "{} carried it ({:+.3} from {} raw at weight {})",
+            best.signal.name(),
+            best.contribution,
+            best.raw,
+            best.weight
+        );
+        if let Some(w) = worst {
+            s.push_str(&format!(
+                "; {} counted against it ({:+.3} from {} raw)",
+                w.signal.name(),
+                w.contribution,
+                w.raw
+            ));
+        }
+        if !missing.is_empty() {
+            s.push_str(&format!("; no value for {}", missing.join(", ")));
+        }
+        s
+    }
+}
