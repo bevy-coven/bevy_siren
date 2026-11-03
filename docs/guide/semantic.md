@@ -322,25 +322,59 @@ for result in &answer.matches {
 }
 ```
 
-**One scale, so the weights mean something.** Every signal becomes an agreement in `[0, 1]`:
+**One scale, so the weights mean something.** Every signal becomes an agreement in `[-1, 1]` — `+1` as alike as the
+signal can say, `0` neither, `-1` as far apart as the rule already calls fatal:
 
 | signal | raw value | why that number |
 |---|---|---|
-| semantic | `(cosine + 1) / 2` | **affine**, so it cannot reorder what `top_k` found |
-| acoustic | `1 − difference / tolerance`, clamped | the same fraction the filter already refuses on |
-| tempo | `1 − difference / tolerance`, clamped | the same shape, on `tempo_tolerance_bpm` |
-| key | `compatibility.multiplier` | already `[0, 1]`, already authored — one number, both places |
+| semantic | the cosine, unchanged | it **is** already `[-1, 1]`, so no map can improve it |
+| acoustic | `1 − 2·difference / tolerance`, clamped | the tolerance the filter refuses on maps to `-1` |
+| tempo | the same shape, on `tempo_tolerance_bpm` | |
+| key | `2·multiplier − 1` | the table's `1.0` is `+1`, its `0.5` neutral, its `0.0` is `-1` |
+
+**The scale is signed on purpose.** A `[0, 1]` map was the first attempt and made every contribution positive, so
+`Breakdown::strongest()` could never report what counted *against* a result — `explain()` was a score with decoration.
 
 **A missing signal is not a disagreement.** An asset with no tempo estimated, or a key judged atonal, contributes nothing
 and is marked `missing` — never a zero, which would read as *"consulted and disagreed"*. `explain()` says which:
 
 ```
-semantic carried it (+0.710 from 0.71 raw at weight 1); no value for tempo, key
+semantic carried it (+0.420 from 0.42 raw at weight 1); acoustic counted against it (-0.250 from -0.5 raw); no value for tempo, key
 ```
 
 **The hard rules run before the scoring.** A candidate beyond the loudness or tempo tolerance is excluded and never
 scored, so `#27`'s rules are binding rather than advisory; `RankedAnswer` reports `excluded` and `dropped` separately so
 an empty result can say which rule emptied it.
+
+## The workflow: anchor, neighbours, and why
+
+`semantic::tools` is the workflow the retrieval engine serves, as three calls an editor panel or an agent makes:
+
+```rust
+use bevy_siren::semantic::tools::{Session, Toolset};
+
+let tools = Toolset::default();
+let mut session = Session::new();
+session.set_anchor(&index, chosen_hash)?;          // idempotent; one anchor per session, no global
+
+let music = tools.compatible_music(&index, &session, None, 3)?;
+let effects = tools.compatible_sfx(&index, &session, None, Some("footsteps"), 6)?;
+let why = tools.explain_match(&index, chosen_hash, music.results[0].hash)?;
+
+println!("{}", music.describe());   // "3 returned, 1 excluded by the acoustic rules, 2 near-identical variants"
+println!("{}", why.explain());      // "semantic carried it (...); acoustic counted against it (...)"
+```
+
+**Two weightings, not one changed quietly.** An effect has no key and no tempo, so `Weights::effects()` moves the weight
+those held onto acoustic agreement and keeps the total — a score from one table is comparable to the other's, and
+`shares()` never reports weight spent on a signal that had no value.
+
+**A variant is reported, not repeated.** Results are ordered first, then a result within `Variants::identical_below`
+(0.99) of one already kept is left out **by name of the one it resembled** — so twelve takes of one footstep do not fill
+the top twelve, and a caller still learns there were twelve.
+
+**No anchor is a refusal with a remedy**: *"no anchor is set. Call `set_anchor(asset_id)` first, or pass one
+explicitly"*.
 
 ## Ask: one call from a description to a ranked answer
 

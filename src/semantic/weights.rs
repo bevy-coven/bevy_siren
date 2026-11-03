@@ -108,6 +108,28 @@ pub struct Weights {
     pub drop_fraction: f32,
 }
 
+/// **The weighting a sound-effect query uses**, which is not the music one with numbers changed quietly.
+///
+/// An effect has **no key and no tempo**: those are absent, not zero, so their weights contribute nothing whenever an
+/// effect library is searched — the signals would be dead weight in the table rather than doing harm, but a caller
+/// reading `shares()` would be told 70 % of the score went to signals that never had a value.
+///
+/// So the two weights are **moved onto the signals an effect actually has**. An effect library's cohesion is timbre,
+/// brightness, noise floor and loudness — which is `acoustic`, at the same 1.0 the semantic signal carries — and the
+/// 0.35 + 0.35 the missing signals held is split between them, leaving tempo and key at zero because a zero there is
+/// honest: the rule *would* apply, it simply has no input.
+///
+/// Totals are kept equal to the music default's `2.2` so a score from one weighting is comparable to the other's.
+///
+/// Every value here is a **design default**: there is no labelled set of effects to measure against, and `#35`'s golden
+/// set does not cover them.
+impl Weights {
+    /// **The effects weighting**: acoustic agreement carries what key and tempo cannot.
+    pub fn effects() -> Weights {
+        Weights { semantic: 1.0, acoustic: 1.2, tempo: 0.0, key: 0.0, ..Weights::default() }
+    }
+}
+
 impl Default for Weights {
     fn default() -> Self {
         Weights {

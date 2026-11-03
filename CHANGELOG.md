@@ -7,10 +7,18 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- **The ensemble, wired.** `semantic::ensemble::breakdown` maps every signal onto one `[0, 1]` agreement — semantic as
-  `(cosine + 1) / 2` (affine, so it cannot reorder), acoustic and tempo as `1 − difference / tolerance` against the same
-  tolerances the filter already refuses on, key as the compatibility table's own multiplier — and weights them into
-  `model::Breakdown`. `search::search_ranked` runs the whole path: stamp check, ranking, floor, the hard rules, then a
+- **The workflow as calls**: `semantic::tools`. `Session::set_anchor` holds one anchor per session object — no global,
+  so two clients cannot interleave — and is idempotent by construction. `Toolset::compatible_music` and
+  `compatible_sfx` rank an anchor's neighbours with the two **separate** weightings (`Weights::effects()` moves the
+  weight key and tempo held onto acoustic agreement, keeping the total so scores stay comparable), suppress
+  near-identical variants **after** ordering so the better-scoring one survives, and report what they left out in a
+  `Tally` that names each count. `Toolset::explain_match` returns the same `Breakdown` a search produces for that pair.
+- **The ensemble's scale is signed.** Every signal is now an agreement in `[-1, 1]` — the cosine unchanged, acoustic and
+  tempo as `1 − 2·difference / tolerance`, key as `2·multiplier − 1`. A `[0, 1]` map was the first attempt and was
+  wrong: on it no contribution can be negative, so `Breakdown::strongest()` could never report what counted *against* a
+  result and `explain()` was a score with decoration.
+- **The ensemble, wired.** `semantic::ensemble::breakdown` puts every signal on that one signed scale and weights it
+  into `model::Breakdown`. `search::search_ranked` runs the whole path: stamp check, ranking, floor, the hard rules, then a
   **re-sort by ensemble score**, which is what makes a project's weights binding. Each result carries its own breakdown
   and an `explain()` sentence.
 - **`model::Contribution` compares absences as equal.** A derived `PartialEq` compared `raw: NaN` against `NaN` and

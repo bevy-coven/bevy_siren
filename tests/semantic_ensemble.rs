@@ -54,9 +54,10 @@ mod ensemble {
                 );
             }
         }
-        // The semantic weight is the default's 1.0, and its raw value is the affine map of the cosine.
+        // The semantic weight is the default's 1.0, and its raw value is **the cosine unchanged**: similarity is
+        // already on the signed scale, so any map would change the units without improving them.
         assert_eq!(b.part(Signal::Semantic).weight, w.semantic);
-        assert!((b.part(Signal::Semantic).raw - 0.71).abs() < 1e-6, "0.42 maps to 0.71");
+        assert!((b.part(Signal::Semantic).raw - 0.42).abs() < 1e-6, "the cosine is its own agreement");
     }
 
     /// **Criterion 2, the other half: an absent signal says so rather than contributing a silent zero.**
@@ -186,9 +187,10 @@ mod ensemble {
         );
     }
 
-    /// The agreement map is monotonic in the cosine, so weighting cannot invert a similarity order by itself.
+    /// **The semantic agreement is the cosine itself**, which is what keeps `top_k`'s order intact: any map would
+    /// change the units without improving them, and a squash would reorder the overlap band the crate measured.
     #[test]
-    fn the_semantic_map_preserves_order() {
+    fn the_semantic_agreement_is_the_cosine() {
         let w = Weights::default();
         let empty = Features::default();
         let judgement = evaluate(&empty, &empty, &w);
@@ -196,7 +198,8 @@ mod ensemble {
         for cosine in [-1.0, -0.5, 0.0, 0.15, 0.5, 0.9, 1.0] {
             let raw = agreements(cosine, &empty, &empty, &judgement, &w)[Signal::Semantic.index()]
                 .expect("a finite cosine has a value");
-            assert!(raw > previous, "the map must be strictly increasing at {cosine}");
+            assert!((raw - cosine).abs() < 1e-6, "an identity, at {cosine}");
+            assert!(raw > previous, "and therefore strictly increasing");
             previous = raw;
         }
     }
