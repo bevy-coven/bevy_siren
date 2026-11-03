@@ -49,7 +49,9 @@ command. (2) `% len()` on a list built from an env var needs the empty case answ
 evidence was not laziness, it was a panic. (4) When a crop looks wrong, check the offset before the panel: `zoom-buses`
 starts at `Ambience` and the full still has all four buses. (5) `hs distill` GPU-blocked (twenty-fourth iteration).
 
-**Commit.** `97f79ff`; CI on `main`.
+**Commit.** `97f79ff`, pushed to `main`; CI run 41592625502 is **success** on `big-s1`. Gate: build, test (109 + 5),
+serde (116 + 5), mixer (117 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
