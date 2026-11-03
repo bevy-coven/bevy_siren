@@ -7,6 +7,63 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 48 — 2026-11-03 — a bus cap above the table's budget is reported
+
+**Baseline.** Green on every step, no open issues. Nothing red.
+
+**Change.** A **twelfth sentence** in `SirenSettings::problems`:
+`bus \`Effects\` asks for 16 voices but the table's max_voices is 4, so it mixes 4`. Plus a twelfth bullet in the doc's
+list, an eleventh line in the guide, the indexed assertion in `problems_names_every_mistake`, and `SIREN_MIX=overbudget`
+— its own capture table, see below.
+
+**Rationale.** `bus_voice_limit` is `min(cap, total)`, so a bus asking for more voices than the table allows silently
+gets the table's. **Neither document said so**: `BusLevel::max_voices`'s doc names the `0` sentinel and not the clamp,
+and the guide's *"a bus's own `max_voices` caps it further"* is true without warning that a larger number does nothing.
+Backlog #5, verified in iteration 47 and built here.
+
+**Why no decision file.** `problems()` returns `Vec<String>` — additive. Iterations 46 and 47 relied on the same fact.
+
+**A capture decision made by looking.** `SIREN_MIX=broken` already carries three faults and the block caps at **three
+sentences**, so a fourth would be the invisible `and 1 more` — a picture that cannot show a sentence does not prove it.
+`SIREN_MIX=overbudget` gives this fault **its own table** (`max_voices: 4`, `Effects: 16`), and the block is that one
+sentence. Every bus row under it reads `2 / 4`, agreeing with the sentence.
+
+**Not built: case 31** — still blocked on `needs-decision/bad-gain-problem.md`.
+
+**Evidence.** `runs/2026-11-03-48/`: `research.md` (S1 the `min`, S2 the doc's sentinel-only wording, S3 the guide's
+"caps it further", S4 iterations 46/47's precedent, S5 the decision README's scope), `plan.md`, `perf.md`, `eval.md`,
+`review.md` (three passes, GREAT), `evidence/{panel,after}`, `docs/media/mixer-overbudget.png`.
+
+| | before | after |
+|---|---|---|
+| `Effects: 16` under `max_voices: 4` | mixes **4**, report silent | mixes 4, **named** |
+| the bus rows in the same capture | `Effects 2 / 12` | `Effects 2 / **4**` |
+| a bus at `0` (the sentinel) | silent | **still silent**, asserted |
+| a cap **equal** to the table's | silent | **still silent**, asserted |
+| a bus cap above the table's, in `problems_names_every_mistake` | not indexed | a dedicated table (the big one's `max_voices: 0` hid it) |
+| sentences `problems()` can emit | 11 | **12** |
+| tests | 126 / 133 / 136 + 5 | **127 / 134 / 137 + 5** |
+| perf | — | 0.643 / 1.265 µs at 256 voices, load **9.3** — the same host spread every run since 41 shows |
+
+**One mistake in this iteration's own work**: I appended a second near-identical clamp test before noticing iteration
+47's still in the file; the older one was deleted and the survivor rewritten to assert the sentence rather than the
+silence it used to pin.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`Duck::new`'s zero hold/fade defaults** — reported since iteration 46, but the constructor still hands back an inert
+   rule where `by_db` gets a real `-6.0`. Changing it is a behaviour change and needs a decision file.
+3. No capture shows the panel with a **missing sound** refused (iteration 39 showed `unknown-cue` only).
+4. `docs/media/mixer.gif` captures at ~8 fps; a fade shorter than 120 ms falls between frames.
+5. **A cue's `max_instances` larger than its bus's cap** is the bus's — 8 requests on a bus of 2 give **two live voices**,
+   silently. Pinned this iteration by `a_cue_polyphony_above_its_bus_is_the_buss_cap_and_unreported`, which also records
+   why it is **not** a fault: the bus steals rather than refusing, so the table still plays. The sibling bus/table clamp
+   *is* reported because nothing steals for it — worth keeping that distinction in mind before reporting this one.
+
 ## Iteration 47 — 2026-11-03 — a duck that starts on the bus it lowers is reported
 
 **Baseline.** Green on every step, no open issues. Nothing red.

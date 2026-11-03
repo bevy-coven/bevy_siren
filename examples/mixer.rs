@@ -186,12 +186,17 @@ fn settings() -> SirenSettings {
     // is negative. Until iteration 45 the `Problems` block drew only the cue table's faults, so this table read
     // `none`: the report's other half was never on screen.
     let broken = std::env::var("SIREN_MIX").is_ok_and(|v| v == "broken");
+    // **`SIREN_MIX=overbudget` gives the bus-cap fault its own table.** `broken` already fills the block's three-sentence
+    // cap, so a fourth fault would be the invisible `and 1 more` — a capture that cannot show a sentence does not prove
+    // it. This one has a single fault, so the whole block is that sentence.
+    let overbudget = std::env::var("SIREN_MIX").is_ok_and(|v| v == "overbudget");
     SirenSettings {
         master_db: if broken { f32::NAN } else { 0.0 },
-        max_voices: 12,
+        max_voices: if overbudget { 4 } else { 12 },
         buses: vec![
             BusLevel::new("Music").gain_db(-2.0).max_voices(if tight { 1 } else { 0 }),
-            BusLevel::new("Effects").max_voices(2),
+            // The bus asks for more than the table allows, so `bus_voice_limit` gives it the table's 4 and says so.
+            BusLevel::new("Effects").max_voices(if overbudget { 16 } else { 2 }),
             BusLevel::new("Ambience").gain_db(-6.0),
             BusLevel::new("Dialogue"),
         ],

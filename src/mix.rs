@@ -119,7 +119,7 @@ impl SirenSettings {
 
     /// Everything wrong with the table, as sentences a person reads on an editor's status line.
     ///
-    /// **Eleven checks**, and `tests/mix.rs::problems_names_every_mistake` walks all eleven so this list and the code cannot
+    /// **Twelve checks**, and `tests/mix.rs::problems_names_every_mistake` walks all twelve so this list and the code cannot
     /// drift apart — the rule `MusicScore::problems`'s own test holds it to, and this doc named six of the nine until
     /// iteration 45:
     ///
@@ -134,7 +134,8 @@ impl SirenSettings {
     /// - a duck's `hold_s` or `fade_s` is negative or not a number;
     /// - a duck has **no hold and no fade**, so it lowers the bus for no time at all — the shape `Duck::new` gives a
     ///   rule before a caller chains `.hold_s(..)` or `.fade_s(..)` on, which is why `default_ducks()` chains both;
-    /// - a duck **starts on the same bus it lowers**, so every voice on it quietens itself.
+    /// - a duck **starts on the same bus it lowers**, so every voice on it quietens itself;
+    /// - a **bus asks for more voices than the table allows**, so its number is silently the table's.
     ///
     /// Two of those are **one sentence per cause, not per rule**: `default_ducks()` is `Dialogue -> Music` and
     /// `Dialogue -> Effects`, so a table without `Dialogue` has two rules with the same fault and the report says so
@@ -156,6 +157,17 @@ impl SirenSettings {
             }
             if !bus.gain_db.is_finite() {
                 out.push(format!("bus `{}` has a gain that is not a number", bus.name));
+            }
+            // **A cap larger than the table's is silently the table's.** `bus_voice_limit` takes `min(cap, total)`, so
+            // `BusLevel::new("Effects").max_voices(16)` under `max_voices: 32` mixes 16 and under `max_voices: 4` mixes
+            // **4** — the field's doc names the `0` sentinel and not the clamp, and the guide's *"caps it further"* is
+            // true without warning that a larger number is quietly reduced. A number that does nothing is the kind of
+            // thing an author never discovers; say it once, where the other bus faults are.
+            if bus.max_voices > 0 && bus.max_voices > self.max_voices {
+                out.push(format!(
+                    "bus `{}` asks for {} voices but the table's max_voices is {}, so it mixes {}",
+                    bus.name, bus.max_voices, self.max_voices, self.max_voices
+                ));
             }
         }
         // **The report asks `bus_names()`, like every other reader.** A table that lists no buses means the crate's

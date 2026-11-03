@@ -342,6 +342,12 @@ fn problems_names_every_mistake() {
         nan_hold.problems()
     );
 
+    // **A bus cap above the table's budget** — `max_voices: 0` in the big table hides it behind the "no sound can ever
+    // play" sentence, so it needs a table whose budget a bus can exceed.
+    let over_budget = settings(vec![BusLevel::new("Effects").max_voices(16)], vec![], 0.0, 4).problems();
+    assert_eq!(over_budget.len(), 1, "{over_budget:?}");
+    assert!(over_budget[0].contains("bus `Effects` asks for 16 voices"), "{over_budget:?}");
+
     // **And a good table says nothing**, which is what makes every sentence above a fault rather than a habit.
     assert!(SirenSettings::default().problems().is_empty(), "{:?}", SirenSettings::default().problems());
 }
@@ -1049,25 +1055,79 @@ fn a_looping_cue_at_one_instance_never_accumulates() {
     );
 }
 
-/// **A bus cannot raise the budget above the table's.** `SirenSettings::bus_voice_limit` takes `min(cap, total)`, so a
-/// bus asking for more voices than the table has is silently clamped — and `problems()` says nothing, which is the
-/// question this test pins rather than assumes.
+/// **A bus asking for more voices than the table allows is clamped, and the report says so.**
+/// `bus_voice_limit` takes `min(cap, total)`, so `BusLevel::new("Effects").max_voices(16)` under `max_voices: 4`
+/// mixes **four** voices — the table's budget wins. The field's doc names the `0` sentinel and not the clamp, and the
+/// guide's *"caps it further"* is true without warning that a larger number is quietly reduced: a number an author
+/// writes and no one discovers. The mutation is deleting the twelfth `out.push`, which reddens the middle assertion.
 #[test]
-fn a_bus_asking_for_more_than_the_table_is_clamped_not_reported() {
-    let settings = SirenSettings {
+fn a_bus_asking_for_more_than_the_table_is_clamped_and_reported() {
+    let clamped = SirenSettings {
         max_voices: 4,
         buses: vec![BusLevel::new("Effects").max_voices(16)],
         ducks: Vec::new(),
         ..SirenSettings::default()
     };
-    assert_eq!(
-        settings.bus_voice_limit("Effects"),
-        4,
-        "the table's budget wins, as `bus_voice_limit`'s own `min` says"
-    );
+    assert_eq!(clamped.bus_voice_limit("Effects"), 4, "the table's budget wins");
+    let reported = clamped.problems();
     assert!(
-        settings.problems().is_empty(),
-        "and the report says nothing about it: {:?}",
-        settings.problems()
+        reported
+            .iter()
+            .any(|s| s.contains("bus `Effects` asks for 16 voices")
+                && s.contains("the table's max_voices is 4")),
+        "the report names the bus, its number and the table's: {reported:?}"
+    );
+
+    // **A cap the table can honour says nothing**, and neither does the `0` sentinel — the two cases that must stay
+    // quiet, without which the sentence would be noise on every ordinary table.
+    let ordinary = SirenSettings {
+        max_voices: 4,
+        buses: vec![BusLevel::new("Effects").max_voices(2), BusLevel::new("Music")],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    assert_eq!(ordinary.bus_voice_limit("Effects"), 2);
+    assert_eq!(ordinary.bus_voice_limit("Music"), 4, "`0` is the table's own");
+    assert!(ordinary.problems().is_empty(), "an ordinary table says nothing: {:?}", ordinary.problems());
+
+    // A cap exactly at the table's is not a fault either: it asks for what it gets.
+    let exact = SirenSettings {
+        max_voices: 4,
+        buses: vec![BusLevel::new("Effects").max_voices(4)],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    assert!(exact.problems().is_empty(), "4 of 4 is not a clamp: {:?}", exact.problems());
+}
+
+/// **A cue's `max_instances` above its bus's cap is the bus's, and the report is silent.** The sibling of this
+/// iteration's bus/table clamp, on the other pair of budgets: `room_for` applies the cue cap and then the bus cap, so a
+/// cue asking for 8 on a bus of 2 gets **two live voices** and steals for the rest. Iteration 42's carve called this
+/// *not* a fault — the bus steals rather than refusing, so the table still plays — and this test pins that reading.
+#[test]
+fn a_cue_polyphony_above_its_bus_is_the_buss_cap_and_unreported() {
+    let settings = SirenSettings {
+        max_voices: 12,
+        buses: vec![BusLevel::new("Effects").max_voices(2)],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    let table = CueTable::new(vec![Cue {
+        mode: bevy_siren::Mode::Loop,
+        max_instances: 8,
+        ..cue("hum", "Effects", 0, 1)
+    }]);
+    assert!(table.problems_in(&settings).is_empty(), "the cue table reports nothing");
+    assert!(settings.problems().is_empty(), "and the mix table reports nothing");
+
+    let mut app = app(table, settings, sounds(&["hum"]), false);
+    for _ in 0..8 {
+        app.world_mut().write_message(Play::cue("hum"));
+        app.update();
+    }
+    assert_eq!(
+        app.world().resource::<SirenMix>().voices_on("Effects"),
+        2,
+        "eight requests, two voices: the bus's cap is what bounds it, not the cue's 8"
     );
 }

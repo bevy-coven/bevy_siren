@@ -79,7 +79,9 @@ read is a decision nobody can debug.
 
 ## The voice budget
 
-`max_voices` is the whole table's budget; a bus's own `max_voices` caps it further (`0` is the table's). A cue's
+`max_voices` is the whole table's budget; a bus's own `max_voices` caps it further (`0` is the table's). **A bus number
+above the table's does nothing** — `bus_voice_limit` takes `min(cap, total)`, so `Effects: 16` under `max_voices: 4`
+mixes four, and `problems()` says so rather than letting an author believe they raised it. A cue's
 `max_instances` is the same kind of number for one cue — and all three are **budgets on plays**, not standing counts:
 they decide whether the *next* request may start, and a voice already admitted lives out its length. Editing a table
 while sounds are playing is therefore safe — the new numbers govern the next play, and nothing is cut on a frame the
@@ -178,6 +180,7 @@ the duck on `Effects` raises it by 3 dB; a duck lowers, so by_db should be negat
 the duck on `Effects` has a hold or fade that is negative or not a number
 the duck on `Music` has no hold and no fade, so it lowers the bus for no time at all; set hold_s or fade_s
 the duck on `Effects` starts on the bus it lowers, so every voice on it quietens itself
+bus `Effects` asks for 16 voices but the table's max_voices is 4, so it mixes 4
 ```
 
 **A duck whose `source` and `target` are the same bus is a compressor, and the report says so once.** Nothing stops

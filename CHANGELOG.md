@@ -7,6 +7,15 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A bus asking for more voices than the table allows is reported.** `SirenSettings::bus_voice_limit` is
+  `min(cap, total)`, so `BusLevel::new("Effects").max_voices(16)` under `max_voices: 4` mixes **four** — and neither
+  `BusLevel::max_voices`'s doc (which names only the `0` sentinel) nor the guide's *"a bus's own `max_voices` caps it
+  further"* said that a **larger** number does nothing. `problems()` gains a twelfth sentence —
+  *"bus `Effects` asks for 16 voices but the table's max_voices is 4, so it mixes 4"* — additive, since the report is
+  `Vec<String>`. A bus at `0` (the sentinel) and a cap **equal** to the table's stay silent; both are asserted. The
+  behaviour is unchanged: the bus still mixes the table's four.
+
+
 - **A duck that starts on the bus it lowers is reported.** `Duck::new("Effects", "Effects")` is accepted and
   **quietens its own voices**: `fire_all` matches rules on `source`, `duck_db` matches them on `target`, and for a
   self-duck one bus is both — so a footstep pulls down every other effect for the rule's whole envelope, and itself with
