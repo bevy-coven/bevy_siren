@@ -56,7 +56,7 @@ the stale list. (2) My first regression test asserted through `pick_from` alone 
 because growth lived in `SirenChoices::pick`; the right answer was to grow the window inside `pick_from`, so the rule
 travels with the call. (3) Two `cargo test <name> <name>` calls failed on argument parsing — the suite takes one filter.
 
-**Commit.** (see `git log`).
+**Commit.** `46c18c1` — *siren: a cue's avoid window is the number it asks for*.
 
 **Top 5 remaining**
 
