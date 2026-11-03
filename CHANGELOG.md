@@ -7,6 +7,28 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Hard filters from the acoustic features.** `semantic::filter` turns the loudness and noise-floor measurements into a
+  **policy** with a stated reason and a stated cost, rather than a term buried in a scoring function. Loudness is a
+  hard exclusion — a 12 LU gap is not a ranking weakness, the two cannot play together — and the noise floor is a
+  **penalty only**, because a library holds clean and noisy takes of the same instrument.
+
+  **An unknown feature never excludes**, which is the module's whole design. A 0.2 s footstep has no integrated
+  loudness at all: a property of the *measurement*, not the sound. Excluding it for failing a comparison it was never
+  part of would silently remove the commonest asset in a library, so every rule returns `Admitted`, `Unjudged` or
+  `Excluded` and only one of the three removes anything.
+
+  `Weights` gains **`noise_floor_tolerance_db: 12.0`** — design default, twice the loudness tolerance because this rule
+  penalises rather than excludes — with its own `problems()` check. The boundary is `difference > tolerance`, so **6.00
+  LU is admitted and 6.01 refused**, asserted on both sides.
+
+  A cascade reports *why*: `0 of 6 admitted, 6 for loudness. Every candidate was removed…`, so an empty result is a
+  sentence rather than a mystery. `unjudged_loudness` is counted separately, so a library of short effects reads as
+  *"all 3 admitted"* with a note that two were never judged.
+
+  Refs #27 — tempo and key rules stay unbuilt until #24 and #25 land.
+
+### Documented
+
 - **Spectral centroid, rolloff and noise floor**, from the same FFT the mel path already uses. `semantic::spectral`
   answers what a sound designer means by *"the same world"* — brightness and cleanliness — and it survives an embedding
   where loudness is partly normalised away. Measured: a 1 kHz sine reads a centroid within **5 %**, a low-passed copy is

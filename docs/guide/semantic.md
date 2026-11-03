@@ -219,6 +219,25 @@ for hit in answer.matches {           // was `Copy`
 }
 ```
 
+## Filtering, without removing what it could not judge
+
+`semantic::filter` turns measurements into a **policy**: a loudness gap beyond `Weights::loudness_tolerance_db` (6 dB)
+removes a candidate, and a noise floor more than `noise_floor_tolerance_db` (12 dB) above the anchor's only *penalises*
+it — a hissier take is a worse neighbour, not an impossible one.
+
+**An unknown feature never excludes.** A 0.2 s footstep has no integrated loudness, so the rule cannot judge it, and
+removing it would silently delete the commonest asset in a library:
+
+```rust
+match filter::evaluate(&anchor, &candidate, &weights).excluded {
+    Some(reason) => println!("removed: {reason}"),
+    None         => { /* admitted, or admitted unjudged — both are kept */ }
+}
+```
+
+`filter::filter` returns the kept indices and a `Report` whose `describe()` names the rule that removed the most, so a
+set where everything was filtered out reads as a sentence rather than as nothing.
+
 ## Ask: one call from a description to a ranked answer
 
 ```rust

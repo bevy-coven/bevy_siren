@@ -7,6 +7,82 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 90 — 2026-11-03 — hard filters, and the invariant that makes them safe
+
+**Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **376 semantic** / **55 lib**;
+clippy 0, fmt, rustdoc, examples. Volume held **20 GB** free.
+
+**`#27`'s judgeable half — two of its four rules.** Tempo and key rules are **not built**, because `#24` and `#25` are
+open and a rule over an always-`None` field would be a stub wearing a feature's clothes. The issue stays open.
+
+**The invariant is the module: an unknown feature never excludes.** A 0.2 s footstep has no integrated loudness at all —
+a property of the **measurement**, not the sound — so excluding it for failing a comparison it was never part of would
+silently remove the commonest asset in a library. Every rule returns `Admitted`, `Unjudged` or `Excluded`, and only one
+of the three removes anything, so a later rule cannot treat absence as a pass without writing code that says so.
+
+**Loudness excludes; the noise floor only penalises.** A 12 LU gap is not a ranking weakness — the two cannot play
+together — while a hissier take is a worse neighbour, not an impossible one, and a library holds clean and noisy takes of
+one instrument. `#27` asks for exactly that split.
+
+**The boundary is asserted on both sides**: `difference > tolerance`, so **6.00 LU is admitted and 6.01 refused**. A
+filter off by one comparison survives every visual check, which is why the test names both.
+
+**`Weights` gains `noise_floor_tolerance_db: 12.0`** — **design default**, twice the loudness tolerance because this rule
+penalises rather than excludes — with its own `problems()` check, since a negative value would make every candidate read
+as noisier than the anchor.
+
+**`#27`'s cascade pitfall got a sentence**: `0 of 6 admitted, 6 for loudness. Every candidate was removed, most by
+loudness: nothing in this library sits within the tolerance of the anchor.` And `unjudged_loudness` is counted
+separately, so a library of short effects reads *"all 3 admitted"* with a note that two were never judged — the
+difference between a filter that found nothing to do and one that allowed everything.
+
+**Four defects, three of which would have shipped silently.**
+
+1. **A test landed inside an inherent `impl`.** `weights.rs` had **no test module at all**, so a `#[test] fn` appended to
+   the file's last brace went into `impl Weights`. Clippy caught it. **A test that never runs is worse than no test,
+   because it reads as coverage** — and this is the **fourth** fixture-shaped mistake in six iterations, after 87's
+   constant vector, 88's `seed % 24` and 89's five-window "short" clip.
+2. **The new field broke an exhaustive `Weights` literal** in a test. That is the compiler confirming the change is
+   observable, and for a struct a project ships in RON it is the right trade: `..Default::default()` there would hide a
+   new threshold from review.
+3. **A broken intra-doc link** — `[Report::excluded]` named a field that never existed; the report carries counts.
+   `rustdoc -D warnings` refused it, which is why this crate's docs cannot drift from its types.
+4. **An unvalidated threshold**, caught by writing the `problems()` check rather than by a failure.
+
+| voices | µs/frame | iteration 89 |
+|---|---|---|
+| 64 | **0.329** | 0.353 |
+| 256 | **0.630** | 1.265 |
+
+No audio-path change. Indexing is untouched — the filter runs at query time over features already stored — so iteration
+89's ~1 150 clips/s decode figure stands.
+
+**Visual gate unchanged:** 32 render files, **14 of 14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to
+iterations 67, 71, 74, 75, 80–89.
+
+**Verdicts.** Pass 1 **GREAT** (four criteria met; tempo and key deferred with the reason stated), pass 2 **GREAT** (the
+misplaced test found, the boundary asserted on both sides, and the recurring fixture lesson named again), pass 3
+**GREAT** (every number is on `Weights`, so a project can disagree with the policy by editing its own file).
+
+**Docs.** The guide gains a *filtering, without removing what it could not judge* section with the three-verdict match;
+the README says an unmeasured asset always survives; `CHANGELOG.md` gains the rules and the new threshold.
+
+**Evidence.** `runs/2026-11-03-90/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,spectrograms}/`.
+
+**Commits.** `a22d578`.
+
+**Top 5 remaining**
+
+1. **`#24` tempo, then `#25` key** — the two features `#27`'s remaining rules need. ADR 0003 gives tempo a **±2 BPM**
+   accuracy floor that is a test rather than a claim, and declares key out of scope for the Rust path; both are now the
+   only blockers between this crate and a complete filter set.
+2. **`#28` the MCP tool host**, then `#29`/`#44`/`#30` — the largest user-facing win, consuming an index and a policy
+   that are both written down.
+3. **Finish `#36` on the GPU** — clone the current commit to `big`, transfer the graph, build `ort` with CUDA.
+4. **Share the spectral FFT with `mel::log_mel`** — iteration 89's 55 % decode regression.
+5. **`f16`, with `V-01`'s labelled set.**
+
 ## Iteration 89 — 2026-11-03 — spectral shape, and two assertions that were wrong before the code
 
 **Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **376 semantic** / **46 lib**;
