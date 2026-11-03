@@ -7,6 +7,68 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 64 — 2026-11-03 — decoding, and the first measured perf baseline
+
+**Baseline.** Started at **642 MB free** — the first obstacle, and not a code problem. `cargo clean` in `bevy_siren`
+(approved; 23.3 GiB of the crate's own build artifacts) freed 24 GB, and the rebuild took 43.5 s. Then every step was
+green: 174 / 183 / 184 / 265 + 6, clippy, fmt, rustdoc, examples. Case 31 is still the only red case, still blocked
+on the `CueProblem` enum decision.
+
+**The item.** `#12`'s decode half — the last critical-path issue, and the one whose other half waits on a dependency.
+
+**`rodio` costs no new crate, and that is measured.** `cargo tree -i rodio` reports
+`bevy_audio → bevy_internal → bevy → bevy_siren`, so **`rodio 0.22.2 is in the default graph already**. The
+`semantic` feature's `dep:rodio` entry turns on this crate's own `wav`/`vorbis` features and adds **nothing**:
+`cargo tree --edges normal` is **413 lines** with no features, before and after. That is a stronger argument than
+"we already trust it", and it is why reusing the mixer's decoder was the right call over adding a second one.
+
+**What decoding proves.** `the_decoded_audio_is_the_tone_that_was_written` writes a 440 Hz tone and counts **exactly
+220** rising zero crossings in 0.5 s — a decode that returned noise, silence or a shifted rate would fail where a
+length check would pass. `rodio` also reports rate and channels as `NonZero`, which is a stronger promise than a
+runtime check, so two `BufferProblem` variants are unreachable through this path.
+
+**The refusal is the deliverable.** A 44.1 kHz file now **decodes successfully** and is then refused with both rates
+named — *"the file is 44100 Hz and the model needs 48000 Hz"*. That is a different message from "your file is broken",
+and it is the truthful one. The conversion is carved off to `needs-decision/resampler-dependency.md`, which now carries
+four options, three measurements and a recommendation (`rubato`), plus the caveat that would bite: the final partial
+chunk must be **flushed** or every file loses up to `input_frames_next()` samples — measured as a 480-sample gap.
+
+**Two defects, one of them a lesson.** My zero-crossing bound was `(436..=444)` — a tolerance around a number that has
+no tolerance, which is how a test stops proving anything; it is an equality now. And clippy caught a useless
+`u16::try_from` around a value already `u16`. A third was caught by the pin rather than by me:
+`the_semantic_feature_declares_no_dependency_of_its_own` failed the moment `semantic` grew `dep:rodio`, which is
+exactly what it exists for, and was updated with the argument in the same commit.
+
+**The first measured perf baseline.** `perfcheck`, release build 9 m 10 s:
+
+| Voices | µs / frame | µs / voice |
+|---|---|---|
+| **8** | **0.024** | 0.0030 |
+| **64** | **0.284** | 0.0044 |
+| **256** | **0.667** | 0.0026 |
+
+At the crate's largest budget the per-frame mix costs **under one microsecond**. Iteration 63 could not measure this
+at all — the disk was at 1.2 GB and a release build would have failed as `ld: write() failed, errno=28`, the failure
+this skill's own notes warn looks like a code error. That gap is now closed and these are the numbers the next
+audio-path change must not exceed by more than 10 %.
+
+**Verdicts.** Pass 1 **GREAT**, pass 2 **GREAT**, pass 3 **GREAT**.
+
+**Gate.** 174 default / 183 serde / 184 mixer / **271 all-features**, clippy 0 errors, fmt, rustdoc, examples — green.
+
+**Evidence.** `runs/2026-11-03-64/`: `research.md` (the graph measurement and what decoding proves), `plan.md`,
+`perf.md` (the measured baseline), `eval.md`, `review.md` (three passes).
+
+**Top 5 remaining**
+
+1. **`rubato`** — `needs-decision/resampler-dependency.md` recommends it with the measurements behind the
+   recommendation, and `#12` closes when it lands with a flushed final chunk and a test that 1.000 s at 44.1 kHz
+   becomes exactly **48000** samples at 48 kHz.
+2. **A tokeniser** — the last piece of the walking skeleton, and its own dependency argument.
+3. **CUDA on `big`** — the probe ran `CPUExecutionProvider`; `P-01`'s throughput target needs the 3090.
+4. **`#41`** — tunable weights, the runner-up this iteration.
+5. `cues.yaml` case 31 — still the only red case, still blocked on the same public-enum decision.
+
 ## Iteration 63 — 2026-11-03 — the last decision points, and a pipeline that works end to end
 
 **Baseline.** Fully green: 174 / 183 / 184 + 6, clippy, fmt, rustdoc, examples. Iteration 62 left no uncommitted work.

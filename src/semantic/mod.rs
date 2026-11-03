@@ -25,6 +25,7 @@
 
 pub mod budget;
 pub mod buffer;
+pub mod decode;
 pub mod index;
 pub mod model;
 pub mod query;

@@ -15,8 +15,10 @@ use std::path::{Path, PathBuf};
 ///
 /// - `bevy` — the engine, trimmed to four features.
 /// - `serde`, `ron` — the tables as data, and the file format a project edits.
-/// - `rodio` — the crate's own mixer, behind `mixer`, and the version `bevy_audio` itself resolves so the graph has
-///   one.
+/// - `rodio` — the crate's own mixer, behind `mixer`, **and the decoder the semantic feature uses**, behind
+///   `semantic`. The version `bevy_audio` itself resolves, so the graph has one. The `semantic` entry costs no new
+///   crate: `cargo tree -i rodio` reports `bevy_audio → bevy_internal → bevy → bevy_siren` already, so the entry
+///   turns on this crate's decoder features and adds nothing to the graph.
 /// - `ort` — the inference runtime, behind `semantic` and off by default. It earns its place by measurement rather
 ///   than by convenience: `docs/adr/0002-inference-runtime.md` chose it over `candle` because CLAP's graph is 39
 ///   standard operators and `ort` runs them exactly, and `runs/2026-11-03-63/evidence/ort-probe.txt` records it

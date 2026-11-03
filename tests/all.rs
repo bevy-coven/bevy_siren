@@ -20,6 +20,8 @@ mod semantic_budget;
 #[cfg(feature = "semantic")]
 mod semantic_buffer;
 #[cfg(feature = "semantic")]
+mod semantic_decode;
+#[cfg(feature = "semantic")]
 mod semantic_index;
 #[cfg(feature = "semantic")]
 mod semantic_model;

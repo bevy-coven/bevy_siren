@@ -44,7 +44,11 @@ readme-example = []
 # `ort` is the inference runtime ADR 0002 chose, and it needs **two** features: `download-binaries` fetches ONNX
 # Runtime 1.31 at build time, and `tls-rustls` is what lets the build script make that request. With only the first,
 # `ort-sys` fails with "a TLS feature must be configured"; with neither, the crate builds and fails to link.
-semantic = ["dep:ort"]
+#
+# `rodio` is here because the feature must **decode**, and the crate already has a decoder it trusts: the one the mixer
+# uses. Reusing it means an asset that plays is the same asset that indexes, and it brings no new dependency — only the
+# one the `mixer` feature already enables.
+semantic = ["dep:ort", "dep:rodio"]
 
 [dependencies]
 # The umbrella with defaults off. A game already has the full `bevy`, so these features cost it nothing;

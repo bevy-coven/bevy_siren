@@ -228,12 +228,15 @@ fn the_semantic_feature_declares_no_dependency_of_its_own() {
         .find(|l| l.trim_start().starts_with("semantic ="))
         .expect("the semantic feature is declared");
     let rhs = line.split('=').nth(1).expect("a feature has a value").trim();
-    // The feature may name exactly one dependency — the inference runtime — and nothing else. Every additional one is
-    // a new name in `tests/leaf.rs`'s ALLOWED_DEPS and its own argument in that comment.
+    // The feature names exactly two dependencies, and each has its argument in `tests/leaf.rs`:
+    //   ort    — the inference runtime (ADR 0002).
+    //   rodio  — the decoder the crate already trusts, which costs no new crate: `bevy_audio` resolves rodio 0.22.2
+    //            in the default graph already, so this entry turns on this crate's own decoder features and adds
+    //            nothing. Measured: `cargo tree --edges normal` is 413 lines with no features, before and after.
     assert_eq!(
-        rhs, "[\"dep:ort\"]",
-        "the semantic feature pulls exactly one dependency, the inference runtime: `{line}`.\n\
-         Anything else is a design decision: add it to ALLOWED_DEPS in tests/leaf.rs with the sentence that argues \
+        rhs, "[\"dep:ort\", \"dep:rodio\"]",
+        "the semantic feature pulls the inference runtime and the decoder, and nothing else: `{line}`.\n\
+         Anything more is a design decision: add it to ALLOWED_DEPS in tests/leaf.rs with the sentence that argues \
          for it, in the same commit."
     );
 }
