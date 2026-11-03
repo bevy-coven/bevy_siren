@@ -7,6 +7,71 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 10 — 2026-11-02 — the mix's buses are this frame's buses
+
+**Change.**
+
+- **`src/mix.rs` — `update_mix` iterates the buses `bus_names()` returns, not `settings.buses`.** With `buses: []` the
+  crate accepted a cue on `Effects` (that is what `answer`, the panel and `bus_names()` all promise) and then mixed it at
+  **−80 dB** — silence with no refusal, on the crate's own default-shaped table.
+- **`src/mix.rs` — `SirenMix::db` and `ducked` are pruned to this frame's buses** before the bus loop. A project that
+  swapped `SirenSettings` kept every bus from the previous table at its last level: `bus_db` answered for a bus that did
+  not exist, `deepest_duck()` named one forever, and a removed bus's duck froze at its deepest. The prune runs before the
+  loop, so a bus that **stayed** still reads its previous value and eases instead of steppng.
+- `tests/mix.rs` — three tests: the swap (fails on the unfixed tree), the empty list (fails on the unfixed tree), and the
+  non-regression a wholesale rebuild would break. `examples/render` prints what `bus_names()` answers for a table and for
+  a table of none; `cues.yaml` case 29; the buses guide, the CHANGELOG and a media note.
+
+**Why.** The five next-5 items are all public-enum decisions the owner has not answered, so the pass hunted for a
+rank-1 defect instead of idling — and the second half turned up while testing the first, which is the loop's own point
+about a test that measures the thing rather than a plausible neighbouring thing. `buses: []` at −80 dB is wrong output,
+silent, with no refusal: the exact class this loop ranks first.
+
+**Evidence.** `runs/2026-11-02-10/`: `eval.md` (baseline green; the table's gap — no case swaps the table or uses `[]`),
+`research.md`, `plan.md`, `perf.md`, `review.md`, and `evidence/{before,after}/` with both render trees, the bus-list line,
+the spectrograms and the loudness numbers.
+
+**Measured.**
+
+| measurement | before | after |
+|---|---|---|
+| `mix.db` after a 4→2 bus swap | all four, ghosts included | `[Effects, Music]` |
+| `bus_db("Ambience")`, a bus not in the table | **−3.3 dB** | **−80.0 dB** (`SILENT_DB`) |
+| `deepest_duck()` | `Some(("Ambience", −12.0))` forever | `None` |
+| `buses: []`, a cue on `Effects` | accepted, **mixed at −80 dB** | accepted, mixed at 0 dB on the crate's four |
+| every rendered cue and the mix | — | **byte-identical** (16/16 WAVs) |
+| frame cost, 8 / 64 / 256 voices | 0.065 / 0.354 / 1.389 µs | two map prunes over ≤ the bus count; not on the per-voice path |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The gate found two defects in my own work — a `dt = 0` in a
+test of mine (the crate's documented trap, in a test written two iterations after writing it down) and a dead-code
+warning on a `mixer`-only helper — both fixed before the verdict.
+
+**Traps for the command.** (1) Disk reached **674 MB** and `ld` failed with `errno=28` — the loop's documented trap,
+third time in this project. 15 GB came back from build directories this loop created (`/tmp/seedprobe` 6.6 GB,
+`/tmp/siren-pub` 7.4 GB), never from the project's `target/`. (2) A `BTreeMap` written by insertion is a cache with no
+owner: `voices` was already rebuilt wholesale, and these two maps beside it were the exception, which is why only they
+went stale. (3) `hs distill` is still GPU-blocked (`bge-m3` wants 5000 MB; a 14.8 GB VLLM engine holds the card), eighth
+iteration running.
+
+**Commit.** `29a431c`, pushed to `main`; CI run 41557018186 is **success** on `big-s1`. Gate: build, test (66 + 4), serde (73 + 4), mixer (73 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The Cauldron panel test still pins
+`rev = "7029b20"`; `bus_rows` iterates the table's buses, so it was never shown the ghosts — the crate's own accessors
+were.
+
+**Next 5.**
+
+1. **`DuckClock.started` has the same staleness** as the mix maps had: keys are `(source, target)` pairs and a pair whose
+   buses left the table is inert but never removed. Cheap to prune beside the maps.
+2. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+3. A variant that distinguishes "never mapped" from "corrupt file" — `needs-decision/undecodable-sound.md`.
+4. A payload that names the cap — `needs-decision/refusal-names-its-cap.md`.
+5. `Completes` is public and can never be true — `needs-decision/remove-completes.md`.
+
+**Baseline note.** Nothing was red, and the suite had 63 tests. Every case used the **default** table; none swapped it
+or listed no buses, so the two places that disagree about which buses exist were both invisible.
+
+---
+
 ## Iteration 9 — 2026-11-02 — a stinger's duck waits for a sound that plays
 
 **Change.**
