@@ -49,7 +49,7 @@ explanation", S3 iteration 9's log-not-variant precedent, S4 the `if let` trap, 
 `perf.md`, `eval.md`, `review.md` (three passes, GREAT), `evidence/{panel,spectrograms,after}`, and
 `docs/media/mixer-layer-typo.png`.
 
-**Commit.** (see `git log`).
+**Commit.** `bbd73ac` — *music: a layer change that names nothing says so*.
 
 **Top 5 remaining**
 
