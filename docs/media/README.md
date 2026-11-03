@@ -34,6 +34,10 @@ The GIF is captured with `SIREN_FAULTS=1`, which adds two deliberate mistakes to
 the row markers have something to show through the whole animation. The **still** is the clean panel, which reads
 `Problems / none` — that is the state a project ships, and it is what `README.md` shows at rest.
 
+The panel's `Problems` block is **bounded at three sentences** (iteration 30): with more it prints
+`and N more; the log below is what played`, because the column has no scroll and the log — the section that says what played
+and why — sits below it. `SIREN_FAULTS=many` adds six faults, so the bound can be seen firing.
+
 **Both must be regenerated whenever the panel's layout changes** — iteration 26 added the `Problems` block and the
 row markers, and the two images the README pointed at were a day stale until iteration 29. Nothing in `cargo test` reads
 `docs/`; `docs/loop/runs/2026-11-03-29/check_media.py` asserts that every image a README names exists and that every

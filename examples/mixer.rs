@@ -177,6 +177,21 @@ fn cues_with_faults() -> CueTable {
             pitch: bevy_siren::PitchRange { low: 2.0, high: 1.0 },
             ..Cue::new("ui.click.inverted-pitch")
         });
+        // `SIREN_FAULTS=many` adds four more, to see what the block does when the list is long.
+        if std::env::var("SIREN_FAULTS").as_deref() == Ok("many") {
+            table.insert(Cue { sounds: vec![], ..Cue::new("empty.one") });
+            table.insert(Cue { sounds: vec![], ..Cue::new("empty.two") });
+            table.insert(Cue {
+                sounds: vec![SoundSlot::new("x")],
+                bus: "Nope".to_owned(),
+                ..Cue::new("bus.two")
+            });
+            table.insert(Cue {
+                sounds: vec![SoundSlot::new("x")],
+                max_instances: 0,
+                ..Cue::new("unlimited")
+            });
+        }
     }
     table
 }
@@ -401,11 +416,25 @@ fn draw_panel(
             // (iteration 21): the example's table uses `Ambience` and `Music`, and `problems()` assumes the crate's
             // default four, which would report every cue on them as `UnknownBus`.
             Kind::Problems => {
+                // **A bounded block.** The panel is a fixed column with no scroll, and the log is the last thing in it;
+                // with six faults the block grew past the window and pushed the log — the section that says what played
+                // and why — off the bottom. Measured on a 1280x720 capture. Three sentences plus a count is what fits
+                // under the cue list, and the rest is named rather than hidden.
+                const SHOWN: usize = 3;
                 let problems = table.problems_in(&settings);
-                if problems.is_empty() {
-                    "none".to_owned()
-                } else {
-                    problems.iter().map(|p| p.to_string()).collect::<Vec<_>>().join("\n")
+                match problems.len() {
+                    0 => "none".to_owned(),
+                    n => {
+                        let mut text =
+                            problems.iter().take(SHOWN).map(|p| p.to_string()).collect::<Vec<_>>().join("\n");
+                        if n > SHOWN {
+                            // **Plain ASCII, not an em dash.** The panel's font has no glyph for `—` and drew a box;
+                            // the capture showed it as `and 3 more ▯ the log`. A debug view cannot afford a character
+                            // the font may not have.
+                            text.push_str(&format!("\nand {} more; the log below is what played", n - SHOWN));
+                        }
+                        text
+                    }
                 }
             }
             Kind::Log => log.recent(10).map(Entry::line).collect::<Vec<_>>().join("\n"),

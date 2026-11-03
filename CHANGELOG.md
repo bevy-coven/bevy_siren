@@ -20,6 +20,12 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The panel's `Problems` block no longer hides the log.** It was unbounded, in a fixed column with no scroll, and sat
+  above the log — so a table with six faults pushed the `Log` heading and its ten lines off the bottom of a 1280×720
+  capture: the panel lost the section that answers *"why is the music quiet"*, exactly when there was most to read. The
+  block now shows three sentences and, when there are more, `and N more; the log below is what played`. Two faults (the
+  README's GIF) and a clean table are unchanged. `SIREN_FAULTS=many` reproduces the case. Example only.
+
 - **The README shows the panel the code draws.** Both images it carries — `docs/media/mixer.png` and `docs/media/mixer.gif` —
   were generated *before* the panel gained its `Problems` block, so a developer's first look at the crate showed a panel
   that no longer existed; the alt text named *"eight cues … eight log lines"* where the shipped table has nine cues and
@@ -89,6 +95,12 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
 
 ### Fixed
+
+- **The panel's `Problems` block no longer hides the log.** It was unbounded, in a fixed column with no scroll, and sat
+  above the log — so a table with six faults pushed the `Log` heading and its ten lines off the bottom of a 1280×720
+  capture: the panel lost the section that answers *"why is the music quiet"*, exactly when there was most to read. The
+  block now shows three sentences and, when there are more, `and N more; the log below is what played`. Two faults (the
+  README's GIF) and a clean table are unchanged. `SIREN_FAULTS=many` reproduces the case. Example only.
 
 - **The README shows the panel the code draws.** Both images it carries — `docs/media/mixer.png` and `docs/media/mixer.gif` —
   were generated *before* the panel gained its `Problems` block, so a developer's first look at the crate showed a panel
@@ -285,6 +297,12 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The panel's `Problems` block no longer hides the log.** It was unbounded, in a fixed column with no scroll, and sat
+  above the log — so a table with six faults pushed the `Log` heading and its ten lines off the bottom of a 1280×720
+  capture: the panel lost the section that answers *"why is the music quiet"*, exactly when there was most to read. The
+  block now shows three sentences and, when there are more, `and N more; the log below is what played`. Two faults (the
+  README's GIF) and a clean table are unchanged. `SIREN_FAULTS=many` reproduces the case. Example only.
+
 - **The README shows the panel the code draws.** Both images it carries — `docs/media/mixer.png` and `docs/media/mixer.gif` —
   were generated *before* the panel gained its `Problems` block, so a developer's first look at the crate showed a panel
   that no longer existed; the alt text named *"eight cues … eight log lines"* where the shipped table has nine cues and
@@ -369,6 +387,12 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 The first release: sound for Bevy 0.20 as data, mixed in buses.
 
 ### Fixed
+
+- **The panel's `Problems` block no longer hides the log.** It was unbounded, in a fixed column with no scroll, and sat
+  above the log — so a table with six faults pushed the `Log` heading and its ten lines off the bottom of a 1280×720
+  capture: the panel lost the section that answers *"why is the music quiet"*, exactly when there was most to read. The
+  block now shows three sentences and, when there are more, `and N more; the log below is what played`. Two faults (the
+  README's GIF) and a clean table are unchanged. `SIREN_FAULTS=many` reproduces the case. Example only.
 
 - **The README shows the panel the code draws.** Both images it carries — `docs/media/mixer.png` and `docs/media/mixer.gif` —
   were generated *before* the panel gained its `Problems` block, so a developer's first look at the crate showed a panel
