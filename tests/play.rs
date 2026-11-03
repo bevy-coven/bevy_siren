@@ -4,7 +4,7 @@
 //! [`Played`], [`Refused`] and the spawned [`Voice`], which is everything a play decides.
 
 use bevy::prelude::*;
-use bevy_siren::{Cue, CueTable, Mode, Play, Refusal, SirenSettings, SoundSlot, Voice};
+use bevy_siren::{Cue, CueTable, Mode, Play, Refusal, SirenChoices, SirenSettings, SoundSlot, Voice};
 
 use crate::helpers::{app, played, refused, run_for, sounds, voice_cues, voices};
 
@@ -801,4 +801,129 @@ fn a_cue_whose_avoid_grows_gets_the_wider_window() {
             "at `avoid: 3` a key must not return within three picks: {wide:?}"
         );
     }
+}
+
+/// **The picker map grows per cue name and `reset_histories` does not shrink it** — asserted through `Debug`, so it runs
+/// on the old tree as well as the new one.
+#[test]
+fn the_picker_map_grows_per_cue_name() {
+    let count = |c: &SirenChoices| format!("{c:?}").matches("VariantPicker").count();
+    let names: Vec<String> = (0..200).map(|i| format!("cue_{i}")).collect();
+    let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    let table = CueTable::new(
+        names
+            .iter()
+            .map(|n| Cue { sounds: vec![SoundSlot::new(n.clone())], ..Cue::new(n.clone()) })
+            .collect::<Vec<_>>(),
+    );
+    let mut app =
+        app(table, SirenSettings { max_voices: 4096, ..SirenSettings::default() }, sounds(&refs), false);
+    for n in &names {
+        app.world_mut().write_message(Play::cue(n.as_str()));
+        app.update();
+    }
+    let grew = count(app.world().resource::<SirenChoices>());
+    assert_eq!(grew, 200, "one picker per cue name played");
+
+    // `reset_histories` empties each picker but keeps every entry.
+    app.world_mut().resource_mut::<SirenChoices>().reset_histories();
+    assert_eq!(count(app.world().resource::<SirenChoices>()), 200, "`reset_histories` is not a retain");
+
+    // Shrink the table to ten; the map must follow.
+    *app.world_mut().resource_mut::<CueTable>() = CueTable::new(
+        names
+            .iter()
+            .take(10)
+            .map(|n| Cue { sounds: vec![SoundSlot::new(n.clone())], ..Cue::new(n.clone()) })
+            .collect::<Vec<_>>(),
+    );
+    app.update();
+    assert_eq!(
+        count(app.world().resource::<SirenChoices>()),
+        10,
+        "a cue the table dropped must not keep its picker"
+    );
+}
+
+/// **A cue the table no longer has does not keep its picker.**
+///
+/// `SirenChoices::pickers` is keyed by cue name, created on a cue's first play in `answer`, and removed by nothing:
+/// `reset_histories` clears each picker's *contents*, not the map. So a project that generates cue names — one per
+/// level, per enemy, per dialogue line — or that reloads a table with different names keeps one `VariantPicker` per
+/// name it has ever played, for the life of the process. The same shape as `DuckClock::started`, one resource over.
+#[test]
+fn a_cue_the_table_dropped_stops_holding_a_picker() {
+    let names: Vec<String> = (0..200).map(|i| format!("cue_{i}")).collect();
+    let table = |keep: usize| {
+        CueTable::new(
+            names
+                .iter()
+                .take(keep)
+                .map(|n| Cue { sounds: vec![SoundSlot::new(n.clone())], ..Cue::new(n.clone()) })
+                .collect::<Vec<_>>(),
+        )
+    };
+    let sound_refs: Vec<&str> = names.iter().map(String::as_str).collect();
+
+    let mut app = app(
+        table(200),
+        SirenSettings { max_voices: 4096, ..SirenSettings::default() },
+        sounds(&sound_refs),
+        false,
+    );
+    for n in &names {
+        app.world_mut().write_message(Play::cue(n.as_str()));
+        app.update();
+    }
+    assert_eq!(
+        app.world().resource::<SirenChoices>().picker_count(),
+        200,
+        "one picker per distinct cue name played"
+    );
+
+    // The table now keeps ten of them.
+    *app.world_mut().resource_mut::<CueTable>() = table(10);
+    app.update();
+    assert_eq!(
+        app.world().resource::<SirenChoices>().picker_count(),
+        10,
+        "a cue the table dropped must not keep its picker"
+    );
+}
+
+/// **A table that shrinks and then plays again keeps the retain working**, which is the case change-detection could
+/// wrongly skip: the write happens in one frame, the play in a later one.
+#[test]
+fn a_shrunken_table_still_drops_pickers_after_later_frames() {
+    let names: Vec<String> = (0..50).map(|i| format!("cue_{i}")).collect();
+    let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    let build = |keep: usize| {
+        CueTable::new(
+            names
+                .iter()
+                .take(keep)
+                .map(|n| Cue { sounds: vec![SoundSlot::new(n.clone())], ..Cue::new(n.clone()) })
+                .collect::<Vec<_>>(),
+        )
+    };
+    let mut app =
+        app(build(50), SirenSettings { max_voices: 4096, ..SirenSettings::default() }, sounds(&refs), false);
+    for n in &names {
+        app.world_mut().write_message(Play::cue(n.as_str()));
+        app.update();
+    }
+    assert_eq!(app.world().resource::<SirenChoices>().picker_count(), 50);
+
+    // Shrink, then let several frames pass before any new play: the map must already be small.
+    *app.world_mut().resource_mut::<CueTable>() = build(5);
+    app.update();
+    assert_eq!(app.world().resource::<SirenChoices>().picker_count(), 5, "the frame the table changed");
+    app.update();
+    app.update();
+    assert_eq!(app.world().resource::<SirenChoices>().picker_count(), 5, "and it stays small");
+
+    // Playing a cue that still exists must not resurrect the dropped ones.
+    app.world_mut().write_message(Play::cue("cue_1"));
+    app.update();
+    assert_eq!(app.world().resource::<SirenChoices>().picker_count(), 5);
 }

@@ -7,6 +7,59 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 55 — 2026-11-03 — a cue the table dropped stops holding a picker
+
+**Baseline.** Green on every step, no open issues. Nothing red. `/tmp/pr-target` (1.7 GB) was this loop's own scratch from
+iteration 54 and was removed, leaving 5.8 GB.
+
+**Change.** `SirenChoices::retain_cues(&table)` + `picker_count()`, called from `play_requests` **only when the table
+changed**. Plus a guard for an empty map, the guide's new section, and a CHANGELOG entry.
+
+**Rationale.** Iteration 54 fixed `DuckClock::started`; this is the same shape one resource over. `pickers` is keyed by cue
+name and created on a cue's first play, and nothing removes one — `reset_histories` clears each picker's **contents**, so
+it is not a retain. A project that generates cue names (Franco: the request *"says what kind of sound it wants"*) grows
+one picker per name ever played, each holding an **owned copy of its recent sound keys**.
+
+| | pickers held |
+|---|---|
+| 200 plays | 200 |
+| after `reset_histories` | **200** — clears contents, is not a retain |
+| table cut to 10, before | **200** |
+| table cut to 10, after | **10** |
+
+Tests: 144 / 154 / 156 + 6 before, **147 / 155 / 157 + 6** after.
+
+**A regression I introduced and measured away.** The first version was
+`pickers.retain(|name, _| table.get(name).is_some())`. `CueTable::get` is a **linear scan**, so that is O(pickers × cues)
+every frame: **989.8 µs at 1000 cues**, 6 % of a 60 Hz frame. One pass into a `HashSet` is **8.5 µs**; guarded on
+`table.is_changed()` it is **0 ns** on a static table, which is the ordinary case.
+
+**The test runs on both trees.** `the_picker_map_grows_per_cue_name` reads the map through `Debug`, so it compiles
+against the old crate and fails there: `left: 200, right: 10`.
+
+**Nothing moved.** `render.txt`'s variant streams are **byte-identical** to iteration 54's, and `bus-Music` still reads
+`duck -8.0 dB, recovered by 1.97 s`. A retain that dropped a live cue's picker would reset its history and change the
+next variant — the bug a cleanup like this introduces if it is wrong.
+
+**Evidence.** `runs/2026-11-03-55/`: `research.md` (S1 Franco on runtime cue names, S2 Gregory's budget discipline,
+S3 the picker's owned strings, S4 `CueTable::get`'s linear scan, S5 iteration 54's precedent), `plan.md`, `perf.md`
+(the 989.8 µs → 8.5 µs → 0 ns ladder), `eval.md`, `review.md` (three passes, GREAT),
+`evidence/{plots,after}`.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`AvoidRepeat`'s window that cannot be honoured is unreported** — `pick_from`'s comment promises `problems()` names
+   it; probed `problems: []` for two sounds at `avoid: 5`. Same open enum decision.
+3. **`SirenSounds` is never pruned either** — the key → handle map is filled by `load_table` and nothing removes a key a
+   reload dropped. The third of the same shape; check whether `load_table` replaces or merges.
+4. **`reset_histories` has no caller** — a consumer item for `bevy_grimoire`: the panel's reload wants `retain_cues`
+   (which the crate now calls itself) and a seed change wants `reset_histories`.
+5. `SirenSettings::master_db` defaults to `0.0` — no trim; the guide says what to turn, a lower default is a decision.
+
 ## Iteration 54 — 2026-11-03 — a duck rule the table dropped stops holding its start
 
 **Baseline.** Green on every step, no open issues. Nothing red. `/tmp/pq-target` (2.2 GB) was this loop's own scratch from

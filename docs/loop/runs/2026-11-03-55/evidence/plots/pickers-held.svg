@@ -1,0 +1,45 @@
+<svg viewBox="0 0 940 320" xmlns="http://www.w3.org/2000/svg">
+<text x="8" y="21" font-size="14" fill="#111">VariantPickers held by SirenChoices — 200 cue names played, then the table cut to 10</text>
+<line x1="66" y1="262.0" x2="790" y2="262.0" stroke="#ccc"/>
+<text x="57" y="266.0" font-size="11" fill="#666" text-anchor="end">0</text>
+<line x1="66" y1="207.5" x2="790" y2="207.5" stroke="#ccc"/>
+<text x="57" y="211.5" font-size="11" fill="#666" text-anchor="end">50</text>
+<line x1="66" y1="153.0" x2="790" y2="153.0" stroke="#ccc"/>
+<text x="57" y="157.0" font-size="11" fill="#666" text-anchor="end">100</text>
+<line x1="66" y1="98.5" x2="790" y2="98.5" stroke="#ccc"/>
+<text x="57" y="102.5" font-size="11" fill="#666" text-anchor="end">150</text>
+<line x1="66" y1="44.0" x2="790" y2="44.0" stroke="#ccc"/>
+<text x="57" y="48.0" font-size="11" fill="#666" text-anchor="end">200</text>
+<line x1="66" y1="262" x2="790" y2="262" stroke="#888"/>
+<line x1="583.1" y1="44" x2="583.1" y2="262" stroke="#c0392b" stroke-dasharray="5 4"/>
+<text x="589.1" y="59" font-size="12" fill="#c0392b">table now names 10 cues</text>
+<path d="M 66.0 262.0 L 169.4 207.5 L 272.9 153.0 L 376.3 98.5 L 479.7 44.0 L 583.1 44.0 L 686.6 44.0 L 790.0 44.0" fill="none" stroke="#c0392b" stroke-width="2.5"/>
+<circle cx="66.0" cy="262.0" r="3.2" fill="#c0392b"/>
+<circle cx="169.4" cy="207.5" r="3.2" fill="#c0392b"/>
+<circle cx="272.9" cy="153.0" r="3.2" fill="#c0392b"/>
+<circle cx="376.3" cy="98.5" r="3.2" fill="#c0392b"/>
+<circle cx="479.7" cy="44.0" r="3.2" fill="#c0392b"/>
+<circle cx="583.1" cy="44.0" r="3.2" fill="#c0392b"/>
+<circle cx="686.6" cy="44.0" r="3.2" fill="#c0392b"/>
+<circle cx="790.0" cy="44.0" r="3.2" fill="#c0392b"/>
+<path d="M 66.0 262.0 L 169.4 207.5 L 272.9 153.0 L 376.3 98.5 L 479.7 44.0 L 583.1 251.1 L 686.6 251.1 L 790.0 251.1" fill="none" stroke="#1a6fd4" stroke-width="2.5"/>
+<circle cx="66.0" cy="262.0" r="3.2" fill="#1a6fd4"/>
+<circle cx="169.4" cy="207.5" r="3.2" fill="#1a6fd4"/>
+<circle cx="272.9" cy="153.0" r="3.2" fill="#1a6fd4"/>
+<circle cx="376.3" cy="98.5" r="3.2" fill="#1a6fd4"/>
+<circle cx="479.7" cy="44.0" r="3.2" fill="#1a6fd4"/>
+<circle cx="583.1" cy="251.1" r="3.2" fill="#1a6fd4"/>
+<circle cx="686.6" cy="251.1" r="3.2" fill="#1a6fd4"/>
+<circle cx="790.0" cy="251.1" r="3.2" fill="#1a6fd4"/>
+<text x="800" y="48.0" font-size="12" fill="#c0392b">200 held</text>
+<text x="800" y="255.1" font-size="12" fill="#1a6fd4">10 held</text>
+<text x="66.0" y="278.0" font-size="9.5" fill="#777" text-anchor="middle">0 plays</text>
+<text x="169.4" y="278.0" font-size="9.5" fill="#777" text-anchor="middle">50</text>
+<text x="272.9" y="278.0" font-size="9.5" fill="#777" text-anchor="middle">100</text>
+<text x="376.3" y="278.0" font-size="9.5" fill="#777" text-anchor="middle">150</text>
+<text x="479.7" y="278.0" font-size="9.5" fill="#777" text-anchor="middle">200 plays</text>
+<text x="583.1" y="278.0" font-size="9.5" fill="#777" text-anchor="middle">table→10</text>
+<text x="686.6" y="278.0" font-size="9.5" fill="#777" text-anchor="middle">next frame</text>
+<text x="790.0" y="278.0" font-size="9.5" fill="#777" text-anchor="middle">+1 frame</text>
+<text x="8" y="306" font-size="12" fill="#555">Each picker owns an owned copy of its recent sound keys, so a dropped picker frees strings.</text>
+</svg>

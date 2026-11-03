@@ -7,6 +7,18 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A cue the table no longer had kept its `VariantPicker` for the life of the process.** `SirenChoices::pickers` is keyed
+  by cue name and an entry is created on a cue's first play; nothing removed one. `reset_histories` clears each picker's
+  *contents* and is not a retain, so it did not help. Measured: 200 cue names played, the table cut to ten, and **200
+  pickers still held** — each with an owned copy of its recent sound keys. `SirenChoices::retain_cues(&table)` now drops
+  the pickers of cues the table has lost, and `play_requests` calls it **only on a frame where the table changed**.
+  Variant streams are byte-identical to before: a cue the table keeps keeps its history.
+
+### Added
+
+- **`SirenChoices::retain_cues` and `SirenChoices::picker_count`** — the retain, and the number it holds. Additive.
+
+
 - **A duck rule the mix table dropped kept its start for the life of the process.** `DuckClock::started` is keyed by
   `(source, target)` and was only ever emptied by `clear()`, which nothing calls; `prune(now_s)` retained the *manual*
   envelope list and not the rules'. Measured: **2000 `fire`s followed by a `prune` at t=1000 still held 2000 entries**,

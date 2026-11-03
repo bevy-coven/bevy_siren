@@ -160,6 +160,21 @@ Changing the seed while the game runs **replaces** the stream and every variant 
 the old position: the next play is the new seed's first draw. The seed is configuration, so the change is not written
 to `SirenLog` — the log is for what happened to a sound.
 
+## A cue's history, and what the table owns
+
+Each cue name gets one `VariantPicker`, created on that cue's first play, and it holds the window of recent sounds that
+`Repeat::AvoidRepeat` refuses. Two methods on `SirenChoices` manage it, and they do different things:
+
+- **`reset_histories()`** empties every picker but keeps every entry — the next play of each cue is unconstrained, and
+  the map is the same size.
+- **`retain_cues(&table)`** drops the pickers of cues the table no longer has. `play_requests` calls it itself, and only
+  on a frame where the table changed.
+
+That second one matters for a project that **generates cue names** — one per level, per enemy, per dialogue line — or
+that reloads a table with different names. Without it, one picker per name ever played lived for the life of the
+process, each holding an owned copy of its recent sound keys. Measured: 200 names played and the table cut to ten still
+held **200**; `SirenChoices::picker_count()` is the number if you want to draw it.
+
 **`0` is not a stream of its own.** xorshift's state must never be zero, so `Rng::new(0)` maps it to
 `model::Rng::ZERO_SEED` — which is exactly `SirenSettings::default_seed()`. A project that writes `seed: 0` therefore
 hears the crate's **default** stream, and `SirenChoices::seed()` reports `ZERO_SEED`, not `0`, because that is the seed

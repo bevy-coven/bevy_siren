@@ -293,7 +293,38 @@ impl SirenChoices {
         picker.pick_from(&keys, avoid, &mut self.rng)
     }
 
-    /// Forgets every variant history, so the next play of each cue is unconstrained.
+    /// **Drops the picker of every cue the table no longer has.**
+    ///
+    /// `pickers` is keyed by cue name and an entry is created on a cue's first play (`answer` → `pick`), so a project
+    /// that generates cue names — one per level, per enemy, per dialogue line — or that reloads a table with different
+    /// names kept one `VariantPicker` per name it had **ever** played, for the life of the process. `reset_histories`
+    /// clears each picker's *contents*, not the map, so it did not help.
+    ///
+    /// `play_requests` calls this once per frame, before the requests are answered: a cue the table dropped stops
+    /// holding memory on the same frame its last play would have been refused anyway (`UnknownCue`).
+    ///
+    /// **One pass over the table, not one lookup per picker.** `CueTable::get` is a linear scan, so the obvious
+    /// `self.pickers.retain(|name, _| table.get(name).is_some())` was O(pickers × cues) **every frame**: measured at
+    /// **990 µs per frame** with 1000 cues and 1000 pickers, 6 % of a 60 Hz frame. Building the set once and retaining
+    /// against it is O(cues + pickers).
+    pub fn retain_cues(&mut self, table: &CueTable) {
+        if self.pickers.is_empty() {
+            return;
+        }
+        let live: std::collections::HashSet<&str> = table.names().collect();
+        self.pickers.retain(|name, _| live.contains(name.as_str()));
+    }
+
+    /// How many cues hold a variant history — one per cue name played, bounded by the table after a retain.
+    ///
+    /// A number a panel can draw and a test can assert, so the retained set is observable rather than inferred from
+    /// `Debug`.
+    pub fn picker_count(&self) -> usize {
+        self.pickers.len()
+    }
+
+    /// Forgets every variant history, so the next play of each cue is unconstrained. The **map** is left alone; a cue
+    /// the table no longer has is [`retain_cues`](Self::retain_cues)'s to drop.
     pub fn reset_histories(&mut self) {
         for picker in self.pickers.values_mut() {
             picker.reset();
@@ -395,6 +426,18 @@ pub fn play_requests(
     mut commands: Commands,
 ) {
     let now = real.elapsed_secs_f64();
+    // **A picker belongs to a cue, and a cue the table no longer has has no history worth keeping.** `pickers` is
+    // keyed by cue name and an entry is created on a cue's first play, so without this a project that generates names —
+    // or reloads a table with different ones — kept one `VariantPicker` per name it had ever played. Measured at 200
+    // names: a table cut to 10 still held 200.
+    //
+    // **Only when the table changed.** The retain is a pass over the table, measured at 7.9 µs at 1000 cues and 34 µs at
+    // 5000 — small, but a table is static for the whole session in the ordinary case, and paying that every frame for
+    // nothing is the same fault as paying it once. `Res::is_changed` is the frame the table was written, which is the
+    // only frame the answer can differ.
+    if table.is_changed() {
+        choices.retain_cues(&table);
+    }
     // **The live list shrinks as this frame's own requests fill the budget.** A snapshot taken before the loop
     // would let three requests in one frame each see an empty bus and all three play, which breaks a cap the
     // crate promises to keep; a voice this frame marked stopping no longer counts.
