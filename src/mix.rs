@@ -68,6 +68,36 @@ pub struct SirenSettings {
     pub ducks: Vec<Duck>,
 }
 
+/// **Every check [`SirenSettings::problems`] performs**, by name — the one list the doc and the test both read.
+///
+/// This exists because the count was written in **three** places: the doc's prose (*"twelve checks"*), the doc's bullet
+/// list, and `tests/mix.rs::problems_names_every_mistake`'s needles. Measured: the prose said twelve, the code performed
+/// **thirteen**, the test asserted **eleven**, and the check it missed was the `by_db == 0.0` one — whose own comment
+/// records that it was written to fix a *measured* bug. The doc's central claim, *"this list and the code cannot drift
+/// apart"*, was therefore false in the direction that matters: a maintainer adding a check would have read it, added a
+/// sentence, and believed something enforced the pairing.
+///
+/// Ousterhout's **Information Leakage** (*A Philosophy of Software Design*, Summary of Red Flags) is exactly this — *"a
+/// design decision is reflected in multiple modules"* — and the repair is to keep the decision in **one** module. The doc
+/// points here; the test walks this; neither restates it.
+///
+/// **Adding a check means adding a name here**, and the test fails naming the one that has no needle yet.
+pub const SETTINGS_CHECKS: &[&str] = &[
+    "max_voices is 0",
+    "master_db is not a number",
+    "a bus has no name",
+    "a bus is listed more than once",
+    "a bus gain is not a number",
+    "a bus asks for more voices than the table allows",
+    "a duck starts on a bus the table does not have",
+    "a duck lowers a bus the table does not have",
+    "a duck raises rather than lowers",
+    "a duck lowers by exactly 0 dB",
+    "a duck's hold or fade is negative or not a number",
+    "a duck has neither a hold nor a fade",
+    "a duck starts on the bus it lowers",
+];
+
 impl SirenSettings {
     /// 32 voices: more than a busy scene's close effects, fewer than a mixer's worth of sample cost.
     pub fn default_max_voices() -> u16 {
@@ -119,27 +149,16 @@ impl SirenSettings {
 
     /// Everything wrong with the table, as sentences a person reads on an editor's status line.
     ///
-    /// **Twelve checks**, and `tests/mix.rs::problems_names_every_mistake` walks all twelve so this list and the code cannot
-    /// drift apart — the rule `MusicScore::problems`'s own test holds it to, and this doc named six of the nine until
-    /// iteration 45:
+    /// **The checks are [`SETTINGS_CHECKS`], and that constant is the only list.** This doc used to enumerate them and
+    /// say *"twelve checks … so this list and the code cannot drift apart"* — and it had drifted: the code performed
+    /// **thirteen**, the test asserted **eleven**, and the prose said twelve. Counting in three places is Ousterhout's
+    /// **Information Leakage**; the repair is one list that the doc names and the test walks.
     ///
-    /// - `max_voices` is `0`, so no sound can ever play;
-    /// - `master_db` is not a number;
-    /// - a bus has no name;
-    /// - a bus is listed more than once;
-    /// - a bus's `gain_db` is not a number;
-    /// - a duck starts on a bus the table does not have;
-    /// - a duck lowers a bus the table does not have;
-    /// - a duck's `by_db` is positive, so it raises rather than lowers;
-    /// - a duck's `hold_s` or `fade_s` is negative or not a number;
-    /// - a duck has **no hold and no fade**, so it lowers the bus for no time at all — the shape `Duck::new` gives a
-    ///   rule before a caller chains `.hold_s(..)` or `.fade_s(..)` on, which is why `default_ducks()` chains both;
-    /// - a duck **starts on the same bus it lowers**, so every voice on it quietens itself;
-    /// - a **bus asks for more voices than the table allows**, so its number is silently the table's.
+    /// Each entry's *reason* is worth reading where it is performed — several record a **measured** bug, such as the duck
+    /// that lowers by exactly `0` dB: it fires, is logged, holds for its whole `hold_s`, and never moves the bus.
     ///
-    /// Two of those are **one sentence per cause, not per rule**: `default_ducks()` is `Dialogue -> Music` and
-    /// `Dialogue -> Effects`, so a table without `Dialogue` has two rules with the same fault and the report says so
-    /// once.
+    /// Two checks are **one sentence per cause, not per rule**: `default_ducks()` is `Dialogue -> Music` and
+    /// `Dialogue -> Effects`, so a table without `Dialogue` has two rules with the same fault and the report says so once.
     pub fn problems(&self) -> Vec<String> {
         let mut out = Vec::new();
         if self.max_voices == 0 {

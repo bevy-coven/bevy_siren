@@ -7,6 +7,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`SirenSettings::problems()` advertised a guarantee nothing provided.** Its doc said *"Twelve checks, and
+  `tests/mix.rs::problems_names_every_mistake` walks all twelve so this list and the code cannot drift apart"*. Measured:
+  the code performed **thirteen**, the test asserted **eleven**, and the prose said twelve — and the check missing from
+  every list was the `by_db == 0.0` one, written for a **measured** bug. `mix::SETTINGS_CHECKS` is now the **one** list:
+  the doc names it instead of restating it, and the test asserts that every name has a needle or a named dedicated
+  fixture — proved by appending a fourteenth name and watching it fail. Adding the `by_db(0.0)` duck to the fixture also
+  means that check is finally exercised by the test the doc pointed at.
 - **`Repeat::AvoidRepeat { avoid: 0 }` refuses nothing** and did so silently. `avoid()` returns the field verbatim and the
   picker refuses `min(avoid, len)` recent sounds, so a window of zero is **byte-identical to `Shuffle`** — proved by two
   pickers on one seed producing the same 24-pick sequence — while the variant's own doc promised it *"kills the

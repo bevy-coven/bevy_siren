@@ -304,11 +304,18 @@ fn problems_names_every_mistake() {
             Duck::new("Nope", "Effects").hold_s(0.0),
             // starts on the bus it lowers
             Duck::new("Music", "Music").hold_s(0.25),
+            // **lowers by exactly 0 dB**: fires, is logged, holds for its whole `hold_s`, and never moves the bus.
+            Duck::new("Music", "Effects").by_db(0.0).hold_s(0.25),
         ],
         ..SirenSettings::default()
     };
+    // **The needles are indexed by `SETTINGS_CHECKS`, so a check with no needle is a failing test** rather than a
+    // silence. The doc used to promise this and nothing enforced it: the code performed thirteen checks, this test
+    // asserted eleven, and the prose said twelve.
+    use bevy_siren::SETTINGS_CHECKS;
+
     let reported = named.problems();
-    for (needle, what) in [
+    let needles = vec![
         ("max_voices is 0", "a budget of zero"),
         ("master_db is not a number", "a master that is not a number"),
         ("a bus has no name", "a bus with no name"),
@@ -323,7 +330,31 @@ fn problems_names_every_mistake() {
             "a duck with neither a hold nor a fade",
         ),
         ("the duck on `Music` starts on the bus it lowers", "a duck whose source is its target"),
-    ] {
+        // **The check the drift hid**, and its own comment records that it was written for a *measured* bug: a rule at
+        // exactly `0.0` fires, is logged, holds for its whole `hold_s`, and never moves the bus.
+        ("lowers it by 0 dB, which is nothing at all", "a duck that lowers by nothing"),
+    ];
+
+    // **The pairing the doc used to promise and nothing enforced.** The code performed thirteen checks, this test
+    // asserted eleven, and the prose said twelve — three counts, none of them right. Now the constant is the list, and
+    // a check without a needle fails here with the list in the message.
+    //
+    // **One check cannot appear in this list**, and it is named here rather than silently omitted: a bus asking for more
+    // voices than the table allows is **hidden by `max_voices: 0`** in this fixture, because the report stops at "no
+    // sound can ever play". Its own table below exercises it on a fixture where it is the only fault. So the count is
+    // `SETTINGS_CHECKS` minus the checks with a dedicated fixture, and that set is written out — a check that gains one
+    // must be moved here deliberately rather than by deleting an assertion.
+    const DEDICATED_FIXTURE: &[&str] = &["a bus asks for more voices than the table allows"];
+    assert_eq!(
+        needles.len() + DEDICATED_FIXTURE.len(),
+        SETTINGS_CHECKS.len(),
+        "every check in `SETTINGS_CHECKS` needs a needle here or a dedicated fixture: the list is {SETTINGS_CHECKS:?}"
+    );
+    for check in DEDICATED_FIXTURE {
+        assert!(SETTINGS_CHECKS.contains(check), "`{check}` is not a check any more");
+    }
+
+    for (needle, what) in needles {
         assert!(reported.iter().any(|s| s.contains(needle)), "the report names {what}: {reported:?}");
     }
 

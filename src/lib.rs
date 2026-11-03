@@ -103,7 +103,8 @@ pub mod mixer;
 pub use cue::{Attenuation, Cue, CueProblem, CueTable, Mode, PitchRange, Repeat, SoundSlot};
 pub use log::{Entry, SirenLog};
 pub use mix::{
-    BusLevel, DEFAULT_BUSES, Duck, DuckClock, SirenMix, SirenSettings, Stopping, UNSTEALABLE_PRIORITY,
+    BusLevel, DEFAULT_BUSES, Duck, DuckClock, SETTINGS_CHECKS, SirenMix, SirenSettings, Stopping,
+    UNSTEALABLE_PRIORITY,
 };
 pub use music::{MusicLayer, MusicLayers, MusicScore, MusicState, MusicVoice, Stinger, When};
 pub use output::{AudioOutput, Backend, Output};
