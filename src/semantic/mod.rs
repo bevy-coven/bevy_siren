@@ -24,6 +24,7 @@
 //! standard it comes from, or saying plainly that it is this crate's own choice.
 
 pub mod buffer;
+pub mod index;
 
 /// The sample rate CLAP's feature extractor resamples to before it builds a mel spectrogram.
 ///
@@ -37,6 +38,12 @@ pub const MODEL_SAMPLE_RATE: u32 = 48_000;
 /// **Measured**: 1 s, 4 s and 10 s clips all produced 1001 frames, because the processor resamples and pads to the
 /// model's fixed window. That is why chunking a long track is a counting problem rather than a shaping problem.
 pub const MODEL_MEL_FRAMES: usize = 1001;
+
+/// The version this crate's measurements were taken with, and the version an index is stamped with.
+///
+/// It names the measurement rather than a model tag because the spike did not pin a revision: an index carrying this
+/// stamp is one this crate has evidence for, and a later pinned revision gets its own string.
+pub const MEASURED_CLAP_VERSION: &str = "transformers-5.22.1/torch-2.15.0/opset-17";
 
 /// The dimension of a CLAP audio embedding.
 ///
