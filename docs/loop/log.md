@@ -62,15 +62,24 @@ duck and the fader disagree. (4) A fix that leaves a method nothing calls is a v
 4. Quantise a **retarget** onto the bar (iteration 14).
 5. `Refusal` payload naming the cap — `needs-decision/refusal-names-its-cap.md`.
 
-**The hunt, sixteenth pass.** The duck class is now closed on the **release** side. What it has never been probed for is
-the **attack**: a duck that fires while another is already recovering, and whether the deeper of the two wins as
-`duck_db`'s doc claims (*"two ducks do not stack: the deeper one wins"*). Next probe: fire `Dialogue -> Music` at −8 dB,
-let it recover halfway, then fire a second rule `Effects -> Music` at −12 dB, and check `ducked("Music")` is the deeper
-one on every frame rather than a sum.
+**The hunt, sixteenth pass.** The duck class is now closed on the **release** side. Probed the **attack** too, before
+writing it down — a second, deeper duck firing while the first is halfway through its fade:
+
+```
+after the -8 dB duck recovered halfway:  ducked = -2.80
+a -12 dB duck fires:                     ducked = -12.00   (deeper wins; a sum would be -20.00)
+```
+
+**Clean**, and exactly what `duck_db`'s doc claims (*"two ducks do not stack: the deeper one wins"*). The duck class is
+closed at both ends.
+
+**Next probe:** with the duck closed, the surface left is **`Play::on(entity)`** — a play parented to a game entity. The
+crate inserts `ChildOf(target)`, and nothing tests what happens when that entity is **despawned while the sound plays**:
+does Bevy despawn the voice with it, does the budget still count it, and does `SirenLog` say anything?
 
 **Baseline note.** Nothing was red; the suite had 109 tests. `cues.yaml` case 31 is red by design.
 
-**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPlugin`'s plugin counterpart and declares
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares
 `pub mod audio_panel` twice, so the panel test cannot run; `799fad2` waits on local `main`.
 
 ---
