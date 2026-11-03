@@ -99,6 +99,12 @@ without complaint and rank noise, so a mismatch is refused with both versions an
 
 The file carries a record count and a checksum, so an interrupted write is detected rather than read as partial data.
 
+**It is binary, and a third of the size.** 5 000 clips weigh **10.28 MB** rather than the text form's **31.88 MB** —
+a measurement ADR 0004 made and a test now asserts. The file starts `BSI2` and `read` decides the format from those
+four bytes rather than the name, so an index built before this change still loads. A short clip's absent loudness is a
+**presence byte**, never a sentinel number:
+`-70` is also a real level, and writing it there is the mistake ADR 0003 measured three implementations making.
+
 ### 5. Re-indexing embeds only what changed
 
 A library of a thousand sounds gains one file a week, and re-embedding all of them to add one is a minute of GPU for a

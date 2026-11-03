@@ -7,6 +7,20 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **A binary index, a third of the size.** `Index::to_bytes` / `from_bytes`, and `build` writes it: **10.28 MB** for
+  5 000 clips against the text form's **31.88 MB**. That 3× figure has been quoted in four iterations' logs and asserted
+  by nothing; it is a test now (`five_thousand_vectors_weigh_what_adr_0004_says`), and it is checked on **realistic**
+  embeddings rather than on constants.
+
+  The layout puts a `BSI2` magic first, then a `presence byte` before an integrated loudness — never a sentinel, because
+  writing `-70` there would recreate the defect ADR 0003 measured three implementations making. The checksum covers
+  **every preceding byte**, so a truncation in any section is caught by one rule.
+
+  `read` decides the format from the **first four bytes**, not the file name, so an index written as text by an older
+  build still loads. The file is `siren-index` now, and the name carries no claim because the bytes do.
+
+### Documented
+
 - **A build reads a folder's sidecar, so licences reach the index.** `Sidecar::read` was tested since iteration 82 and
   **nothing called it**. `build` now reads the sidecar before embedding and joins it to the scan — the only place the
   two identities meet, since a sidecar names **files** and the index keys by **content hash**:

@@ -138,8 +138,8 @@ the first 32 footsteps and quietly stole or refused every one after that.
   none. **Every asset carries its licence and source**, read from a pack's own sidecar during the build and reported on
   every result, with an explicit unknown that never reads as permission. **Each asset carries its measured loudness
   too**, taken from the decode the embedder already has, with a short clip's absent loudness stored as absence rather
-  than as a sentinel number. Off by default, and a crate that does not enable it sees no change: `cargo tree` reads the
-  same 413 lines either way:
+  than as a sentinel number. The whole index is **binary, 10.28 MB for 5 000 clips** against 31.88 MB as text. Off by
+  default, and a crate that does not enable it sees no change: `cargo tree` reads the same 413 lines either way:
   [semantic](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md).
 - **Ship the sound as data, and edit it in the Cauldron** — with `serde`, the cue table, the mix table and the score
   are RON files; `bevy_grimoire`'s audio panel edits this crate's own types in

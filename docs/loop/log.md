@@ -7,6 +7,86 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 87 — 2026-11-03 — the binary index, and the fixture that made a true claim fail
+
+**Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **373 semantic** / 36 lib; clippy 0,
+fmt, rustdoc, examples. Volume held **21 GB** free.
+
+**The item was ADR 0004's remaining work**, and its claim had been **quoted in four iterations' logs and asserted by
+nothing** — the definition of a magic constant. It is a test now:
+
+| 5 000 clips | bytes | per clip |
+|---|---|---|
+| binary | **10 280 000 — 10.28 MB** | 2 056 = `u64` + 512 × `f32` |
+| text | **31.88 MB** | 6 376.4 |
+| ratio | **≈3.1×** | ADR 0004 said 3× |
+
+**The format.** `BSI2` magic, then dimension, model and version, rate, record count, `hash ++ 512 × f32` per record, the
+two optional sections, and **FNV-1a over every preceding byte**. The checksum covers the whole file, so a truncation in
+*any* section is caught by one rule. An integrated loudness gets a **presence byte**, never a sentinel — writing `-70`
+there would recreate the exact defect ADR 0003 measured three implementations making.
+
+**`read` sniffs the magic, not the file name**, so an index written as text by an older build still loads. The file is
+`siren-index` now and the name carries no claim, because the bytes do.
+
+**Two defects, both in the tests — and the first is worth the log.**
+
+The size fixture built 5 000 records of `vec![0.5f32; 512]` — a constant. `{:?}` on `0.5` is `0.5`, **one character**, so
+the text form came out at **1.00×** the binary and the 3× claim *looked false* (`10 325 169` vs `10 280 115` bytes).
+**A fixture chosen for convenience can make a true claim fail**, and a test that fails for a fixture reason is as
+misleading as one that passes for one. A real embedding is 512 unrelated values near zero, printing eight or nine
+characters each; recomputed on a deterministic spread, the text form is **6 376.4 bytes per record** and 5 000 clips come
+to **31.88 MB** — ADR 0004's figure to the byte. The fix was not to loosen the bound but to make the fixture resemble the
+data.
+
+The second: the refusal test used `b"\x00\x01 not an index"`, which is **valid UTF-8**, so it took the text branch and got
+*"unreadable index header"* rather than the vaguer message the test expected. Both paths are now covered with inputs that
+reach them — and the specific refusal is the better of the two, which the test now says.
+
+**Measured.** Both formats load to the **same** index: vectors bit for bit, provenance including a pack name with a
+space, and loudness including an **absent** integrated value that stays absent. A half file is caught by the checksum; a
+foreign magic and a three-byte file are caught by `Bytes`; another model's index is refused by the same rule the text
+form enforces.
+
+| voices | µs/frame | iteration 86 |
+|---|---|---|
+| 8 | **0.062** | 0.059 |
+| 64 | **0.354** | 0.329 |
+| 256 | **1.312** | 1.141 |
+
+**No regression.** Across iterations 80–87 identical audio code reads 0.059–0.084 / 0.329–0.472 / **0.501–1.576** µs.
+
+**Visual gate unchanged:** 32 render files, **14 of 14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to
+iterations 67, 71, 74, 75, 80–86. `bang-spectrum.png` read: broadband onset, harmonic comb to 10 kHz, no click line, no
+clipping shelf, no gap.
+
+**Verdicts.** Pass 1 **GREAT** (the 3× claim is now falsifiable, and both formats load to the same index), pass 2
+**GREAT** (the fixture defect found, explained, and its general lesson stated), pass 3 **GREAT** (nothing required of a
+consumer; an old text index still loads).
+
+**Docs.** The guide says the index is binary and why the presence byte exists; the README names the size; `CHANGELOG.md`
+gains the format and the checksum rule.
+
+**Evidence.** `runs/2026-11-03-87/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,spectrograms}/`.
+
+**Commits.** `a3f8139`.
+
+**Top 5 remaining**
+
+1. **`#36` indexing throughput.** `build` now embeds, measures loudness, parses a sidecar and joins it; three costs were
+   added across iterations 85–86 and the number that says whether they are affordable has never been taken. It needs a
+   corpus, which is why it keeps losing to items that need only a test.
+2. **`#22` spectral centroid, rolloff and noise floor** — unblocked by ADR 0003, and cheapest now that
+   `embed_measured` holds the exact buffer they need.
+3. **`#28` the MCP tool host**, then `#29`/`#44`/`#30` — the largest user-facing win, consuming an index that now has
+   vectors, loudness, provenance and a compact on-disk form.
+4. **`#27` hard filters and penalties** — the consumer of everything since iteration 77; its criteria require that an
+   unknown feature never excludes an asset, which the provenance and loudness types already model as `None`.
+5. **`f16`, with `V-01`'s labelled set.** ADR 0004 measured it halving the file again (5.20 MB) and declined it because
+   `rank::top_k` compares against a floor; one query's top-10 is not evidence about that boundary, and a labelled set
+   would be.
+
 ## Iteration 86 — 2026-11-03 — the sidecar joined to the scan, and the last unwired reader
 
 **Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **367 semantic** / 36 lib; clippy 0,
