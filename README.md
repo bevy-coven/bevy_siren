@@ -139,10 +139,10 @@ the first 32 footsteps and quietly stole or refused every one after that.
   every result, with an explicit unknown that never reads as permission. **Each asset carries its measured loudness
   too**, taken from the decode the embedder already has, with a short clip's absent loudness stored as absence rather
   than as a sentinel number. **Each asset also carries its spectral shape** — centroid, rolloff at 95 % and noise
-  floor — so two sounds from the same room can be found by brightness and cleanliness, and a **loudness or noise-floor
-  filter removes a mismatch while an unmeasured asset always survives**. **Tempo is estimated per track with a ±2 BPM
-  floor that is a test over 80 known tempi**, and a non-rhythmic asset reports *no tempo* rather than a confident wrong
-  one. **Key and mode are detected too** — Krumhansl-Schmuckler, 100 % exact on a 24-key synthetic corpus, with an
+  floor — so two sounds from the same room can be found by brightness and cleanliness. A **filter removes a
+  mismatch**: loudness and tempo exclude a pair, the noise floor and key only penalise one, and an asset that was never
+  measured always survives. **Tempo is estimated per track with a ±2 BPM floor that is a test over 80 known tempi**,
+  and a non-rhythmic asset reports *no tempo* rather than a confident wrong one. **Key and mode are detected too** — Krumhansl-Schmuckler, 100 % exact on a 24-key synthetic corpus, with an
   atonal asset reporting *no key* rather than a confident wrong one; a build produces both without a caller supplying
   them. The whole index is **binary, 10.28 MB for 5 000 clips** against 31.88 MB as text, and decoding one runs at
   **~450 clips/s** — a 5 000-clip library costs seconds, not minutes. Off by default, and a crate that does not enable

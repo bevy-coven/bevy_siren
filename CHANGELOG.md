@@ -7,6 +7,28 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **The tempo and key filter rules**, completing `#27`'s set. **Tempo is a hard exclusion** — two tempi 38 BPM apart
+  cannot play together, and the issue's 90-under-128 example is refused — while **key is a penalty**, because a modal
+  piece sits anywhere and key is the least reliable feature here.
+
+  **The 4.0 BPM tolerance is derived rather than chosen**: the estimator carries **±2 BPM** of uncertainty (ADR 0003's
+  floor), so twice that is the width below which a difference may be entirely measurement error. Excluding inside it
+  would reject tracks whose tempi merely *look* different. Asserted on both sides: **3.9 and 4.0 admitted, 4.1 and 38.0
+  refused**.
+
+  **The three states iteration 93 made storable are read correctly.** A tempo record with `bpm: None` means *judged and
+  not rhythmic*; treating that as a tempo would compare every non-rhythmic asset against every other as though they
+  shared one. `Features::bpm()` is `tempo.and_then(|t| t.bpm)`, so all three stay distinct — and a **judged-atonal** key
+  record penalises nothing, just as an absent one does not.
+
+  `Weights` gains **`tempo_tolerance_bpm: 4.0`** and **`compatibility`** — the named serde table `#25` already built, so
+  the field is a reuse rather than a second definition. A project that wants clashing keys sets `clash_penalty: 1.0` and
+  the rule stops penalising, which is `#27`'s overridability criterion satisfied by data rather than by a flag. Both new
+  fields are validated: a negative tolerance excludes everything, and a multiplier outside `0..=1` inverts or rewards a
+  clash.
+
+### Documented
+
 - **A build now produces tempo and key, and stores them.** Both features existed and `build` called neither, so a filter
   could never read them. `Index` gains `tempo` and `key` as a fifth and sixth optional section, in both formats, produced
   from the buffer `embed_measured` already decodes.

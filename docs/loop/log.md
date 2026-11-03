@@ -7,6 +7,76 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 94 — 2026-11-03 — the tempo and key rules, and the tolerance the estimator justifies
+
+**Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **380 semantic** / **87 lib**; clippy
+0, fmt, rustdoc, examples. Volume held **19 GB** free.
+
+**`#27` closed** — all four rules. **Tempo is a hard exclusion and key is a penalty**, which is the issue's own division:
+two tempi 38 BPM apart cannot play together (its 90-under-128 example is refused), while a key clash is a worse neighbour
+rather than an impossible one — a modal piece sits anywhere, and key is the least reliable feature here.
+
+**The 4.0 BPM tolerance is derived rather than chosen.** The estimator carries **±2 BPM** of uncertainty (ADR 0003's
+floor), so twice it is the width below which a difference may be entirely measurement error. Excluding inside that would
+reject tracks whose tempi merely *look* different — the false-positive cost `#27` calls worse than a weak ranking.
+Asserted on both sides: **3.9 and 4.0 admitted, 4.1 and 38.0 refused**.
+
+**The distinction iteration 93 made storable is the one this had to read correctly**, and reading it wrong would be
+silent: a tempo record with `bpm: None` means *judged and not rhythmic*, and treating that as a tempo would compare every
+non-rhythmic asset against every other as though they shared one. `Features::bpm()` is `tempo.and_then(|t| t.bpm)`, so
+all three states stay distinct; the key rule does the same with `found_key()`, so a **judged-atonal** record penalises
+nothing just as an absent one does not.
+
+**`#27`'s third criterion is satisfied by data, not by a flag.** `Weights::compatibility` is the named serde table `#25`
+already built — a reuse rather than a second definition — and a project that wants clashing keys sets
+`clash_penalty: 1.0` and the rule stops penalising, which the test asserts.
+
+**Both new fields are validated**: a negative tempo tolerance would exclude every pair, and a multiplier outside `0..=1`
+would reward a clash or invert the score. The defaults are asserted to report nothing.
+
+**Three defects, all mechanical**: my `Features` literal edit missed the `impl` methods on the first pass (`pub fn` vs
+`fn` in the anchor), `Relation` was not imported though `Exclusion::Key` names it, and `clippy::collapsible_if` caught
+the nested `if let` the key rule first used.
+
+**Carved off and named**: `Tempo::octave_ambiguous` is stored and **not read**. An ambiguous estimate against its own
+octave is 60 BPM apart at 120 — outside the tolerance either way — so reading the flag would need a rule about *which*
+octave to compare in, which is a design question rather than a bug.
+
+| voices | µs/frame | iteration 93 |
+|---|---|---|
+| 64 | **0.327** | 0.323 |
+| 256 | **1.132** | 1.119 |
+
+No audio-path change, and `build` is untouched — the rules read features already stored — so iteration 93's 420–569
+clips/s decode figure and its regression both stand.
+
+**Visual gate unchanged:** 32 render files, **14 of 14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to
+iterations 67, 71, 74, 75, 80–93.
+
+**Verdicts.** Pass 1 **GREAT** (two rules, two kinds, and the tolerance derived from the estimator rather than chosen),
+pass 2 **GREAT** (the three-state distinction read correctly, asserted from four directions), pass 3 **GREAT** (every
+number on `Weights`, and a project disagrees by editing data rather than setting a flag).
+
+**Docs.** The guide gains the four-rule table with each rule's kind and threshold; the README says which rules exclude
+and which penalise; `CHANGELOG.md` gains both rules and the derivation.
+
+**Evidence.** `runs/2026-11-03-94/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,spectrograms}/`.
+
+**Commits.** `6f2e3ad`.
+
+**Top 5 remaining**
+
+1. **One shared spectral pass** — mel, centroid, chroma and onset from one FFT per frame. Three features now walk the
+   same audio and iteration 93 measured the cost at **2.7×**. It is the largest thing the crate does badly.
+2. **`#40` the weighted ensemble** — `Weights` has the signals and their shares; the filter now has four rules; nothing
+   combines them into one score. `#27` put that out of scope and it is the natural next layer.
+3. **`#28` the MCP tool host**, then `#29`/`#44`/`#30` — the largest user-facing win, over an index holding every
+   feature the filter set reads.
+4. **Finish `#36` on the GPU** — clone the current commit to `big`, transfer the graph, build `ort` with CUDA.
+5. **`V-01`'s labelled set** — the only thing that can turn key's 100 %, tempo's ±2 BPM, the 4 BPM tolerance and the six
+   weights from claims about synthetic material into measurements of a real library.
+
 ## Iteration 93 — 2026-11-03 — tempo and key produced, and a 2.7× decode regression
 
 **Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **380 semantic** / **80 lib**; clippy

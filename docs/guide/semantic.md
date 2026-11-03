@@ -280,6 +280,18 @@ match filter::evaluate(&anchor, &candidate, &weights).excluded {
 `filter::filter` returns the kept indices and a `Report` whose `describe()` names the rule that removed the most, so a
 set where everything was filtered out reads as a sentence rather than as nothing.
 
+**Four rules, two kinds.** Loudness and tempo **exclude**; the noise floor and key **penalise**:
+
+| rule | kind | threshold | why |
+|---|---|---|---|
+| loudness | exclude | `loudness_tolerance_db` 6 dB | two sounds more than 6 dB apart are deliberately at different levels |
+| tempo | exclude | `tempo_tolerance_bpm` **4 BPM** | **twice the estimator's ±2 BPM uncertainty** — below that, a gap may be measurement error |
+| noise floor | penalise | `noise_floor_tolerance_db` 12 dB | a hissier take is a worse neighbour, not an impossible one |
+| key | penalise | `compatibility` 0.5 / 0.85 | a modal piece sits anywhere, and key is the least reliable feature |
+
+A project that wants clashing keys sets `compatibility.clash_penalty: 1.0` and the key rule stops penalising — the
+number is the flag, so no separate switch is needed.
+
 ## Ask: one call from a description to a ranked answer
 
 ```rust
