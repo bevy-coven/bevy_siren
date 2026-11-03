@@ -57,7 +57,7 @@ invisible one. `SIREN_MIX=zero` gives it its own table, following `overbudget`'s
 report's existing vocabulary), `plan.md`, `perf.md`, `eval.md`, `review.md` (three passes, GREAT),
 `evidence/{panel,spectrograms,after}`, and `docs/media/mixer-zero-depth.png`.
 
-**Commit.** (see `git log`).
+**Commit.** `c063360` — *mix: a duck that lowers the bus by nothing says so*.
 
 **Top 5 remaining**
 
