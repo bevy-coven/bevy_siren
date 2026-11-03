@@ -7,6 +7,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Long tracks are chunked by the crate's own policy** — `#13`. `semantic::chunk::Chunking` states a **10 s window**
+  (the model's own) and a **5 s hop** (half the window, so every sample is inside two chunks and a boundary-crossing
+  event is fully present in one), both on a serde type. `chunking.chunks(samples)` gives every window's start, length and
+  offset, and the final chunk is clamped to reach the last sample so a tail is never dropped. `chunk::pool` combines the
+  chunk vectors **weighted by each chunk's RMS**, dropping anything at or below `POOL_SILENCE_DB` (−60 dB) entirely and
+  normalising the result — because a plain mean pulls a mostly-quiet track toward the null vector, which is the issue's
+  own pitfall. `indexer::build_from_model` uses it for every track longer than the window.
 - **A regression harness** — `#45`. `cargo run --release --features semantic --example evalbench` prints **recall@3** and
   **anchor agreement**, their deltas against `docs/loop/runs/2026-11-03-98/eval-baseline.txt`, and **the failing queries
   by name**; `--bless` records a baseline. It exits non-zero on a regression, and it proves it *can* fail by running a

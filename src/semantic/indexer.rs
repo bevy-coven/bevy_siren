@@ -430,11 +430,27 @@ pub fn build_from_model(
     // embedder and read once afterwards.
     let longer = std::cell::Cell::new(false);
     let mut built = build(root, stamp, |buffer: &[f32]| {
+        // **A long track is chunked by this crate's policy and pooled back to one vector** — `#13`. The alternative is
+        // CLAP's own `fusion` truncation, which the model applies internally: it works, but it is not retrievable (a
+        // result could not say where in the track the match was), and a change to the model's pooling would change every
+        // vector in an index without the stamp changing.
         if buffer.len() > super::mel::MODEL_WINDOW_SAMPLES {
             longer.set(true);
+            let chunking = super::chunk::Chunking::default();
+            let boundaries = chunking.chunks(buffer.len()).map_err(|e| e.to_string())?;
+            let mut vectors = Vec::with_capacity(boundaries.len());
+            for chunk in &boundaries {
+                let window = &buffer[chunk.start..chunk.start + chunk.len];
+                let features = super::mel::input_features(window, filterbank).map_err(|e| e.to_string())?;
+                vectors.push(model.embed_audio(&features, false).map_err(|e| e.to_string())?);
+            }
+            // **`None` means the track had no audible content**, which is an absence rather than a zero vector — the
+            // same distinction the index draws for a degenerate record.
+            return super::chunk::pool(&vectors, &boundaries, buffer, chunking)
+                .ok_or_else(|| String::from("the track has no audible sample to embed"));
         }
         let features = super::mel::input_features(buffer, filterbank).map_err(|e| e.to_string())?;
-        model.embed_audio(&features, longer.get()).map_err(|e| e.to_string())
+        model.embed_audio(&features, false).map_err(|e| e.to_string())
     })?;
     built.longer = longer.get();
     Ok(built)

@@ -27,6 +27,7 @@ pub mod analysis;
 pub mod ask;
 pub mod budget;
 pub mod buffer;
+pub mod chunk;
 pub mod decode;
 pub mod ensemble;
 pub mod eval;

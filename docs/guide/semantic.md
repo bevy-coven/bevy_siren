@@ -98,6 +98,22 @@ consume it: **9.44 ms → 5.11 ms per 4 s clip**. Loudness reads no spectrum, an
 neither joins the share; `log_mel` above reflect-pads to a different frame count and would be a different measurement, not
 the same one twice.
 
+### 3b. A long track is chunked, and pooled by loudness
+
+A 6-minute track is 17.3 M samples; the model's window is 10 s. `chunk::Chunking` states the policy rather than leaving
+it to the model's internal fusion — which works, but is not retrievable and would change every vector in an index without
+the stamp changing.
+
+| field | default | why |
+|---|---|---|
+| `window_s` | **10.0** | the model's own window, so a chunk is exactly one window with no padding |
+| `hop_s` | **5.0** | half the window: every sample is inside two chunks, so a fade or a chord change on a boundary is fully present in one. A 6-minute track is **71 chunks**, which the guide states rather than hides because a chunk is one model call |
+| `weight_by_loudness` | **true** | a plain mean weights a silent intro like the chorus, and CLAP embeds silence near the origin — pulling the whole track toward the null vector |
+
+`chunks()` returns each window's start, length and **offset in seconds**, and the last chunk is clamped to reach the final
+sample so a tail shorter than the hop is never dropped. `pool()` weights by each chunk's RMS, drops anything at or below
+**−60 dB** entirely, and normalises — so a track that is silent everywhere has **no vector** rather than a zero one.
+
 ### 4. The index, stamped by the model it came from
 
 `Index::load(text, &loaded)` takes the running model's stamp as a **required argument**. Vectors from two models compare
