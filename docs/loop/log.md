@@ -49,7 +49,9 @@ runs at **~8.3 ms/frame (≈120 fps)**, so a 1.5 s bar is ~180 frames; my first 
 the bar. Capture by state, not by a frame number you guessed. (4) `MusicLayer::new` starts at `SILENT_DB` — `combat -80.0 dB`
 is the default, not a bug. (5) `hs distill` GPU-blocked (thirty-fifth iteration).
 
-**Commit.** `a1e3a02`; CI on `main`.
+**Commit.** `a1e3a02`, pushed to `main`; CI run 41599962692 is **success** on `big-s1`. Gate: build, test (119 + 5),
+serde (126 + 5), mixer (128 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
