@@ -60,11 +60,24 @@ shipped picture stays clean. (5) `hs distill` GPU-blocked (twenty-fifth iteratio
 4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
 5. Quantise a **retarget** onto the bar (iteration 14).
 
-**The hunt, fifteenth pass.** The panel now shows the crate's verdict and has been looked at in both states. What it
-still cannot show is a **duck recovering**: the capture's script ends on a duck that is still holding, which the module
-doc says is deliberate, so the picture never contains a released duck. The next probe: does the panel's `duck` column
-return to `0.0` visibly within a capture's 200 frames at the default hold and fade (0.25 s + 0.6 s at 60 fps is 51
-frames), and if not, is the script or the panel wrong?
+**The hunt, fifteenth pass.** The panel now shows the crate's verdict and has been looked at in both states. I wrote,
+before checking, that the capture never contains a **released** duck — the script ends on one still holding. Probed
+directly rather than inferred from a picture:
+
+```
+Music duck per frame after dialogue.greeting, default settings (60 fps)
+  frame  0:-8.0  10:-8.0  15:-7.9  20:-6.9  30:-4.7  40:-2.6  50:-0.5  55:+0.0  65:+0.0
+```
+
+So the duck **does** recover, by frame 55 of the crate's own frame count — 0.25 s hold plus 0.6 s fade, which is the
+crate's documented envelope, and the claim in the previous draft of this entry was **wrong**. What the *capture* shows
+depends on the script the capture runs, not on the crate: `steal,layer,duck` cycles every `SIREN_KEY_EVERY` = 20 frames
+from frame 30, so a `duck` step fires often enough that a released duck is on screen for part of the run.
+
+**Next probe:** the panel's `duck` column shows the *current* duck only. Nothing on screen says a duck **finished** — the
+log's `ducked` lines have no matching `recovered` line, so a reader sees the dip and not the release. Whether that is
+worth a line is the next question, and it is a `SirenLog` entry, so it is **public API** and goes to a decision file
+before it is built.
 
 **Baseline note.** Nothing was red; the suite had 109 tests. `cues.yaml` case 31 is red by design.
 
