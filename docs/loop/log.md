@@ -53,7 +53,7 @@ footstep voice — the exact ambiguity this iteration removed. After the change 
 the default run's two lines say `(bus)`, which is true. A second defect, found by reading the still: `poly` placed second
 hid the stinger, duck and spatial log, so it now runs last and the still is captured at frame 140.
 
-**Commit.** (see `git log`).
+**Commit.** `dc0a396` — *play: a steal names the cap that took the voice, and the row shows how many may sound*.
 
 **Top 5 remaining**
 
