@@ -27,6 +27,7 @@ use std::collections::BTreeMap;
 use super::loudness::Loudness;
 use super::provenance::Provenance;
 use super::spectral::Spectral;
+use super::tempo::Tempo;
 use std::fmt::Write as _;
 
 /// The identity of the model that made an index's vectors.
@@ -165,6 +166,11 @@ pub struct Index {
     pub loudness: BTreeMap<u64, Loudness>,
     /// Each asset's spectral shape, by content hash — a third optional section, same rules.
     pub spectral: BTreeMap<u64, Spectral>,
+    /// Each asset's tempo, by content hash. **Absent for a non-rhythmic asset**, which is a fact worth storing: a
+    /// stored `None` would be indistinguishable from "not yet measured", and the filter needs to tell them apart.
+    pub tempo: BTreeMap<u64, Tempo>,
+    /// Each asset's key **and its confidence**, by content hash. Absent for an atonal asset, for the same reason.
+    pub key: BTreeMap<u64, super::key::Estimate>,
 }
 
 const MAGIC: &str = "bevy_siren index 1";
@@ -248,6 +254,40 @@ fn hertz_field(value: Option<f32>) -> String {
     }
 }
 
+/// One tempo record: `<16 hex hash> <bpm|-> <confidence> <octave-ambiguous 0|1>`.
+fn parse_tempo_line(line: &str) -> Option<(u64, super::tempo::Tempo)> {
+    let mut f = line.split(' ');
+    let hash = u64::from_str_radix(f.next()?, 16).ok()?;
+    let bpm = match f.next()? {
+        "-" => None,
+        text => Some(text.parse::<f32>().ok().filter(|v| v.is_finite())?),
+    };
+    let confidence = f.next()?.parse::<f32>().ok()?;
+    let octave_ambiguous = match f.next()? {
+        "1" => true,
+        "0" => false,
+        _ => return None,
+    };
+    Some((hash, super::tempo::Tempo { bpm, confidence, octave_ambiguous }))
+}
+
+/// One key record: `<16 hex hash> <tonic|-> <major 0|1> <confidence>`.
+fn parse_key_line(line: &str) -> Option<(u64, super::key::Estimate)> {
+    let mut f = line.split(' ');
+    let hash = u64::from_str_radix(f.next()?, 16).ok()?;
+    let tonic = match f.next()? {
+        "-" => None,
+        text => Some(text.parse::<f32>().ok()?.round() as u8 % 12),
+    };
+    let major = match f.next()? {
+        "1" => true,
+        "0" => false,
+        _ => return None,
+    };
+    let confidence = f.next()?.parse::<f32>().ok()?;
+    Some((hash, super::key::Estimate { key: super::key::Key { tonic, major }, confidence }))
+}
+
 /// One spectral record: `<16 hex hash> <centroid|-> <rolloff|-> <noise floor dB>`.
 fn parse_spectral_line(line: &str) -> Option<(u64, Spectral)> {
     let mut fields = line.split(' ');
@@ -323,6 +363,8 @@ impl Index {
             provenance: BTreeMap::new(),
             loudness: BTreeMap::new(),
             spectral: BTreeMap::new(),
+            tempo: BTreeMap::new(),
+            key: BTreeMap::new(),
         }
     }
 
@@ -408,6 +450,24 @@ impl Index {
                 let _ = writeln!(body, " {}", db_field(s.noise_floor_db));
             }
         }
+        // **Tempo**: `<hash> <bpm|-> <confidence> <octave-ambiguous 0|1>`. A `-` bpm is *no tempo*, which is why it is
+        // written rather than omitted — a stored `None` and an unmeasured asset are different facts, and a filter reads
+        // the first as *unjudged*.
+        if !self.tempo.is_empty() {
+            let _ = writeln!(body, "tempo {}", self.tempo.len());
+            for (hash, t) in &self.tempo {
+                let _ = write!(body, "{hash:016x} {}", hertz_field(t.bpm));
+                let _ = writeln!(body, " {} {}", db_field(t.confidence), u8::from(t.octave_ambiguous));
+            }
+        }
+        // **Key**: `<hash> <tonic|-> <major 0|1> <confidence>`. A `-` tonic is *no key*, from the same reasoning.
+        if !self.key.is_empty() {
+            let _ = writeln!(body, "key {}", self.key.len());
+            for (hash, k) in &self.key {
+                let _ = write!(body, "{hash:016x} {}", hertz_field(k.key.tonic.map(f32::from)));
+                let _ = writeln!(body, " {} {}", u8::from(k.key.major), db_field(k.confidence));
+            }
+        }
         let checksum = crate::library::fnv1a(body.as_bytes());
         let mut out = String::new();
         let _ = writeln!(out, "{MAGIC}");
@@ -487,6 +547,10 @@ impl Index {
         let mut expected_loudness: Option<usize> = None;
         let mut spectral: BTreeMap<u64, Spectral> = BTreeMap::new();
         let mut expected_spectral: Option<usize> = None;
+        let mut tempo: BTreeMap<u64, super::tempo::Tempo> = BTreeMap::new();
+        let mut expected_tempo: Option<usize> = None;
+        let mut key: BTreeMap<u64, super::key::Estimate> = BTreeMap::new();
+        let mut expected_key: Option<usize> = None;
         // **A section marker is the only line that can start with `provenance ` or `loudness `**, because every record
         // line begins with a 16-hex-character hash. Each section runs until the next marker or the end of the body, so
         // several can coexist and their order does not matter — except for their own records, which must follow them.
@@ -496,6 +560,8 @@ impl Index {
             Provenance,
             Loudness,
             Spectral,
+            Tempo,
+            Key,
         }
         let mut section = Section::Vectors;
         for (n, line) in body.lines().enumerate() {
@@ -540,6 +606,46 @@ impl Index {
                     what: format!("`{count}` is not a spectral record count"),
                 })?);
                 section = Section::Spectral;
+                continue;
+            }
+            if let Some(count) = line.strip_prefix("tempo ") {
+                expected_tempo = Some(count.parse().map_err(|_| IndexProblem::Record {
+                    line: line_no,
+                    what: format!("`{count}` is not a tempo record count"),
+                })?);
+                section = Section::Tempo;
+                continue;
+            }
+            if let Some(count) = line.strip_prefix("key ") {
+                expected_key = Some(count.parse().map_err(|_| IndexProblem::Record {
+                    line: line_no,
+                    what: format!("`{count}` is not a key record count"),
+                })?);
+                section = Section::Key;
+                continue;
+            }
+            if section == Section::Tempo {
+                if let Some((hash, record)) = parse_tempo_line(line) {
+                    tempo.insert(hash, record);
+                } else {
+                    return Err(IndexProblem::Record {
+                        line: line_no,
+                        what: String::from(
+                            "a tempo record is not `<hash> <bpm|-> <confidence> <octave 0|1>`",
+                        ),
+                    });
+                }
+                continue;
+            }
+            if section == Section::Key {
+                if let Some((hash, record)) = parse_key_line(line) {
+                    key.insert(hash, record);
+                } else {
+                    return Err(IndexProblem::Record {
+                        line: line_no,
+                        what: String::from("a key record is not `<hash> <tonic|-> <major 0|1> <confidence>`"),
+                    });
+                }
                 continue;
             }
             if section == Section::Spectral {
@@ -613,8 +719,18 @@ impl Index {
         {
             return Err(IndexProblem::Truncated { expected, found: spectral.len() });
         }
+        if let Some(expected) = expected_tempo
+            && tempo.len() != expected
+        {
+            return Err(IndexProblem::Truncated { expected, found: tempo.len() });
+        }
+        if let Some(expected) = expected_key
+            && key.len() != expected
+        {
+            return Err(IndexProblem::Truncated { expected, found: key.len() });
+        }
 
-        Ok(Index { stamp, records, provenance, loudness, spectral })
+        Ok(Index { stamp, records, provenance, loudness, spectral, tempo, key })
     }
 }
 
@@ -723,6 +839,40 @@ impl Index {
                 }
             }
             out.extend_from_slice(&s.noise_floor_db.to_le_bytes());
+        }
+        // **Tempo**: presence byte, `f32` bpm, `f32` confidence, octave byte.
+        out.extend_from_slice(&(self.tempo.len() as u64).to_le_bytes());
+        for (hash, t) in &self.tempo {
+            out.extend_from_slice(&hash.to_le_bytes());
+            match t.bpm {
+                Some(v) => {
+                    out.push(1);
+                    out.extend_from_slice(&v.to_le_bytes());
+                }
+                None => {
+                    out.push(0);
+                    out.extend_from_slice(&0.0f32.to_le_bytes());
+                }
+            }
+            out.extend_from_slice(&t.confidence.to_le_bytes());
+            out.push(u8::from(t.octave_ambiguous));
+        }
+        // **Key**: presence byte, `f32` tonic, major byte, `f32` confidence.
+        out.extend_from_slice(&(self.key.len() as u64).to_le_bytes());
+        for (hash, k) in &self.key {
+            out.extend_from_slice(&hash.to_le_bytes());
+            match k.key.tonic {
+                Some(t) => {
+                    out.push(1);
+                    out.extend_from_slice(&f32::from(t).to_le_bytes());
+                }
+                None => {
+                    out.push(0);
+                    out.extend_from_slice(&0.0f32.to_le_bytes());
+                }
+            }
+            out.push(u8::from(k.key.major));
+            out.extend_from_slice(&k.confidence.to_le_bytes());
         }
         let checksum = crate::library::fnv1a(&out);
         out.extend_from_slice(&checksum.to_le_bytes());
@@ -840,10 +990,54 @@ impl Index {
             spectral.insert(hash, super::spectral::Spectral { centroid_hz, rolloff_hz, noise_floor_db });
         }
 
+        let mut tempo: BTreeMap<u64, super::tempo::Tempo> = BTreeMap::new();
+        for _ in 0..read_u64(body, &mut at).map_err(|e| bad(&e))? {
+            let hash = read_u64(body, &mut at).map_err(|e| bad(&e))?;
+            let has_bpm = *body.get(at).ok_or_else(|| bad("a tempo record ends early"))?;
+            at += 1;
+            let bpm_value = read_f32(body, &mut at).map_err(|e| bad(&e))?;
+            let bpm = match has_bpm {
+                1 if bpm_value.is_finite() => Some(bpm_value),
+                1 => return Err(bad("a tempo record says it has a bpm and carries a non-finite one")),
+                0 => None,
+                _ => return Err(bad("a tempo presence byte is neither 0 nor 1")),
+            };
+            let confidence = read_f32(body, &mut at).map_err(|e| bad(&e))?;
+            let octave_ambiguous = match *body.get(at).ok_or_else(|| bad("a tempo record ends early"))? {
+                1 => true,
+                0 => false,
+                _ => return Err(bad("a tempo octave byte is neither 0 nor 1")),
+            };
+            at += 1;
+            tempo.insert(hash, super::tempo::Tempo { bpm, confidence, octave_ambiguous });
+        }
+
+        let mut key: BTreeMap<u64, super::key::Estimate> = BTreeMap::new();
+        for _ in 0..read_u64(body, &mut at).map_err(|e| bad(&e))? {
+            let hash = read_u64(body, &mut at).map_err(|e| bad(&e))?;
+            let has_tonic = *body.get(at).ok_or_else(|| bad("a key record ends early"))?;
+            at += 1;
+            let tonic_value = read_f32(body, &mut at).map_err(|e| bad(&e))?;
+            let tonic = match has_tonic {
+                1 if tonic_value.is_finite() => Some((tonic_value.round().max(0.0) as u8) % 12),
+                1 => return Err(bad("a key record says it has a tonic and carries a non-finite one")),
+                0 => None,
+                _ => return Err(bad("a key presence byte is neither 0 nor 1")),
+            };
+            let major = match *body.get(at).ok_or_else(|| bad("a key record ends early"))? {
+                1 => true,
+                0 => false,
+                _ => return Err(bad("a key mode byte is neither 0 nor 1")),
+            };
+            at += 1;
+            let confidence = read_f32(body, &mut at).map_err(|e| bad(&e))?;
+            key.insert(hash, super::key::Estimate { key: super::key::Key { tonic, major }, confidence });
+        }
+
         if at != body.len() {
             return Err(bad(&format!("{} trailing bytes after the last section", body.len() - at)));
         }
-        Ok(Index { stamp, records, provenance, loudness, spectral })
+        Ok(Index { stamp, records, provenance, loudness, spectral, tempo, key })
     }
 }
 

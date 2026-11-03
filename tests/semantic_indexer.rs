@@ -502,3 +502,81 @@ fn a_written_index_is_binary_and_an_old_text_index_still_loads() {
     // `Index` is named here so the import is used even if the assertions above change shape.
     let _: Option<Index> = None;
 }
+
+/// **A build now produces tempo and key**, from the same decode as the embedding — the wiring `#24` and `#25` left to
+/// this iteration.
+///
+/// A metronomic click track has a tempo; a short tonal passage has a key. Both must appear in the index without a caller
+/// supplying them, which is the difference between a stored field and a produced one.
+#[test]
+fn a_build_produces_tempo_and_key() {
+    // A click every 0.5 s is 120 BPM, held for four seconds so there are enough onsets.
+    let mut clicks = vec![0.0f32; 48_000 * 4];
+    let period = 24_000; // 0.5 s at 48 kHz
+    let mut at = 0;
+    while at < clicks.len() {
+        for i in 0..240 {
+            if at + i >= clicks.len() {
+                break;
+            }
+            let t = i as f32 / 48_000.0;
+            clicks[at + i] = (-t * 400.0).exp() * (std::f32::consts::TAU * 1000.0 * t).sin() * 0.6;
+        }
+        at += period;
+    }
+    let scratch = Scratch::new("tempo_key");
+    scratch.file("click.wav", &wav_from(&clicks));
+
+    let built = build(scratch.path(), stamp(), |_| Ok(vec![0.5; EMBEDDING_DIM])).expect("build");
+    assert_eq!(built.indexed(), 1);
+    assert_eq!(built.index.tempo.len(), 1, "the build produced a tempo");
+    assert_eq!(built.index.key.len(), 1, "and a key");
+
+    let hash = *built.index.records.keys().next().expect("one record");
+    let tempo = built.index.tempo[&hash];
+    let bpm = tempo.bpm.expect("a metronomic click has a tempo");
+    assert!((bpm - 120.0).abs() <= 2.0, "0.5 s between clicks is 120 BPM; got {bpm}");
+    // A click train has no tonal centre, so the key reports its absence — which is still a *record*.
+    assert_eq!(built.index.key[&hash].key.tonic, None, "a click train has no key");
+}
+
+/// A clip too short for a chroma window still embeds, and simply has no key record.
+#[test]
+fn a_clip_too_short_to_analyse_still_embeds() {
+    let scratch = Scratch::new("short_analysis");
+    // 0.1 s: shorter than key's 8192-sample chroma window.
+    scratch.file("tiny.wav", &wav(48_000, 1000.0, 4_800));
+    let built = build(scratch.path(), stamp(), |_| Ok(vec![0.5; EMBEDDING_DIM])).expect("build");
+    assert_eq!(built.indexed(), 1, "the vector is the index's reason to exist");
+    // **0.1 s is 4 800 samples**: shorter than key's 8 192-sample chroma window, so there is no key record — but longer
+    // than tempo's two 1 024-sample frames, so tempo *does* record, with `bpm: None`. That distinction is the point of
+    // storing the absence rather than omitting the record, and the first version of this test asserted both were
+    // missing.
+    assert!(built.index.key.is_empty(), "no key record: the clip is shorter than a chroma window");
+    let hash = *built.index.records.keys().next().expect("one record");
+    let tempo = built.index.tempo.get(&hash).expect("tempo still has enough frames to record");
+    assert_eq!(tempo.bpm, None, "but 0.1 s has no rhythm to report");
+}
+
+/// A raw f32 buffer as a 16-bit mono WAV at 48 kHz, for a fixture the shared `wav` helper cannot build.
+fn wav_from(samples: &[f32]) -> Vec<u8> {
+    let rate = 48_000u32;
+    let data_len = (samples.len() * 2) as u32;
+    let mut v = Vec::with_capacity(44 + data_len as usize);
+    v.extend_from_slice(b"RIFF");
+    v.extend_from_slice(&(36 + data_len).to_le_bytes());
+    v.extend_from_slice(b"WAVEfmt ");
+    v.extend_from_slice(&16u32.to_le_bytes());
+    v.extend_from_slice(&1u16.to_le_bytes());
+    v.extend_from_slice(&1u16.to_le_bytes());
+    v.extend_from_slice(&rate.to_le_bytes());
+    v.extend_from_slice(&(rate * 2).to_le_bytes());
+    v.extend_from_slice(&2u16.to_le_bytes());
+    v.extend_from_slice(&16u16.to_le_bytes());
+    v.extend_from_slice(b"data");
+    v.extend_from_slice(&data_len.to_le_bytes());
+    for s in samples {
+        v.extend_from_slice(&((s.clamp(-1.0, 1.0) * f32::from(i16::MAX)) as i16).to_le_bytes());
+    }
+    v
+}

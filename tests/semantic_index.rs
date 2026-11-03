@@ -569,3 +569,45 @@ fn a_spectral_section_promising_more_records_than_it_holds_is_refused() {
     let cut = &bytes[..bytes.len() - 20];
     assert!(Index::from_bytes(cut, &stamp()).is_err(), "a cut binary file is refused");
 }
+
+/// **Tempo and key round-trip in both formats**, including the two absences that a numeric column would destroy.
+///
+/// A non-rhythmic asset's `None` bpm and an atonal asset's `None` tonic are **facts to store**, not missing data: a
+/// filter reads them as *unjudged*, and losing them on disk would make every asset look judged on reload.
+#[test]
+fn tempo_and_key_round_trip_in_both_formats() {
+    use bevy_siren::semantic::key::{Estimate, Key};
+    use bevy_siren::semantic::tempo::Tempo;
+
+    let mut index = index_with(3);
+    index.tempo.insert(0x1000, Tempo { bpm: Some(128.0), confidence: 0.86, octave_ambiguous: true });
+    index.tempo.insert(0x1001, Tempo { bpm: None, confidence: 0.07, octave_ambiguous: false });
+    index.key.insert(0x1000, Estimate { key: Key::new(7, true), confidence: 0.241 });
+    index.key.insert(0x1001, Estimate { key: Key::absent(), confidence: 0.03 });
+
+    let via_text = Index::load(&index.to_text(), &stamp()).expect("text loads");
+    assert_eq!(via_text.tempo, index.tempo, "tempo survives the text form");
+    assert_eq!(via_text.key, index.key, "and the key");
+
+    let via_bytes = Index::from_bytes(&index.to_bytes(), &stamp()).expect("bytes load");
+    assert_eq!(via_bytes.tempo, index.tempo, "tempo survives the binary form");
+    assert_eq!(via_bytes.key, index.key, "and the key");
+
+    // **The absences are preserved, and stay distinguishable from absence of a record.**
+    assert_eq!(via_bytes.tempo[&0x1001].bpm, None, "a non-rhythmic asset keeps NO bpm");
+    assert!(via_bytes.tempo[&0x1000].octave_ambiguous, "and the ambiguity flag survives");
+    assert_eq!(via_bytes.key[&0x1001].key.tonic, None, "an atonal asset keeps NO tonic");
+    assert!(!via_bytes.key.contains_key(&0x1002), "while an unmeasured asset has no record at all");
+}
+
+/// **An index with neither section writes neither**, so every earlier file still loads.
+#[test]
+fn an_index_with_no_tempo_or_key_writes_no_section() {
+    let plain = index_with(2).to_text();
+    assert!(!plain.contains("tempo "), "no tempo section when there is nothing to write");
+    assert!(!plain.contains("key "), "and no key section");
+    let back = Index::load(&plain, &stamp()).expect("loads");
+    assert!(back.tempo.is_empty() && back.key.is_empty());
+    let from_bytes = Index::from_bytes(&index_with(2).to_bytes(), &stamp()).expect("loads");
+    assert!(from_bytes.tempo.is_empty() && from_bytes.key.is_empty());
+}

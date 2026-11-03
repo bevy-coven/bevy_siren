@@ -238,17 +238,23 @@ pub fn build(
         let Some(relative) = asset.paths.first() else { continue };
         let path = root.join(relative);
         match embed_measured(&path, &mut embed) {
-            Ok(Analysed { vector, loudness, spectral }) => {
+            Ok(Analysed { vector, loudness, spectral, tempo, key }) => {
                 // The index refuses a vector of the wrong width, and that refusal is a real failure here: the
                 // embedder and the stamp disagree about the model.
                 if let Err(e) = index.insert(asset.hash, vector) {
                     failed.push(Failure { path: relative.clone(), why: e.to_string() });
-                } else if loudness.is_some() || spectral.is_some() {
+                } else if loudness.is_some() || spectral.is_some() || tempo.is_some() || key.is_some() {
                     if let Some(l) = loudness {
                         index.loudness.insert(asset.hash, l);
                     }
                     if let Some(sp) = spectral {
                         index.spectral.insert(asset.hash, sp);
+                    }
+                    if let Some(t) = tempo {
+                        index.tempo.insert(asset.hash, t);
+                    }
+                    if let Some(k) = key {
+                        index.key.insert(asset.hash, k);
                     }
                 } else {
                     // A file that embedded but could not be measured is **not** a failure — the index's reason to exist
@@ -305,6 +311,11 @@ pub(super) struct Analysed {
     pub loudness: Option<super::loudness::Loudness>,
     /// Its spectral shape, when the analysis succeeded.
     pub spectral: Option<super::spectral::Spectral>,
+    /// Its tempo, when it is rhythmic enough to have one. Present-but-absent-bpm is a real answer: see
+    /// [`super::tempo::Tempo::bpm`].
+    pub tempo: Option<super::tempo::Tempo>,
+    /// Its key **and confidence**, when it has tonal content.
+    pub key: Option<super::key::Estimate>,
 }
 
 /// **Decode, convert, measure and embed one file**, sharing the decode between the measurement and the embedding.
@@ -341,8 +352,13 @@ pub(super) fn embed_measured(
     // **The spectral features come from the same buffer**, for the same reason loudness does: a second decode would
     // double the cost of every file to add three statistics.
     let spectral = super::spectral::analyse(&mono).ok();
+    // **Tempo and key from the same buffer**, for the third and fourth time: a decode per feature would make a
+    // thousand-file library four thousand decodes. Both return `Option` because a clip can be too short for tempo's
+    // two frames or for key's chroma window, and that is a fact to store rather than an error to raise.
+    let tempo = super::tempo::estimate(&mono).ok();
+    let key = super::key::estimate(&mono).ok();
     let vector = embed(&mono)?;
-    Ok(Analysed { vector, loudness, spectral })
+    Ok(Analysed { vector, loudness, spectral, tempo, key })
 }
 
 /// The file a built index lives in. One name for both formats, because the bytes say which one it is.
