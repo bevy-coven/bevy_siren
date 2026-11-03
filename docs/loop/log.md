@@ -7,6 +7,78 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 91 — 2026-11-03 — tempo, and a threshold whose unit was wrong
+
+**Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **376 semantic** / **68 lib**; clippy
+0, fmt, rustdoc, examples. Volume held **20 GB** free.
+
+**`#24` closed.** ADR 0003 set a **±2 BPM floor at 80–160 BPM** and required it be *proved* rather than claimed, so the
+corpus is **every whole BPM from 80 to 159 — 80 tracks**, four times the issue's minimum, and every one lands inside.
+
+**The range is applied to the lags, not the answer**, so an octave error cannot be *created* by the search; and
+`octave_ambiguous` **flags** a strong subdivision rather than "correcting" it. `#24` asks for the ambiguity to be
+countable, and silently halving a tempo is the same mistake in the other direction.
+
+**`bpm` is an `Option`** because the issue's own pitfall is an estimator that invents a tempo for a single impact. A
+steady tone and a lone impact both report **no tempo** with a low confidence, and `#27`'s filter already treats a `None`
+as *unjudged* rather than as a mismatch — so the two features land on each other correctly without special-casing.
+
+**The false positive survived one fix, and the reason is worth the log.** A steady 440 Hz tone estimated **150.1 BPM at
+confidence 0.29**, while a click track scores 0.86 — so confidence alone cannot separate them, and any threshold low
+enough for music accepts the tone.
+
+The fix was an **onset-ratio gate**, and its first constant was **`0.02`** — correct arithmetic on the **wrong unit**. I
+had measured a windowed time-domain energy by hand (0.0003 for the tone) and written a threshold below it, but
+`onset_envelope` returns **FFT energy**, ~10⁶ times larger:
+
+| | mean onset | mean sample energy | ratio |
+|---|---|---|---|
+| steady tone | 2.25 × 10⁻² | 8.00 × 10⁻² | **0.28** |
+| click track | 1.81 × 10² | 4.40 × 10⁻⁴ | **4.1 × 10⁵** |
+
+So `0.02` sat **below** the tone's 0.28 and let the false positive through while reading as a conservative choice. The
+gate is now **2.0** — between the two by three orders of magnitude on one side and five on the other — and the constant's
+doc records both measurements so the next reader can check the **unit** rather than trust the number.
+
+**Three more defects, all trivial by comparison**: a doc link to `[tests]` (not an item, refused by `rustdoc -D
+warnings`), the same sentence saying *"twenty"* where the corpus has **eighty**, and one `clippy::needless_range_loop`.
+
+| voices | µs/frame | iteration 90 |
+|---|---|---|
+| 64 | **0.282** | 0.329 |
+| 256 | **1.055** | 0.630 |
+
+No audio-path change. Tempo is **not wired into `build`** — that is a schema section plus a field, and it belongs with
+`#25` so the two features make **one** schema change rather than two.
+
+**Visual gate unchanged:** 32 render files, **14 of 14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to
+iterations 67, 71, 74, 75, 80–90.
+
+**Verdicts.** Pass 1 **GREAT** (four criteria, the corpus four times the minimum, and the octave ambiguity countable
+rather than corrected), pass 2 **GREAT** (the unit error found by measuring what the code computes, and named as the
+fifth fixture-shaped mistake in seven iterations), pass 3 **GREAT** (`confidence` is reported even when `bpm` is absent,
+so a caller can see how close a refused asset came).
+
+**Docs.** The guide gains a tempo section with the floor and the octave rule; the README says the floor is a test over
+80 tempi; `CHANGELOG.md` gains the feature and the unit story.
+
+**Evidence.** `runs/2026-11-03-91/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,spectrograms}/`.
+
+**Commits.** `f0f318c`.
+
+**Top 5 remaining**
+
+1. **`#25` key** — the other half of `#27`'s filter set. ADR 0003 declares key **out of scope for the Rust path**, so
+   this is a **decision** (a decision file) rather than code: ship a detector at an accuracy no source supports, or
+   leave the rule unjudged.
+2. **Land tempo *and* key in one schema change** — a `tempo` section beside `loudness`, `provenance` and `spectral`, with
+   `Option<f32>` and the octave flag, and the wiring in `build`.
+3. **`#28` the MCP tool host**, then `#29`/`#44`/`#30` — the largest user-facing win.
+4. **Finish `#36` on the GPU** — clone the current commit to `big`, transfer the graph, build `ort` with CUDA.
+5. **Share the spectral FFT with `mel::log_mel`** — iteration 89's 55 % decode regression, now with two more passes
+   (spectral, tempo) walking the same frames.
+
 ## Iteration 90 — 2026-11-03 — hard filters, and the invariant that makes them safe
 
 **Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **376 semantic** / **55 lib**;

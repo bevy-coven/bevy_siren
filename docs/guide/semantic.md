@@ -219,6 +219,19 @@ for hit in answer.matches {           // was `Copy`
 }
 ```
 
+## Tempo, and the accuracy floor
+
+`semantic::tempo::estimate` returns `Tempo { bpm: Option<f32>, confidence, octave_ambiguous }`. **`bpm` is an `Option`**
+because most estimators invent a tempo for a single impact — a steady tone and a lone impact both report *no tempo*, and
+the filter treats that as unjudged rather than as a mismatch.
+
+The accuracy floor is ADR 0003's **±2 BPM at 80–160 BPM**, and it is a **test**: the corpus is every whole BPM from 80
+to 159, and every one lands inside.
+
+The search range is applied to the **lags**, so an octave error cannot be created by the search, and
+`octave_ambiguous` **flags** a strong subdivision rather than "correcting" it — silently halving a tempo is the same
+mistake in the other direction.
+
 ## Filtering, without removing what it could not judge
 
 `semantic::filter` turns measurements into a **policy**: a loudness gap beyond `Weights::loudness_tolerance_db` (6 dB)

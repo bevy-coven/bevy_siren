@@ -7,6 +7,26 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **A tempo estimate, with ADR 0003's ±2 BPM floor as a test rather than a claim.** `semantic::tempo::estimate` returns
+  `Tempo { bpm: Option<f32>, confidence, octave_ambiguous }`. The corpus is **every whole BPM from 80 to 159 — 80
+  tracks**, four times `#24`'s minimum, and every one lands inside the floor.
+
+  **`bpm` is an `Option`** because `#24`'s own pitfall is an estimator that invents a tempo for a single impact. A
+  steady tone and a lone impact both report **no tempo** with a low confidence, and `R-03`'s filter already treats a
+  `None` as *unjudged* rather than as a mismatch.
+
+  **The range is applied to the lags, not the answer**, so the octave error cannot be created by the search; and
+  `octave_ambiguous` **flags** a subdivision rather than "correcting" it, because `#24` asks for the ambiguity to be
+  countable and silently halving is the same mistake in the other direction.
+
+  **A false positive that survived one fix, worth recording**: a steady 440 Hz tone estimated **150.1 BPM at confidence
+  0.29** against a click track's 0.86, so confidence alone cannot separate them. The onset-ratio gate's first constant
+  was `0.02` — correct arithmetic on the **wrong unit**, since `onset_envelope` returns FFT energy ~10⁶ times a windowed
+  time-domain energy. Measured ratios are **0.28 (tone)** and **4.1 × 10⁵ (click)**; the gate is **2.0**, with both
+  numbers in the constant's doc.
+
+### Documented
+
 - **Hard filters from the acoustic features.** `semantic::filter` turns the loudness and noise-floor measurements into a
   **policy** with a stated reason and a stated cost, rather than a term buried in a scoring function. Loudness is a
   hard exclusion — a 12 LU gap is not a ranking weakness, the two cannot play together — and the noise floor is a
