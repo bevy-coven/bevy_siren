@@ -72,6 +72,15 @@ pub struct Weights {
     #[cfg_attr(feature = "serde", serde(default = "Weights::default_loudness_tolerance_db"))]
     pub loudness_tolerance_db: f32,
 
+    /// How much noisier, in dB, a candidate's noise floor may be than the anchor's before it is **penalised**.
+    ///
+    /// **Design default: `12.0` dB.** Twice the loudness tolerance, because this rule is a penalty rather than an
+    /// exclusion: a hissier recording is a worse neighbour, not an impossible one, and a library holds clean and noisy
+    /// takes of the same instrument. 12 dB is roughly where a noise floor stops reading as "the same room" and starts
+    /// reading as "a different recording" — a judgement, so it says **design default** rather than citing a source.
+    #[cfg_attr(feature = "serde", serde(default = "Weights::default_noise_floor_tolerance_db"))]
+    pub noise_floor_tolerance_db: f32,
+
     /// The share of a candidate's neighbours the ensemble drops, worst first, before a result is returned.
     ///
     /// **Design default: `0.0`.** Keep everything, because iteration 69 measured what a filter costs: at the 0.126 the
@@ -89,6 +98,7 @@ impl Default for Weights {
             tempo: Weights::default_tempo(),
             key: Weights::default_key(),
             loudness_tolerance_db: Weights::default_loudness_tolerance_db(),
+            noise_floor_tolerance_db: Weights::default_noise_floor_tolerance_db(),
             drop_fraction: Weights::default_drop_fraction(),
         }
     }
@@ -119,6 +129,12 @@ impl Weights {
     /// **Design default: `6.0` dB** — a few dB is a mix decision; more than that is a deliberate difference in level.
     pub fn default_loudness_tolerance_db() -> f32 {
         6.0
+    }
+
+    /// **Design default: `12.0` dB** — twice the loudness tolerance, because the noise rule penalises rather than
+    /// excludes, and a library holds clean and noisy takes of the same instrument.
+    pub fn default_noise_floor_tolerance_db() -> f32 {
+        12.0
     }
 
     /// **Design default: `0.0`** — keep everything, because a filter that hides the right answer is worse than a long
@@ -160,6 +176,11 @@ impl Weights {
 
         if !self.loudness_tolerance_db.is_finite() || self.loudness_tolerance_db <= 0.0 {
             problems.push(WeightProblem::BadTolerance { value: self.loudness_tolerance_db });
+        }
+        // The noise-floor tolerance can be **zero** — a project that demands identical recording conditions — but not
+        // negative or non-finite, which would penalise every candidate for being quieter than the anchor.
+        if !self.noise_floor_tolerance_db.is_finite() || self.noise_floor_tolerance_db < 0.0 {
+            problems.push(WeightProblem::BadTolerance { value: self.noise_floor_tolerance_db });
         }
 
         if !self.drop_fraction.is_finite() || !(0.0..1.0).contains(&self.drop_fraction) {
@@ -277,5 +298,29 @@ impl Weights {
     pub fn to_ron(&self) -> Result<String, String> {
         ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::default())
             .map_err(|e| format!("the ensemble weights do not serialise: {e}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A negative noise-floor tolerance would penalise every candidate for being *quieter*, which is a sign error.
+    #[test]
+    fn a_negative_noise_floor_tolerance_is_reported() {
+        let bad = Weights { noise_floor_tolerance_db: -1.0, ..Weights::default() };
+        assert!(
+            bad.problems().iter().any(|p| matches!(p, WeightProblem::BadTolerance { .. })),
+            "a negative tolerance is a problem: {:?}",
+            bad.problems()
+        );
+        // Zero is allowed: a project may demand identical recording conditions.
+        let strict = Weights { noise_floor_tolerance_db: 0.0, ..Weights::default() };
+        assert!(strict.problems().is_empty(), "{:?}", strict.problems());
+    }
+
+    #[test]
+    fn the_defaults_report_nothing() {
+        assert!(Weights::default().problems().is_empty(), "{:?}", Weights::default().problems());
     }
 }

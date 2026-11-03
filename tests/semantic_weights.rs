@@ -139,6 +139,7 @@ fn the_weights_round_trip_through_ron() {
         tempo: 0.1,
         key: 0.4,
         loudness_tolerance_db: 3.0,
+        noise_floor_tolerance_db: 15.0,
         drop_fraction: 0.2,
     };
     let text = original.to_ron().expect("serialises");
