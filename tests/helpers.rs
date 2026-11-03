@@ -88,6 +88,10 @@ pub fn run_for(app: &mut App, seconds: f64, frame_s: f64) {
 }
 
 /// A real 16-bit mono WAV of 64 samples: long enough for a decoder to accept, short enough to end at once.
+///
+/// Only `tests/mixer.rs` uses it, and that module is behind the `mixer` feature, so a build without the feature would
+/// otherwise warn that this is dead.
+#[cfg(feature = "mixer")]
 pub fn tiny_wav() -> Vec<u8> {
     const RATE: u32 = 22_050;
     let count = 64usize;

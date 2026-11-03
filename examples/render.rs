@@ -226,6 +226,14 @@ fn main() {
         20.0 * panner.log10()
     ));
 
+    // 3e. **The bus list the mix actually draws.** `bus_names()` is the one answer `answer`'s `UnknownBus` check, the
+    // editor's panel and `update_mix` all read; a table listing none means the crate's four.
+    let from_the_table = settings.bus_names().join(", ");
+    let from_a_table_of_none = SirenSettings { buses: vec![], ..settings.clone() }.bus_names().join(", ");
+    report.push(format!(
+        "buses: `bus_names()` gives [{from_the_table}]; a table listing no buses gives [{from_a_table_of_none}]"
+    ));
+
     // 4. A spatial cue's gain at the distances a player notices.
     let inverse = Attenuation::Inverse { near_m: 4.0, rolloff: 1.0 };
     report.push(format!(

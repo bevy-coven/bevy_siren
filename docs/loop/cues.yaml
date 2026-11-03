@@ -135,6 +135,15 @@ cases:
     green_when: Equal field for field within a seed, and different across seeds.
     evidence: "tests/play.rs::a_projects_seed_reaches_the_stream, changing_the_seed_restarts_the_stream"
 
+  - id: 29
+    cue: any
+    authored: { buses: [], then swapped to two }
+    behaviour: The mix holds exactly the buses the table has this frame, and an empty list means the crate's four.
+    observed_by: "`SirenMix::db`/`ducked` keys, `bus_db` of a removed bus, `deepest_duck`, and a play on `Effects` with `buses: []`."
+    green_when: "Removed buses leave both maps, `bus_db` reads SILENT_DB, `deepest_duck` is None; `buses: []` gives the four at 0 dB and mixes a play there."
+    source: "crate rule R6 — SirenMix is *this frame's* mix, one number per bus; `SirenSettings::bus_names()` is the one answer `answer` and the panel read"
+    evidence: "runs/2026-11-02-10/review.md, tests/mix.rs::{a_bus_that_left_the_table_leaves_the_mix, an_empty_bus_list_still_means_the_crates_four}"
+
   - id: 28
     cue: music.does-not-exist
     authored: { stinger: { duck_db: -9.0, duck_s: 1.0 }, in_table: false }

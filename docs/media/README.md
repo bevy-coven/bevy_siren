@@ -3,6 +3,17 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 10, the mix forgets a bus that left
+
+No capture: the change is **which keys a map holds**. Every rendered WAV is byte-identical because no level that is
+written to a sink moved — the bug lived in `SirenMix`, the readable copy the panel and a game's meter use. The evidence
+is `tests/mix.rs::{a_bus_that_left_the_table_leaves_the_mix, an_empty_bus_list_still_means_the_crates_four}` (both fail
+on the unfixed tree) and `runs/2026-11-02-10/perf.md`'s probe pairs.
+
+A capture that *would* show it: the panel with a project whose `family/bevy_siren.ron` lists two buses while a previous
+scene's four were in the mix — the stale rows would draw with old levels. `examples/mixer` never swaps its table, which
+is why no still exists.
+
 ## No clip: iteration 9, a duck that waits for a sound
 
 No capture: the change is **when a duck is armed**, and the panel's bus row settles to the same value either way once

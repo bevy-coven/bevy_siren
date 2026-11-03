@@ -7,6 +7,15 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **An empty `buses` list mixed every voice at −80 dB.** `answer`, the editor's panel and `SirenSettings::bus_names()`
+  all treat a table listing no buses as the crate's four, but `update_mix` iterated `settings.buses` directly — so with
+  `buses: []` a cue on `Effects` was **accepted and then mixed at −80 dB**, with no refusal and no log line. The mix now
+  iterates the same resolved list `bus_names()` returns.
+- **`SirenMix` no longer keeps a bus that left the table.** `db` and `ducked` were written by insertion and never pruned,
+  so a project that swapped `SirenSettings` kept every bus from the previous table at its last level: `bus_db` answered
+  for a bus that did not exist, `deepest_duck()` named one forever, and a removed bus's duck was frozen at its deepest.
+  Both maps are now pruned to this frame's buses before the bus loop, which leaves the previous value readable for a bus
+  that stayed — so a fader still eases rather than steps.
 - **A stinger that cannot play no longer ducks the music.** `play_stingers` wrote the `Play` and armed its duck in the
   same breath, but `Play` is answered later in the frame — so a refused stinger left the `Music` bus down for a sound
   nobody heard, and `SirenLog` stated the duck **and** the refusal on adjacent lines. A new `arm_stinger_ducks` arms

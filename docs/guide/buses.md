@@ -36,6 +36,10 @@ conversation — and two ducks do not stack: the deeper one wins, because a bus 
 The default pair is the one every game wants, per Gregory *Game Engine Architecture* §14.6.3: dialogue steps the music
 back 8 dB and the effects 4 dB, holding a quarter second and recovering over a fraction of a second.
 
+`SirenMix` holds **this frame's** buses: one entry per bus in the table's list, and nothing for a bus that has left it.
+A table that lists no buses means the crate's four (`DEFAULT_BUSES`) everywhere — for a play's bus check, for the panel,
+and for the mix — so a cue the crate accepts always has a row to be mixed on.
+
 ## This frame's mix, readable
 
 `SirenMix` is what the panel draws and what your own meter should read:

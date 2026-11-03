@@ -350,3 +350,81 @@ fn every_voice_limit_sentence_matches_its_payload() {
         "no voice free on bus `Effects`"
     );
 }
+
+/// **A bus that leaves the table leaves the mix.** `SirenMix::db` and `ducked` were written by insertion and never
+/// pruned, so a project that swapped `SirenSettings` — a cutscene mix with two buses, a menu with one — kept every bus
+/// from the previous table at its last level: `bus_db` answered for a bus that did not exist and `deepest_duck` could
+/// name one forever. `SirenMix` is documented as *this frame's* mix.
+#[test]
+fn a_bus_that_left_the_table_leaves_the_mix() {
+    let mut app = app(CueTable::new(vec![]), SirenSettings::default(), sounds(&[]), false);
+    app.update();
+    // Ambience is ducked while it is still in the table.
+    app.world_mut().resource_mut::<bevy_siren::DuckClock>().manual("Ambience", -12.0, 0.0, 5.0, 1.0);
+    app.update();
+    assert_eq!(app.world().resource::<SirenMix>().deepest_duck().map(|(b, _)| b), Some("Ambience"));
+
+    // The table drops it, and every duck rule with it.
+    app.world_mut().insert_resource(SirenSettings {
+        buses: vec![BusLevel::new("Music"), BusLevel::new("Effects")],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    });
+    for _ in 0..4 {
+        app.update();
+    }
+
+    let mix = app.world().resource::<SirenMix>().clone();
+    let mut names: Vec<&str> = mix.db.keys().map(String::as_str).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["Effects", "Music"], "this frame's mix has this frame's buses: {names:?}");
+    assert!(
+        (mix.bus_db("Ambience") - bevy_siren::model::SILENT_DB).abs() < 1e-4,
+        "a bus the mix does not have reads as silence, not as its level from another table: {}",
+        mix.bus_db("Ambience")
+    );
+    assert_eq!(
+        mix.deepest_duck(),
+        None,
+        "a duck on a bus that left the table is not this frame's duck: {mix:?}"
+    );
+}
+
+/// **A bus that stays keeps its smooth approach** — the non-regression a wholesale rebuild would break. The prune
+/// leaves the previous value readable, so a bus moving from 0 dB to −6 dB is still *between* them after one frame.
+#[test]
+fn a_bus_that_stays_keeps_its_smooth_approach() {
+    let mut app = app(
+        CueTable::new(vec![]),
+        SirenSettings { buses: vec![BusLevel::new("Music")], ducks: Vec::new(), ..SirenSettings::default() },
+        sounds(&[]),
+        false,
+    );
+    app.update();
+    assert!((app.world().resource::<SirenMix>().bus_db("Music") - 0.0).abs() < 1e-4);
+
+    // The clock must tick into the frame that applies the change: a frame with no elapsed time returns the target
+    // outright (`approach`'s `dt <= 0` branch), which is a different behaviour and not what this test is about.
+    advance(&mut app, 0.016);
+    app.world_mut().resource_mut::<SirenSettings>().buses[0].gain_db = -12.0;
+    app.update();
+    let db = app.world().resource::<SirenMix>().bus_db("Music");
+    assert!(db < -0.01 && db > -11.9, "one frame is part of the way, not all of it: {db}");
+}
+
+/// **An empty bus list means the crate's four**, for the mix as well as for `answer`. `bus_names()` promises them, and
+/// `answer` accepts a cue on `Effects` because of that promise — but `update_mix` iterated `settings.buses` directly, so
+/// a table listing none mixed **no buses at all**: the accepted play ran at −80 dB with no refusal.
+#[test]
+fn an_empty_bus_list_still_means_the_crates_four() {
+    let mut app = app(
+        CueTable::new(vec![]),
+        SirenSettings { buses: vec![], ducks: Vec::new(), ..SirenSettings::default() },
+        sounds(&[]),
+        false,
+    );
+    app.update();
+    let mut names: Vec<&str> = app.world().resource::<SirenMix>().db.keys().map(String::as_str).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["Ambience", "Dialogue", "Effects", "Music"], "{names:?}");
+}

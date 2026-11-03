@@ -485,9 +485,28 @@ pub fn update_mix(
 
     let master = if settings.master_db.is_finite() { settings.master_db } else { SILENT_DB };
 
-    // One pass over the settings: each bus's target this frame.
-    let mut targets: Vec<(String, f32)> = Vec::with_capacity(settings.buses.len());
-    for bus in &settings.buses {
+    // **The buses the table has this frame** — through `bus_names()`, which is what `answer`'s `UnknownBus` check and
+    // the editor's panel both read. A table that lists none means the crate's four, and iterating `settings.buses`
+    // directly made that mean **no buses at all**: a cue on `Effects` was accepted and then mixed at −80 dB.
+    let buses = settings.bus_names();
+
+    // **This frame's mix has this frame's buses.** A project may swap `SirenSettings` at any time — a cutscene mix with
+    // two buses, a menu with one — and a level left from the previous table is not this frame's mix: `bus_db` would
+    // answer for a bus that does not exist, and `deepest_duck` could name one forever. `voices` is rebuilt wholesale a
+    // few lines below; these two maps were the exception. Pruning **before** the bus loop keeps the previous value
+    // readable for a bus that stayed, which is what makes a fader approach instead of step.
+    mix.db.retain(|name, _| buses.contains(&name.as_str()));
+    mix.ducked.retain(|name, _| buses.contains(&name.as_str()));
+
+    // One pass over the settings: each bus's target this frame. A table that lists no buses is the crate's four, each
+    // at 0 dB — the same list `bus_names()` returns, so a cue that `answer` accepts always has a bus to be mixed on.
+    let levels: Vec<BusLevel> = if settings.buses.is_empty() {
+        DEFAULT_BUSES.iter().map(|name| BusLevel::new(*name)).collect()
+    } else {
+        settings.buses.clone()
+    };
+    let mut targets: Vec<(String, f32)> = Vec::with_capacity(levels.len());
+    for bus in &levels {
         let base = chain_db(&[master, bus.gain_db]);
         let duck = clock.duck_db(&bus.name, &settings, now);
         let target = if bus.mute || base <= SILENT_DB { SILENT_DB } else { (base + duck).max(SILENT_DB) };
