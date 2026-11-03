@@ -7,6 +7,15 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **A dry/wet estimate** — `#23`. `semantic::reverb` measures ISO 3382's **C50**, the early-to-late energy ratio with a
+  **50 ms** boundary (`early_window_s`, from the standard) over a **500 ms** late window (**design default**). A game asset
+  is not an impulse response, so the **loudest frame is the direct-sound proxy** — stated as the approximation it is.
+  Frames come from `analysis::spectra`, so it costs no second transform. A zero tail reports a finite
+  `Reverb::CEILING_DB` (60 dB) rather than an infinity, which would compare false against every threshold; a clip too
+  short to have a late window reports **no measure**, which is a different fact from being dry. Discrimination is
+  recorded and printed every run: **12/12 synthetic pairs separated, dry ≥ 60 dB, wet ≤ 1.9 dB, bands disjoint** — and
+  `DISCRIMINATION_MEASURED` says in its own text that **real recordings are not measured**, which is why the signal is
+  **not in the default weights**.
 - **The indexing throughput target** — `#36`'s measurable half. `indexer::INDEX_TARGET_CLIPS_PER_SEC = 700`, against a
   measured **748 clips/s**, enforced by a release-only test. The constant's doc states what a "clip" is (0.5 s, the
   length `indexbench` generates — the figure is per clip, so a 4 s clip measures ~83), that the **inference target and

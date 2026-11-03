@@ -7,6 +7,52 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 101 — 2026-11-03 — a dry/wet estimate, and the candour the issue asked for
+
+**Change.** `#23`. `semantic::reverb` measures **ISO 3382's C50** — the early-to-late energy ratio, boundary **50 ms** from
+the standard, late window **500 ms** as a design default. A game asset is not an impulse response, so the **loudest frame
+is the direct-sound proxy**; that is stated as the approximation it is. Frames come from `analysis::spectra`, the shared
+pass iteration 95 built, so it costs **no second transform**.
+
+**Rationale.** `#23` was the only open issue whose blocker (`#4`) is closed and which needs neither a GPU nor a JSON
+dependency. Its own note set the bar: *"the feature most likely to be a number that looks precise and means little… if the
+discrimination measurement is poor, say so and recommend dropping it from the default weights rather than shipping it
+because it exists."*
+
+**The measurement.** `REVERB DISCRIMINATION: 12/12 pairs separated (100 %); dry ≥ 60.0 dB, wet ≤ 1.9 dB; bands disjoint`,
+printed by the test every run. Stable at 24 pairs over a wider RT60 spread (24/24, wet maximum about 4 dB, still disjoint).
+
+**What it does not prove, and this is the finding.** The pairs are **synthetic**: a dry burst plus an exponentially decaying
+noise tail, which has no modal structure, no early reflections and no absorptive character. A real studio and a real cave
+differ in more ways than decay rate. **Real recordings have not been measured**, `DISCRIMINATION_MEASURED` says so in its
+own text, and the signal is therefore **not in the default weights** — which is the recommendation the issue's own logic
+demands.
+
+**Failure modes, stated rather than discovered later.** A zero tail reports a finite **60 dB** ceiling, never an infinity
+(which compares false against everything). A clip shorter than its early window reports **no measure** — a 0.1 s footstep is
+dry by construction, and a confident +40 dB would be a wrong answer about a clip that never had room to be wet. A sustained
+pad reads wetter than it is, because an envelope measure cannot tell a sustain from a tail.
+
+**Verdicts.** Function **GREAT**, zoom **GREAT**, fresh eyes **GREAT**. Recorded rather than fixed: `peak_at_s` is
+quantised to the 10 ms frame grid, which biases the measure *away* from early energy — a conservative error rather than an
+optimistic one.
+
+**Evidence.** [`runs/2026-11-03-101/`](runs/2026-11-03-101/) — `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/after/` (32 files, 21 wavs byte-identical to iteration 97), `evidence/spectrograms/`.
+
+**Baseline:** nothing red — 198 / 6 / 419 semantic / 102 lib / 6 doc, clippy, fmt and docs clean.
+
+**Top 5 remaining.**
+
+1. **`#35` golden set** — labelled real assets and human judgements. `evalbench` has the metrics, the baseline format and
+   the regression check; `corpus()` is the one function a labelled set replaces, and it also gives `#23` the real
+   recordings its own measurement is missing.
+2. **`#28`/`#31` the MCP server** — needs one line of `Cargo.toml` and one row in `leaf.rs` once the dependency decision
+   is answered. Everything it wraps exists.
+3. **`#32`–`#34` the editor panel** — `search_ranked`, `Session`, `Toolset`, `search_music` and `audition` are built for it.
+4. **`#18`/`#19`/`#36` GPU halves** — one run on a host with the graph closes three owed measurements.
+5. **`#46`'s listening run** — five minutes with a library you know; the guide takes the result.
+
 ## Iteration 100 — 2026-11-03 — the issue sweep: twenty-one closed, and three findings its own tests made
 
 **What this pass was.** Not one build: the backlog was swept in dependency order, and every issue was either **closed

@@ -43,6 +43,7 @@ pub mod provenance;
 pub mod query;
 pub mod rank;
 pub mod resample;
+pub mod reverb;
 pub mod search;
 pub mod session;
 pub mod spectral;
