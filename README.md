@@ -145,7 +145,7 @@ the first 32 footsteps and quietly stole or refused every one after that.
   and a non-rhythmic asset reports *no tempo* rather than a confident wrong one. **Key and mode are detected too** — Krumhansl-Schmuckler, 100 % exact on a 24-key synthetic corpus, with an
   atonal asset reporting *no key* rather than a confident wrong one; a build produces both without a caller supplying
   them. The whole index is **binary, 10.28 MB for 5 000 clips** against 31.88 MB as text, and decoding one runs at
-  **~450 clips/s** — a 5 000-clip library costs seconds, not minutes. Off by default, and a crate that does not enable
+  **~750 clips/s** — a 5 000-clip library costs seconds, not minutes. Off by default, and a crate that does not enable
   it sees no change: `cargo tree` reads the same 413 lines either way:
   [semantic](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md).
 - **Ship the sound as data, and edit it in the Cauldron** — with `serde`, the cue table, the mix table and the score

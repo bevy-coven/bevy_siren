@@ -92,6 +92,12 @@ constant is read from the model: 48 000 Hz, a 1024-sample Hann window, hop 480, 
 
 The comparison is a test, and its filterbank is the model's own 32 832 weights checked into `tests/fixtures/`.
 
+**The acoustic features share one transform where they can.** Spectral shape and tempo both read 1024-point frames at
+hop 480 — the same frames, the same window — so `analysis::spectra` computes that transform **once per frame** and both
+consume it: **9.44 ms → 5.11 ms per 4 s clip**. Loudness reads no spectrum, and key needs 8192 points for its chroma, so
+neither joins the share; `log_mel` above reflect-pads to a different frame count and would be a different measurement, not
+the same one twice.
+
 ### 4. The index, stamped by the model it came from
 
 `Index::load(text, &loaded)` takes the running model's stamp as a **required argument**. Vectors from two models compare

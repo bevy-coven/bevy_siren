@@ -31,7 +31,7 @@
 //! while power weights it by energy, and the latter is what the centroid is defined over in the literature.
 
 use super::MODEL_SAMPLE_RATE;
-use super::mel::{BINS, HOP, MEL_FLOOR, WINDOW, fft_in_place, hann};
+use super::mel::{BINS, MEL_FLOOR, WINDOW};
 
 /// The fraction of total energy at or below which the rolloff is reported.
 ///
@@ -107,34 +107,22 @@ pub fn analyse(buffer: &[f32]) -> Result<Spectral, SpectralProblem> {
         return Err(SpectralProblem::NotFinite { at });
     }
 
-    let window = hann(WINDOW);
-    // One frame when the clip is shorter than the window: its whole length is the analysis slice, and it is **not**
-    // zero-padded, because padding a 0.02 s click to 1024 samples would dilute every statistic with silence.
-    let frame_len = buffer.len().min(WINDOW);
-    let starts: Vec<usize> =
-        if buffer.len() <= WINDOW { vec![0] } else { (0..=buffer.len() - WINDOW).step_by(HOP).collect() };
+    analyse_spectra(buffer, &super::analysis::spectra(buffer))
+}
 
-    // **Power summed across frames**, so a steady tone weighs by energy rather than by amplitude.
-    let mut power = vec![0.0f64; BINS];
-    let mut frame_powers: Vec<f64> = Vec::with_capacity(starts.len());
-    let mut re = vec![0.0f64; WINDOW];
-    let mut im = vec![0.0f64; WINDOW];
-    // The mean square of one windowed frame of full-scale material, which sets the dB reference.
-    for &start in &starts {
-        for i in 0..WINDOW {
-            let sample = if i < frame_len { buffer[start + i.min(buffer.len() - 1 - start)] } else { 0.0 };
-            re[i] = f64::from(sample) * f64::from(window[i]);
-            im[i] = 0.0;
-        }
-        fft_in_place(&mut re, &mut im);
-        let mut total = 0.0f64;
-        for bin in 0..BINS {
-            let p = re[bin] * re[bin] + im[bin] * im[bin];
-            power[bin] += p;
-            total += p;
-        }
-        frame_powers.push(total);
+/// **The same analysis from spectra a caller already computed**, so a build pays for one pass instead of two.
+///
+/// `spectral::analyse` is `analyse_spectra(buffer, spectra(buffer))`; the two functions exist so a caller that also
+/// needs tempo can share. Every check `analyse` performs is the caller's — this assumes a non-empty, finite buffer.
+pub fn analyse_spectra(
+    buffer: &[f32],
+    spectra: &super::analysis::Spectra,
+) -> Result<Spectral, SpectralProblem> {
+    if buffer.is_empty() {
+        return Err(SpectralProblem::Empty);
     }
+    let power = &spectra.summed_power;
+    let frame_powers: Vec<f64> = spectra.frame_energy.iter().map(|e| f64::from(*e)).collect();
 
     let total: f64 = power.iter().sum();
     let (centroid_hz, rolloff_hz) = if total <= f64::from(MEL_FLOOR) {
@@ -191,6 +179,20 @@ mod tests {
         (0..n)
             .map(|i| amplitude * (std::f32::consts::TAU * hz * i as f32 / MODEL_SAMPLE_RATE as f32).sin())
             .collect()
+    }
+
+    /// **The shared pass and the solo pass give the same spectral shape**, field for field.
+    ///
+    /// `analyse_spectra` exists so a build pays for one transform instead of two. The centroid, the rolloff and the noise
+    /// floor are the numbers a filter acts on, so they must be identical, not merely close.
+    #[test]
+    fn the_shared_pass_agrees_with_the_solo_pass() {
+        let buffer: Vec<f32> = (0..24_000).map(|i| (i as f32 * 0.01).sin() * 0.4).collect();
+        let solo = analyse(&buffer).expect("analysable");
+        let shared = analyse_spectra(&buffer, &super::super::analysis::spectra(&buffer)).expect("analysable");
+        assert_eq!(solo.centroid_hz, shared.centroid_hz);
+        assert_eq!(solo.rolloff_hz, shared.rolloff_hz);
+        assert_eq!(solo.noise_floor_db, shared.noise_floor_db);
     }
 
     /// **Criterion 1: a sine yields a centroid at that frequency, within 5 %.**

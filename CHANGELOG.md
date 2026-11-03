@@ -5,6 +5,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- **`spectral` and `tempo` now share one spectral pass.** They walked identical 1024-point frames with the same hop and
+  each took the same FFT, so the transform was computed twice per frame. `semantic::analysis::spectra` computes it once
+  and both consume it: **9.44 ms → 5.11 ms per 4 s clip (−45.9 %)**, and indexer decode throughput recovered from
+  **419.8 / 568.8 to 698.6–784.0 clips/s**. Outputs are byte-identical — 21 rendered wavs, and every existing spectral
+  and tempo test passes with no change to an expectation. `tempo` also stopped allocating two 16 KB vectors per frame.
+- **`spectral::analyse_spectra` and `tempo::estimate_spectra`** are the new shared entry points; `analyse` and `estimate`
+  are their unshared forms and answer identically.
+
 ### Added
 
 - **The tempo and key filter rules**, completing `#27`'s set. **Tempo is a hard exclusion** — two tempi 38 BPM apart

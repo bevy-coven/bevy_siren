@@ -31,7 +31,7 @@
 //! are [`super::mel`]'s, and every threshold is a named `pub const` with its source or the words *design default*.
 
 use super::MODEL_SAMPLE_RATE;
-use super::mel::{HOP, MEL_FLOOR, WINDOW, fft_in_place, hann};
+use super::mel::{HOP, MEL_FLOOR, WINDOW};
 
 /// The slowest tempo reported, from ADR 0003's stated search range.
 pub const MIN_BPM: f32 = 80.0;
@@ -157,25 +157,26 @@ impl std::error::Error for TempoProblem {}
 ///
 /// An onset is a **rise**; a decay is not a second onset, which is why only the positive part is kept.
 fn onset_envelope(buffer: &[f32]) -> Vec<f32> {
-    let window = hann(WINDOW);
-    let frames: Vec<f32> = if buffer.len() < WINDOW {
-        vec![frame_energy(buffer, 0, buffer.len(), &window)]
-    } else {
-        (0..=(buffer.len() - WINDOW)).step_by(HOP).map(|s| frame_energy(buffer, s, WINDOW, &window)).collect()
-    };
-    frames.windows(2).map(|w| (w[1] - w[0]).max(0.0)).collect()
+    // **The same pass spectral uses.** The window, the hop and the frame starts are identical, so the transform was being
+    // computed twice per frame; `super::analysis::spectra` computes it once. The `frame_energy` helper this replaced also
+    // allocated two `WINDOW`-sized vectors *inside* the frame loop — 400 allocations of 16 KB for a 4 s clip.
+    let spectra = super::analysis::spectra(buffer);
+    super::analysis::onset_envelope(&spectra.frame_energy)
 }
 
-/// The energy of one windowed frame.
-fn frame_energy(buffer: &[f32], start: usize, len: usize, window: &[f32]) -> f32 {
-    let mut re = vec![0.0f64; WINDOW];
-    let mut im = vec![0.0f64; WINDOW];
-    for i in 0..WINDOW {
-        let sample = if i < len { buffer[start + i] } else { 0.0 };
-        re[i] = f64::from(sample) * f64::from(window[i]);
+/// **The estimate from spectra a caller already computed**, so a build pays for one pass instead of two.
+///
+/// `estimate` is `estimate_spectra(buffer, spectra(buffer))`; the two exist so a caller that also needs the spectral
+/// shape can share. Every check `estimate` performs is the caller's.
+pub fn estimate_spectra(buffer: &[f32], spectra: &super::analysis::Spectra) -> Result<Tempo, TempoProblem> {
+    if buffer.is_empty() {
+        return Err(TempoProblem::Empty);
     }
-    fft_in_place(&mut re, &mut im);
-    re.iter().zip(im.iter()).map(|(r, i)| (r * r + i * i) as f32).sum::<f32>().max(MEL_FLOOR)
+    if buffer.len() < WINDOW * 2 {
+        return Err(TempoProblem::TooShort { samples: buffer.len() });
+    }
+    let onsets = super::analysis::onset_envelope(&spectra.frame_energy);
+    rhythm(buffer, onsets)
 }
 
 /// **Estimate the tempo of a mono buffer at the model's rate.**
@@ -195,6 +196,11 @@ pub fn estimate(buffer: &[f32]) -> Result<Tempo, TempoProblem> {
     }
 
     let onsets = onset_envelope(buffer);
+    rhythm(buffer, onsets)
+}
+
+/// **The correlation and the verdict**, from an onset envelope — shared by `estimate` and `estimate_spectra`.
+fn rhythm(buffer: &[f32], onsets: Vec<f32>) -> Result<Tempo, TempoProblem> {
     if onsets.len() < 4 {
         return Ok(Tempo::none(0.0));
     }
@@ -284,6 +290,23 @@ mod tests {
             at += period;
         }
         out
+    }
+
+    /// **The shared pass and the solo pass give the same answer, field for field.**
+    ///
+    /// `estimate_spectra` exists so a build pays for one transform instead of two. That is only allowed to change *when*
+    /// the transform happens, never what it produces — so the two entry points are compared on a corpus with a rhythm (a
+    /// click track) and one without (a tone), and on both the BPM and the confidence must agree exactly.
+    #[test]
+    fn the_shared_pass_agrees_with_the_solo_pass() {
+        for buffer in [click_track(128.0, 4.0), super::super::analysis::tests::sine(440.0, 3.0)] {
+            let solo = estimate(&buffer).expect("analysable");
+            let shared =
+                estimate_spectra(&buffer, &super::super::analysis::spectra(&buffer)).expect("analysable");
+            assert_eq!(solo.bpm, shared.bpm, "the shared pass changed the tempo");
+            assert_eq!(solo.confidence, shared.confidence, "the shared pass changed the confidence");
+            assert_eq!(solo.octave_ambiguous, shared.octave_ambiguous);
+        }
     }
 
     /// **Criterion 1: accuracy on a fixed corpus of at least 20 known tempi, within ±2 BPM.**

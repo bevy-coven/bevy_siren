@@ -7,6 +7,51 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 95 — 2026-11-03 — one transform per frame, and a 40 % decode recovery
+
+**Change.** `spectral` and `tempo` were computing the same 1024-point FFT on the same frames with the same hop, twice.
+New `src/semantic/analysis.rs` does it once and both consume it: `analysis::spectra` → `Spectral::analyse_spectra` and
+`Tempo::estimate_spectra`; `indexer::embed_measured` calls the pass once and hands it to both. Tempo also stopped
+allocating two 16 KB vectors **inside** its frame loop — 800 allocations for a 4 s clip.
+
+**Rationale.** `log.md`'s own top-5 carried this at position 5 since iteration 93, which measured the cost: decode fell
+**from ~1 150 to 419.8 / 568.8 clips/s** when tempo and key arrived. Nothing in the crate was slower *relative to what it
+should be*.
+
+**Before/after.** A/B on the analysis pair: **9.44 ms → 5.11 ms per 4 s clip, −45.9 %**. `indexbench` at 300 clips:
+**766.2 / 784.0 / 698.6 clips/s** against **419.8 / 568.8** — a **~40 % recovery**, `5 000 clips at this rate: 9 s`.
+Runtime per-frame cost unchanged (64 voices 0.327 µs, 256 voices 1.132 µs) — this is offline work.
+
+**Outputs did not move.** 21 rendered wavs **byte-identical** to iteration 94 (`cmp`). All 10 spectral and 13 tempo tests
+pass with **no edit to any expectation**, including the 80-tempo ±2 BPM corpus. Two new parity tests compare shared
+against solo **field for field** (`bpm`/`confidence`/`octave_ambiguous`; `centroid_hz`/`rolloff_hz`/`noise_floor_db`).
+Master loudness unchanged: **−21.5 LUFS, −7.5 dBFS true peak**.
+
+**Verdicts.** Function **GREAT**, zoom **GREAT**, fresh eyes **GREAT**. Zoom read three spectrograms and a tail: no
+vertical line at the frame boundary, partials flat to the end, no denormal haze.
+
+**Evidence.** [`runs/2026-11-03-95/`](runs/2026-11-03-95/) — `research.md`, `plan.md`, `eval.md`, `perf.md`,
+`review.md`, `evidence/after/` (32 files), `evidence/spectrograms/`.
+
+**Carved off, and why.** `mel::log_mel` still takes its own transform. It reflect-pads to a frame count derived from the
+padding, so its frames are **not** these frames; sharing it changes *what is computed*, not *how often*, and needs its
+own evidence. That is the next item.
+
+**Baseline:** nothing red before or after — 198 / 6 / 380 semantic / 87 lib / 6 doc, clippy and fmt clean, docs and
+examples build.
+
+**Top 5 remaining.**
+
+1. **Share `mel::log_mel`'s transform** — the last duplicate pass, and the biggest: `log_mel` runs per frame at 1024 and
+   is now the dominant cost in decode. It needs a decision about the reflect-padded frame count first.
+2. **`#40` weighted ensemble with a per-result breakdown** — the largest open retrieval item, and what would make the
+   remaining cost worth paying.
+3. **`#45` regression harness (recall@k, anchor-neighbour agreement)** — blocked on `#35`'s golden set; the harness
+   without labels measures nothing.
+4. **`#35` golden set** — labelled assets and human anchor judgements; the prerequisite for 3.
+5. **`#28`–`#31` tool surface** — `audition`, `search_music`, `set_anchor`, `explain_match`, and the MCP registration,
+   which is what makes the work visible in the Cauldron.
+
 ## Iteration 94 — 2026-11-03 — the tempo and key rules, and the tolerance the estimator justifies
 
 **Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **380 semantic** / **87 lib**; clippy
