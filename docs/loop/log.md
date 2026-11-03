@@ -51,7 +51,9 @@ host can set is not evidence that it did. Read the resource the claim is about. 
 inserted it before the test ran. (4) The guard half of a fix (`AudioPlayer 0` with an `Output`) must be its own test,
 or a fix that always inserts a player passes the other one. (5) `hs distill` GPU-blocked (sixteenth iteration).
 
-**Commit.** `see git log`; CI on `main`.
+**Commit.** `26b676b`, pushed to `main`; CI run 41572684531 is **success** on `big-s1` (fmt + clippy + doc, then the
+standalone build and test). The Cauldron's `audio_panel_reads_the_crates_file` passes (4 tests). Gate: build, test
+(84 + 4), serde (91 + 4), mixer (92 + 4), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green.
 
 **Next 5.**
 
