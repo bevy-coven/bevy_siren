@@ -130,3 +130,134 @@ impl Session {
 // *"`LoadProblem`: `std::error::Error` is not satisfied"* on three lines in a row. An error a caller has to unwrap by hand is
 // half an error.
 impl std::error::Error for LoadProblem {}
+
+/// **A batch run's outcome**, so a shrink or a retry is visible rather than inferred — `#18`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Batched {
+    /// The vectors, in the caller's order. **The order is the contract**: a batch that reordered would silently pair
+    /// every vector with the wrong asset.
+    pub vectors: Vec<Vec<f32>>,
+    /// The batch sizes actually used, in order. A caller comparing this to the configured maximum is how `#18`'s
+    /// pitfall — *"if the batch shrinks on every call without being reported, `P-01` will measure a number that cannot
+    /// be reproduced"* — is avoided.
+    pub batches: Vec<usize>,
+    /// How many times a batch was refused and retried smaller.
+    pub shrinks: usize,
+}
+
+impl Batched {
+    /// The largest batch this run actually achieved, which is the number a throughput figure must be quoted against.
+    pub fn largest_batch(&self) -> usize {
+        self.batches.iter().copied().max().unwrap_or(0)
+    }
+
+    /// A sentence a log or a panel shows, naming any shrink rather than hiding it.
+    pub fn describe(&self) -> String {
+        if self.shrinks == 0 {
+            return format!(
+                "{} vectors in {} batches, largest {}",
+                self.vectors.len(),
+                self.batches.len(),
+                self.largest_batch()
+            );
+        }
+        format!(
+            "{} vectors in {} batches, largest {}, after {} shrink(s) — the ceiling was not reachable",
+            self.vectors.len(),
+            self.batches.len(),
+            self.largest_batch(),
+            self.shrinks
+        )
+    }
+}
+
+/// Why a batch run could not finish.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BatchProblem {
+    /// The configured maximum is zero, so nothing can be embedded.
+    ZeroBatch,
+    /// The embedder refused even a single item, so shrinking cannot help.
+    SingleItemRefused {
+        /// The refusal, in the embedder's own words.
+        why: String,
+    },
+    /// The per-item size was zero, so no capacity can be computed.
+    ZeroItemSize,
+}
+
+impl core::fmt::Display for BatchProblem {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            BatchProblem::ZeroBatch => {
+                f.write_str("the batch maximum is zero: a batch of nothing embeds nothing")
+            }
+            BatchProblem::SingleItemRefused { why } => {
+                write!(f, "the embedder refused a single item, so a smaller batch cannot help: {why}")
+            }
+            BatchProblem::ZeroItemSize => {
+                f.write_str("the per-item size is zero, so no batch capacity exists")
+            }
+        }
+    }
+}
+
+impl std::error::Error for BatchProblem {}
+
+/// **Embed a list of buffers in batches, shrinking on refusal** — `#18`.
+///
+/// `embed` is the caller's one call into the runtime; it takes a slice of buffers and returns their vectors, or a
+/// refusal when the batch is too large. The two behaviours `#18` asks for are the whole of this function:
+///
+/// - **the maximum is a configured ceiling**, and the actual sizes used are recorded in [`Batched::batches`];
+/// - **a refusal shrinks the batch and continues**, reporting it. Halving is the strategy rather than decrementing by
+///   one, because an out-of-memory refusal is a statement about the size of a batch rather than about a single item, and
+///   halving reaches a workable size in `log2` attempts instead of a linear number.
+///
+/// **Refusing at size one is a failure, not a shrink.** If the embedder will not accept one item, the graph is wrong or
+/// the item is too large for the device, and retrying smaller is not possible — so it is reported rather than silently
+/// returning fewer vectors than the caller asked for. That is the difference between a shrink and a failure, and it is
+/// the one thing this function must not blur.
+pub fn embed_batched(
+    buffers: &[Vec<f32>],
+    maximum: usize,
+    mut embed: impl FnMut(&[Vec<f32>]) -> Result<Vec<Vec<f32>>, String>,
+) -> Result<Batched, BatchProblem> {
+    if maximum == 0 {
+        return Err(BatchProblem::ZeroBatch);
+    }
+    let mut vectors = Vec::with_capacity(buffers.len());
+    let mut batches = Vec::new();
+    let mut shrinks = 0;
+    let mut current = maximum.min(buffers.len().max(1));
+
+    let mut at = 0usize;
+    while at < buffers.len() {
+        let take = current.min(buffers.len() - at);
+        match embed(&buffers[at..at + take]) {
+            Ok(produced) => {
+                // **A short answer is a failure.** Accepting fewer vectors than buffers would pair them with the wrong
+                // assets from that point on, which is the kind of silent corruption this crate refuses everywhere.
+                if produced.len() != take {
+                    return Err(BatchProblem::SingleItemRefused {
+                        why: format!("the embedder returned {} vectors for {take} buffers", produced.len()),
+                    });
+                }
+                vectors.extend(produced);
+                batches.push(take);
+                at += take;
+                // Recover toward the ceiling after a successful batch, so one early refusal does not cap the whole run.
+                if current < maximum {
+                    current = (current * 2).min(maximum);
+                }
+            }
+            Err(why) => {
+                if take == 1 {
+                    return Err(BatchProblem::SingleItemRefused { why });
+                }
+                shrinks += 1;
+                current = (take / 2).max(1);
+            }
+        }
+    }
+    Ok(Batched { vectors, batches, shrinks })
+}

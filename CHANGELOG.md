@@ -7,6 +7,12 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Batched embedding with a visible shrink** — `#18`'s host half. `session::embed_batched` embeds a list in batches up
+  to a configured ceiling, **halves** on a refusal and continues, records the sizes used (`Batched::batches`) and the
+  number of shrinks, and **recovers toward the ceiling** afterwards so one early refusal does not cap the run. A refusal
+  at a single item is a **failure**, not a shrink: retrying smaller is impossible, so it is reported rather than
+  returning fewer vectors than were asked for. A short answer from the embedder is refused for the same reason — it would
+  pair vectors with the wrong assets from that point on.
 - **Long tracks are chunked by the crate's own policy** — `#13`. `semantic::chunk::Chunking` states a **10 s window**
   (the model's own) and a **5 s hop** (half the window, so every sample is inside two chunks and a boundary-crossing
   event is fully present in one), both on a serde type. `chunking.chunks(samples)` gives every window's start, length and
