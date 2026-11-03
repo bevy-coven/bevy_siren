@@ -49,6 +49,12 @@ when a game's state machine can flicker.
 tool, and a frame that lands exactly on the bar is *on* it rather than past it. With `tempo_bpm: 0.0` there is no grid,
 and every transition is immediate: a pad, not a song.
 
+**`beats_per_bar` is four whether the score comes from a file or from `MusicScore::default()`.** A file that omits it
+gets `MusicScore::default_beats_per_bar()`; so does `Default`, which is written by hand so the two cannot drift — a
+`derive(Default)` would give the field `0.0`, which `bar_s()` reads as **no grid at all** and `problems()` reports. Note
+that `tempo_bpm` and `beats_per_bar` treat zero differently on purpose: a tempo of zero means *"a pad, not a song"*, while
+four beats is the only sensible bar and zero of them is a broken one.
+
 A layer's `gain_db` is the layer's own place in the mix, and it **adds** to its cue's `gain_db`: the cue's is the
 recording's trim (two masters, two levels), the layer's is what gameplay moves. Keep the level on the layer so a log
 line reads the number a person set.

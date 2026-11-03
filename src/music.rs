@@ -31,7 +31,7 @@ use crate::play::{Play, Played, Refusal, Refused, Voice};
 /// A music score: the layers a track is made of, and its tempo.
 ///
 /// With the `serde` feature this is a file a project ships and the Cauldron edits, beside the cue table.
-#[derive(Resource, Clone, Debug, Default, PartialEq)]
+#[derive(Resource, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct MusicScore {
@@ -45,6 +45,20 @@ pub struct MusicScore {
     /// How many beats a bar has. Four is the default, and three is a waltz.
     #[cfg_attr(feature = "serde", serde(default = "MusicScore::default_beats_per_bar"))]
     pub beats_per_bar: f32,
+}
+
+impl Default for MusicScore {
+    /// **The same score the file loader gives**, four beats to the bar.
+    ///
+    /// `derive(Default)` gave `beats_per_bar: 0.0` while the field carried
+    /// `serde(default = "MusicScore::default_beats_per_bar")` — **4.0** — so the same score was four beats and a 2.0 s
+    /// bar from RON and **zero beats with no bar at all** from `Default`, which `problems()` then reported as
+    /// *"beats_per_bar is not a positive number"*: the crate's own default produced a score the crate called broken.
+    /// Two spellings of one field is the fault `tests/leaf.rs` exists to prevent, and a `Default` nobody checks is where
+    /// it hides.
+    fn default() -> Self {
+        Self { layers: Vec::new(), tempo_bpm: 0.0, beats_per_bar: Self::default_beats_per_bar() }
+    }
 }
 
 impl MusicScore {

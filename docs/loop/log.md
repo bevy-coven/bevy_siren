@@ -7,6 +7,69 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 53 — 2026-11-03 — `MusicScore::default()` is the score the file loader gives
+
+**Baseline.** Green on every step, no open issues. Nothing red. Disk arrived at **100 % (3.3 GB)**; `/tmp/pz-target`
+(1.7 GB) was this loop's own scratch from iteration 52 and was removed, leaving 4.9 GB. `target/` (38 GB) was not touched.
+
+**Change.** `MusicScore`'s `derive(Default)` replaced by a handwritten `Default` returning
+`beats_per_bar: Self::default_beats_per_bar()`. Plus a guide paragraph, a CHANGELOG entry, and four tests.
+
+**Rationale.** `beats_per_bar` carried `serde(default = "MusicScore::default_beats_per_bar")` — **4.0** — while
+`derive(Default)` gave it **0.0**. Two spellings of one field, and the `Default` had the wrong one.
+
+**Measured, the same score two ways:**
+
+| path | `beats_per_bar` | `bar_s()` | `problems()` |
+|---|---|---|---|
+| RON, key omitted | 4.0 | `Some(2.0)` | `[]` |
+| `MusicScore::default()` | **0.0** | **`None`** | **`["beats_per_bar is not a positive number"]`** |
+
+So the crate's own default produced a score the crate's own report called broken, with **no beat grid at all** — every
+`NextBar` change landing on the frame it was asked for instead of at the bar (R5's quantisation has nothing to quantise
+to).
+
+**`tempo_bpm: 0.0` was left alone on purpose**: it is documented as *"no beat grid: every transition is immediate, for a
+score that is a pad rather than a song"* — a meaning, not a missing number. Zero beats is only ever broken.
+
+| | before | after |
+|---|---|---|
+| `Default().beats_per_bar` | 0.0 | **4.0** |
+| `Default()` at 120 bpm, `bar_s()` | `None` | **`Some(2.0)`** |
+| `Default().problems()` | 1 sentence about its own field | **only "no layers"** |
+| a `NextBar` change from a `Default` score | lands immediately | **lands at 2.0 s** |
+| tests | 139 / 147 / 150 + 6 | **141 / 149 / 151 + 6** |
+
+**A mistake that damaged the repository, caught in the same step.** A `sed -i ''` in a **scratch crate** matched
+`bevy_siren`'s own `[dependencies]` table through the path dependency and inserted `ron`/`serde` into the crate's
+`Cargo.toml`. `git diff` showed it immediately; reverted.
+
+**No clip, and why.** The panel does not draw the bar: `examples/mixer`'s `Music` block shows each layer's `dB -> target`
+and a `waiting` marker, never `next_change_s()` or `bar_s()`. A capture would show an unchanged panel. It names its test
+instead: `tests/music.rs::a_default_score_quantises_to_the_bar`, which **fails on the old tree** at the bar assertion.
+
+**Not built.** `DuckClock::started` is never pruned — one entry per fired `(source, target)` for the process's life —
+which is real but **unobservable**: `DuckClock` exposes no accessor for it, so no capture or test could prove it. Logged
+for an iteration that adds one.
+
+**Evidence.** `runs/2026-11-03-53/`: `research.md` (S1 the two defaults, S2 `bar_s`, S3 R5's quantisation, S4 Khan et al.,
+S5 the crate's own "a number that disables a feature" precedent), `plan.md`, `perf.md`, `eval.md`, `review.md` (three
+passes, GREAT), `evidence/{spectrograms,after}`.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`AvoidRepeat`'s window that cannot be honoured is unreported** — `pick_from`'s comment promises `problems()` names
+   it; probed `problems: []` for two sounds at `avoid: 5`. Same open enum decision.
+3. **`DuckClock::started` is never pruned** — one map entry per fired `(source, target)` forever. Needs an accessor
+   before it can be proved, then a `prune` that drops entries no rule names.
+4. **`reset_histories` has no caller** — the Cauldron's table reload should reset pickers; a consumer item for
+   `bevy_grimoire`, its own commit.
+5. `SirenSettings::master_db` defaults to `0.0` — no trim; the guide says what to turn, a lower default is a decision.
+
 ## Iteration 52 — 2026-11-03 — a duck that lowers nothing now says so
 
 **Baseline.** Green on every step, no open issues. Nothing red. **Disk was at 100 % (3.8 GB)** on arrival;

@@ -7,6 +7,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`MusicScore::default()` was not the score the file loader gives.** `beats_per_bar` carried
+  `serde(default = "MusicScore::default_beats_per_bar")` — **4.0** — while `derive(Default)` gave it **0.0**, so the same
+  score was four beats and a `Some(2.0)` bar from RON and **zero beats with `bar_s() == None`** from `Default`: no beat
+  grid at all, every `NextBar` and `NextBeat` change landing on the frame it was asked for, and
+  `problems()` reporting the crate's own default as *"beats_per_bar is not a positive number"*. `Default` is now written
+  by hand and returns `default_beats_per_bar()`, so the two spellings of the field are one number.
+  `tests/music.rs::a_default_score_quantises_to_the_bar` drives a `NextBar` change from a `Default` score and asserts it
+  lands at 2.0 s; it fails on the old tree.
 - **A duck at `by_db: 0.0` lowered nothing and said nothing.** `active_duck_db` returns `0.0` for any `by_db >= 0.0`
   and the mix keeps a reduction only `if db < deepest` with `deepest` starting at `0.0`, so such a rule fired, reached
   the log, held for its whole `hold_s` and left the bus exactly where it was — while `SirenSettings::problems()` answered

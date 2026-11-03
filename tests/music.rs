@@ -1036,3 +1036,68 @@ fn a_score_reports_every_fault_its_doc_lists() {
         "and a score with no layers"
     );
 }
+
+/// **`MusicScore::default()` is the same score the file loader gives, and its own report agrees.**
+///
+/// `beats_per_bar` carried `serde(default = "MusicScore::default_beats_per_bar")` — **4.0** — while `derive(Default)`
+/// gave it `0.0`. So the same score was four beats and a 2.0 s bar from RON, and zero beats with **no bar at all** from
+/// `Default`, which `problems()` then reported as *"beats_per_bar is not a positive number"*: the crate's own default
+/// produced a score the crate called broken.
+#[test]
+fn the_default_score_has_the_default_bar() {
+    let built = MusicScore::default();
+    assert_eq!(built.beats_per_bar, MusicScore::default_beats_per_bar());
+    assert_eq!(built.beats_per_bar, 4.0, "a file that omits it gets four");
+    // The bar follows: four beats at 120 bpm is 2.0 s.
+    let score = MusicScore { tempo_bpm: 120.0, ..MusicScore::default() };
+    assert_eq!(score.bar_s(), Some(2.0));
+}
+
+/// **The same score from a file and from `Default`**, which is the parity the bug broke.
+#[cfg(feature = "serde")]
+#[test]
+fn the_default_score_matches_the_file_loader() {
+    let from_ron = MusicScore::from_ron(r#"(tempo_bpm: 120.0, layers: [])"#).expect("parses");
+    let built = MusicScore::default();
+    assert_eq!(
+        built.beats_per_bar, from_ron.beats_per_bar,
+        "`Default` and the file loader must agree on beats_per_bar"
+    );
+    let score = MusicScore { tempo_bpm: 120.0, ..MusicScore::default() };
+    assert_eq!(score.bar_s(), from_ron.bar_s());
+}
+
+/// **An empty default score reports only that it has no layers** — never a bar of zero.
+#[test]
+fn the_default_score_is_not_itself_a_problem() {
+    let problems = MusicScore::default().problems(&two_layer_table());
+    assert!(
+        !problems.iter().any(|p| p.contains("beats_per_bar")),
+        "`Default` must not report its own field: {problems:?}"
+    );
+    assert_eq!(problems.len(), 1, "only `no layers`: {problems:?}");
+}
+
+/// **A `NextBar` change in a score built from `Default` waits for the bar, as one loaded from a file does.**
+///
+/// This is the audible consequence of the fix: with `beats_per_bar: 0.0` the bar length is `None`, so a quantised change
+/// landed on the frame it was asked for instead of at the next bar. R5 (*"a change is quantised to the next beat or bar
+/// from tempo alone"*) has no meaning without a bar to quantise to.
+#[test]
+fn a_default_score_quantises_to_the_bar() {
+    let mut score = MusicScore { tempo_bpm: 120.0, ..MusicScore::default() };
+    score.layers =
+        vec![MusicLayer::new("calm", "track.calm").at_db(0.0), MusicLayer::new("combat", "track.combat")];
+    // Four beats at 120 bpm is 2.0 s — the number R5 and `tests/model.rs::the_bar_is_two_seconds_at_120_bpm` both give.
+    assert_eq!(score.bar_s(), Some(2.0));
+
+    let mut app = app_with(score, two_layer_table(), &["track.calm", "track.combat"]);
+    app.update();
+    advance(&mut app, 0.3);
+    app.world_mut().write_message(MusicLayers::new(vec![("combat".to_owned(), 0.0)]).next_bar());
+    app.update();
+    let state = app.world().resource::<MusicState>();
+    let due = state.next_change_s().expect("a change is queued");
+    assert!((due - 2.0).abs() < 1e-6, "the next bar at 120 bpm from 0.3 s is 2.0 s: {due}");
+    assert_eq!(state.target_db("combat"), Some(bevy_siren::model::SILENT_DB), "nothing moved before the bar");
+}
