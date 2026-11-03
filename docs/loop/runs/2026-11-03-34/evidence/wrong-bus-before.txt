@@ -1,0 +1,10 @@
+8 |     let mut table = CueTable::new(vec![
+
+score.problems(table) ->
+   (nothing)
+live voices          -> ["wrong.bus@Effects(loop)", "track.ok@Music(loop)"]
+MusicState::live()   -> 2
+SirenMix voices      -> Effects 1, Music 1
+log                  ->
+   0.00s played `wrong.bus` (a) on Effects at -80.0 dB
+   0.00s played `track.ok` (b) on Music at -80.0 dB

@@ -899,3 +899,57 @@ fn a_requantised_change_still_fires_and_now_is_not_delayed() {
     let target = app.world().resource::<MusicState>().target_db("combat").expect("the combat layer");
     assert!((target + 30.0).abs() < 1e-3, "the re-quantised change still fires: {target}");
 }
+
+/// **A layer is a stem of the `Music` bus, and the plugin enforces it.**
+///
+/// `MusicLayer::cue`'s doc says the cue *"should name the `Music` bus"* — advice, and nothing checked it. A layer naming a
+/// loop on `Effects` **started there**: `MusicState` reported two layers live while one was mixed on the effects bus, so the
+/// score and the sound disagreed, and `MusicScore::problems` said nothing. The stinger already refuses to play on the wrong
+/// bus (`play_stingers`); this is the same rule for the layer path.
+#[test]
+fn a_layer_on_the_wrong_bus_is_not_started_and_is_reported() {
+    let table = CueTable::new(vec![
+        Cue {
+            sounds: vec![SoundSlot::new("a")],
+            bus: "Effects".to_owned(),
+            mode: Mode::Loop,
+            priority: 200,
+            ..Cue::new("wrong.bus")
+        },
+        layer_cue("track.ok"),
+    ]);
+    let score = MusicScore {
+        layers: vec![MusicLayer::new("calm", "wrong.bus"), MusicLayer::new("combat", "track.ok")],
+        tempo_bpm: 120.0,
+        beats_per_bar: 4.0,
+    };
+
+    let reported = score.problems(&table);
+    assert_eq!(reported.len(), 1, "{reported:?}");
+    assert!(reported[0].contains("`calm`"), "names the layer: {}", reported[0]);
+    assert!(reported[0].contains("`Effects`"), "and the bus it wrongly names: {}", reported[0]);
+
+    let mut app = app_with(score, table.clone(), &["a", "track.ok"]);
+    run_for(&mut app, 0.2, 1.0 / 60.0);
+    let playing: Vec<String> =
+        app.world_mut().query::<&Voice>().iter(app.world()).map(|v| format!("{}@{}", v.cue, v.bus)).collect();
+    assert_eq!(
+        playing,
+        vec!["track.ok@Music".to_owned()],
+        "only the layer on the Music bus plays: {playing:?}"
+    );
+    assert_eq!(app.world().resource::<MusicState>().live(), 1, "and the mirror says one layer");
+
+    // One line, in the report's own words, so a panel and `problems()` cannot disagree.
+    let lines: Vec<String> = app.world().resource::<SirenLog>().recent(64).map(|e| e.line()).collect();
+    assert_eq!(lines.iter().filter(|l| l.contains("a layer is a stem")).count(), 1, "{lines:?}");
+}
+
+/// **The guard: a layer naming a cue on `Music` still plays.** A rule that refused every layer would pass the test above.
+#[test]
+fn a_layer_on_the_music_bus_still_starts() {
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    run_for(&mut app, 0.2, 1.0 / 60.0);
+    assert_eq!(app.world().resource::<MusicState>().live(), 2, "both layers start");
+    assert!(two_layer_score().problems(&two_layer_table()).is_empty(), "and a good score reports nothing");
+}

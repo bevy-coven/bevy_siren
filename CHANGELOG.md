@@ -20,6 +20,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A music layer naming a cue on another bus no longer plays there.** `MusicLayer::cue`'s doc says the cue *"should name
+  the `Music` bus"*, and nothing checked: a layer naming a loop on `Effects` started on that bus, so `MusicState` reported
+  two layers live while one was mixed on the effects bus, `MusicLayers` could not move it, and `MusicScore::problems` said
+  nothing. The plugin now refuses such a layer — one line per layer, and the layer is not started — and `problems()` gains
+  the same sentence, word for word, so the report and the log cannot disagree. This is the rule `play_stingers` already
+  applies to a stinger on the wrong bus.
+
 - **A queued `NextBar` change follows the score's tempo.** `When::NextBar` is documented as *"on the next bar, quantised
   with `next_boundary`"*, and `move_layers` computed that instant once, at request time, from the tempo then — `Pending`
   stored only `at_s`. A `MusicScore` is a resource the Cauldron edits, so a tempo change while a change waits left it
@@ -115,6 +122,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
 
 ### Fixed
+
+- **A music layer naming a cue on another bus no longer plays there.** `MusicLayer::cue`'s doc says the cue *"should name
+  the `Music` bus"*, and nothing checked: a layer naming a loop on `Effects` started on that bus, so `MusicState` reported
+  two layers live while one was mixed on the effects bus, `MusicLayers` could not move it, and `MusicScore::problems` said
+  nothing. The plugin now refuses such a layer — one line per layer, and the layer is not started — and `problems()` gains
+  the same sentence, word for word, so the report and the log cannot disagree. This is the rule `play_stingers` already
+  applies to a stinger on the wrong bus.
 
 - **A queued `NextBar` change follows the score's tempo.** `When::NextBar` is documented as *"on the next bar, quantised
   with `next_boundary`"*, and `move_layers` computed that instant once, at request time, from the tempo then — `Pending`
@@ -337,6 +351,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A music layer naming a cue on another bus no longer plays there.** `MusicLayer::cue`'s doc says the cue *"should name
+  the `Music` bus"*, and nothing checked: a layer naming a loop on `Effects` started on that bus, so `MusicState` reported
+  two layers live while one was mixed on the effects bus, `MusicLayers` could not move it, and `MusicScore::problems` said
+  nothing. The plugin now refuses such a layer — one line per layer, and the layer is not started — and `problems()` gains
+  the same sentence, word for word, so the report and the log cannot disagree. This is the rule `play_stingers` already
+  applies to a stinger on the wrong bus.
+
 - **A queued `NextBar` change follows the score's tempo.** `When::NextBar` is documented as *"on the next bar, quantised
   with `next_boundary`"*, and `move_layers` computed that instant once, at request time, from the tempo then — `Pending`
   stored only `at_s`. A `MusicScore` is a resource the Cauldron edits, so a tempo change while a change waits left it
@@ -447,6 +468,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 The first release: sound for Bevy 0.20 as data, mixed in buses.
 
 ### Fixed
+
+- **A music layer naming a cue on another bus no longer plays there.** `MusicLayer::cue`'s doc says the cue *"should name
+  the `Music` bus"*, and nothing checked: a layer naming a loop on `Effects` started on that bus, so `MusicState` reported
+  two layers live while one was mixed on the effects bus, `MusicLayers` could not move it, and `MusicScore::problems` said
+  nothing. The plugin now refuses such a layer — one line per layer, and the layer is not started — and `problems()` gains
+  the same sentence, word for word, so the report and the log cannot disagree. This is the rule `play_stingers` already
+  applies to a stinger on the wrong bus.
 
 - **A queued `NextBar` change follows the score's tempo.** `When::NextBar` is documented as *"on the next bar, quantised
   with `next_boundary`"*, and `move_layers` computed that instant once, at request time, from the tempo then — `Pending`

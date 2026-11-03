@@ -105,6 +105,15 @@ impl MusicScore {
                     "music layer `{}` names cue `{}`, which is not a loop, so it cannot hold a layer",
                     layer.name, layer.cue
                 )),
+                // **A layer is a stem of the `Music` bus**, and the doc said *"should"* with nothing checking. A layer
+                // naming a loop on `Effects` started there: `MusicState` reported two layers live while one was mixed on
+                // the effects bus. The plugin now refuses it and the report names it, in one sentence.
+                Some(cue) if cue.bus_name() != "Music" => out.push(format!(
+                    "music layer `{}` names cue `{}`, which plays on bus `{}`; a layer is a stem of the `Music` bus",
+                    layer.name,
+                    layer.cue,
+                    cue.bus_name()
+                )),
                 Some(_) => {}
             }
         }
@@ -505,7 +514,9 @@ fn start_missing(
     // frames, no `Refused`, no line). An unknown cue is refused with a reason; a one-shot cue was played at frame rate
     // and never mentioned. The check reads the cue the layer names **this frame**, so a table edit that breaks a live
     // layer stops its restart, and one that fixes it starts the layer on the next frame.
-    let mut bad: Vec<(String, String)> = Vec::new();
+    // Each entry is `(layer name, cue, the sentence)`: the notice loop writes one line per layer, and the reason is
+    // carried rather than assumed, so a second kind of fault can reuse the same machinery.
+    let mut bad: Vec<(String, String, String)> = Vec::new();
     let start: Vec<(String, String, f32)> = state
         .layers
         .iter()
@@ -519,7 +530,31 @@ fn start_missing(
                     && layer.blocked_at.is_none_or(|blocked| count < blocked);
             };
             if !cue.mode.is_loop() {
-                bad.push((layer.name.clone(), layer.cue.clone()));
+                bad.push((
+                    layer.name.clone(),
+                    layer.cue.clone(),
+                    format!(
+                        "music layer `{}` names cue `{}`, which is not a loop, so it cannot hold a layer",
+                        layer.name, layer.cue
+                    ),
+                ));
+                return false;
+            }
+            // **A layer is a stem of the `Music` bus.** `MusicLayer::cue`'s doc says it *"should name the `Music` bus"*, and
+            // nothing checked: a layer naming a loop on `Effects` started there, so `MusicState` said two layers were live
+            // while one was mixed on the effects bus — the score and the sound disagreeing, which `problems()` did not
+            // report either. The same fault a stinger already refuses to play on (see `play_stingers`).
+            if cue.bus_name() != "Music" {
+                bad.push((
+                    layer.name.clone(),
+                    layer.cue.clone(),
+                    format!(
+                        "music layer `{}` names cue `{}`, which plays on bus `{}`; a layer is a stem of the `Music` bus",
+                        layer.name,
+                        layer.cue,
+                        cue.bus_name()
+                    ),
+                ));
                 return false;
             }
             !state.awaiting.iter().any(|(cue, _)| *cue == layer.cue)
@@ -527,7 +562,7 @@ fn start_missing(
         })
         .map(|layer| (layer.cue.clone(), layer.name.clone(), layer.db))
         .collect();
-    for (name, cue) in bad {
+    for (name, cue, reason) in bad {
         let Some(layer) = state.layers.iter_mut().find(|l| l.name == name) else {
             continue;
         };
@@ -536,13 +571,7 @@ fn start_missing(
         }
         layer.noted = true;
         // One line per layer, in the words `MusicScore::problems` already uses, so a panel and the report agree.
-        log.push(Entry::Refused {
-            at_s: now,
-            cue: cue.clone(),
-            reason: format!(
-                "music layer `{name}` names cue `{cue}`, which is not a loop, so it cannot hold a layer"
-            ),
-        });
+        log.push(Entry::Refused { at_s: now, cue: cue.clone(), reason });
     }
     for (cue, name, db) in start {
         if let Some(layer) = state.layers.iter_mut().find(|l| l.name == name) {
