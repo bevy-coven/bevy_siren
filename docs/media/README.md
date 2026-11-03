@@ -34,6 +34,9 @@ The GIF is captured with `SIREN_FAULTS=1`, which adds two deliberate mistakes to
 the row markers have something to show through the whole animation. The **still** is the clean panel, which reads
 `Problems / none` — that is the state a project ships, and it is what `README.md` shows at rest.
 
+`SIREN_SHOT_EVERY` is **hundredths of a second** (4 = 40 ms), not an update count: a layer fade is 50 ms, and sampling it
+by updates gave half a sample per fade until iteration 37.
+
 A **`Music` block** shows the score's layers with their live gain, and `-> target` while a layer moves — the crate's
 adaptive music, visible. The cue list below it carries only cues that are **not** layers.
 
@@ -55,9 +58,9 @@ image here is named by one.
 
 ```sh
 cargo run --release --example mixer            # the panel, interactive
-SIREN_FAULTS=1 SIREN_FRAMES=200 SIREN_SIZE=1280x720 SIREN_SHOT_DIR=/tmp/frames SIREN_SHOT_FROM=30 \
-  SIREN_SHOT_EVERY=10 cargo run --release --example mixer   # 18 frames at 6 fps
-ffmpeg -y -framerate 6 -i /tmp/frames/f_%04d.png \
+SIREN_FAULTS=1 SIREN_FRAMES=260 SIREN_SIZE=1280x720 SIREN_SHOT_DIR=/tmp/frames SIREN_SHOT_FROM=30 \
+  SIREN_SHOT_EVERY=4 cargo run --release --example mixer   # a frame every 40 ms, for a 50 ms fade
+ffmpeg -y -framerate 10 -i /tmp/frames/f_%04d.png \
   -vf "scale=960:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" -loop 0 docs/media/mixer.gif
 
 SIREN_FRAMES=140 SIREN_SHOT=docs/media/mixer.png SIREN_SIZE=1280x720 \

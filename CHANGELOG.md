@@ -30,6 +30,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`examples/mixer`'s GIF samples a fade by the second, not by the update.** `SIREN_SHOT_DIR` kept every
+  `SIREN_SHOT_EVERY`th **update**, but a layer fade is `MIX_TAU_S` = 50 ms — about six updates at the example's ~8.3 ms —
+  and the shipped GIF sampled every twelve: **0.5 samples per fade**, so the `Music` block's `-> target` arrow appeared by
+  luck of the phase. `SIREN_SHOT_EVERY` is now **hundredths of a second** (12 = 120 ms) and the capture keeps a frame when
+  that much real time has passed. At `EVERY=4` (40 ms) the capture kept 47 frames and **11 consecutive** carried the arrow
+  (`calm -76.2 -> -80.0   combat -6.9 -> -3.0`), where the old sampling gave half a frame.
+
 - **`MusicScore::problems`'s doc lists all nine checks it performs, and `MusicLayer::cue` says `must`, not `should`.**
   The report's doc named four checks while the function performed nine — the two added since (a gain that is not a number,
   and a layer on a bus other than `Music`) were never added to it, so a reader trusted a list and stopped. The layer's doc
@@ -149,6 +156,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   leaves 1 px and a clipped glyph.
 
 ### Fixed
+
+- **`examples/mixer`'s GIF samples a fade by the second, not by the update.** `SIREN_SHOT_DIR` kept every
+  `SIREN_SHOT_EVERY`th **update**, but a layer fade is `MIX_TAU_S` = 50 ms — about six updates at the example's ~8.3 ms —
+  and the shipped GIF sampled every twelve: **0.5 samples per fade**, so the `Music` block's `-> target` arrow appeared by
+  luck of the phase. `SIREN_SHOT_EVERY` is now **hundredths of a second** (12 = 120 ms) and the capture keeps a frame when
+  that much real time has passed. At `EVERY=4` (40 ms) the capture kept 47 frames and **11 consecutive** carried the arrow
+  (`calm -76.2 -> -80.0   combat -6.9 -> -3.0`), where the old sampling gave half a frame.
 
 - **`MusicScore::problems`'s doc lists all nine checks it performs, and `MusicLayer::cue` says `must`, not `should`.**
   The report's doc named four checks while the function performed nine — the two added since (a gain that is not a number,
@@ -395,6 +409,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`examples/mixer`'s GIF samples a fade by the second, not by the update.** `SIREN_SHOT_DIR` kept every
+  `SIREN_SHOT_EVERY`th **update**, but a layer fade is `MIX_TAU_S` = 50 ms — about six updates at the example's ~8.3 ms —
+  and the shipped GIF sampled every twelve: **0.5 samples per fade**, so the `Music` block's `-> target` arrow appeared by
+  luck of the phase. `SIREN_SHOT_EVERY` is now **hundredths of a second** (12 = 120 ms) and the capture keeps a frame when
+  that much real time has passed. At `EVERY=4` (40 ms) the capture kept 47 frames and **11 consecutive** carried the arrow
+  (`calm -76.2 -> -80.0   combat -6.9 -> -3.0`), where the old sampling gave half a frame.
+
 - **`MusicScore::problems`'s doc lists all nine checks it performs, and `MusicLayer::cue` says `must`, not `should`.**
   The report's doc named four checks while the function performed nine — the two added since (a gain that is not a number,
   and a layer on a bus other than `Music`) were never added to it, so a reader trusted a list and stopped. The layer's doc
@@ -529,6 +550,13 @@ The first release: sound for Bevy 0.20 as data, mixed in buses.
   leaves 1 px and a clipped glyph.
 
 ### Fixed
+
+- **`examples/mixer`'s GIF samples a fade by the second, not by the update.** `SIREN_SHOT_DIR` kept every
+  `SIREN_SHOT_EVERY`th **update**, but a layer fade is `MIX_TAU_S` = 50 ms — about six updates at the example's ~8.3 ms —
+  and the shipped GIF sampled every twelve: **0.5 samples per fade**, so the `Music` block's `-> target` arrow appeared by
+  luck of the phase. `SIREN_SHOT_EVERY` is now **hundredths of a second** (12 = 120 ms) and the capture keeps a frame when
+  that much real time has passed. At `EVERY=4` (40 ms) the capture kept 47 frames and **11 consecutive** carried the arrow
+  (`calm -76.2 -> -80.0   combat -6.9 -> -3.0`), where the old sampling gave half a frame.
 
 - **`MusicScore::problems`'s doc lists all nine checks it performs, and `MusicLayer::cue` says `must`, not `should`.**
   The report's doc named four checks while the function performed nine — the two added since (a gain that is not a number,

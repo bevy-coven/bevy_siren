@@ -10,8 +10,10 @@
 //!
 //! - `SIREN_FRAMES=<n>` saves one still at frame `n` to `SIREN_SHOT` (default `mixer.png`), prints
 //!   `siren: frames <n> mean_ms <x>`, and exits ten frames later.
-//! - `SIREN_SHOT_DIR=<dir>` also keeps every `SIREN_SHOT_EVERY`th frame from `SIREN_SHOT_FROM` there as
-//!   `f_%04d.png`, for a GIF.
+//! - `SIREN_SHOT_DIR=<dir>` also keeps a frame every `SIREN_SHOT_EVERY` **hundredths of a second** (12 = 120 ms) from
+//!   `SIREN_SHOT_FROM` there as `f_%04d.png`, for a GIF. It is a duration because what the GIF has to catch is a
+//!   **fade** — `MIX_TAU_S` is 50 ms — and a frame count is not a time: sampling every twelve *updates* gave half a
+//!   sample per fade.
 //! - `SIREN_SIZE=<w>x<h>` sets the window size (default 1280x720).
 //! - `SIREN_FAULTS=1` adds two deliberate mistakes to the cue table — a cue on a bus the mix does not have, and one
 //!   whose pitch range is inverted — so a capture can show the `Problems` block and the `<- problem` markers doing
@@ -52,6 +54,8 @@ struct Capture {
     key_every: u32,
     total_ms: f64,
     counted: u32,
+    /// Real time of the last frame kept for a GIF, so sampling is by **seconds**, not updates.
+    kept_at_s: f64,
 }
 
 /// One staged step of a capture.
@@ -595,6 +599,7 @@ fn capture_config() -> Capture {
         key_every: std::env::var("SIREN_KEY_EVERY").ok().and_then(|n| n.parse().ok()).unwrap_or(20),
         total_ms: 0.0,
         counted: 0,
+        kept_at_s: f64::NEG_INFINITY,
     }
 }
 
@@ -620,8 +625,16 @@ fn capture(
         println!("siren: frames {} mean_ms {mean:.3}", c.at);
     }
     if let Some(dir) = c.dir.clone() {
-        let every = c.every.max(1);
-        if c.frame >= c.from && (c.frame - c.from) % every == 0 {
+        // **Sampling by real seconds, not by updates.** The layer fade is `MIX_TAU_S` (50 ms) — about six updates at
+        // 120 fps — and sampling every twelve updates gave **0.5 samples per fade**: a GIF of the score's crossfade was a
+        // coin flip, and the block's `-> target` arrow appeared or did not by the phase of the sample. A frame rate is
+        // not a time, and the thing being captured is a fade.
+        // `SIREN_SHOT_EVERY` is **hundredths of a second** (12 = 120 ms): a duration, which is what a fade is measured in.
+        // It used to mean updates, and the two are not the same rate — see the doc on the knob.
+        let every_s = c.every.max(1) as f64 / 100.0;
+        let now_s = time.elapsed_secs_f64();
+        if c.frame >= c.from && now_s - c.kept_at_s >= every_s {
+            c.kept_at_s = now_s;
             c.kept += 1;
             commands
                 .spawn(Screenshot::primary_window())
