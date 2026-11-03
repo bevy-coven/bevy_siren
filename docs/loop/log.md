@@ -7,6 +7,64 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 75 — 2026-11-03 — the last closure, and the page that makes it findable
+
+**Baseline.** Green on every step: 198 / 367 + 6, clippy, fmt, rustdoc. Working tree clean at `bf52554`. No case red.
+
+**Two items that are one.** Iteration 74 left two things at the top of its list: wire the mel path into the indexer, and
+document the semantic layer. They are the same item seen twice — **the code makes the feature runnable, the page makes it
+findable**, and iteration 74 measured the layer at **zero** README mentions. This repository's own rule is that a
+feature is not done until its README line exists.
+
+**`build_from_model`** fills `indexer::build`'s seam: decode → resample → **mel** → **embed** → insert, with the model
+doing the embedding and no caller-supplied closure. The one decision is **`is_longer`**, the audio tower's second input:
+the extractor sets it per clip from whether the audio exceeded the window, and here it is read from the **buffer's
+length** and **reported** on `Built::longer` rather than assumed — it selects a different branch of the graph, and a
+caller comparing two indexes needs to know whether one of them took the fusion branch.
+
+**`docs/guide/semantic.md`** leads with its status, which is the part worth quoting:
+
+> *"behind the `semantic` feature, and not yet end-to-end … **the audio tower has never been run against the real model
+> in this repository.**"*
+
+Then it says which numbers make the rest trustworthy — the spectrogram exact to **4 × 10⁻⁶** against CLAP's own
+extractor, the tokeniser exact against the model's, and the floor's recall table (**100 %** at 0.0, **75 %** at 0.150,
+**0 %** at 0.5). A developer learns what works, what does not, and how they would know, **in that order, before the
+API**. The README gains one bullet and the guide index one line: **0 → 2 mentions, 5 → 6 pages**.
+
+**A defect worth naming.** A blanket text replace removed `mut` from `embed_text`'s closure while adding the new
+function, where it *is* required. The compiler refused — `cannot borrow run as mutable` — and the fix was to restore it
+there and remove it only from `embed_audio`, whose closure clones rather than moves. **A global edit that compiles in
+one place can be wrong in another.**
+
+**Verdicts.** Pass 1 **GREAT**, pass 2 **GREAT**, pass 3 **GREAT**.
+
+**Gate.** **198 default / 368 all-features**, clippy 0, fmt, rustdoc — green.
+
+**The visual gate is unchanged**, which is the check that neither the mel path nor the writing touched the audio: 32
+render files, **14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to iterations 67, 71 and 74. The bang
+spectrogram still shows dense harmonics across 2–7 kHz decaying by 0.21 s, visibly not the footstep's three partials,
+with no click line, no clipping shelf and no gap.
+
+**Evidence.** `runs/2026-11-03-75/`: `research.md`, `plan.md`, `eval.md`, `review.md` (three passes),
+`evidence/after/` (32 files), `evidence/spectrograms/bang.png`.
+
+**Commits.** `5d14866`.
+
+**Top 5 remaining**
+
+1. **Run the audio tower against the real graph** on `bmb`. It is now the *only* unverified link in the chain, and the
+   guide page says so in its first paragraph. This is a verification pass, not a build.
+2. **Where the weights live** — `needs-decision/weights-live-where.md` recommends a fourth ungated section of the
+   project file plus a companion commit in `bevy_grimoire`. Its recommendation is actionable and non-breaking, so by
+   iteration 72's own lesson it need not wait for an answer.
+3. **`#28`** the MCP tool host, then `#29` `search_music` and `#44` `explain_match`, which now have an index, a
+   spectrogram, an embedding path and a documented API to call.
+4. **`V-01`** — the labelled set, which needs a person, and would turn the floor, the band constants and the six
+   weights from design defaults into measurements.
+5. **An example** — the crate has `mixer`, `music`, `budget`, `perfcheck` and `render`, and nothing that shows the
+   semantic path. `cargo run --example semantic` is the artifact a reader believes without building it themselves.
+
 ## Iteration 74 — 2026-11-03 — CLAP's spectrogram, in Rust, exactly
 
 **Baseline.** Green on every step: 198 / 367 + 6, clippy, fmt, rustdoc. Working tree clean at `7ad8c54`. No case in
