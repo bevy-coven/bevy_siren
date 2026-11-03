@@ -7,6 +7,60 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 68 — 2026-11-03 — the description-to-answer seam, in one call
+
+**Baseline.** Green on every step: 181 / 300 + 6, clippy, fmt, rustdoc, examples. Working tree clean at `c74c84d`.
+Case 31 remained the only red case, blocked on the `CueProblem` enum decision.
+
+**The item.** Iteration 67's item 4: the four semantic pieces were tested and **nothing joined them**. `Query`
+validated a description, `Vocabulary` tokened it, `Model` embedded it, `search` ranked an index against the vector. A
+caller had to wire them in the right order and flatten three error types — and **four of the five orders are wrong**:
+
+1. embed before validating, so `"   "` costs a GPU call to fail;
+2. rank before the stamp check, so vectors from two models compare silently;
+3. tokenise after embedding, which the compiler prevents;
+4. check the stamp after the embed, which is a correct answer with a wasted call and a message blaming the ranking.
+
+`Embedder::ask` fixes the order — **validate, stamp, encode, embed, rank** — and reports one `AskProblem` whose variants
+are distinct things to do.
+
+**Proved on the real model.** Four descriptions, through the crate's own tokeniser, against the 501 MB CLAP text tower
+and four embedded clips: **4 / 4**. Two of those are honest near-ties (0.429 vs 0.423 between two clips both generated
+from white noise), which is the model saying two things are nearly the same rather than a failure of the seam.
+
+**The finding that changes a default's justification.** At the **0.126** floor the correct band bottoms out at, the
+number dropped is **2, 2, 1 and 3** out of 3 — on the last query the floor deletes **every** result. So `Floor::default()`
+staying at **0.0** is not timidity; it is the only defensible value while there is no labelled set. Iteration 63
+measured that the correct and incorrect bands **overlap**; this iteration measured what that costs in practice.
+
+**A fixture that had been modelling the wrong contract since it was written.**
+`tests/fixtures/tiny-text.onnx` declared a `MatMul` of `[3, 512]`, so it accepted **exactly three tokens** — while the
+real graph declares `[-1, -1]`. Nothing caught it because until this iteration nothing passed it a phrase longer than
+three tokens. Rebuilt to average over the token axis so it takes any length. The cost is recorded rather than hidden: it
+can no longer distinguish phrases, so **the contract is proved on the fixture and the ranking on `bmb`**, and
+`the_answer_reports_what_the_floor_dropped` asserts the floor's accounting rather than a ranking the fixture cannot
+produce.
+
+**Verdicts.** Pass 1 **GREAT**, pass 2 **GREAT**, pass 3 **GREAT**.
+
+**Gate.** 181 default / **309 all-features**, clippy 0, fmt, rustdoc, examples — green.
+
+**Evidence.** `runs/2026-11-03-68/`: `research.md`, `plan.md`, `eval.md`, `review.md` (three passes),
+`evidence/ask-e2e.txt`, `evidence/ask_e2e.json`.
+
+**Commits.** `9597faf`.
+
+**Top 5 remaining**
+
+1. **`#41`** — tunable weights as a serde type. Now it has a consumer: `Embedder::ask` takes a `Floor`, and weights are
+   the next thing a caller will want to vary.
+2. **`#40`** — the weighted ensemble with a per-result breakdown, which `#41`'s weights feed.
+3. **`#28`** — the MCP tool host, then `#29` `search_music`, which is `Embedder::ask` exposed to an agent.
+4. **`V-01`** — the labelled set. It is now the single largest lever on quality: it is what turns `Floor` and the
+   ensemble weights from design defaults into measured thresholds.
+5. `cues.yaml` case 31 — still the only red case in the crate. **One public-enum decision would unblock it and four
+   other `needs-decision/` files at once**, which makes it the cheapest large win left.
+
 ## Iteration 67 — 2026-11-03 — **the evidence harness was measuring one waveform**
 
 **Baseline.** The crate was green on every step (174 / 183 / 184 / 293 + 6, clippy, fmt, rustdoc, examples). The red was
