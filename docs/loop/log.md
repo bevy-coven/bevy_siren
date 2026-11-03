@@ -57,13 +57,17 @@ error[E0428]: the name `audio_panel` is defined multiple times   (lib.rs:53 and 
 error[E0425]: cannot find value `AudioPanelPlugin` in module `crate::audio_panel`
 ```
 
-Another worker's merge (`e7ba838`) **duplicated** the `pub mod audio_panel;` declaration and replaced `audio_panel.rs`
-with a version that has no `AudioPanelPlugin`, while `editor.rs` still calls it. That break predates my commit — my diff
-touches three files and `lib.rs` is not one of them — and it means `cargo test -p bevy_cauldron --features bevy_siren`
-fails on `main` for everyone. I did not repair it: it is another worker's merge and one line of someone else's history,
-and the crate's rules say a consumer breakage is fixed as its own commit only when it is **my** change's breakage. The
-library half is shipped and green; the consumer half waits on that fix. `799fad2` sits on local `main`, ahead by one,
-rebase-clean, and will fast-forward the moment `main` compiles again.
+The root cause, traced with `git log -S`: commit **`ca287d7`** added `app.add_plugins(crate::audio_panel::AudioPanelPlugin)`
+to `editor.rs` and **never wrote the plugin** — `git log -S AudioPanelPlugin` finds that call and nothing else, at any
+commit, in `audio_panel.rs` or in `lib.rs`. Merge **`e7ba838`** then added a **second** `pub mod audio_panel;` to
+`lib.rs`. So `main` has been unable to build with `bevy_siren` since that commit, and it is not a merge artifact: it is
+an unfinished feature commit. Proven from a clean `git worktree` of `e00d1f1`, twice, with the same two errors.
+
+I did not repair it. It is someone else's commit on a shared `main`, the loop's rules have a consumer breakage fixed as
+its own commit only when it is **my** change's breakage, and the two edits (a missing plugin and a duplicated module) are
+a design decision about who owns the panel plugin, not a typo I can settle. The library half is shipped and green; the
+consumer half waits on that fix. `799fad2` sits on local `main`, ahead by one, rebase-clean, and will fast-forward the
+moment `main` compiles again. **Reported, not worked around.**
 
 **Next 5.**
 
