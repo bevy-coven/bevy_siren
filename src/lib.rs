@@ -177,6 +177,10 @@ impl Plugin for SirenPlugin {
                     (mix::update_mix, mix::apply_stopping, mix::retire_voices, mix::stop_requests)
                         .chain()
                         .in_set(SirenSystems::Mix),
+                    // **After everything that may despawn a voice**, so the removal it reports is this frame's. `Mix` is
+                    // where the crate's own despawns are commanded; Bevy applies them before the next frame's `Update`,
+                    // which is when this reads them.
+                    mix::log_despawned_voices.after(SirenSystems::Mix),
                 ),
             );
 

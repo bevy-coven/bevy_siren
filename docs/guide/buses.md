@@ -88,6 +88,10 @@ stops voices to make room in this order: the cue's own polyphony, its bus's cap,
 - A voice at `UNSTEALABLE_PRIORITY` (180: music, stingers, dialogue) is never taken.
 - A request that cannot be made room in is `Refused { VoiceLimit { bus } }` and **nothing plays**, so a game that
   says 32 voices gets 32 rather than 33 with a warning.
+- **A sound `Play::on` hung from an entity stops when that entity is despawned, and says so.** The line is
+  `stopped \`engine.idle\`: owner despawned`, alongside `ended` (the sample finished), `stop` and `cue stopped` (the
+  game asked) and `stolen by <cue> (<cap>)` (the budget). A game that despawns a voice it never parented gets no line:
+  `Play::on` is the only path that parents, so it is the only path where a vanished voice is the *owner's* doing.
 - **A steal says which cap took the voice.** Where the refusal names its bus, a *steal* names the budget:
   `stolen by footstep.grass (cue)` when the cue's `max_instances` was full, `(bus)` for its bus's `max_voices`, `(table)`
   for the whole mix's. Three numbers, three edits — raise the cue's `x2`, the bus's budget, or the table's.

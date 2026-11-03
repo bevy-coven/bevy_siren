@@ -434,4 +434,67 @@ fn a_despawned_voices_mixer_slot_is_freed() {
         "the mixer slot is freed, once, because the entity it belonged to is gone"
     );
     assert_eq!(app.world().resource::<SirenMix>().voices_on("Effects"), 0, "and the mix counts none");
+
+    // **And the log says so.** The slot was freed here since iteration 7, but the *sentence* was missing: the log's last
+    // word about a parented sound stayed `played` while the mix counted one fewer voice — the one end path with no line,
+    // against `"ended"`, `"stop"`, `"cue stopped"` and `"stolen by …"` for every other. The mutation (dropping the
+    // `log.push`) reddens this assertion and nothing else.
+    let why = app
+        .world()
+        .resource::<SirenLog>()
+        .iter()
+        .find_map(|e| match e {
+            Entry::Stopped { cue, why, .. } if cue == "engine" => Some(why.clone()),
+            _ => None,
+        })
+        .expect("a despawned owner's voice stopped, and the log must say so");
+    assert_eq!(why, "owner despawned", "the reason names the mechanism, not the game's `stop`");
+}
+
+/// **A parented voice says it stopped on the backend that has no slot to free.** `Start` in `start_pending` notices a
+/// despawned owner only where the mixer owns playback; the voice entity itself dies with its owner, so a system that
+/// queries voices sees nothing and writes nothing. `retire_voices` now reads the `ChildOf` a `Play::on` inserts and, on
+/// the frame the owner is gone but the voice is still readable, writes the same `owner despawned` line — so the two
+/// backends answer identically, which is the crate's rule.
+#[test]
+fn a_despawned_owner_is_logged_once() {
+    use bevy_siren::SirenMix;
+
+    let fake = FakeOutput::default();
+    let mut app = app(
+        CueTable::new(vec![Cue {
+            sounds: vec![SoundSlot::new("engine")],
+            mode: Mode::Loop,
+            ..Cue::new("engine")
+        }]),
+        SirenSettings::default(),
+        sounds(&["engine"]),
+        false,
+    );
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<AudioSource>>()
+        .add(AudioSource { bytes: Arc::from(vec![0u8; 64]) });
+    app.insert_resource(SirenSounds::new());
+    app.world_mut().resource_mut::<SirenSounds>().insert("engine", handle);
+    app.insert_resource(Output(Box::new(fake)));
+    app.insert_resource(Backend(true));
+
+    let owner = app.world_mut().spawn_empty().id();
+    app.update();
+    app.world_mut().write_message(Play::cue("engine").on(owner));
+    run_for(&mut app, 0.1, 1.0 / 60.0);
+
+    // The owner goes, and the loop gives the systems a frame to notice before the voice despawns with it.
+    app.world_mut().entity_mut(owner).despawn();
+    app.update();
+
+    let said = app
+        .world()
+        .resource::<SirenLog>()
+        .iter()
+        .filter(|e| matches!(e, Entry::Stopped { why, .. } if why == "owner despawned"))
+        .count();
+    assert_eq!(said, 1, "exactly one line, from whichever system sees the despawn first");
+    assert_eq!(app.world().resource::<SirenMix>().voices_on("Effects"), 0);
 }

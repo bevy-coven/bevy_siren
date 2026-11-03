@@ -5,6 +5,27 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **A sound whose owner is despawned now says it stopped.** `Play::on(entity)` parents the voice with `ChildOf`, so
+  despawning that entity — the ordinary end of a sound on a vehicle or a torch — takes the voice with it. Neither
+  backend logged it: the crate's own mixer freed the slot in `start_pending` since iteration 7 and wrote **no line**,
+  and on Bevy's path the voice entity is simply gone, so `retire_voices` — which runs during `Mix`, one frame *before*
+  Bevy applies the despawn — never sees it. The log's last word about such a sound stayed `played` while the mix counted
+  one fewer voice, against `"ended"`, `"stop"`, `"cue stopped"` and `"stolen by …"` for every other end.
+  `mix::log_despawned_voices` records each live voice's cue and whether it had a `ChildOf`, reads
+  `RemovedComponents<Voice>`, and writes one `stopped \`<cue>\`: owner despawned` for a parented voice that vanished —
+  on **both** backends, once. A game that despawns a voice it never parented still logs nothing. No public type,
+  variant or field changed. Proved by `tests/play.rs::a_despawned_owner_stops_its_sound_and_says_so` (no feature flags,
+  so the default backend) and `tests/mixer.rs::a_despawned_voices_mixer_slot_is_freed` (which also pins that the line is written once).
+
+### Added
+
+- **`examples/mixer` shows a parented sound ending.** A `parent` step spawns an owner, plays `engine.idle` on it with
+  `Play::on`, and despawns the owner two frames later — so the panel's log now carries
+  `0.68s stopped \`engine.idle\`: owner despawned` beside `Effects 1 / 2 voices`. The script is now
+  `steal,spatial,parent,layer,duck,stinger,poly,refuse`.
+
 ### Changed
 
 - **A steal says which cap took the voice.** `Entry::Stopped`'s reason was `stolen by footstep.grass` for **three

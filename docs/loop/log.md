@@ -7,6 +7,62 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 43 — 2026-11-03 — a parented sound says it stopped when its owner is despawned
+
+**Baseline.** Green on every step, no open issues. Nothing red.
+
+**Change.**
+1. **`mix::log_despawned_voices`** — a system after `SirenSystems::Mix` that records each live voice's cue and whether it
+   had a `ChildOf`, reads `RemovedComponents<Voice>`, and writes one `stopped \`<cue>\`: owner despawned` for a parented
+   voice that vanished. **Both** backends, once.
+2. **`examples/mixer`'s `parent` step** — spawns an owner, plays `engine.idle` on it with `Play::on`, despawns the owner
+   two frames later.
+3. **`start_pending` stops writing that line** — the first draft wrote it in both places and the mixer logged twice.
+
+**Rationale.** `Play::on` parents the voice with `ChildOf`, so despawning the owner is the **ordinary** end of a sound on
+a vehicle or a torch. Neither backend said so: the mixer freed the slot silently since iteration 7, and Bevy's path had
+no entity left for `retire_voices` to see — its log's last word about such a sound stayed `played` while the mix counted
+one fewer voice. `"ended"`, `"stop"`, `"cue stopped"` and `"stolen by …"` covered every other end. Found by probing the
+parenting path, which `cues.yaml` does not cover.
+
+**Not built: case 31** (a non-finite cue `gain_db` in `problems()`) — still **blocked** on
+`needs-decision/bad-gain-problem.md`. Also re-checked `remove-completes.md`: it blocks **nothing** — `retire_voices` already
+reads `AudioOutput::finished`, so only the dead type waits, and this iteration did not need it.
+
+**Evidence.** `runs/2026-11-03-43/`: `research.md` (S1 `Play::on`'s doc, S2 every other end logged, S3 a reason is a
+sentence, S4 Bevy 0.20.1 `RemovedComponents`, S5 R6), `plan.md`, `perf.md`, `eval.md` (with a suggested case 32),
+`review.md` (three passes, GREAT), `evidence/{panel,after}`.
+
+| | before | after |
+|---|---|---|
+| a parented sound's end | **no line**, both backends | `0.69s stopped \`engine.idle\`: owner despawned` |
+| the mixer's own line | slot freed, silent | one line from the shared system |
+| a game's unparented despawn | silent | **still silent** (`ChildOf` gates it) |
+| a double line on the mixer | — | caught by test, removed |
+| the panel | no `parent` step | `parent` in the default script; the log and `Effects 1 / 2 voices` agree |
+| tests | 121 / 128 / 130 + 5 | **122 / 129 / 132 + 5** (two new) |
+| perf | 0.06 / 0.34 / 0.75–1.21 µs | noise — load spiked to **8.66** during the run; `perfcheck` never despawns a parented voice |
+
+**A defect in this iteration's own capture, found by looking**: the `owners.retain` that despawns the owner sat *after*
+`stage`'s `since % every != 0` early return, so it only ran on step frames and the owner was never dropped before the
+still — `parent-80.png` showed `played` with no stop line. Moved above the gate. No test would have caught it.
+
+**A second thing, checked rather than assumed**: the still shows `0.69s stopped` above `0.67s played` of the same cue,
+which reads as a stop before its play. Read bottom-up the timestamps descend monotonically and every stop follows its own
+play; `review.md` records the sequence. The review's first explanation — "two interleaved cycles" — was wrong and is
+corrected there.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md` (a public enum).
+2. **Case 32, proposed this iteration**: a parented sound's despawn, now covered by two tests but not by `cues.yaml`.
+3. The `Music` header shows `calm`/`combat` targets but not how many layers are **live**.
+4. `docs/media/mixer.gif` captures at ~8 fps; a fade shorter than 120 ms falls between frames.
+5. No capture shows the panel with a **missing sound** refused (iteration 39 showed `unknown-cue` only).
+
 ## Iteration 42 — 2026-11-03 — the cue row says how many may sound, and a steal says which cap
 
 **Baseline.** Green on every step, no open issues. Nothing red.

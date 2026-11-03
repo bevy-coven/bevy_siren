@@ -78,6 +78,10 @@ enum Step {
     /// `Attenuation` rather than the table: at 8 m the default `Inverse { near_m: 4, rolloff: 1 }` halves the amplitude,
     /// which is −6.02 dB. Also the only step that can produce `SpatiallyMute`.
     Spatial,
+    /// **A sound whose owner was despawned.** `Play::on(entity)` parents the voice, so despawning the entity is the
+    /// ordinary end of a sound on a vehicle or a torch — and until iteration 43 neither backend said so in the log. The
+    /// step spawns an owner, hangs `engine.idle` from it, and drops the owner a step later.
+    Parent,
     /// **A stinger: one hit on the `Music` bus that ducks what it plays over.** The table has had `music.stinger` since
     /// the example was written and nothing ever played it, so the panel had never shown the one duck whose cause is not a
     /// cue — the `Music` row's `duck -6.0 dB by stinger`, where `by` names the mechanism rather than a cue.
@@ -624,10 +628,22 @@ fn stage(
     mut plays: MessageWriter<Play>,
     mut layers: MessageWriter<MusicLayers>,
     mut stingers: MessageWriter<Stinger>,
+    mut owners: Local<Vec<(Entity, u32)>>,
+    mut commands: Commands,
 ) {
     let Some(c) = capture else {
         return;
     };
+    // **The despawn follows its play by two frames**, long enough for the voice to start and short enough to share a
+    // still with it. It runs every frame, *before* the step gate below, because the frame that must drop the owner is
+    // usually not one on which the step fires.
+    owners.retain(|(entity, at)| {
+        if c.frame.saturating_sub(*at) < 2 {
+            return true;
+        }
+        commands.entity(*entity).despawn();
+        false
+    });
     let Some(since) = c.frame.checked_sub(KEY_FROM) else {
         return;
     };
@@ -659,6 +675,14 @@ fn stage(
             for _ in 0..3 {
                 plays.write(Play::cue("footstep.grass"));
             }
+        }
+        Step::Parent => {
+            // **A sound hung from an entity, then the entity dropped.** The frame this step runs spawns the owner and
+            // plays on it; the next frame drops the owner, which is the end the log could not describe until iteration
+            // 43. A fresh owner each time, so re-running the step is a second despawn and not a no-op.
+            let owner = commands.spawn((Transform::default(), GlobalTransform::default())).id();
+            owners.push((owner, c.frame));
+            plays.write(Play::cue("engine.idle").on(owner));
         }
         Step::Spatial => {
             // 8 m: twice the default near radius, where the inverse law gives exactly half the amplitude.
@@ -696,7 +720,7 @@ fn capture_config() -> Capture {
         // **The default script includes `refuse`**, so the showcase shows the panel doing the thing it exists for. The
         // order ends on `refuse` before the still: a refusal is a line, not a sound, and it is the last thing a person
         // reading the log wants to have missed.
-        .unwrap_or_else(|_| "steal,spatial,layer,duck,stinger,poly,refuse".to_owned())
+        .unwrap_or_else(|_| "steal,spatial,parent,layer,duck,stinger,poly,refuse".to_owned())
         .split(',')
         .filter_map(|token| match token.trim() {
             "duck" => Some(Step::Duck),
@@ -706,6 +730,7 @@ fn capture_config() -> Capture {
             "stinger" => Some(Step::Stinger),
             "spatial" => Some(Step::Spatial),
             "poly" => Some(Step::Poly),
+            "parent" => Some(Step::Parent),
             _ => None,
         })
         .collect();
@@ -714,10 +739,19 @@ fn capture_config() -> Capture {
         // something else would put the wrong picture in the evidence folder.
         if std::env::var("SIREN_KEYS").is_ok_and(|v| !v.trim().is_empty()) {
             eprintln!(
-                "siren: SIREN_KEYS has no step this example knows; staging the default steal,spatial,layer,duck,stinger,poly,refuse"
+                "siren: SIREN_KEYS has no step this example knows; staging the default steal,spatial,parent,layer,duck,stinger,poly,refuse"
             );
         }
-        vec![Step::Steal, Step::Spatial, Step::Layer, Step::Duck, Step::Stinger, Step::Poly, Step::Refuse]
+        vec![
+            Step::Steal,
+            Step::Spatial,
+            Step::Parent,
+            Step::Layer,
+            Step::Duck,
+            Step::Stinger,
+            Step::Poly,
+            Step::Refuse,
+        ]
     } else {
         keys
     };

@@ -728,3 +728,36 @@ fn pick_without_keys_still_avoids_indices() {
     assert_eq!(index_picks, key_picks, "distinct keys: the two rules agree");
     assert!(!index_picks.windows(2).any(|w| w[0] == w[1]), "{index_picks:?}");
 }
+
+/// **A sound on a despawned owner says it stopped, on both backends.** `Play::on` inserts `ChildOf(owner)`, so
+/// despawning the owner despawns the voice — the ordinary end of a sound on a vehicle or a torch. Before this, neither
+/// backend logged it: the crate's mixer freed the slot silently in `start_pending`, and Bevy's path had no entity left
+/// for `retire_voices` to see. The log's last word about such a sound stayed `played` while the mix counted one fewer
+/// voice, which is the one end path that had no line against `"ended"`, `"stop"`, `"cue stopped"` and `"stolen by …"`.
+///
+/// The line is written where the name can still be read — the frame the owner is gone and the voice is not — and
+/// `Stopping` keeps a second system from writing it again.
+#[test]
+fn a_despawned_owner_stops_its_sound_and_says_so() {
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("engine")],
+        mode: bevy_siren::Mode::Loop,
+        ..Cue::new("engine")
+    }]);
+    let mut app = app_with(table, sounds(&["engine"]));
+    // A parented voice needs a parent that can hold a child, and a `GlobalTransform` so it can be placed.
+    let owner = app.world_mut().spawn((Transform::default(), GlobalTransform::default())).id();
+    app.update();
+    app.world_mut().write_message(Play::cue("engine").on(owner));
+    app.update();
+    assert_eq!(voices(&mut app), 1, "the layer is playing");
+
+    app.world_mut().entity_mut(owner).despawn();
+    app.update();
+
+    let lines: Vec<String> =
+        app.world().resource::<bevy_siren::SirenLog>().iter().map(|e| e.line()).collect();
+    let said = lines.iter().filter(|l| l.contains("`engine`") && l.contains("owner despawned")).count();
+    assert_eq!(said, 1, "exactly one line naming the sound: {lines:?}");
+    assert_eq!(voices(&mut app), 0, "and the voice is gone with its owner");
+}

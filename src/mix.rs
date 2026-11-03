@@ -504,6 +504,7 @@ pub type EndedVoice<'a> = (
     Option<&'a Completes>,
     Has<Stopping>,
     Option<&'a MixerVoice>,
+    Option<&'a ChildOf>,
 );
 
 /// The last gain written into a voice's sink, so the mix writes only when a value moved.
@@ -682,7 +683,7 @@ pub fn retire_voices(
     use bevy::audio::AudioSinkPlayback;
 
     let now = real.elapsed_secs_f64();
-    for (entity, voice, sink, completes, stopping, mixer_voice) in &voices {
+    for (entity, voice, sink, completes, stopping, mixer_voice, _owner) in &voices {
         if stopping || voice.mode.is_loop() {
             continue;
         }
@@ -697,6 +698,60 @@ pub fn retire_voices(
             commands.entity(entity).despawn();
         }
     }
+}
+
+/// **A voice that vanished without the crate's say-so stopped, and the log says so.**
+///
+/// `Play::on` inserts `ChildOf(owner)`, so despawning the owner despawns the voice — the ordinary end of a sound on a
+/// vehicle or a torch. Neither backend logged it: the crate's own mixer freed its slot silently in `start_pending`
+/// (fixed there this iteration), and on Bevy's path the voice entity is simply gone, so `retire_voices` — which runs
+/// during `Mix` and sees the entity one frame *before* Bevy applies the despawn — never gets to say anything. A log
+/// whose last word about a sound is `played`, while the mix counts one fewer voice, is the silent-failure class this
+/// crate exists to avoid: `"ended"`, `"stop"`, `"cue stopped"` and `"stolen by …"` cover every other end.
+///
+/// The name cannot be read after the despawn, so it is recorded while the voice lives and the line is written from that
+/// record. The reason is the crate's own housekeeping, not the game's, so `is_game_stop` stays `false` for it and a
+/// music layer is still restarted when a voice it never asked to lose disappears.
+pub fn log_despawned_voices(
+    mut removed: RemovedComponents<Voice>,
+    voices: Query<(Entity, &Voice, Option<&ChildOf>)>,
+    mut seen: Local<BTreeMap<Entity, (String, bool)>>,
+    mut log: ResMut<SirenLog>,
+    real: Res<Time<Real>>,
+) {
+    let now = real.elapsed_secs_f64();
+    // **Only a voice the crate did not retire is news.** `retire_voices` and `stop_requests` despawn through
+    // `Stopping` or after writing their own line, so a despawn is unexplained exactly when it happens to a voice this
+    // system saw last frame and that is not one of theirs. `seen` is rebuilt every frame, so an entity that left it is
+    // one the crate lost track of.
+    let mut live: BTreeSet<Entity> = BTreeSet::new();
+    for (entity, voice, owner) in &voices {
+        live.insert(entity);
+        seen.insert(entity, (voice.cue.clone(), owner.is_some()));
+    }
+    // A `Voice` removed from an entity that still exists is a *removal*, not a despawn — the crate does not do that, and
+    // neither does a game; treat it the same way, because the sound has stopped either way.
+    let mut gone: Vec<Entity> = removed.read().collect();
+    gone.sort_unstable();
+    gone.dedup();
+    for entity in gone {
+        if live.contains(&entity) {
+            continue;
+        }
+        let Some((cue, owned)) = seen.remove(&entity) else {
+            // Never seen: a voice despawned in the frame it was spawned. Another system owns that line, or there is
+            // nothing to name.
+            continue;
+        };
+        // **Only a sound `Play::on` hung from something.** A game that despawns a voice it never parented did not lose
+        // its sound to a parent, and `tests/play.rs::a_stop_for_an_ended_voice_is_a_no_op` pins that silence: `Play::on`
+        // is the only path that inserts `ChildOf`, so it is the only path where a vanished voice is the *owner's* doing.
+        if !owned {
+            continue;
+        }
+        log.push(Entry::Stopped { at_s: now, cue, why: "owner despawned".to_owned() });
+    }
+    seen.retain(|entity, _| live.contains(entity));
 }
 
 /// **Handles [`StopVoice`] and [`StopCue`]**: a marked fade, never a cut.
