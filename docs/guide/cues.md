@@ -117,6 +117,14 @@ machine-gun footstep. When every variant is inside the window — two sounds and
 before is still refused, because repeating it is the one thing the window exists to prevent. `Repeat::Shuffle` is a
 plain draw, repeats included: a burst weapon wants one sample and no variation.
 
+## Stopping a sound
+
+`StopVoice` takes the entity `Played` reported and fades it over `DEFAULT_FADE_S`; `StopCue` stops every voice of a cue
+by name. **A stop for a sound that has already ended is a no-op** — a one-shot is retired the frame its sample ends, so
+a game holding a handle it got a moment ago is racing the sound's own length, not making a mistake. Nothing is logged
+for it: the log holds decisions about sounds, and this is a sound that had already stopped. A second stop for a voice
+already fading is likewise skipped, so a fade is begun once.
+
 ## The seed
 
 Every variant pick and every detune comes from one stream, and **that stream's seed is `SirenSettings::seed`** — the

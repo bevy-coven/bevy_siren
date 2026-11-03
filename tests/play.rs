@@ -401,3 +401,95 @@ fn a_spatial_cue_with_no_listener_is_still_refused() {
     app.update();
     assert_eq!(refused(&mut app)[0].reason, bevy_siren::Refusal::SpatiallyMute(at));
 }
+
+/// **A `StopVoice` for a voice that has already ended is a no-op, not a crash.** `retire_voices` despawns a one-shot the
+/// frame it ends, and `Played::entity` is documented as the handle a game keeps for `StopVoice` — so holding it one
+/// frame too long is the ordinary race between "the player pressed the button" and "the sound finished". The unfixed
+/// `stop_requests` commanded a despawned entity, which panics Bevy's default error handler.
+#[test]
+fn a_stop_for_an_ended_voice_is_a_no_op() {
+    use bevy_siren::StopVoice;
+
+    let table = CueTable::new(vec![Cue { sounds: vec![SoundSlot::new("a")], ..Cue::new("a") }]);
+    let mut app = app_with(table, sounds(&["a"]));
+    app.world_mut().write_message(Play::cue("a"));
+    app.update();
+    let entity = played(&mut app).remove(0).entity;
+
+    // The voice ends and `retire_voices` despawns it — the crate's own path.
+    app.world_mut().despawn(entity);
+    app.update();
+    assert!(app.world().get::<Voice>(entity).is_none(), "the voice is gone");
+
+    // The game, holding the handle from `Played`, says stop. This must not panic.
+    app.world_mut().write_message(StopVoice { entity });
+    app.update();
+
+    let log = app.world().resource::<bevy_siren::SirenLog>();
+    assert!(
+        !log.iter().any(|e| matches!(e, bevy_siren::Entry::Stopped { cue, .. } if cue == "a")),
+        "there is nothing to stop, so nothing is logged: {:?}",
+        log.iter().map(|e| e.line()).collect::<Vec<_>>()
+    );
+}
+
+/// **A second `StopVoice` for a voice already fading is skipped** — a fade is begun once. The query already excludes
+/// `Stopping`, and this pins the behaviour a project relies on when two systems both ask to stop the same sound.
+#[test]
+fn a_second_stop_for_a_fading_voice_is_skipped() {
+    use bevy_siren::{Entry, SirenLog, StopVoice};
+
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("wind")],
+        mode: Mode::Loop,
+        bus: "Ambience".to_owned(),
+        ..Cue::new("wind")
+    }]);
+    let mut app = app_with(table, sounds(&["wind"]));
+    app.world_mut().write_message(Play::cue("wind"));
+    app.update();
+    let entity = played(&mut app).remove(0).entity;
+
+    app.world_mut().write_message(StopVoice { entity });
+    app.update();
+    app.world_mut().write_message(StopVoice { entity });
+    app.update();
+
+    let stopped = app
+        .world()
+        .resource::<SirenLog>()
+        .iter()
+        .filter(|e| matches!(e, Entry::Stopped { why, .. } if why == "stop"))
+        .count();
+    assert_eq!(stopped, 1, "one fade, one line");
+}
+
+/// **`StopCue` still stops every voice of a cue** — the name path, unchanged by the guard, so the fix cannot narrow it.
+#[test]
+fn stop_cue_still_stops_every_voice_of_a_cue() {
+    use bevy_siren::Entry;
+    use bevy_siren::{SirenLog, StopCue};
+
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("wind")],
+        mode: Mode::Loop,
+        bus: "Ambience".to_owned(),
+        max_instances: 0,
+        ..Cue::new("wind")
+    }]);
+    let mut app = app_with(table, sounds(&["wind"]));
+    for _ in 0..2 {
+        app.world_mut().write_message(Play::cue("wind"));
+        app.update();
+    }
+    app.world_mut().write_message(StopCue { cue: "wind".to_owned() });
+    app.update();
+
+    let stopped = app
+        .world()
+        .resource::<SirenLog>()
+        .iter()
+        .filter(|e| matches!(e, Entry::Stopped { why, .. } if why == "cue stopped"))
+        .count();
+    assert_eq!(stopped, 2, "both voices of the cue are stopped");
+}

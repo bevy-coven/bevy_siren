@@ -15,6 +15,12 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A `StopVoice` for a voice that has already ended no longer panics.** `stop_requests` took the entity straight from
+  the message and issued a command on it; `retire_voices` despawns a one-shot the frame it ends, and `Played::entity` is
+  documented as the handle a game keeps for `StopVoice` — so holding it one frame too long hit Bevy 0.20's default error
+  handler, which **panics** (`Entity despawned … its index now has generation 1`). The request is now resolved against
+  the live voice query first: there is nothing left to stop, so nothing happens and nothing is logged. The same guard
+  makes a second `StopVoice` for a voice already fading a no-op, so a fade is begun once.
 - **An empty `buses` list mixed every voice at −80 dB.** `answer`, the editor's panel and `SirenSettings::bus_names()`
   all treat a table listing no buses as the crate's four, but `update_mix` iterated `settings.buses` directly — so with
   `buses: []` a cue on `Effects` was **accepted and then mixed at −80 dB**, with no refusal and no log line. The mix now

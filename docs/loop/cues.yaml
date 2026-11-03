@@ -136,6 +136,15 @@ cases:
     green_when: Equal field for field within a seed, and different across seeds.
     evidence: "tests/play.rs::a_projects_seed_reaches_the_stream, changing_the_seed_restarts_the_stream"
 
+  - id: 30
+    cue: any
+    authored: { stop: stale_handle, voice: ended }
+    behaviour: A `StopVoice` for a voice the crate has already retired is a no-op, never a panic.
+    observed_by: "`app.update()` after `StopVoice` for a despawned voice, and `SirenLog`."
+    green_when: "The app updates, the world is unchanged, and nothing is logged as stopped."
+    source: "crate rule R6 — a stop for a sound that stopped is not a decision; Bevy's default error handler panics on a despawned entity"
+    evidence: "runs/2026-11-02-12/review.md, tests/play.rs::a_stop_for_an_ended_voice_is_a_no_op (panics on the unfixed tree)"
+
   - id: 29
     cue: any
     authored: { buses: [], then swapped to two }

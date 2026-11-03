@@ -3,6 +3,13 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 12, a stale handle stops nothing
+
+No clip: the change is a **guard on a command**, and every rendered WAV is byte-identical because no level that is written
+moves. The evidence is a crash and its absence — `tests/play.rs::a_stop_for_an_ended_voice_is_a_no_op` panics inside
+`app.update()` on the unfixed tree (`Entity despawned … its index now has generation 1`) and returns on the fixed one.
+Neither a still nor a GIF can show a panic that is no longer there; `runs/2026-11-02-12/perf.md` carries the two outputs.
+
 ## No clip: iteration 11, the rule written the way it reads
 
 No clip, and **no code**: this iteration changes tests and a case table's observation, not behaviour. Every rendered WAV

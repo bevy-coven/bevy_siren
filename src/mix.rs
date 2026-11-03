@@ -648,9 +648,17 @@ pub fn stop_requests(
         }))
         .collect();
     for (entity, why) in requests {
+        // **Resolve against the live query first.** A [`StopVoice`] may name a voice the crate has already retired:
+        // `retire_voices` despawns a one-shot the frame it ends, and a game holding [`Played::entity`] — documented as
+        // the handle to keep for exactly this — has no way to know. A command on a despawned entity panics Bevy's
+        // default error handler, so an ordinary race between "the player pressed the button" and "the sound finished"
+        // took the game down. Stopping something that has stopped is not an error to report: there is nothing to fade
+        // and nothing to log.
+        //
+        // The query excludes [`Stopping`], so a second stop for a voice already fading is skipped too — a fade is
+        // begun once.
+        let Ok((_, voice)) = voices.get(entity) else { continue };
         commands.entity(entity).insert(Stopping { since_s: now, why: why.to_owned() });
-        if let Ok((_, voice)) = voices.get(entity) {
-            log.push(Entry::Stopped { at_s: now, cue: voice.cue.clone(), why: why.to_owned() });
-        }
+        log.push(Entry::Stopped { at_s: now, cue: voice.cue.clone(), why: why.to_owned() });
     }
 }
