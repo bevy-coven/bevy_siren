@@ -47,7 +47,7 @@ staircase to −7.96 dB at 1.27 s, recovery complete by 1.97 s — **no restart,
 S3 `prune`'s own doc naming the fault for one collection, S4 the bus-pruning precedent), `plan.md`, `perf.md`, `eval.md`,
 `review.md` (three passes, GREAT), `evidence/{plots,spectrograms,after}`.
 
-**Commit.** (see `git log`).
+**Commit.** `ee7eb67` — *mix: a duck rule the table dropped stops holding its start*.
 
 **Top 5 remaining**
 
