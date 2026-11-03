@@ -44,7 +44,8 @@ green in all three shapes after), `review.md` (three passes, GREAT), `evidence/p
 
 Full gate green: build, 119+5, 126+5 (serde), 128+5 (mixer), 5 doctests, clippy `-D warnings`, fmt, rustdoc, examples,
 `readme::`. Perf unchanged in the crate (example only): 0.025 / 0.148 / 0.490 µs per frame at 8 / 64 / 256, load 4.0.
-`check_media.py`: 0 problems. **A defect in this iteration's own review, found on the fresh-eyes frame**: the long form
+`check_media.py`: 0 problems. CI run **41602744629**: both jobs green on `big-s1` — `fmt + clippy + doc` 13 s,
+`build (standalone) + test` 44 s. **A defect in this iteration's own review, found on the fresh-eyes frame**: the long form
 invented a second duck for a rule that was merely recovering; fixed before shipping and re-reviewed.
 
 **Commit.** `79d41b9` — *examples: the panel names the duck whose depth it shows, and plays a stinger*.
