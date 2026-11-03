@@ -31,6 +31,8 @@ mod semantic_eval;
 #[cfg(feature = "semantic")]
 mod semantic_index;
 #[cfg(feature = "semantic")]
+mod semantic_indexer;
+#[cfg(feature = "semantic")]
 mod semantic_model;
 #[cfg(feature = "semantic")]
 mod semantic_query;
