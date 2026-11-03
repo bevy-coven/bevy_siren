@@ -171,6 +171,13 @@ pub struct Index {
     pub tempo: BTreeMap<u64, Tempo>,
     /// Each asset's key **and its confidence**, by content hash. Absent for an atonal asset, for the same reason.
     pub key: BTreeMap<u64, super::key::Estimate>,
+    /// **The mismatch this index was loaded through**, when a caller overrode one. `None` for a normal load.
+    ///
+    /// `#20` asks that an override be *"reported in the query result rather than only logged"*, so it is carried on the
+    /// index itself: every search that uses this index can see it without a second lookup, and a panel can show
+    /// *"loaded with a stamp override"* on every result it draws from here. An override that only existed as a log line
+    /// would be invisible to the person reading a ranking built across two vector spaces.
+    pub overridden: Option<Box<Mismatch>>,
 }
 
 const MAGIC: &str = "bevy_siren index 1";
@@ -358,6 +365,7 @@ impl Index {
     /// A new, empty index for `stamp`.
     pub fn new(stamp: ModelStamp) -> Self {
         Index {
+            overridden: None,
             stamp,
             records: BTreeMap::new(),
             provenance: BTreeMap::new(),
@@ -486,6 +494,22 @@ impl Index {
     /// `loaded` is the stamp of the model currently running. Passing it is not optional and not a default: it is the
     /// whole reason the stamp exists, and a caller that does not know which model it has cannot safely rank anything.
     pub fn load(text: &str, loaded: &ModelStamp) -> Result<Index, IndexProblem> {
+        Index::load_allowing(text, loaded, false)
+    }
+
+    /// **Load, optionally overriding a stamp mismatch** — `#20`'s explicit escape hatch.
+    ///
+    /// `#20` asks for it twice over: *"allow an explicit override for a user who knows what they are doing"*, and
+    /// *"make the override visible in the result"*. The second is `Index::overridden`, which every search built from
+    /// this index carries, so a panel can say so on every result rather than only in a log.
+    ///
+    /// The override does not change the stamp: the index still says which model made its vectors, because that is a fact
+    /// about the file. What changes is whether the load proceeds and whether it is marked.
+    pub fn load_allowing(
+        text: &str,
+        loaded: &ModelStamp,
+        allow_override: bool,
+    ) -> Result<Index, IndexProblem> {
         let mut lines = text.lines();
         let first =
             lines.next().ok_or_else(|| IndexProblem::Header { line: String::from("<empty file>") })?;
@@ -533,12 +557,19 @@ impl Index {
             return Err(IndexProblem::Checksum { expected: expected_checksum, found: found_checksum });
         }
 
-        if &stamp != loaded {
-            return Err(IndexProblem::ModelMismatch(Box::new(Mismatch {
-                index: stamp,
-                loaded: loaded.clone(),
-            })));
-        }
+        // **The override is recorded, not swallowed.** `#20` asks for it to be visible in the result; the caller's
+        // `allow_override` decides whether the load proceeds, and `Index::overridden` is what a later search reads.
+        let overridden = if &stamp != loaded {
+            if !allow_override {
+                return Err(IndexProblem::ModelMismatch(Box::new(Mismatch {
+                    index: stamp.clone(),
+                    loaded: loaded.clone(),
+                })));
+            }
+            Some(Box::new(Mismatch { index: stamp.clone(), loaded: loaded.clone() }))
+        } else {
+            None
+        };
 
         let mut records = BTreeMap::new();
         let mut provenance: BTreeMap<u64, Provenance> = BTreeMap::new();
@@ -730,7 +761,7 @@ impl Index {
             return Err(IndexProblem::Truncated { expected, found: key.len() });
         }
 
-        Ok(Index { stamp, records, provenance, loudness, spectral, tempo, key })
+        Ok(Index { overridden, stamp, records, provenance, loudness, spectral, tempo, key })
     }
 }
 
@@ -884,6 +915,15 @@ impl Index {
     /// Every read is bounds-checked: a truncated file must produce a *sentence*, not a panic, because the bytes came
     /// from disk and a half-written file is the ordinary failure.
     pub fn from_bytes(bytes: &[u8], loaded: &ModelStamp) -> Result<Index, IndexProblem> {
+        Index::from_bytes_allowing(bytes, loaded, false)
+    }
+
+    /// **Read the binary form, optionally overriding a stamp mismatch.** See [`Index::load_allowing`].
+    pub fn from_bytes_allowing(
+        bytes: &[u8],
+        loaded: &ModelStamp,
+        allow_override: bool,
+    ) -> Result<Index, IndexProblem> {
         let bad = |why: &str| IndexProblem::Bytes { why: why.to_string() };
         if bytes.len() < 12 {
             return Err(bad("the file is too short to hold a header"));
@@ -909,12 +949,19 @@ impl Index {
         let version = read_str(body, &mut at).map_err(|e| bad(&e))?;
         let sample_rate = read_u32(body, &mut at).map_err(|e| bad(&e))?;
         let stamp = ModelStamp { model, version, sample_rate, dimension };
-        if &stamp != loaded {
-            return Err(IndexProblem::ModelMismatch(Box::new(Mismatch {
-                index: stamp,
-                loaded: loaded.clone(),
-            })));
-        }
+        // **The override is recorded, not swallowed.** `#20` asks for it to be visible in the result; the caller's
+        // `allow_override` decides whether the load proceeds, and `Index::overridden` is what a later search reads.
+        let overridden = if &stamp != loaded {
+            if !allow_override {
+                return Err(IndexProblem::ModelMismatch(Box::new(Mismatch {
+                    index: stamp.clone(),
+                    loaded: loaded.clone(),
+                })));
+            }
+            Some(Box::new(Mismatch { index: stamp.clone(), loaded: loaded.clone() }))
+        } else {
+            None
+        };
 
         let count = read_u64(body, &mut at).map_err(|e| bad(&e))? as usize;
         let mut records = BTreeMap::new();
@@ -1037,7 +1084,7 @@ impl Index {
         if at != body.len() {
             return Err(bad(&format!("{} trailing bytes after the last section", body.len() - at)));
         }
-        Ok(Index { stamp, records, provenance, loudness, spectral, tempo, key })
+        Ok(Index { overridden, stamp, records, provenance, loudness, spectral, tempo, key })
     }
 }
 

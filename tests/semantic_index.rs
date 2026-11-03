@@ -611,3 +611,57 @@ fn an_index_with_no_tempo_or_key_writes_no_section() {
     let from_bytes = Index::from_bytes(&index_with(2).to_bytes(), &stamp()).expect("loads");
     assert!(from_bytes.tempo.is_empty() && from_bytes.key.is_empty());
 }
+
+/// **`#20` criterion 2: the override, when used, is reported in the result rather than only logged.**
+///
+/// The override is `Index::load_allowing(.., true)`, and what it reports is `Index::overridden` — carried on the index
+/// itself, so every search built from it can see the mismatch without a second lookup.
+#[test]
+fn an_overridden_load_reports_the_mismatch_on_the_index() {
+    let written = ModelStamp {
+        model: "laion/clap-htsat-fused".into(),
+        version: "a".into(),
+        sample_rate: 48_000,
+        dimension: 2,
+    };
+    let loaded = ModelStamp {
+        model: "laion/clap-htsat-fused".into(),
+        version: "b".into(),
+        sample_rate: 48_000,
+        dimension: 2,
+    };
+
+    let mut index = Index::new(written.clone());
+    let _ = index.insert(7, vec![1.0, 0.0]);
+    let bytes = index.to_bytes();
+
+    // **Without the override it is still a refusal**, with both versions named.
+    let err = Index::from_bytes(&bytes, &loaded).expect_err("a mismatch must refuse by default");
+    match err {
+        IndexProblem::ModelMismatch(m) => {
+            assert_eq!(m.index.version, "a");
+            assert_eq!(m.loaded.version, "b");
+        }
+        other => panic!("expected ModelMismatch, got {other:?}"),
+    }
+
+    // **With it, the load proceeds and says so.**
+    let allowed = Index::from_bytes_allowing(&bytes, &loaded, true).expect("the override permits the load");
+    let mismatch = allowed.overridden.expect("and the mismatch is recorded on the index");
+    assert_eq!(mismatch.index.version, "a", "what the file says");
+    assert_eq!(mismatch.loaded.version, "b", "what is loaded");
+    assert_eq!(
+        allowed.stamp.version, "a",
+        "the stamp still describes the file, because that is a fact about it"
+    );
+}
+
+/// A matching index carries no override, so a caller can test it without knowing how the load happened.
+#[test]
+fn a_matching_load_reports_no_override() {
+    let stamp = ModelStamp { model: "m".into(), version: "1".into(), sample_rate: 48_000, dimension: 2 };
+    let mut index = Index::new(stamp.clone());
+    let _ = index.insert(1, vec![0.5, 0.5]);
+    let allowed = Index::from_bytes_allowing(&index.to_bytes(), &stamp, true).expect("a matching load");
+    assert_eq!(allowed.overridden, None, "nothing was overridden, so nothing is reported");
+}

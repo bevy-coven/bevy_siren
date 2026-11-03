@@ -7,6 +7,10 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **A stamp override that reports itself.** `Index::load_allowing` and `Index::from_bytes_allowing` take an
+  `allow_override`; `load` and `from_bytes` keep refusing, unchanged. An overridden index carries the mismatch on
+  `Index::overridden`, so every search built from it can say *"loaded with a stamp override"* rather than the fact
+  existing only in a log.
 - **The workflow as calls**: `semantic::tools`. `Session::set_anchor` holds one anchor per session object — no global,
   so two clients cannot interleave — and is idempotent by construction. `Toolset::compatible_music` and
   `compatible_sfx` rank an anchor's neighbours with the two **separate** weightings (`Weights::effects()` moves the
