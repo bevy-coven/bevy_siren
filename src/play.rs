@@ -368,8 +368,8 @@ struct Started {
     spatial: bool,
     priority: u8,
     mode: Mode,
-    /// The voices this play takes over to fit the budget.
-    stolen: Vec<Entity>,
+    /// The voices this play takes over to fit the budget, and which cap chose each.
+    stolen: Vec<(Entity, Cap)>,
 }
 
 /// **Turns [`Play`] into an entity or a [`Refused`].** Runs in [`SirenSystems::Play`](crate::SirenSystems).
@@ -399,8 +399,13 @@ pub fn play_requests(
     for request in requests.read() {
         match answer(request, table.as_ref(), &sounds, &settings, &mut choices, &listener, &live, now) {
             Ok(started) => {
-                for victim in &started.stolen {
-                    let why = format!("stolen by {}", request.cue);
+                for (victim, cap) in &started.stolen {
+                    // **Which cap took the voice, not only who asked.** A `footstep.grass` request can take a voice
+                    // because the *cue* is at `max_instances` or because its *bus* is at `max_voices`, and the two want
+                    // different edits from an author — raise the cue's x2, or the bus's budget. The old sentence said
+                    // `stolen by footstep.grass` for both, so a step that took three voices logged two identical
+                    // lines and neither said which number to change.
+                    let why = format!("stolen by {} ({})", request.cue, cap.as_str());
                     commands.entity(*victim).insert(Stopping { since_s: now, why: why.clone() });
                     if let Some(voice) = live.iter().find(|v| v.entity == *victim) {
                         log.push(Entry::Stopped { at_s: now, cue: voice.cue.clone(), why });
@@ -570,15 +575,26 @@ enum Cap {
     Table,
 }
 
+impl Cap {
+    /// The word the log uses, so `stolen by footstep.grass (cue)` and `(bus)` say which number to raise.
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Cue => "cue",
+            Self::Bus => "bus",
+            Self::Table => "table",
+        }
+    }
+}
+
 /// The voices to stop so one more fits, or the cap that could not be made room in.
 ///
 /// Three caps, in the order a project thinks of them: the cue's own polyphony, its bus's voices, and the
 /// table's whole budget. Each is hard: a voice that cannot be freed is a refusal, never a 33rd voice.
-fn room_for(live: &[Live], cue: &Cue, settings: &SirenSettings) -> Result<Vec<Entity>, Cap> {
+fn room_for(live: &[Live], cue: &Cue, settings: &SirenSettings) -> Result<Vec<(Entity, Cap)>, Cap> {
     let bus = cue.bus_name();
     let total = usize::from(settings.max_voices);
     let bus_limit = settings.bus_voice_limit(bus);
-    let mut stop: Vec<Entity> = Vec::new();
+    let mut stop: Vec<(Entity, Cap)> = Vec::new();
 
     // The cue's own polyphony: its oldest voices go.
     if cue.max_instances > 0 {
@@ -588,7 +604,7 @@ fn room_for(live: &[Live], cue: &Cue, settings: &SirenSettings) -> Result<Vec<En
             if voice.unstealable {
                 return Err(Cap::Cue);
             }
-            stop.push(voice.entity);
+            stop.push((voice.entity, Cap::Cue));
         }
     }
 
@@ -596,7 +612,7 @@ fn room_for(live: &[Live], cue: &Cue, settings: &SirenSettings) -> Result<Vec<En
     let on_bus: Vec<usize> = live
         .iter()
         .enumerate()
-        .filter(|(_, v)| v.bus == bus && !stop.contains(&v.entity))
+        .filter(|(_, v)| v.bus == bus && !stop.iter().any(|(e, _)| *e == v.entity))
         .map(|(i, _)| i)
         .collect();
     let after = on_bus.len();
@@ -606,20 +622,24 @@ fn room_for(live: &[Live], cue: &Cue, settings: &SirenSettings) -> Result<Vec<En
         if chosen.len() < need {
             return Err(Cap::Bus);
         }
-        stop.extend(chosen.into_iter().map(|index| live[index].entity));
+        stop.extend(chosen.into_iter().map(|index| (live[index].entity, Cap::Bus)));
     }
 
     // The table's budget, across every bus.
     let after = live.len().saturating_sub(stop.len());
     if after >= total {
         let need = after + 1 - total;
-        let all: Vec<usize> =
-            live.iter().enumerate().filter(|(_, v)| !stop.contains(&v.entity)).map(|(i, _)| i).collect();
+        let all: Vec<usize> = live
+            .iter()
+            .enumerate()
+            .filter(|(_, v)| !stop.iter().any(|(e, _)| *e == v.entity))
+            .map(|(i, _)| i)
+            .collect();
         let chosen = steal(&candidates_of(live, &all), need, total);
         if chosen.len() < need {
             return Err(Cap::Table);
         }
-        stop.extend(chosen.into_iter().map(|index| live[index].entity));
+        stop.extend(chosen.into_iter().map(|index| (live[index].entity, Cap::Table)));
     }
     Ok(stop)
 }

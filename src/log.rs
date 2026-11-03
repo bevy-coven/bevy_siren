@@ -35,7 +35,11 @@ pub enum Entry {
         /// The reason, as a sentence the panel can show verbatim.
         reason: String,
     },
-    /// A voice stopped, and why: `"ended"`, `"stolen by footstep.grass"`, `"cue stopped"`.
+    /// A voice stopped, and why: `"ended"`, `"stolen by footstep.grass (cue)"`, `"cue stopped"`.
+    ///
+    /// A steal names the **cap** that took the voice — `(cue)`, `(bus)` or `(table)` — because `max_instances`,
+    /// `max_voices` and a bus's `max_voices` are three different numbers, and a reader who sees `stolen by
+    /// footstep.grass` twice on one frame could not tell which to raise.
     Stopped {
         /// When, on real time.
         at_s: f64,

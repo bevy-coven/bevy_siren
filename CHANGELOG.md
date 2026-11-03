@@ -7,6 +7,23 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- **A steal says which cap took the voice.** `Entry::Stopped`'s reason was `stolen by footstep.grass` for **three
+  different budgets** — the cue's `max_instances`, its bus's `max_voices`, and the table's `max_voices` — so an author
+  who saw it had no way to know which number to raise, and a step that took three voices logged two identical lines.
+  It now ends `(cue)`, `(bus)` or `(table)`: `stolen by sword.hit (bus)`. `room_for` returns which cap chose each victim.
+  Every existing `starts_with("stolen by")` check still matches. Proved by
+  `tests/mix.rs::a_steal_names_the_cap_that_took_the_voice` (forces the bus cap) and a `(cue)` assertion in
+  `a_cue_respects_its_own_polyphony`; the mutation — one format string without the cap — reddens both.
+
+### Added
+
+- **`examples/mixer`'s cue row shows how many of a cue may sound.** The list drew name, bus, mode, gain and `priority` —
+  and `priority` decides who *survives* a full budget, while `max_instances` decides whether the next play may start at
+  all. `footstep.grass` admits two (`x2`), `ui.click` one (`x1`), and the documented `max_instances: 0` reads `all` and
+  still pairs with `UnlimitedInstances` in `Problems` rather than inventing a number. A new `poly` step asks a cue three
+  times in one frame, so the row's `x2` is proved by two live voices and one `(cue)` steal — and it runs last in the
+  default script, so the still's log keeps the stinger, the dialogue duck and the spatial play above it.
+
 - **A played gain is written to two decimals.** `Entry::line` was
   ``"{at_s:.2}s played `{cue}` ({sound}) on {bus} at {gain_db:.1} dB"``. One decimal cannot show a distance law: the
   default `Attenuation::Inverse { near_m: 4, rolloff: 1 }` gives **−6.0206 dB** at 8 m — `cues.yaml` case 14's number —

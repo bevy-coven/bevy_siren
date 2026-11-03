@@ -469,7 +469,7 @@ impl DuckClock {
 pub struct Stopping {
     /// When the stop was asked for, on real time.
     pub since_s: f64,
-    /// Why, for the log: `"stolen by footstep.grass"`, `"stop"`, `"cue stopped"`.
+    /// Why, for the log: `"stolen by footstep.grass (cue)"`, `"stop"`, `"cue stopped"`.
     pub why: String,
 }
 

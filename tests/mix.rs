@@ -160,6 +160,53 @@ fn a_cue_respects_its_own_polyphony() {
         .filter(|e| matches!(e, Entry::Stopped { why, .. } if why.starts_with("stolen by hum")))
         .count();
     assert_eq!(stolen, 1, "{:?}", app.world().resource::<SirenLog>().iter().collect::<Vec<_>>());
+    // **The sentence names the cap, not only the cue.** Here the *cue's* `max_instances` took the voice, so an author
+    // who wanted two voices of `hum` must raise the cue's number — `(bus)` would send them to the wrong one.
+    let why = app
+        .world()
+        .resource::<SirenLog>()
+        .iter()
+        .find_map(|e| match e {
+            Entry::Stopped { why, .. } if why.starts_with("stolen by hum") => Some(why.clone()),
+            _ => None,
+        })
+        .expect("the steal was logged");
+    assert!(why.ends_with("(cue)"), "a cue cap must say so: {why}");
+}
+
+/// **A steal names which cap took the voice, because the three caps want three different edits.** `max_instances`
+/// (raise the cue's x2), the bus's `max_voices`, and the table's `max_voices` all produce `stolen by <cue>`, and before
+/// this the sentence was identical for all three: a step that took three voices logged two lines saying the same thing
+/// and neither said which number to change. This test forces the **bus** cap specifically and asserts the sentence says
+/// `(bus)` — the mutation (one shared format string without `cap.as_str()`) reddens both this and
+/// `a_cue_respects_its_own_polyphony`.
+#[test]
+fn a_steal_names_the_cap_that_took_the_voice() {
+    let settings = SirenSettings {
+        max_voices: 8,
+        // The bus holds one voice while the cue's own `max_instances` is 4, so the **bus** is what refuses.
+        buses: vec![BusLevel::new("Effects").max_voices(1)],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    let table = CueTable::new(vec![Cue { max_instances: 4, ..cue("hum", "Effects", 0, 1) }]);
+    let mut app = app(table, settings, sounds(&["hum"]), false);
+
+    app.world_mut().write_message(Play::cue("hum"));
+    app.update();
+    app.world_mut().write_message(Play::cue("hum"));
+    app.update();
+
+    let why = app
+        .world()
+        .resource::<SirenLog>()
+        .iter()
+        .find_map(|e| match e {
+            Entry::Stopped { why, .. } if why.starts_with("stolen by hum") => Some(why.clone()),
+            _ => None,
+        })
+        .expect("the bus cap took the first voice");
+    assert!(why.ends_with("(bus)"), "the bus is what refused, so the sentence must say so: {why}");
 }
 
 /// A muted bus is silence, and unmuting returns its level — the mute is not a level written to zero.

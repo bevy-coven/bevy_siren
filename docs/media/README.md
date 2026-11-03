@@ -72,12 +72,12 @@ SIREN_FAULTS=1 SIREN_FRAMES=260 SIREN_SIZE=1280x720 SIREN_SHOT_DIR=/tmp/frames S
 ffmpeg -y -framerate 10 -i /tmp/frames/f_%04d.png \
   -vf "scale=960:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" -loop 0 docs/media/mixer.gif
 
-SIREN_FRAMES=95 SIREN_SHOT=docs/media/mixer.png SIREN_SIZE=1280x720 \
-  cargo run --release --example mixer          # the still, on the stinger's duck
+SIREN_FRAMES=140 SIREN_SHOT=docs/media/mixer.png SIREN_SIZE=1280x720 \
+  cargo run --release --example mixer          # the still, after the poly step
 ```
 
 Iteration 25 gave the capture a **default script**: `SIREN_KEYS` unset used to panic on `% 0` and write no still, so
-until then this harness could not produce a picture at all. `SIREN_KEYS=steal,spatial,layer,duck,stinger,refuse` is the default;
+until then this harness could not produce a picture at all. `SIREN_KEYS=steal,spatial,layer,duck,stinger,poly,refuse` is the default;
 a token it does not know prints one line and stages that default.
 
 **Two ducks on one bus** are why the still is captured at frame 95, not 140: the stinger fires at frame 90 and the

@@ -70,6 +70,10 @@ enum Step {
     /// game to find. Nothing else in this script refuses: `steal` steals, `duck` ducks, `layer` moves, and every one of
     /// them plays something. So the panel had never shown the one line a person opens it for.
     Refuse,
+    /// **One cue's own polyphony, exercised.** `steal` demonstrates a *bus* cap; this demonstrates a *cue* cap — the
+    /// number the cue list's `x2` names. Three `footstep.grass` requests in one frame against `max_instances: 2` leave
+    /// two voices and one `stolen by footstep.grass` line, which is the row's `x2` made true.
+    Poly,
     /// **A placed sound at a distance.** The only step that passes `.at(..)`, so the only one whose gain comes from
     /// `Attenuation` rather than the table: at 8 m the default `Inverse { near_m: 4, rolloff: 1 }` halves the amplitude,
     /// which is −6.02 dB. Also the only step that can produce `SpatiallyMute`.
@@ -542,8 +546,20 @@ fn draw_panel(
                         } else {
                             String::new()
                         };
+                        // **How many of this cue may sound at once, which the row never said.** `priority` decides who
+                        // survives a full budget; `max_instances` decides whether the *next* play may start at all,
+                        // and it is the field that separates a footstep (two may overlap) from a click (one). A reader
+                        // looking at `priority 10` had no way to know `footstep.grass` admits two — and `x` reads as a
+                        // count where a bare `2` in the priority column would read as another priority.
+                        let poly = if cue.max_instances == 0 {
+                            // `max_instances: 0` is "no per-cue limit", and `problems()` already reports it as
+                            // `UnlimitedInstances` — the row says so rather than inventing a number.
+                            "all".to_owned()
+                        } else {
+                            format!("x{}", cue.max_instances)
+                        };
                         format!(
-                            "{:<26} {:<10} {mode:<4} {:+5.1} dB  priority {}{placed}{mark}",
+                            "{:<26} {:<10} {mode:<4} {:+5.1} dB  priority {}  {poly:>3}{placed}{mark}",
                             cue.name,
                             cue.bus_name(),
                             cue.gain_db,
@@ -635,6 +651,15 @@ fn stage(
             plays.write(Play::cue("engine.idle"));
             plays.write(Play::cue("sword.hit"));
         }
+        Step::Poly => {
+            // Three in one frame against `max_instances: 2`. The third takes the first back, so two voices stay live and
+            // the log says which went — the row's `x2`, made true. `Effects` holds two voices, so the first two also take
+            // what was there; that is the documented rule (a cap is a budget on **plays**, not a standing count) and the
+            // log shows both caps working on one line each, not one cap hiding the other.
+            for _ in 0..3 {
+                plays.write(Play::cue("footstep.grass"));
+            }
+        }
         Step::Spatial => {
             // 8 m: twice the default near radius, where the inverse law gives exactly half the amplitude.
             plays.write(Play::cue("bang").at(Vec3::new(0.0, 0.0, PLACED_M)));
@@ -671,7 +696,7 @@ fn capture_config() -> Capture {
         // **The default script includes `refuse`**, so the showcase shows the panel doing the thing it exists for. The
         // order ends on `refuse` before the still: a refusal is a line, not a sound, and it is the last thing a person
         // reading the log wants to have missed.
-        .unwrap_or_else(|_| "steal,spatial,layer,duck,stinger,refuse".to_owned())
+        .unwrap_or_else(|_| "steal,spatial,layer,duck,stinger,poly,refuse".to_owned())
         .split(',')
         .filter_map(|token| match token.trim() {
             "duck" => Some(Step::Duck),
@@ -680,6 +705,7 @@ fn capture_config() -> Capture {
             "refuse" => Some(Step::Refuse),
             "stinger" => Some(Step::Stinger),
             "spatial" => Some(Step::Spatial),
+            "poly" => Some(Step::Poly),
             _ => None,
         })
         .collect();
@@ -688,10 +714,10 @@ fn capture_config() -> Capture {
         // something else would put the wrong picture in the evidence folder.
         if std::env::var("SIREN_KEYS").is_ok_and(|v| !v.trim().is_empty()) {
             eprintln!(
-                "siren: SIREN_KEYS has no step this example knows; staging the default steal,spatial,layer,duck,stinger,refuse"
+                "siren: SIREN_KEYS has no step this example knows; staging the default steal,spatial,layer,duck,stinger,poly,refuse"
             );
         }
-        vec![Step::Steal, Step::Spatial, Step::Layer, Step::Duck, Step::Stinger, Step::Refuse]
+        vec![Step::Steal, Step::Spatial, Step::Layer, Step::Duck, Step::Stinger, Step::Poly, Step::Refuse]
     } else {
         keys
     };

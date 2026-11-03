@@ -7,6 +7,63 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 42 — 2026-11-03 — the cue row says how many may sound, and a steal says which cap
+
+**Baseline.** Green on every step, no open issues. Nothing red.
+
+**Change.**
+1. **The cue row gains a polyphony column.** It drew name, bus, mode, gain and `priority` — and `priority` decides who
+   *survives* a full budget while `max_instances` decides whether the **next play may start at all**. `x2`, `x1`, and
+   `all` for the documented `max_instances: 0` (which `problems()` already reports as `UnlimitedInstances`).
+2. **A new `poly` step** asks `footstep.grass` three times in one frame against `x2`: two voices live, one steal, and
+   `Effects 2 / 2 voices` — the row's number, proved. It runs **last** in the default script, so the still's log keeps
+   the stinger, the dialogue duck and the spatial play above it.
+3. **A steal now names the cap.** `Entry::Stopped`'s reason was `stolen by footstep.grass` for **three different budgets**
+   — the cue's `max_instances`, its bus's `max_voices`, the table's `max_voices` — so a step that took three voices
+   logged two identical lines and neither said which number to raise. `room_for` now returns `(Entity, Cap)` and the
+   sentence ends `(cue)`, `(bus)` or `(table)`.
+
+**Rationale.** `cues.yaml` cases 7 and 8 were green in tests and **unreadable in the picture**: the panel never showed
+the budget that produced the steal, and the steal named the cue rather than the cap. The second part is the same class
+this loop has fixed at iterations 19, 31, 36, 40 and 41 — one string for two facts — found by making the first work.
+
+**Not built: case 31** (a non-finite `gain_db` in `problems()`), which stays **red and blocked** on
+`needs-decision/bad-gain-problem.md`. Checked again this iteration: every route — a `CueProblem`, `Refusal` or `Entry`
+variant — breaks a public enum with no `#[non_exhaustive]` (`grep` finds none), which a patch release should not carry.
+
+**Evidence.** `runs/2026-11-03-42/`: `research.md` (S1 the budget-on-plays reading, S2 the three caps, S3 Gregory
+§14.5.8.4, S4 `UnlimitedInstances`, S5 the refusal that already names its cap), `plan.md`, `perf.md`, `eval.md`,
+`review.md` (three passes, GREAT), `evidence/{panel,after}`.
+
+| | before | after |
+|---|---|---|
+| the cue row | name, bus, mode, gain, priority | **+ `x2` / `x1` / `all`** |
+| a cue-cap steal | `stolen by footstep.grass` | `stolen by footstep.grass **(cue)**` |
+| a bus-cap steal | `stolen by sword.hit` | `stolen by sword.hit **(bus)**` |
+| three requests at `x2` | — | 2 voices, **1** steal, `2 / 2` on Effects |
+| `max_instances: 0` | not shown | `all`, with `UnlimitedInstances` in `Problems` |
+| the default script | 6 steps | 7 — `poly` last, so the still keeps the log |
+| the still's margin | 9 px | 9 px |
+| tests | 120 / 127 / 129 + 5 | **121 / 128 / 130 + 5** (one new) |
+| perf | 0.019–0.062 / 0.102–0.358 / 0.402–1.360 µs | unchanged — the spread is the machine (three runs, one binary) |
+
+**A defect in this iteration's own review, found by counting**: the default run logged **two** `stolen by footstep.grass`
+lines for a three-request step. The arithmetic says one *cue* steal; the second was the **bus** cap taking a different
+footstep voice — the exact ambiguity this iteration removed. After the change the isolated run shows one `(cue)` line and
+the default run's two lines say `(bus)`, which is true. A second defect, found by reading the still: `poly` placed second
+hid the stinger, duck and spatial log, so it now runs last and the still is captured at frame 140.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md` (a public enum).
+2. A `Stopped` line for a parent's despawn — **blocked** on `needs-decision/remove-completes.md`.
+3. The `Music` header shows `calm`/`combat` targets but not how many layers are **live**.
+4. `docs/media/mixer.gif` captures at ~8 fps; a fade shorter than 120 ms falls between frames.
+5. No capture shows the panel with a **missing sound** refused (iteration 39 showed `unknown-cue` only).
+
 ## Iteration 41 — 2026-11-03 — the panel shows a placed sound, and a gain it can be checked against
 
 **Baseline.** Green on every step, no open issues. Nothing red.
