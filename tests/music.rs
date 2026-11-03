@@ -437,3 +437,82 @@ fn a_stinger_on_another_bus_is_still_refused() {
     let log: Vec<String> = app.world().resource::<bevy_siren::SirenLog>().iter().map(|e| e.line()).collect();
     assert!(log.iter().any(|l| l.contains("names bus `Effects`")), "{log:?}");
 }
+
+/// **A layer removed from the score stops its voice.** `MusicScore` is a resource a project and the Cauldron edit;
+/// `start_layers` used to only ever *add* layers, so a removed layer kept a looping voice playing forever — ownerless,
+/// because `retire_voices` skips loops by design. The score and the sound disagreed, and nothing said so.
+#[test]
+fn a_layer_removed_from_the_score_stops_its_voice() {
+    use bevy_siren::Entry;
+
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    app.update();
+    app.update();
+    assert_eq!(app.world().resource::<MusicState>().live(), 2, "both stems are running");
+
+    // The game drops one layer from the score.
+    app.world_mut().resource_mut::<MusicScore>().layers.retain(|l| l.name != "combat");
+    run_for(&mut app, 0.6, 1.0 / 60.0);
+
+    let state = app.world().resource::<MusicState>();
+    assert_eq!(state.names().collect::<Vec<_>>(), ["calm"], "the score has one layer");
+    assert_eq!(state.live(), 1, "and one live layer voice");
+    assert!(
+        app.world().resource::<bevy_siren::SirenLog>().iter().any(|e| matches!(
+            e, Entry::Stopped { cue, why, .. } if cue == "track.combat" && why == "layer removed")),
+        "the stop says why: {:?}",
+        app.world().resource::<bevy_siren::SirenLog>().iter().map(Entry::line).collect::<Vec<_>>()
+    );
+    let cues: Vec<String> =
+        app.world_mut().query::<&Voice>().iter(app.world()).map(|v| v.cue.clone()).collect();
+    assert_eq!(cues, ["track.calm"], "only the surviving stem is left");
+}
+
+/// **A layer retargeted to another cue plays the new one.** The unfixed tree kept the **old** sample and never started
+/// the new: the score said one thing and the player heard another.
+#[test]
+fn a_layer_retargeted_to_another_cue_plays_the_new_one() {
+    use bevy_siren::Entry;
+
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    app.update();
+    app.update();
+    assert_eq!(app.world().resource::<MusicState>().live(), 2);
+
+    // Point `calm` at the other track.
+    app.world_mut().resource_mut::<MusicScore>().layers[0].cue = "track.combat".to_owned();
+    run_for(&mut app, 0.6, 1.0 / 60.0);
+
+    let state = app.world().resource::<MusicState>();
+    assert_eq!(state.names().collect::<Vec<_>>(), ["calm", "combat"], "the layer kept its name");
+    assert!(
+        app.world().resource::<bevy_siren::SirenLog>().iter().any(|e| matches!(
+            e, Entry::Stopped { cue, why, .. } if cue == "track.calm" && why == "layer retargeted")),
+        "the old cue's voice says why it stopped"
+    );
+    let cues: Vec<String> =
+        app.world_mut().query::<&Voice>().iter(app.world()).map(|v| v.cue.clone()).collect();
+    assert!(cues.iter().all(|c| c == "track.combat"), "what the score says is what is playing: {cues:?}");
+}
+
+/// **A gain edit keeps a layer's voice** — the pair that stops the fix from restarting on every edit. That is what
+/// `move_layers` moves, and a restart would be audible as a phrase starting over.
+#[test]
+fn a_layer_whose_gain_changed_keeps_its_voice() {
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    app.update();
+    app.update();
+    let voice = app.world().resource::<MusicState>().voice("calm").expect("the calm layer has a voice");
+
+    app.world_mut().resource_mut::<MusicScore>().layers[0].gain_db = -12.0;
+    run_for(&mut app, 0.3, 1.0 / 60.0);
+
+    assert_eq!(
+        app.world().resource::<MusicState>().voice("calm"),
+        Some(voice),
+        "the same entity is still the calm layer's voice"
+    );
+    let cues: Vec<String> =
+        app.world_mut().query::<&Voice>().iter(app.world()).map(|v| v.cue.clone()).collect();
+    assert!(cues.contains(&"track.calm".to_owned()), "and it still plays the same cue: {cues:?}");
+}

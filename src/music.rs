@@ -24,7 +24,7 @@ use bevy::prelude::*;
 
 use crate::cue::CueTable;
 use crate::log::{Entry, SirenLog};
-use crate::mix::DuckClock;
+use crate::mix::{DuckClock, Stopping};
 use crate::model::{DEFAULT_FADE_S, SILENT_DB, approach, next_boundary, tau_for_fade};
 use crate::play::{Play, Played, Refusal, Voice};
 
@@ -332,6 +332,9 @@ pub fn start_layers(
     score: Option<Res<MusicScore>>,
     mut state: ResMut<MusicState>,
     mut plays: MessageWriter<Play>,
+    mut log: ResMut<SirenLog>,
+    voices: Query<(Entity, &Voice)>,
+    mut commands: Commands,
     real: Res<Time<Real>>,
 ) {
     let Some(score) = score else {
@@ -344,7 +347,41 @@ pub fn start_layers(
     let now = real.elapsed_secs_f64();
     let _ = now;
     state.score = Some(score.clone());
-    state.layers.retain(|l| score.layer(&l.name).is_some());
+
+    // **A layer's voice belongs to the score's layer, and follows it.** A score is a resource a project and the
+    // Cauldron edit, and this system used to only ever *add* layers: a layer that left the score kept a looping voice
+    // playing forever, ownerless (`retire_voices` skips loops by design), and a layer retargeted to a new cue kept the
+    // **old** sample while the new one never started. Both disagree with the score in silence.
+    //
+    // The stop goes through the crate's one stop path, so it fades over `DEFAULT_FADE_S` rather than clicking, and
+    // `stop_requests` writes the `Stopped` line from the same reason. A **gain** edit is not a stop: that is what
+    // `move_layers` moves, so the voice stays.
+    let mut stops: Vec<(Entity, &'static str)> = Vec::new();
+    state.layers.retain(|layer| {
+        let Some(scored) = score.layer(&layer.name) else {
+            if let Some(voice) = layer.voice {
+                stops.push((voice, "layer removed"));
+            }
+            return false;
+        };
+        if scored.cue != layer.cue {
+            if let Some(voice) = layer.voice {
+                stops.push((voice, "layer retargeted"));
+            }
+            return false;
+        }
+        true
+    });
+    // **Marked here, not through `StopVoice`.** A `StopVoice` carries an entity and no reason, so `stop_requests`
+    // would log this as a plain `"stop"` and lose what the score actually did. Marking the voice directly, with the
+    // reason, keeps the one fade (`apply_stopping`) and the true log line — and `stop_requests` never sees it, so there
+    // is no second line. `start_layers` runs in `Choose` and `apply_stopping` in `Mix`, so the fade begins this frame.
+    for (entity, why) in stops {
+        if let Ok((_, voice)) = voices.get(entity) {
+            log.push(Entry::Stopped { at_s: now, cue: voice.cue.clone(), why: why.to_owned() });
+        }
+        commands.entity(entity).insert(Stopping { since_s: now, why: why.to_owned() });
+    }
     for layer in &score.layers {
         if state.layers.iter().all(|l| l.name != layer.name) {
             state.layers.push(LiveLayer {
@@ -357,6 +394,11 @@ pub fn start_layers(
             });
         }
     }
+    // **`names()` is documented as score order**, and the reconcile above drops a retargeted layer before the loop
+    // re-adds it, which would put it at the end. Sort by the score's own order, with any name the score lost last.
+    state.layers.sort_by_key(|layer| {
+        score.layers.iter().position(|scored| scored.name == layer.name).unwrap_or(usize::MAX)
+    });
     let start: Vec<(String, String, f32)> = state
         .layers
         .iter()

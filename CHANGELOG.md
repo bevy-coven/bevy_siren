@@ -20,6 +20,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A `MusicScore` edited at runtime now reconciles its voices, not only its layer list.** `MusicScore` is a resource a
+  project and the Cauldron edit, and `start_layers` only ever *added* layers: a layer **removed** from the score kept a
+  looping voice playing forever, ownerless (`retire_voices` skips loops by design), and a layer **retargeted** to a new
+  `cue` kept the old sample while the new one never started. Both disagreed with the score in silence. A removed or
+  retargeted layer's voice is now marked `Stopping` with the true reason (`"layer removed"` / `"layer retargeted"`), so
+  it fades over `DEFAULT_FADE_S` and the log says why; a retargeted layer starts its new cue the same frame. A **gain**
+  edit still keeps the voice — that is what `move_layers` moves. `MusicState::names()` keeps its documented score order.
 - **A `StopVoice` for a voice that has already ended no longer panics.** `stop_requests` took the entity straight from
   the message and issued a command on it; `retire_voices` despawns a one-shot the frame it ends, and `Played::entity` is
   documented as the handle a game keeps for `StopVoice` — so holding it one frame too long hit Bevy 0.20's default error

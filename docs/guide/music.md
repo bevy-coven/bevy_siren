@@ -75,6 +75,19 @@ log rather than played somewhere unexpected.
 iteration 3 the bus began climbing on the frame the stinger fired, so a −9 dB stinger read −5 dB at its midpoint and
 the music swelled back underneath it.
 
+## Editing the score
+
+A `MusicScore` is a resource, so a project (or the Cauldron) may change it while it plays. The layers are **voices**, and
+they follow the score:
+
+- **adding** a layer starts its stem;
+- **removing** one fades its stem over `DEFAULT_FADE_S` and logs `layer removed` — an ownerless loop would otherwise play
+  for the life of the process;
+- **retargeting** one's `cue` fades the old stem and starts the new, logging `layer retargeted`;
+- **changing a gain** moves the voice, which is what `MusicLayers` does — no restart.
+
+`MusicState::names()` is in score order, whatever the edit.
+
 ## As data
 
 ```ron

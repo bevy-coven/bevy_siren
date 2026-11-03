@@ -3,6 +3,14 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 14, a score edit reconciles its voices
+
+No clip: the change is **what happens to a voice when the score changes**, and every rendered WAV is byte-identical
+because the harness plays no edited score. The evidence is the two probes in
+`runs/2026-11-02-14/perf.md` — a removed layer leaving **2** voices live before and 1 after, a retargeted layer playing
+`track.a` before and `track.combat` after — and the three tests, two of which fail on the unfixed tree. A panel could show
+it only if `examples/mixer` edited its score at runtime, which it does not.
+
 ## No clip: iteration 13, the cap is a budget on plays
 
 No clip: the change is **two doc sentences and two tests**. No behaviour moved, so every rendered WAV is byte-identical
