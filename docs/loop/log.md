@@ -7,6 +7,69 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 62 — 2026-11-03 — the semantic critical path, bottom-up
+
+**Baseline.** Fully green in `bevy_siren` — 163 / 172 / 173 + 6, clippy, fmt, rustdoc, examples. Iteration 61 left no
+uncommitted work. Case 31 (`gain_db` silent) remains the only red case and remains blocked on the `CueProblem` enum
+decision.
+
+**The item.** Not one feature but the **critical path of the 48-issue backlog filed this session**. Worked in
+dependency order, nothing stubbed: **6 issues closed, 3 advanced**.
+
+**#2 — the CLAP export spike, and its answer.** `laion/clap-htsat-fused` exports to ONNX at **cosine 1.000000000**,
+**6.8 × 10⁻⁷** max absolute difference, opset 17, 39 standard operators, 116.5 MB, `onnx.checker` passing. Two findings
+beyond the question: **every duration yields 1001 mel frames** (so chunking is a counting problem) and **dynamic batch
+is broken** at batch ≥ 2 (so `N-02` needs a ladder of fixed-batch exports). Latency 34.9 ms/clip on an M4 **CPU**.
+
+**#3, #7 — the two ADRs.** `ort` + CUDA EP, because the export turned out exact; `candle` is the fallback on coverage
+and the sidecar on a measured trigger. One library with two front ends, index owned by the library, playback only
+through the plugin's existing messages.
+
+**#11 — the library manifest.** Identity is the **content hash**, not the path, because that is the distinction an
+incremental index needs: a rename is **0 adds / 0 removals**, a re-encode in place is **1 / 1**. Rows headers only, no
+decode; a symlink out of the root is refused; every file it does not index is reported with a reason.
+
+**#9 — the feature skeleton, proven.** `cargo tree --edges normal` is **413 lines with and without**
+`--features semantic`. The contract is measured, not asserted.
+
+**#12, #17, #26 — the device-free half of each.** `buffer.rs` (downmix, rate agreement), `budget.rs` (what fits, what a
+ceiling forbids, the batch a leftover takes), `rank.rs` (cosine, top-k, total order). No model call yet, because that
+needs `ort`, which `#10` gates — so each does its whole job and is tested rather than stubbed.
+
+**The decision that took a measurement to make.** `#12`'s decode half needs a resampler, and the crate's dependency
+list is closed. `rodio 0.22.2`'s own doc comment settles it: *"simple linear interpolation for up-sampling and discards
+samples for down-sampling"* — **aliasing**. So `model_buffer` **refuses** any rate but 48 kHz with
+`ResamplingRequired { from, to }`, naming both rates and `needs-decision/semantic-dependencies.md`. An aliased
+embedding is a plausible vector and nothing downstream can tell, which is the failure this repository keeps paying for.
+
+**Five defects the tests found.** A RIFF with no `fmt ` chunk was indexed instead of reported corrupt; my own re-encode
+fixture was wrong; the interpolator contradicted the decision file and was removed; `IndexProblem` was large enough to
+pad every `Result` (clippy); and the GPU ceiling was reported as device space, sending a reader to fix the wrong thing.
+
+**Verdicts.** Pass 1 **GREAT**, pass 2 **GREAT**, pass 3 **GREAT**.
+
+**Gate.** 174 default / 218 semantic / 237 all-features, clippy, fmt, rustdoc, examples — all green.
+
+**Perf.** One real number, the model's: **34.9 ms/clip on M4 CPU**. `perfcheck` was not run and `perf.md` says why: no
+crate code on the audio path changed, so it would measure iteration 61's code and report it as new.
+
+**Evidence.** `runs/2026-11-03-62/`: `research.md` (five measured sources), `plan.md` (the ranked list and what was
+carved), `perf.md`, `eval.md`, `review.md` (three passes), `evidence/spike/clap-export.json`.
+
+**Commits.** `36990e6` ADRs, `c40c00d` library, `c0228a0` feature skeleton, `0f1b9b9` buffer, `4c1a375` index,
+`fa21716` budget, `43431c2` ranking.
+
+**Top 5 remaining**
+
+1. **`#10`** — extend `tests/leaf.rs` with the crates the ADR named, so `ort` can land and `#17`/`#26` can finish.
+   Everything on the path behind it waits on this.
+2. **`#3`'s batch ladder** — export CLAP at batch 1 and 8, because dynamic batch is broken. A measured constraint, not
+   an optimisation.
+3. **`#26`'s model call** — text encode plus `top_k` against a real index; the walking skeleton's exit condition.
+4. **`#12`'s decision** — `semantic-dependencies.md` needs an answer (recommendation: `ort` plus an explicit resampler).
+   Until then every non-48 kHz asset is refused, which is the commonest rate a game ships.
+5. `cues.yaml` case 31 — still the only red case, still blocked on the same public-enum decision.
+
 ## Iteration 61 — 2026-11-03 — the Cauldron's `bevy_siren` feature never compiled
 
 **Baseline.** `bevy_siren` green on every step. But the **consumer** was red, and had been for a long time: two commands
