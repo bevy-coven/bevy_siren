@@ -50,7 +50,9 @@ pointing at it — one name per artefact. (3) Alt text must be read off the pict
 with the panel. (4) **A check that only ever passes proves nothing** — run it against a reproduction of the old state. (5)
 `hs distill` GPU-blocked (twenty-eighth iteration).
 
-**Commit.** `a793e10`; CI on `main`.
+**Commit.** `a793e10`, pushed to `main`; CI run 41595547980 is **success** on `big-s1`. Gate: build, test (112 + 5),
+serde (119 + 5), mixer (121 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
