@@ -46,7 +46,9 @@ that documents a budget (`"a panel shows eight"`) and an example that uses anoth
 (4) Regenerating an image does not prove it is right — iterations 29–31 each regenerated this one **with** the clip.
 (5) `hs distill` GPU-blocked (thirty-first iteration).
 
-**Commit.** `9967090`; CI on `main`.
+**Commit.** `9967090`, pushed to `main`; CI run 41597034221 is **success** on `big-s1`. Gate: build, test (113 + 5),
+serde (120 + 5), mixer (122 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
