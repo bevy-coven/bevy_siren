@@ -7,6 +7,32 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Per-asset provenance: where a sound came from and what its terms are.** `semantic::provenance` carries `licence`,
+  `source` and `author` as `Option`s and reads the CSV and JSON sidecars a purchased pack ships. It is `p0` because it
+  is cheap now and impossible later: an index built without provenance can only be recovered by rescanning files that
+  may no longer exist.
+
+  **`permits_commercial_use() -> Option<bool>` — three answers, not two.** `None` means *nothing recorded, or an
+  identifier this crate does not know*, and it is left for a person. A `bool` defaulting to `true` turns "nobody
+  recorded this" into "this is fine", which is the one direction that gets a studio sued.
+
+  **Unknown is a value, never an absence that reads as permission.** An asset with no sidecar row reads
+  `unknown, source not recorded`; an asset whose sidecar wrote an empty licence is *recorded* as empty. Both answer
+  `None`, and the two stay distinguishable.
+
+  **A folder-level `LICENSE` or `README` is deliberately never consulted.** An inherited licence that looks
+  authoritative is worse than an explicit unknown — the pitfall #14 names — so only a per-file record is read, and a
+  pack whose README says "all CC0" gets unknown provenance for every file.
+
+  Sidecar CSV columns are matched **by name** (`file`/`path`, `licence`/`license`, `source`, `author`/`creator`), so a
+  pack that orders them differently still reads. Two rows for one file is a **conflict**, not last-write-wins.
+
+  Storage in the index and exposure on `rank::Match` are schema changes — `Index::records` is `hash → vector` under a
+  pinned `MAGIC`, and `Match` is `Copy` — so they are
+  `docs/loop/needs-decision/provenance-in-the-index.md`. Refs #14.
+
+### Documented
+
 - **Incremental indexing: embed only what changed.** `semantic::incremental::update(root, index, embed)` takes the
   index a previous run wrote, scans the folder, and embeds **only the adds** — dropping only the removals and reporting
   `added` / `removed` / `unchanged` / `failed` as separate numbers. Measured: adding one file to a **100-file** library

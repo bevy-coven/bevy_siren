@@ -7,6 +7,86 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 82 — 2026-11-03 — provenance, and the licence check that would have granted permission
+
+**Baseline.** Green: 198 / 207 serde / 208 mixer / 6 doc / 36 semantic; clippy 0, fmt, rustdoc, examples. One disk
+interruption handled with the documented fix — `cargo clean -p bevy_siren` freed **4.9 GB** after a serde link failure at
+1.4 GB free, which then ran **207 passed**.
+
+**The item: #14, the last unblocked p0.** p0 *because* it is cheap now and impossible later: an index built without
+provenance can only be recovered by rescanning files that may be gone.
+
+**Two of its four criteria are met; two are genuinely blocked**, and the split is recorded rather than glossed.
+
+| Criterion | State |
+|---|---|
+| explicit unknown, distinguishable from a recorded empty value | **met** |
+| a sidecar's fields reach the index | **half** — the reader is built; *reaching the index* is a schema change |
+| a search result reports licence and source | **blocked** — `rank::Match` is `Copy` |
+| unknown is never presented as permissive | **met** |
+
+**The design worth defending.** `permits_commercial_use() -> Option<bool>` has **three** answers, and `None` means *a
+person decides*. A `bool` defaulting to `true` turns *"nobody recorded this"* into *"this is fine"* — the direction that
+gets a studio sued — and a `bool` defaulting to `false` would call `CC0` unusable. An empty string **is** a recording
+and stays distinguishable from an absent one, and both answer `None`.
+
+**The over-claim this iteration nearly shipped.** The permissive check was `lower.contains("mit")` — a **substring**
+match — so `"resubmitted-terms"` would have been accepted as the MIT licence. **Every test passed as written**, because
+none used a string that happened to contain the letters. Fixed to a **leading stem**, with `resubmitted-terms → None`
+pinned. The asymmetry is deliberate and now stated: **non-commercial is a substring** (a missed `-nc` is dangerous),
+**permissive is a stem** (a spurious match is dangerous). `CC-BY-SA-4.0` and `CC-BY-ND-4.0` also read correctly as
+commercial — share-alike and no-derivatives are separate obligations — where my own first test had mis-asserted
+`CC-BY-4.0` as `None`.
+
+**The pitfall #14 names, refused in code rather than in prose.** `Sidecar` reads only a per-file record. A folder-level
+`LICENSE` or `README` is **never consulted**, so a pack whose README says "all CC0" gets unknown provenance for every
+file — an inherited licence that looks authoritative is worse than an honest unknown. Columns are matched **by name**, so
+a pack that orders them differently still reads; two rows for one file is a **conflict**, not last-write-wins.
+
+**Carved off with a decision file, not silently.** Storing provenance in the index and exposing it on `Match` are both
+schema changes — `Index::records` is `hash → vector` under a pinned `MAGIC`, and `Match` is `Copy { hash, score }` — so
+they are `needs-decision/provenance-in-the-index.md`, recommending an optional trailing section (the shape ADR 0004 chose
+for loudness) and accepting that `Match` loses `Copy`, because a caller looking provenance up separately is the option
+that lets a consumer forget.
+
+| voices | µs/frame | iteration 81 |
+|---|---|---|
+| 8 | **0.062** | 0.064 |
+| 64 | **0.342** | 0.355 |
+| 256 | **1.227** | 1.341 |
+
+**No regression, and no claim of an improvement** — a new module behind a non-default feature; across iterations 80–82
+identical audio code reads 0.062–0.084 / 0.342–0.472 / 1.227–1.576 µs, which is the shared machine's spread.
+
+**Visual gate unchanged:** 32 render files, **14 of 14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to
+iterations 67, 71, 74, 75, 80 and 81. `bang-spectrum.png` read: broadband onset, harmonic comb to 10 kHz, no click line,
+no clipping shelf, no gap.
+
+**Verdicts.** Pass 1 **GREAT** (two criteria met, two blocked and tracked), pass 2 **GREAT** (the over-claim found by
+re-reading the matching, and pinned as a test), pass 3 **GREAT** (a sidecar author writes CSV or JSON and it reads;
+the pitfall is refused in code).
+
+**Docs.** The guide gains a sixth step — *where each sound came from* — with the three-answer match and the CSV shape;
+its heading moved from "five steps" to "six". The README line gains the licence claim. `CHANGELOG.md` gains the entry.
+
+**Evidence.** `runs/2026-11-03-82/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,spectrograms}/`.
+
+**Commits.** `1e0cfd9`.
+
+**Top 5 remaining**
+
+1. **Answer `provenance-in-the-index.md` and finish #14.** Two criteria are waiting on it, and the recommendation mirrors
+   ADR 0004 so the two features share one rule. `Match` losing `Copy` is the only consumer-visible cost.
+2. **`#21`'s index round trip** — `loudness-in-the-index.md` recommends the same optional-section shape, so one decision
+   can settle both.
+3. **The binary index writer** ADR 0004 specifies — `to_text` is **31.88 MB** at 5 000 clips against **10.30 MB** binary,
+   a 3× overhead still unasserted.
+4. **`#22` spectral centroid, rolloff and noise floor** — unblocked by ADR 0003, sharing one FFT pass over a spectrum
+   `mel.rs` already computes.
+5. **`#28` the MCP tool host**, then `#29`/`#44` — the largest user-facing win, consuming an index now correct,
+   incrementally updatable and provenance-carrying.
+
 ## Iteration 81 — 2026-11-03 — incremental indexing, and the file the scan refused
 
 **Baseline.** Green, and complete: 198 / 207 serde / 208 mixer / 6 doc / 25 semantic / 6 incremental; clippy 0, fmt,

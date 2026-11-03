@@ -20,7 +20,7 @@ bevy_siren = { version = "0.1", features = ["semantic"] }
 Enabling it downloads ONNX Runtime at build time. A crate that does not enable it is unchanged: `cargo tree --edges
 normal` reads the same **413 lines** with and without the feature, measured.
 
-## The five steps, and what each one is
+## The six steps, and what each one is
 
 ```text
   a folder of audio            a description
@@ -123,6 +123,43 @@ different take", and the other guess would leave the index describing audio that
 
 `update` never writes. That is deliberate: `indexer::write` owns the file, so a caller composes the two and puts its own
 lock around the write — and a caller that only wants to preview a run writes nothing at all.
+
+### 6. Where each sound came from
+
+A library bought or downloaded carries a licence obligation **per file**. `semantic::provenance` records it beside the
+asset, and answers the one question a game has to get right:
+
+```rust
+use bevy_siren::semantic::provenance::{Provenance, Sidecar};
+
+let sidecar = Sidecar::read(&root.join("licences.csv"))?;
+let terms = sidecar.records.get("step.wav").cloned().unwrap_or_else(Provenance::unknown);
+
+match terms.permits_commercial_use() {
+    Some(true)  => { /* a licence this crate recognises as commercial */ }
+    Some(false) => { /* recognised as non-commercial: do not ship */ }
+    None        => { /* nothing recorded, or an identifier it does not know: a person decides */ }
+}
+println!("{terms}");   // "CC0-1.0, from `kenney-sounds`", or "unknown, source not recorded"
+```
+
+**Three answers, and `None` is the important one.** A `bool` defaulting to `true` turns *"nobody recorded this"* into
+*"this is fine"*, which is the direction that gets a studio sued. An asset with no row reads `unknown`, and a row that
+wrote an empty licence is **recorded** as empty — both answer `None`, and the two stay distinguishable.
+
+**A folder-level `LICENSE` or `README` is never consulted.** An inherited licence that looks authoritative is worse than
+an explicit unknown, so a pack whose README says "all CC0" gets unknown provenance for every file. Only a per-file
+record counts.
+
+Sidecar columns are matched **by name**, so this reads whichever way a pack ordered it:
+
+```csv
+source,file,licence,author
+kenney,step.wav,CC0-1.0,
+```
+
+Two rows for one file is a **conflict** rather than last-write-wins: a licence that is a guess is worse than one that is
+unknown.
 
 ## Ask: one call from a description to a ranked answer
 
