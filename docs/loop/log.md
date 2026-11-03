@@ -7,6 +7,60 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 104 — 2026-11-03 — a floor that could not be set, a category that never matched (#43)
+
+**Change.** Three defects in `semantic::tools` and `semantic::weights`, all in code this loop wrote and **closed issues
+against**. Found by reading, not by a failing test — the third iteration running where that is how a bug surfaced.
+
+1. **The similarity floor was ignored.** `tools.rs` compared against `Floor::default().min_score`, which is `0.0`, so the
+   branch could never fire: `Tally::below_floor` was documented, rendered by `describe()`, and **permanently zero**, and a
+   caller had no way to set a stricter filter. `Weights::min_similarity` is now a field (**design default `0.0`**,
+   `Floor::min_score`'s existing default — and `0.0` because the measured semantic bands overlap, so a floor of 0.5 would
+   reject every correct match).
+2. **The category filter was case-broken.** `source_of` lowercased the haystack; `contains(want)` compared a **raw**
+   needle. `Some("Footsteps")` against a pack recorded as `Footsteps` matched **nothing**, and the tally blamed the
+   category. **My own iteration-97 test passed because it happened to use the lowercase form** — a test that passed for a
+   reason adjacent to its claim.
+3. **A bad compatibility multiplier named the wrong field.** Three checks pushed `BadDropFraction`, so `clash_penalty: 1.5`
+   produced *"`drop_fraction` is 1.5"* — sending a person to edit a field they never touched. `BadMultiplier { field, value }`
+   now carries it.
+
+**Source.** Sun, Min, Chang & Bisk (`10.48550/arXiv.2406.19228`) name both halves of this class: **failure detection**
+(*"recognizing failures"*) and **fault assignment** (*"identifying which tool caused the error"*). All three defects fail
+the second — the tally said the acoustic rules excluded nothing while the category removed everything.
+
+**Before/after.** No audio changed — **all 21 rendered wavs byte-identical**, master **−21.5 LUFS, −7.5 dBFS true peak**.
+Five new tests: four spellings of one category all match (`Footsteps`, `footsteps`, `FOOTSTEPS`, `ootste`); a raised floor
+drops and **counts**; the default keeps everything; a floor beyond a cosine is refused; both multiplier fields name
+themselves and **not** `drop_fraction`.
+
+**Two of my own test assumptions were wrong, and the tests caught both**: three assets with **no provenance** cannot match
+a category (I asserted zero, got two), and asset 4's cosine is **0.99995**, so my "impossible" floor of 0.9999 still
+admitted it (now exactly `1.0`). Both are the fixture's own facts, learned by asserting.
+
+**Verdicts.** Function **GREAT**, zoom **GREAT**, fresh eyes **GREAT**. Recorded rather than fixed: `want.to_lowercase()`
+runs **inside** the candidate loop, so a 10 000-asset library allocates 10 000 times per filtered query. Hoisting it
+changes the signature of a function with one caller, so the trade is in `perf.md` rather than made silently.
+
+**Public-enum change filed.** `WeightProblem` is not `#[non_exhaustive]`, so the two new variants break an exhaustive
+`match`. `needs-decision/weight-problem-names-its-field.md` puts it to the owner with four options, recommends
+`#[non_exhaustive]` at the next minor — this is the **fourth** diagnostic enum here to gain a variant after shipping, and
+each has paid the same cost.
+
+**Evidence.** [`runs/2026-11-03-104/`](runs/2026-11-03-104/) — `research.md`, `plan.md`, `eval.md`, `perf.md`,
+`review.md`, `evidence/after/` (32 files), `evidence/spectrograms/`.
+
+**Baseline:** nothing red — 198 / 6 / **434 semantic** / **109 lib** / 458 all-features / 6 doc, clippy, fmt and docs
+clean.
+
+**Top 5 remaining — all blocked outside this repository.**
+
+1. **`#28` the MCP server** — one line of `Cargo.toml` and one `leaf.rs` row. Everything it wraps exists and is tested.
+2. **`#35` golden set** — labelled real recordings; also what `#23`'s reverb measure and `evalbench`'s `corpus()` wait on.
+3. **`WeightProblem` `#[non_exhaustive]`** — this iteration's decision file; four enums, one change.
+4. **`#32`–`#34` the editor panel** — everything it needs is built, in `bevy_grimoire`.
+5. **Hoist the category needle** — this iteration's recorded criticism.
+
 ## Iteration 103 — 2026-11-03 — the escape hatch that did not open (#20)
 
 **Change.** Not an open issue: a **defect in code iteration 100 shipped**. `Index::overridden` was written by
