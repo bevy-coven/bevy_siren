@@ -102,6 +102,21 @@ every frame, so `voice(name)` never names an entity the world no longer has and 
   for the live count to fall below the count at the refusal, so a full budget writes **one** refusal line, not one per
   frame.
 
+## A layer must name a cue that loops
+
+A layer is a stem: it runs throughout, at the same tempo and beat as every other layer. A cue with `Mode::Once` **ends**,
+so it cannot hold a layer — the voice would be retired, the layer would be asked for again, and the result is a
+one-shot at frame rate, not music. The plugin **does not start** such a layer, keeps it in the score's `names()`, and
+writes **one** line:
+
+```
+refused `hit`: music layer `calm` names cue `hit`, which is not a loop, so it cannot hold a layer
+```
+
+That is `MusicScore::problems`' sentence, so the report and the log agree. Fix the cue to `Mode::Loop` and the layer
+starts on the next frame — the plugin reads the cue the layer names *this frame*, not the one it had when the score was
+loaded. `needs-decision/not-a-loop-refusal.md` records why this is a log line rather than a new `Refusal`.
+
 A stem that comes back starts from the beginning, so it is out of phase with the others. That is the price of a voice
 that died; the crate does not re-time it, because what a restart means after a gain change is a decision the score does
 not carry.

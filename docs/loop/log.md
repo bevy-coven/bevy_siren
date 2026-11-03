@@ -7,6 +7,71 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 16 — 2026-11-02 — a layer that names a cue which ends
+
+**Change.**
+
+- **`src/music.rs` — `start_layers` does not start a layer whose cue is not a lock `Mode::Loop`.** `MusicScore::problems`
+  states the rule (*"names cue `hit`, which is not a loop, so it cannot hold a layer"*); the plugin ignored it. A
+  `Mode::Once` cue was started, its voice was retired — a once voice **ends**, and `retire_voices` only skips loops —
+  and iteration 15's restart rule asked for it again **every frame**: 10 plays in 10 frames, no `Refused`, no line.
+  `start_missing` now reads the cue the layer names **this frame**, skips a cue that is not a loop, keeps the layer in
+  `names()`, and writes **one** line in `problems()`' own words. A table edit that makes the cue a loop starts the
+  layer on the next frame.
+- `tests/music.rs` — three tests, all failing on the base commit; a *"A layer must name a cue that loops"* section; a
+  CHANGELOG line; and `docs/loop/needs-decision/not-a-loop-refusal.md` for the `Refusal` variant this does **not** add.
+
+**Why.** The hunt at the end of iteration 15 pointed at the **consumer-side** resources. Probing `SirenChoices` found it
+**sound** — a fresh `SirenChoices::new(seed)` reproduces the stream, re-writing the same seed continues it, resetting
+the public `rng` alone reproduces it. Probing the rest found three green and one rank-1 red: the asymmetry that made it
+rank 1 is that an **unknown** cue was refused with a reason and a **one-shot** cue played at frame rate with no line at
+all.
+
+**Evidence.** `runs/2026-11-02-16/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/one-shot-layer{,-before}.txt`.
+
+**Measured.**
+
+| row | before | after |
+|---|---|---|
+| a `Mode::Once` layer, its sample ending | **10 plays in 10 frames**, `live()` 1, no line | **0 plays**, `live()` 0, one line naming layer and cue |
+| a `Mode::Loop` layer (control) | 1 play, `live()` 1 | unchanged |
+| a layer naming an unknown cue (control) | refused, `no cue of that name` | unchanged |
+| the table fixed to `Mode::Loop` | never starts | starts on the next frame |
+| every rendered cue, the mix | — | **byte-identical** (21/21); `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| frame cost | 0.064 / 0.351 / 0.734 µs at 8/64/256 | unchanged — one table lookup per **voiceless** layer, no per-voice work |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. One defect in my own measurement caught at Zoom: the first
+probe despawned the layer's voice every frame **for every row**, so the loop control also read 10 plays and proved
+nothing; an end is now modelled only for a one-shot.
+
+**Traps for the command.** (1) A restart rule turns *silence* into *rate*: once iteration 15 made a dead voice restart,
+any cue that ends became a frame-rate retrigger. A retry must know what "ended" means for the thing it retries.
+(2) A control row is only a control if the **stimulus** is withheld from it — the first probe withheld nothing. (3)
+`problems()` and the plugin are two paths to one rule; when they disagree, the plugin is the one that plays.
+(4) Clippy's 7-argument limit on a Bevy system is Bevy's, not the design's: `play_requests`, `answer` and
+`start_pending` already carry the allow. (5) `hs distill` still GPU-blocked (fifteenth iteration).
+
+**Commit.** `see git log`; CI on `main`.
+
+**Next 5.**
+
+1. **`Refusal::NotALoop { layer, cue }`** — `needs-decision/not-a-loop-refusal.md`; the log line is the enforcement
+   today, and a host reading `Refused` alone cannot see it.
+2. **Re-time a restarted stem to the bar** — `needs-decision/restart-on-the-bar.md` (iteration 15's item 1).
+3. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+4. A `Refusal` variant separating "never mapped" from "corrupt" — `needs-decision/undecodable-sound.md`.
+5. Quantise a **retarget** onto the bar (iteration 14's item 1).
+
+**The hunt, fifth pass.** The **resource-contract** class is now exhausted in two directions: what a public resource
+*holds* (13–15) and what a consumer resource holds about the crate (this one — `SirenChoices` **sound**). The next
+untested surface is the **two-backend** promise: "the two backends answer identically", which `tests/mixer.rs` proves for
+play and stop. Nothing proves it for a **steal**, a **duck**, or a **music layer**.
+
+**Baseline note.** Nothing was red; the suite had 80 tests.
+
+---
+
 ## Iteration 15 — 2026-11-02 — a music layer's voice dies, and now the layer knows
 
 **Change.**

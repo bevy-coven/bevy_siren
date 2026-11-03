@@ -273,6 +273,8 @@ struct LiveLayer {
     /// virtual voice is promoted when a voice frees, not every frame: retrying while the budget is unchanged would
     /// write one refusal line per frame into a log a player's panel reads.
     blocked_at: Option<usize>,
+    /// Whether the log has already said this layer's cue is not a loop. One line per layer, not one per frame.
+    noted: bool,
 }
 
 /// A stinger whose `Play` has been written this frame and not yet answered.
@@ -336,8 +338,13 @@ pub struct MusicVoice {
 
 /// **Starts one looping voice per score layer** the first frame a score exists, by writing a [`Play`] per
 /// layer — the crate's one play path. Runs in [`SirenSystems::Choose`](crate::SirenSystems).
+///
+/// The argument count is Bevy's: a system's parameters are the resources it reads, and `play_requests`,
+/// `answer` and `start_pending` carry the same allow for the same reason.
+#[allow(clippy::too_many_arguments)]
 pub fn start_layers(
     score: Option<Res<MusicScore>>,
+    table: Res<CueTable>,
     mut state: ResMut<MusicState>,
     mut plays: MessageWriter<Play>,
     mut log: ResMut<SirenLog>,
@@ -356,7 +363,7 @@ pub fn start_layers(
     // naming a **despawned** entity, `live()` counted it, and the layer was silent for the rest of the process.
     reconcile(&mut state, live);
     if !score.is_changed() && state.score.is_some() {
-        start_missing(&mut state, &mut plays, live);
+        start_missing(&mut state, &mut plays, &mut log, &table, live, now);
         return;
     }
     state.score = Some(score.clone());
@@ -410,6 +417,7 @@ pub fn start_layers(
                 fade_s: 0.0,
                 restart: true,
                 blocked_at: None,
+                noted: false,
             });
         }
     }
@@ -418,7 +426,7 @@ pub fn start_layers(
     state.layers.sort_by_key(|layer| {
         score.layers.iter().position(|scored| scored.name == layer.name).unwrap_or(usize::MAX)
     });
-    start_missing(&mut state, &mut plays, live);
+    start_missing(&mut state, &mut plays, &mut log, &table, live, now);
 }
 
 /// The voices the plugin may see, for the reconcile and for the budget it must not fill.
@@ -466,19 +474,60 @@ fn is_game_stop(why: &str) -> bool {
 /// **Asks for a voice for every layer that has none and may have one.** A refused start is retried **when something
 /// made room** — the live count fell below the count at the refusal — because a budget that has not changed will refuse
 /// identically, and writing that line every frame is noise in the panel the log exists for.
-fn start_missing(state: &mut MusicState, plays: &mut MessageWriter<Play>, live: &LayerVoices) {
+fn start_missing(
+    state: &mut MusicState,
+    plays: &mut MessageWriter<Play>,
+    log: &mut SirenLog,
+    table: &CueTable,
+    live: &LayerVoices,
+    now: f64,
+) {
     let count = live.iter().count();
+    // **A layer starts a voice its cue says will not end.** `MusicScore::problems` states the rule - *"names cue
+    // `hit`, which is not a loop, so it cannot hold a layer"* - and this system used to ignore it: a `Mode::Once` cue
+    // was started, its voice ended, and the restart rule asked for it again **every frame** (measured: 10 plays in 10
+    // frames, no `Refused`, no line). An unknown cue is refused with a reason; a one-shot cue was played at frame rate
+    // and never mentioned. The check reads the cue the layer names **this frame**, so a table edit that breaks a live
+    // layer stops its restart, and one that fixes it starts the layer on the next frame.
+    let mut bad: Vec<(String, String)> = Vec::new();
     let start: Vec<(String, String, f32)> = state
         .layers
         .iter()
         .filter(|layer| {
-            layer.voice.is_none()
-                && layer.restart
-                && !state.awaiting.iter().any(|(cue, _)| *cue == layer.cue)
+            if layer.voice.is_some() || !layer.restart {
+                return false;
+            }
+            let Some(cue) = table.get(&layer.cue) else {
+                // A missing cue has its own path: `play_requests` refuses it with `UnknownCue` and the log says why.
+                return !state.awaiting.iter().any(|(cue, _)| *cue == layer.cue)
+                    && layer.blocked_at.is_none_or(|blocked| count < blocked);
+            };
+            if !cue.mode.is_loop() {
+                bad.push((layer.name.clone(), layer.cue.clone()));
+                return false;
+            }
+            !state.awaiting.iter().any(|(cue, _)| *cue == layer.cue)
                 && layer.blocked_at.is_none_or(|blocked| count < blocked)
         })
         .map(|layer| (layer.cue.clone(), layer.name.clone(), layer.db))
         .collect();
+    for (name, cue) in bad {
+        let Some(layer) = state.layers.iter_mut().find(|l| l.name == name) else {
+            continue;
+        };
+        if layer.noted {
+            continue;
+        }
+        layer.noted = true;
+        // One line per layer, in the words `MusicScore::problems` already uses, so a panel and the report agree.
+        log.push(Entry::Refused {
+            at_s: now,
+            cue: cue.clone(),
+            reason: format!(
+                "music layer `{name}` names cue `{cue}`, which is not a loop, so it cannot hold a layer"
+            ),
+        });
+    }
     for (cue, name, db) in start {
         if let Some(layer) = state.layers.iter_mut().find(|l| l.name == name) {
             layer.blocked_at = None;

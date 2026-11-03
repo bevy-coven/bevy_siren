@@ -20,6 +20,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A music layer naming a cue that ends no longer machine-guns the play path.** `MusicScore::problems` states the rule
+  — *"names cue `hit`, which is not a loop, so it cannot hold a layer"* — and the plugin ignored it: a `Mode::Once` cue
+  was started, its voice was retired (a once voice **ends**; `retire_voices` only skips loops), and the layer was asked
+  for again **every frame** — 10 plays in 10 frames, with no `Refused` and no log line, while an unknown cue was refused
+  with a reason. `start_layers` now reads the cue the layer names this frame, does not start a cue that is not a lock
+  `Mode::Loop`, keeps the layer in `names()`, and writes **one** line in `problems()`' own words. A table edit that
+  makes the cue a loop starts the layer on the next frame. A `Refusal` variant for the same fact is recorded as
+  `docs/loop/needs-decision/not-a-loop-refusal.md` — it is public API and waits for the owner.
 - **A music layer's voice could die and the layer never notice.** `MusicState` wrote the entity a layer's `Played`
   reported and never reconciled it, so a voice stopped by the game (`StopCue`), taken by the budget, or refused at its
   first play left `voice(name)` naming a **despawned** entity, `live()` counting it, and the stem silent for the rest of

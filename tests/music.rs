@@ -665,3 +665,82 @@ fn a_refused_layer_start_is_tried_again_when_room_frees() {
         "a layer is live now that the bed freed its slot"
     );
 }
+
+/// **A layer naming a cue that ends is not started, and the log says why once.**
+///
+/// `MusicScore::problems` states the rule — *"names cue `hit`, which is not a loop, so it cannot hold a layer"* — and
+/// the plugin ignored it: a `Mode::Once` cue started, its voice ended, and the restart rule asked for it again **every
+/// frame**. Measured before the fix: 10 plays in 10 frames, no `Refused`, no line. An unknown cue was refused with a
+/// reason; a one-shot cue played at frame rate and was never mentioned.
+#[test]
+fn a_layer_whose_cue_is_not_a_loop_is_not_started() {
+    let table = CueTable::new(vec![
+        Cue { sounds: vec![SoundSlot::new("hit")], bus: "Music".to_owned(), ..Cue::new("hit") },
+        layer_cue("track.calm"),
+    ]);
+    let score = MusicScore {
+        layers: vec![MusicLayer::new("calm", "track.calm"), MusicLayer::new("bad", "hit")],
+        tempo_bpm: 120.0,
+        beats_per_bar: 4.0,
+    };
+    let mut app = app_with(score, table, &["hit", "track.calm"]);
+    run_for(&mut app, 0.2, 1.0 / 60.0);
+
+    let cues: Vec<String> =
+        app.world_mut().query::<&Voice>().iter(app.world()).map(|v| v.cue.clone()).collect();
+    assert_eq!(cues, vec!["track.calm".to_owned()], "only the looping layer plays: {cues:?}");
+
+    let lines: Vec<String> = app.world().resource::<SirenLog>().recent(64).map(|e| e.line()).collect();
+    let named: Vec<&String> =
+        lines.iter().filter(|l| l.contains("is not a loop") && l.contains("`bad`")).collect();
+    assert_eq!(named.len(), 1, "one line names the layer and says what is wrong: {lines:?}");
+    assert!(named[0].contains("`hit`"), "and it names the cue: {}", named[0]);
+
+    // The score keeps the layer: a bad cue is a bad cue, and dropping it would hide the mistake a second way.
+    let names: Vec<String> = app.world().resource::<MusicState>().names().map(str::to_owned).collect();
+    assert_eq!(
+        names,
+        vec!["calm".to_owned(), "bad".to_owned()],
+        "the layer is still in the score: {names:?}"
+    );
+}
+
+/// **The line is written once per layer, not once per frame.** 200 frames of a one-shot layer produce one sentence.
+#[test]
+fn a_not_a_loop_layer_is_noted_once() {
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("hit")],
+        bus: "Music".to_owned(),
+        ..Cue::new("hit")
+    }]);
+    let score =
+        MusicScore { layers: vec![MusicLayer::new("bad", "hit")], tempo_bpm: 120.0, beats_per_bar: 4.0 };
+    let mut app = app_with(score, table, &["hit"]);
+    run_for(&mut app, 3.0, 1.0 / 60.0);
+
+    let lines: Vec<String> = app.world().resource::<SirenLog>().recent(64).map(|e| e.line()).collect();
+    assert_eq!(lines.iter().filter(|l| l.contains("is not a loop")).count(), 1, "{lines:?}");
+    let plays: Vec<_> = played(&mut app).into_iter().filter(|p| p.cue == "hit").collect();
+    assert!(plays.is_empty(), "and nothing played: {plays:?}");
+}
+
+/// **A layer whose cue becomes a loop starts on the next frame.** The check reads the cue the layer names this frame,
+/// so fixing the table fixes the layer without a restart or a score edit.
+#[test]
+fn a_layer_whose_cue_becomes_a_loop_starts() {
+    let mut table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("hit")],
+        bus: "Music".to_owned(),
+        ..Cue::new("hit")
+    }]);
+    let score =
+        MusicScore { layers: vec![MusicLayer::new("calm", "hit")], tempo_bpm: 120.0, beats_per_bar: 4.0 };
+    let mut app = app_with(score, table.clone(), &["hit"]);
+    run_for(&mut app, 0.2, 1.0 / 60.0);
+    assert_eq!(app.world().resource::<MusicState>().live(), 0, "it is not started while the cue ends");
+
+    table.insert(layer_cue("hit"));
+    app.insert_resource(table);
+    run_for(&mut app, 0.2, 1.0 / 60.0);
+    assert_eq!(app.world().resource::<MusicState>().live(), 1, "and it starts once the cue loops");
+}

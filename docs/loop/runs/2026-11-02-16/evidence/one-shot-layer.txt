@@ -1,0 +1,3 @@
+a layer naming a Mode::Once cue (its sample ends): 0 plays in 10 frames, live() 0, log ["0.00s refused `hit`: music layer `calm` names cue `hit`, which is not a loop, so it cannot hold a layer"]
+a layer naming a Mode::Loop cue (it does not end): 1 plays in 10 frames, live() 1, log ["0.00s played `hit` (hit) on Music at -80.0 dB"]
+a layer naming an unknown cue: 0 plays in 10 frames, live() 0, log ["0.00s refused `nope`: no cue of that name"]

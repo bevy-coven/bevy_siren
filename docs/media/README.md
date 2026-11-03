@@ -3,6 +3,15 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 16, a layer that names a cue which ends
+
+No clip: the change is **a play that is not written**, so nothing is rendered and every WAV is byte-identical (21 of
+21). The evidence is `runs/2026-11-02-16/evidence/one-shot-layer{,-before}.txt`: before, a `Mode::Once` layer plays
+**10 times in 10 frames** with no line at all; after, **0 plays** and one sentence in `problems()`' words, with the
+`Mode::Loop` and unknown-cue rows unmoved as controls. Tests:
+`tests/music.rs::{a_layer_whose_cue_is_not_a_loop_is_not_started, a_not_a_loop_layer_is_noted_once,
+a_layer_whose_cue_becomes_a_loop_starts}`.
+
 ## No clip: iteration 15, a stem whose voice dies
 
 No clip: the change is **what happens when a music layer's voice dies**, and it happens on a frame — nothing is
