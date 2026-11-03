@@ -5,6 +5,27 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- **A played gain is written to two decimals.** `Entry::line` was
+  ``"{at_s:.2}s played `{cue}` ({sound}) on {bus} at {gain_db:.1} dB"``. One decimal cannot show a distance law: the
+  default `Attenuation::Inverse { near_m: 4, rolloff: 1 }` gives **−6.0206 dB** at 8 m — `cues.yaml` case 14's number —
+  and `-6.0` is also what a cue authored `gain_db: -6.0` produces, so the log could not tell a distance from a fader and
+  disagreed with the panel's own cue row, which prints two. `gain_db`'s *field* keeps full precision; only the sentence
+  rounds. **A host that parsed the log's one-decimal gain gets two decimals.** A duck's `by_db` stays at one decimal: it
+  is an authored depth, not a computed product. Proved by
+  `tests/model.rs::a_played_gain_is_written_to_two_decimals`, whose mutation (`{:.1}`) reddens it.
+
+### Added
+
+- **`examples/mixer` shows a placed sound.** The panel had **no spatial cue and no `.at(..)`** — grep found zero of
+  either — so the crate's spatial path (three attenuation models, a panner, and `Refusal::SpatiallyMute`) was tested and
+  never drawn. The table gains `bang` (`spatial: true`, `Effects`, priority 30), a `spatial` step plays it at **8 m**,
+  and its cue row carries the law and the gain that distance gives — `inverse at 8 m -6.02 dB` — computed with
+  `model::distance_gain`, the same function a play uses. The log's other numbers are unchanged. The log also shows **six**
+  lines rather than seven: the eighth cue row costs 21 px, and with seven the lowest ink sat at `y = 719` of 719 — no
+  margin, a clipped glyph.
+
 ### Fixed
 
 - **The audio panel names the duck whose depth it shows.** A bus row printed `SirenMix::ducked`'s depth — the **minimum**

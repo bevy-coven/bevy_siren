@@ -37,8 +37,8 @@ use bevy::text::FontSize;
 use bevy::ui::widget::Text;
 use bevy::window::WindowResolution;
 use bevy_siren::{
-    BusLevel, Cue, CueTable, Entry, Mode, MusicLayer, MusicLayers, MusicPlugin, MusicScore, MusicState, Play,
-    SirenLog, SirenMix, SirenPlugin, SirenSettings, SirenSounds, SoundSlot, Stinger,
+    Attenuation, BusLevel, Cue, CueTable, Entry, Mode, MusicLayer, MusicLayers, MusicPlugin, MusicScore,
+    MusicState, Play, SirenLog, SirenMix, SirenPlugin, SirenSettings, SirenSounds, SoundSlot, Stinger,
 };
 
 /// The capture, present only when `SIREN_FRAMES` is set.
@@ -70,6 +70,10 @@ enum Step {
     /// game to find. Nothing else in this script refuses: `steal` steals, `duck` ducks, `layer` moves, and every one of
     /// them plays something. So the panel had never shown the one line a person opens it for.
     Refuse,
+    /// **A placed sound at a distance.** The only step that passes `.at(..)`, so the only one whose gain comes from
+    /// `Attenuation` rather than the table: at 8 m the default `Inverse { near_m: 4, rolloff: 1 }` halves the amplitude,
+    /// which is −6.02 dB. Also the only step that can produce `SpatiallyMute`.
+    Spatial,
     /// **A stinger: one hit on the `Music` bus that ducks what it plays over.** The table has had `music.stinger` since
     /// the example was written and nothing ever played it, so the panel had never shown the one duck whose cause is not a
     /// cue — the `Music` row's `duck -6.0 dB by stinger`, where `by` names the mechanism rather than a cue.
@@ -213,6 +217,11 @@ fn cues_with_faults() -> CueTable {
 }
 
 /// The cues the panel lists, and the keys their samples are synthesised under.
+/// **Where the `spatial` step puts `bang`, in metres.** 8 m is twice the default `Inverse` near radius, where the law
+/// gives exactly half the amplitude — the number `cues.yaml` case 14 asserts (−6.02 dB). One constant, read by both the
+/// step and the row, so the picture and the play cannot disagree.
+const PLACED_M: f32 = 8.0;
+
 fn cues() -> CueTable {
     CueTable::new(vec![
         Cue {
@@ -227,6 +236,16 @@ fn cues() -> CueTable {
             priority: 5,
             gain_db: -2.0,
             ..Cue::new("sword.hit")
+        },
+        // **A placed sound.** The crate's spatial path — three attenuation curves, a panner on Bevy's backend, and a
+        // `SpatiallyMute` refusal when no listener exists — was tested but never *drawn*: no cue in this table was
+        // spatial and no step passed a position, so the panel could not show a distance or the gain one gives.
+        Cue {
+            sounds: vec![SoundSlot::new("hit_01")],
+            bus: "Effects".to_owned(),
+            priority: 30,
+            spatial: true,
+            ..Cue::new("bang")
         },
         Cue {
             sounds: vec![SoundSlot::new("engine_loop")],
@@ -503,8 +522,28 @@ fn draw_panel(
                         let mode = if cue.mode.is_loop() { "loop" } else { "once" };
                         let bad = problems.iter().any(|p| problem_names(p, &cue.name));
                         let mark = if bad { "  <- problem" } else { "" };
+                        // **A placed cue says what the distance did to it.** The row shows the *authored* gain, which
+                        // for a spatial cue is not what a player hears: the distance law multiplies it. The panel's
+                        // spatial story — three attenuation curves, a panner, and `SpatiallyMute` — was tested and never
+                        // drawn, because no cue in this table was spatial. This column is the one place a reader looks
+                        // for "why is that one quiet", so it carries the law and the gain at the step's distance.
+                        let placed = if cue.spatial {
+                            let d = PLACED_M;
+                            let g = bevy_siren::model::distance_gain(cue.attenuation, d);
+                            format!(
+                                "  {} at {d:.0} m {:+6.2} dB",
+                                match cue.attenuation {
+                                    Attenuation::None => "none".to_owned(),
+                                    Attenuation::Inverse { .. } => "inverse".to_owned(),
+                                    Attenuation::Linear { .. } => "linear".to_owned(),
+                                },
+                                bevy_siren::model::gain_to_db(g)
+                            )
+                        } else {
+                            String::new()
+                        };
                         format!(
-                            "{:<26} {:<10} {mode:<4} {:+5.1} dB  priority {}{mark}",
+                            "{:<26} {:<10} {mode:<4} {:+5.1} dB  priority {}{placed}{mark}",
                             cue.name,
                             cue.bus_name(),
                             cue.gain_db,
@@ -541,18 +580,18 @@ fn draw_panel(
                     }
                 }
             }
-            // **Seven, because the `Music` block costs a heading and a line.** `SirenLog::CAPACITY`'s doc says *"a panel
-            // shows eight"*, and this column fits eight — until a block is added above the log. Measured from the
-            // captures: the Music block is 68 px (heading 40 + line 28) against the 63 px three removed cue rows freed,
-            // so eight lines leaves **1 px** of margin — a clipped glyph, the defect iteration 32 fixed. Seven restores
-            // it. The crate's number describes a panel; this panel has one more block than that sentence knew about.
+            // **Six, because the panel grew a placed cue.** `SirenLog::CAPACITY`'s doc says *"a panel shows eight"*, and
+            // this column fit seven until iteration 41 added `bang` — one cue row, 21 px. Measured on the capture with
+            // the eighth row: the lowest ink sat at `y = 719` of 719, **0 px** of margin, the last line clipped. Six
+            // restores it (measured 11 px). Each row costs a log line, so the count follows the table's height; the
+            // alternative — dropping the spatial cue — would hide the one placed sound in the whole panel.
             // **Fewer lines when the `Problems` block has something in it.** Measured, the fault table costs THREE log
             // lines: it adds two cue rows *and* two problem sentences. Seven leaves `1 px` of margin (a clipped glyph),
             // five still leaves `1 px`, and **four restores 11 px**. The block's height is a function of the table it
             // describes, so the log's is too — a panel with faults shows fewer log lines, which is the right trade: the
             // faults are what the reader came for.
             Kind::Log => log
-                .recent(if table.problems_in(&settings).is_empty() { 7 } else { 4 })
+                .recent(if table.problems_in(&settings).is_empty() { 6 } else { 4 })
                 .map(Entry::line)
                 .collect::<Vec<_>>()
                 .join("\n"),
@@ -596,6 +635,10 @@ fn stage(
             plays.write(Play::cue("engine.idle"));
             plays.write(Play::cue("sword.hit"));
         }
+        Step::Spatial => {
+            // 8 m: twice the default near radius, where the inverse law gives exactly half the amplitude.
+            plays.write(Play::cue("bang").at(Vec3::new(0.0, 0.0, PLACED_M)));
+        }
         Step::Stinger => {
             // `Stinger::new` defaults to -6 dB for a second, which is the crate's documented default and what the
             // `Music` row will show as `duck -6.0 dB by stinger`.
@@ -628,7 +671,7 @@ fn capture_config() -> Capture {
         // **The default script includes `refuse`**, so the showcase shows the panel doing the thing it exists for. The
         // order ends on `refuse` before the still: a refusal is a line, not a sound, and it is the last thing a person
         // reading the log wants to have missed.
-        .unwrap_or_else(|_| "steal,layer,duck,stinger,refuse".to_owned())
+        .unwrap_or_else(|_| "steal,spatial,layer,duck,stinger,refuse".to_owned())
         .split(',')
         .filter_map(|token| match token.trim() {
             "duck" => Some(Step::Duck),
@@ -636,6 +679,7 @@ fn capture_config() -> Capture {
             "layer" => Some(Step::Layer),
             "refuse" => Some(Step::Refuse),
             "stinger" => Some(Step::Stinger),
+            "spatial" => Some(Step::Spatial),
             _ => None,
         })
         .collect();
@@ -644,10 +688,10 @@ fn capture_config() -> Capture {
         // something else would put the wrong picture in the evidence folder.
         if std::env::var("SIREN_KEYS").is_ok_and(|v| !v.trim().is_empty()) {
             eprintln!(
-                "siren: SIREN_KEYS has no step this example knows; staging the default steal,layer,duck,stinger,refuse"
+                "siren: SIREN_KEYS has no step this example knows; staging the default steal,spatial,layer,duck,stinger,refuse"
             );
         }
-        vec![Step::Steal, Step::Layer, Step::Duck, Step::Stinger, Step::Refuse]
+        vec![Step::Steal, Step::Spatial, Step::Layer, Step::Duck, Step::Stinger, Step::Refuse]
     } else {
         keys
     };

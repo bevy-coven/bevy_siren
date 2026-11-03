@@ -7,6 +7,51 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 41 — 2026-11-03 — the panel shows a placed sound, and a gain it can be checked against
+
+**Baseline.** Green on every step, no open issues. Nothing red.
+
+**Change.**
+1. **`examples/mixer` had no spatial cue and no `.at(..)`** — grep found zero of either. So `cues.yaml` cases 13 and 14
+   (a spatial play with no listener is refused; distance decides the gain, 0 dB at 4 m and −6.02 dB at 8 m) were tested
+   and **never drawn**. The table gains `bang` (`spatial: true`, `Effects`, priority 30), a `spatial` step plays it at
+   **8 m** — twice the default `near_m`, where the law is exactly a halving — and its cue row carries
+   `inverse at 8 m -6.02 dB`, computed with `model::distance_gain`, the function a play uses.
+2. **`Entry::line` wrote a played gain to one decimal.** One decimal cannot show a distance law: `-6.0206` is case 14's
+   number and `-6.0` is also what a cue authored `gain_db: -6.0` produces, so the log could not tell a distance from a
+   fader — and it disagreed with the panel's row, which prints two. Now `{:.2}`, with a test whose mutation reddens it.
+3. Log lines 7 → **6**: the eighth cue row costs 21 px, and with seven the lowest ink sat at `y = 719` of 719 — 0 px.
+
+**Rationale.** Cases 13 and 14 are rank-2 core behaviour and were invisible in the crate's own showcase; placement is the
+crate's headline spatial feature (three models, a panner, a refusal class of its own). The precision fix is the same
+class this loop has fixed at iterations 19, 31, 36 and 40 — **two numbers for one fact** — found by making the first work.
+
+**Evidence.** `runs/2026-11-03-41/`: `research.md` (S1 the default attenuation and its −6 dB halving, S2 the three
+formulae, S3 the one spatial predicate, S4 case 14's assertion), `plan.md`, `perf.md`, `eval.md`, `review.md` (three
+passes, GREAT), `evidence/{panel,spectrograms,plots,after}`.
+
+| | before | after |
+|---|---|---|
+| a placed cue in the panel | **none** | `bang … inverse at 8 m -6.02 dB` |
+| the log's gain | `at -6.0 dB` | `at -6.02 dB` — the row's number |
+| row vs log | absent vs lossy | **the same string** |
+| gain at 4 / 8 / 16 m (`render.txt`) | — | 1.000 / 0.500 / 0.250 |
+| `bang` vs an identical flat fixture | — | **exactly 6.00 dB apart** (−6.087 vs −12.087 dB peak) |
+| `SpatiallyMute` recorded | tests only | `refusal-bang-no-SpatialListener-…txt` |
+| log lines, clean table | 7, margin 11 px | **6, margin 9 px** |
+| every test | 119 / 126 / 128 + 5 | **120 / 127 / 129 + 5** (one new) |
+| perf | 0.025 / 0.148 / 0.490 µs | 0.056–0.064 / 0.276–0.377 / **0.416–1.392** — noise: `perfcheck` runs neither the example nor `line()`, and 256 voices swung 3.3× on one binary |
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. A `Stopped` line for a parent's despawn — **blocked** on `needs-decision/remove-completes.md` (7 items wait on it).
+2. The cue list has no `max_instances` column; the table's per-cue budget is invisible.
+3. The `Music` header shows `calm`/`combat` targets but not how many layers are **live**.
+4. `docs/media/mixer.gif` captures at ~8 fps; a fade shorter than 120 ms falls between frames.
+5. No capture shows the panel with a **missing sound** refused (iteration 39 showed `unknown-cue` only).
+
 ## Iteration 40 — 2026-11-03 — the panel names the duck whose depth it shows, and plays a stinger
 
 **Change.**

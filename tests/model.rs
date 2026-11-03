@@ -424,3 +424,31 @@ fn entries_stay_in_order_after_an_eviction() {
     assert!(times.windows(2).all(|w| w[0] < w[1]), "oldest first: {times:?}");
     assert_eq!(times.first().copied(), Some(2.0), "and the first play (`c1`, at 1.0) is the one dropped");
 }
+
+/// **A played gain is written so a distance law can be read off it.** `cues.yaml` case 14 asserts that
+/// `Attenuation::Inverse { near_m: 4, rolloff: 1 }` gives −6.02 dB at twice its near radius, and iteration 41 put that
+/// number on the panel's cue row. `Entry::line` wrote one decimal, so the log said `-6.0` beside the row's `-6.02` —
+/// two numbers for one fact, and at a precision where a law and a cue's own authored gain are the same string. The
+/// mutation is `{gain_db:.1}`, which this test reddens.
+#[test]
+fn a_played_gain_is_written_to_two_decimals() {
+    let entry = bevy_siren::Entry::Played {
+        at_s: 0.5,
+        cue: "bang".to_owned(),
+        sound: "hit_01".to_owned(),
+        bus: "Effects".to_owned(),
+        gain_db: bevy_siren::model::gain_to_db(bevy_siren::model::distance_gain(
+            bevy_siren::Attenuation::Inverse { near_m: 4.0, rolloff: 1.0 },
+            8.0,
+        )),
+    };
+    let line = entry.line();
+    assert!(line.contains("at -6.02 dB"), "one decimal cannot show the law: {line}");
+    // The field itself keeps full precision; only the sentence rounds.
+    match entry {
+        bevy_siren::Entry::Played { gain_db, .. } => {
+            assert!((gain_db - -6.020_6).abs() < 1e-3, "{gain_db}")
+        }
+        _ => unreachable!(),
+    }
+}

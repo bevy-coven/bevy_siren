@@ -77,10 +77,17 @@ impl Entry {
     }
 
     /// The line a panel shows: one sentence, no formatting left to the caller.
+    ///
+    /// **A gain is written to two decimals, because one decimal cannot show a distance law.** `-6.0206` is what
+    /// `Attenuation::Inverse { near_m: 4, rolloff: 1 }` gives at 8 m and what `cues.yaml` case 14 asserts; written to one
+    /// decimal it is `-6.0`, indistinguishable from the `-6.0 dB` a cue's *own* `gain_db` might author. A panel that
+    /// prints `-6.02` on its cue row (iteration 41) and `-6.0` in the log is two numbers for one fact — the class this
+    /// log has been fixed for at iterations 19, 31, 36 and 40. `gain_db`'s field keeps full precision; only the sentence
+    /// rounds. A duck's `by_db` stays at one decimal: it is an authored depth, not a computed product.
     pub fn line(&self) -> String {
         match self {
             Self::Played { at_s, cue, sound, bus, gain_db } => {
-                format!("{at_s:.2}s played `{cue}` ({sound}) on {bus} at {gain_db:.1} dB")
+                format!("{at_s:.2}s played `{cue}` ({sound}) on {bus} at {gain_db:.2} dB")
             }
             Self::Refused { at_s, cue, reason } => format!("{at_s:.2}s refused `{cue}`: {reason}"),
             Self::Stopped { at_s, cue, why } => format!("{at_s:.2}s stopped `{cue}`: {why}"),

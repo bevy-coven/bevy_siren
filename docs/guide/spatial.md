@@ -29,7 +29,13 @@ play.write(Play::cue("explosion").at(Vec3::new(12.0, 0.0, 3.0)));
 | `Linear { max_m }` | `1 - d / max`, exactly `0.0` at and past `max_m` |
 
 The default is `Inverse { near_m: 4.0, rolloff: 1.0 }`: exactly at the listener's feet inside 4 m, half the amplitude at
-8 m, a quarter at 16. A distance that is not a number, or is negative, is treated as `0.0` — a caller handing in a `NaN`
+8 m, a quarter at 16.
+
+**What that reads as on the panel.** A spatial cue's row in `examples/mixer` names the model and the gain at the
+distance the scripted step uses — `bang … inverse at 8 m -6.02 dB` — and `SirenLog`'s `played` line repeats the same
+number to two decimals. Two decimals, not one: −6.0206 dB is what the law gives at twice the near radius, and `-6.0` is
+also what a cue authored `gain_db: -6.0` produces, so a one-decimal log cannot tell a distance from a fader. A cue's own
+`gain_db` and the distance law are separate factors; the row shows the table's, the log shows the product. A distance that is not a number, or is negative, is treated as `0.0` — a caller handing in a `NaN`
 transform gets a sound at the listener's feet, not a `NaN` volume that silences the whole bus.
 
 `model::distance_gain` is the function, and `tests/model.rs` pins it at the two distances a person can check.

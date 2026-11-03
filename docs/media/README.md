@@ -27,7 +27,8 @@ a_duck_whose_source_keeps_playing_holds, a_second_line_extends_the_duck}`.
 ![the same panel as a still](mixer.png)
 
 The crate's visible harness: every bus with its level, its duck and its live voice count; the cue table **with the
-crate's own verdict on it** (`Problems`, and `<- problem` beside a cue that cannot play); the log of what played and why —
+crate's own verdict on it** and, for a placed cue, the attenuation law and the gain its distance gives
+(`bang … inverse at 8 m -6.02 dB`) (`Problems`, and `<- problem` beside a cue that cannot play); the log of what played and why —
 driven by a scripted run so the capture shows a duck firing, a voice being stolen, a music layer entering on the bar, and a **stinger** hitting the `Music` bus — the one duck whose cause is a mechanism, shown with the deeper dialogue duck beneath it.
 
 The GIF is captured with `SIREN_FAULTS=1`, which adds two deliberate mistakes to the table so the `Problems` block and
@@ -76,7 +77,7 @@ SIREN_FRAMES=95 SIREN_SHOT=docs/media/mixer.png SIREN_SIZE=1280x720 \
 ```
 
 Iteration 25 gave the capture a **default script**: `SIREN_KEYS` unset used to panic on `% 0` and write no still, so
-until then this harness could not produce a picture at all. `SIREN_KEYS=steal,layer,duck,stinger,refuse` is the default;
+until then this harness could not produce a picture at all. `SIREN_KEYS=steal,spatial,layer,duck,stinger,refuse` is the default;
 a token it does not know prints one line and stages that default.
 
 **Two ducks on one bus** are why the still is captured at frame 95, not 140: the stinger fires at frame 90 and the
@@ -234,7 +235,9 @@ the same scripted-capture gap the last five iterations have named.
 
 No capture: the change is **which backend flag a voice is spawned with**, and every rendered WAV is byte-identical —
 the crate's own mixer does not pan at all, and `examples/mixer` runs Bevy's path over cues that are all `spatial: false`
-played *without* a position, so nothing in the panel's script hits the mismatch. The evidence is the
+played *without* a position, so nothing in the panel's script hits the mismatch. (Iteration 41 added the table's one
+`spatial: true` cue, `bang`, played *at* a position — the case this entry said no capture could show is now the cue
+row's `inverse at 8 m -6.02 dB`.) The evidence is the
 `tests/play.rs::a_non_spatial_cue_ignores_a_position` failure on the unfixed tree (*"a non-spatial cue is not routed
 through the panner"*) and `render.txt`'s panner line, **0.0117 linear, −38.7 dB at 8 m** — the falloff a "flat" cue was
 secretly given.
