@@ -31,7 +31,9 @@ use bevy_siren::model::{
 };
 use bevy_siren::{Attenuation, Cue, CueTable, Duck, Mode, PitchRange, Repeat, SirenSettings, SoundSlot};
 
-const RATE: u32 = 22_050;
+#[path = "render/shapes.rs"]
+mod shapes;
+use shapes::{RATE, at_speed, sum_voices, timbre, wave};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -94,7 +96,8 @@ fn main() {
             let semitones = cue.pitch.at(0.0);
             let gain_db = gain_of(cue, &slot.sound, 0.0);
             let ms = if cue.mode.is_loop() { 1_500 } else { 320 };
-            let samples = wave(440.0 * semitones_to_ratio(semitones), ms, 12.0);
+            let (base, second, third, decay) = timbre(&slot.sound, cue.mode.is_loop());
+            let samples = wave(base, second, third, ms, decay);
             write_gain(
                 &out,
                 &format!("cue-{}-{i}.wav", key(&cue.name)),
@@ -297,14 +300,14 @@ fn main() {
         gains.len(),
         settings.master_db
     ));
-    let mixed = wave(220.0, 500, 6.0);
+    let mixed = wave(220.0, 2.0, 3.0, 500, 6.0);
     write_gain(&out, "mix.wav", &mixed, 1.0, settings.master_db);
 
     // 7. Many voices at once, for the clipping and frame-cost checks.
     let mut many = Vec::new();
     for i in 0..voices {
         let hz = 110.0 + 40.0 * i as f32;
-        many.push(wave(hz, 400, 8.0));
+        many.push(wave(hz, 2.0, 3.0, 400, 8.0));
     }
     let summed = sum_voices(&many);
     write_samples(&out, &format!("voices-{voices}.wav"), &summed, 1.0);
@@ -424,29 +427,6 @@ fn refusals(_table: &CueTable, settings: &SirenSettings) -> Vec<(String, String)
         .collect()
 }
 
-/// A synthesised stand-in for a recording: a sine with a decay, so a spectrogram has a readable attack and tail.
-fn wave(hz: f32, ms: u32, decay: f32) -> Vec<f32> {
-    let count = (RATE as f32 * (ms as f32 / 1000.0)) as usize;
-    (0..count)
-        .map(|i| {
-            let t = i as f32 / RATE as f32;
-            let envelope = (-t * decay).exp().min(1.0);
-            (t * hz * std::f32::consts::TAU).sin() * envelope * 0.5
-        })
-        .collect()
-}
-
-/// Several voices summed the way a mixer sums them: linear, then clipped only by what a listener's device does.
-fn sum_voices(voices: &[Vec<f32>]) -> Vec<f32> {
-    let len = voices.iter().map(Vec::len).max().unwrap_or(0);
-    (0..len).map(|i| voices.iter().filter_map(|v| v.get(i)).sum::<f32>()).collect()
-}
-
-fn write_gain(out: &Path, name: &str, samples: &[f32], speed: f32, gain_db: f32) {
-    let _ = speed;
-    write_samples(out, name, samples, db_to_gain(gain_db));
-}
-
 /// **A bus's gain over time as a line**, the form a gain curve can be read in. `showwavespic` draws audio and turns
 /// an envelope into a blob, and a CSV of 60 rows is not a picture; this is the plot the review pass looks at.
 ///
@@ -554,6 +534,17 @@ fn write_gain_plot(
     if let Err(e) = std::fs::write(path, out) {
         eprintln!("cannot write {}: {e}", path.display());
     }
+}
+
+/// **Play the samples at `speed`, the way a voice does**, then write them at `gain_db`.
+///
+/// A cue's pitch is a *playback rate*, not a separate effect: a source run at 0.9439x is longer and lower, and running
+/// it at 1.0x is neither. The harness used to discard `speed` outright (`let _ = speed;`) while this module's own doc
+/// claimed "the gain and speed a play gives it", so every rendered cue was at the authored pitch whatever the table
+/// said. `at_speed` is the arithmetic; this is the I/O.
+fn write_gain(out: &Path, name: &str, samples: &[f32], speed: f32, gain_db: f32) {
+    let played = at_speed(samples, speed);
+    write_samples(out, name, &played, db_to_gain(gain_db));
 }
 
 fn write_samples(out: &Path, name: &str, samples: &[f32], gain: f32) {

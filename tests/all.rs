@@ -15,6 +15,7 @@ mod model;
 mod music;
 mod play;
 mod readme;
+mod render_shapes;
 #[cfg(feature = "semantic")]
 mod semantic_budget;
 #[cfg(feature = "semantic")]
