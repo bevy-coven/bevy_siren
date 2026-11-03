@@ -17,6 +17,13 @@
 //!
 //! # What is deliberately not here
 //!
+//! # The reference page
+//!
+//! Every field here, its default, its effect at its extremes and the argument for it is written up in
+//! [`docs/guide/semantic-config.md`](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic-config.md),
+//! which is the page a project edits against. The rustdoc below states each default beside its reason; the guide adds
+//! the worked example and the thresholds' interaction.
+//!
 //! No *model* weights. The CLAP towers' numbers come from a frozen checkpoint and a project that changed them would be
 //! comparing against an index built by different weights. These are the weights of the **ensemble**, which are a
 //! design decision a project is entitled to make.

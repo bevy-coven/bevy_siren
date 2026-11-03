@@ -146,8 +146,13 @@ the first 32 footsteps and quietly stole or refused every one after that.
   atonal asset reporting *no key* rather than a confident wrong one; a build produces both without a caller supplying
   them. The whole index is **binary, 10.28 MB for 5 000 clips** against 31.88 MB as text, and decoding one runs at
   **~750 clips/s** — a 5 000-clip library costs seconds, not minutes. Off by default, and a crate that does not enable
-  it sees no change: `cargo tree` reads the same 413 lines either way:
-  [semantic](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md).
+  it sees no change: `cargo tree` reads the same 413 lines either way. The pipeline and its rules are in
+  [semantic](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md); every authored number — each
+  weight, threshold and variant distance, with its default and what it does at its extremes — is in
+  [semantic-config](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic-config.md).
+  **The crate does not ship the model.** A project loads an ONNX export of `laion/clap-htsat-fused` (MIT) itself, and the
+  index records which export made its vectors so a mismatch is refused rather than ranked; the export this crate measured
+  is `transformers-5.22.1/torch-2.15.0/opset-17`.
 - **Ship the sound as data, and edit it in the Cauldron** — with `serde`, the cue table, the mix table and the score
   are RON files; `bevy_grimoire`'s audio panel edits this crate's own types in
   `<project>/family/bevy_siren.ron`, never a second schema:
