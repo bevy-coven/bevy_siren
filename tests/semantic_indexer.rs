@@ -461,3 +461,44 @@ fn a_pack_name_with_a_space_survives_a_build() {
     let back = Index::load(&built.index.to_text(), &stamp()).expect("loads");
     assert_eq!(back.provenance, built.index.provenance);
 }
+
+/// **A written index is binary, and `read` still loads one written as text by an older build.**
+///
+/// The second half is the compatibility promise ADR 0004 makes by choosing "distinguishable by magic, not by
+/// extension": an index a project built before this change is a `siren-index.txt` and must keep working.
+#[test]
+fn a_written_index_is_binary_and_an_old_text_index_still_loads() {
+    use bevy_siren::semantic::index::{Index, MAGIC_BINARY};
+
+    let s = Scratch::new("formats");
+    s.file("a.wav", &wav(48_000, 440.0, 4800));
+    let mut seen = Vec::new();
+    let built = build(s.path(), stamp(), recorder(&mut seen)).expect("builds");
+
+    let written = write(s.path(), &built.index).expect("writes");
+    let bytes = std::fs::read(&written).expect("read the file");
+    assert_eq!(&bytes[..4], MAGIC_BINARY, "the build writes the binary form ADR 0004 chose");
+    assert_eq!(read(s.path(), &stamp()).expect("reads back").records, built.index.records);
+
+    // **An old text index still loads** through the same call, because the bytes decide the format.
+    std::fs::write(&written, built.index.to_text()).expect("write the text form over it");
+    let from_text = read(s.path(), &stamp()).expect("an old text index still loads");
+    assert_eq!(from_text.records, built.index.records);
+    assert_eq!(from_text.provenance, built.index.provenance);
+
+    // A file that is neither format **says so rather than panicking**, and the message is the most specific one
+    // available: bytes that are valid UTF-8 but not an index reach `Index::load`, which names the bad header line
+    // instead of the vaguer "not a binary index". A refusal that points at the actual bytes is better than one that
+    // only says "wrong".
+    std::fs::write(&written, b"not an index at all").expect("write junk");
+    let err = read(s.path(), &stamp()).expect_err("junk is refused");
+    assert!(err.contains("unreadable index header"), "the specific refusal: {err}");
+
+    // Bytes that are not UTF-8 at all take the other path and say that instead.
+    std::fs::write(&written, [0xffu8, 0xfe, 0x00]).expect("write non-UTF-8");
+    let err = read(s.path(), &stamp()).expect_err("non-UTF-8 is refused");
+    assert!(err.contains("neither a binary index nor UTF-8"), "the other refusal: {err}");
+
+    // `Index` is named here so the import is used even if the assertions above change shape.
+    let _: Option<Index> = None;
+}

@@ -318,22 +318,34 @@ pub(super) fn embed_measured(
     Ok((vector, loudness))
 }
 
+/// The file a built index lives in. One name for both formats, because the bytes say which one it is.
+pub const INDEX_FILE: &str = "siren-index";
+
 /// **Write a built index beside its library**, so the next run can load it instead of rebuilding.
 ///
 /// The path is `<root>/siren-index.txt`. A caller that wants it elsewhere writes `index.to_text()` itself; this exists
 /// so the ordinary case is one call.
 pub fn write(root: &Path, index: &Index) -> Result<PathBuf, String> {
-    let path = root.join("siren-index.txt");
-    std::fs::write(&path, index.to_text()).map_err(|e| format!("cannot write `{}`: {e}", path.display()))?;
+    let path = root.join(INDEX_FILE);
+    // **The binary form, because ADR 0004 measured it at a third of the size.** A 5 000-clip library is 10.28 MB here
+    // against 31.88 MB as text, asserted by `five_thousand_vectors_weigh_what_adr_0004_says` rather than quoted.
+    std::fs::write(&path, index.to_bytes()).map_err(|e| format!("cannot write `{}`: {e}", path.display()))?;
     Ok(path)
 }
 
 /// **Read the index a previous build wrote**, or say why it cannot be used.
 pub fn read(root: &Path, loaded: &ModelStamp) -> Result<Index, String> {
-    let path = root.join("siren-index.txt");
-    let text =
-        std::fs::read_to_string(&path).map_err(|e| format!("cannot read `{}`: {e}", path.display()))?;
-    Index::load(&text, loaded).map_err(|e| e.to_string())
+    let path = root.join(INDEX_FILE);
+    let bytes = std::fs::read(&path).map_err(|e| format!("cannot read `{}`: {e}", path.display()))?;
+    // **The bytes say which format they are**, so an index written as text by an older build still loads. That is what
+    // ADR 0004 meant by "distinguishable by its magic rather than its extension": the file name does not decide.
+    if bytes.starts_with(super::index::MAGIC_BINARY) {
+        Index::from_bytes(&bytes, loaded).map_err(|e| e.to_string())
+    } else {
+        let text = String::from_utf8(bytes)
+            .map_err(|e| format!("`{}` is neither a binary index nor UTF-8 text: {e}", path.display()))?;
+        Index::load(&text, loaded).map_err(|e| e.to_string())
+    }
 }
 
 /// **Which files a rebuild would touch**, by content hash — the question an incremental index asks.

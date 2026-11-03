@@ -95,6 +95,11 @@ pub enum IndexProblem {
         /// What the body hashes to.
         found: u64,
     },
+    /// The bytes are not an index this crate can read, carrying what was found where.
+    Bytes {
+        /// What the reader expected or what it found, so the message points at the bytes.
+        why: String,
+    },
     /// A record is not the shape the header promised.
     Record {
         /// 1-based line number, so the message points at a line a person can open. Zero when the record was rejected
@@ -126,6 +131,7 @@ impl core::fmt::Display for IndexProblem {
                     "the index body does not match its checksum ({expected:#x} vs {found:#x}); it is corrupt"
                 )
             }
+            IndexProblem::Bytes { why } => write!(f, "this is not a binary index: {why}"),
             IndexProblem::Record { line, what } => write!(f, "index line {line}: {what}"),
         }
     }
@@ -269,6 +275,13 @@ fn parse_provenance_line(line: &str) -> Option<(u64, Provenance)> {
     };
     Some((hash, Provenance { licence, source, author }))
 }
+
+/// **The binary format's magic**, distinct from the text one so a file identifies itself without reading its extension.
+///
+/// ADR 0004 chose this: the text form stays as the *debuggable* form and the binary form is what a 5 000-clip library
+/// ships, and the two are told apart by their first four bytes rather than by their names, because a name is not
+/// evidence.
+pub const MAGIC_BINARY: &[u8; 4] = b"BSI2";
 
 /// The two stamps in a [`IndexProblem::ModelMismatch`], boxed as one value.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -543,3 +556,234 @@ impl Index {
 // *"`IndexProblem`: `std::error::Error` is not satisfied"* on three lines in a row. An error a caller has to unwrap by hand is
 // half an error.
 impl std::error::Error for IndexProblem {}
+
+impl Index {
+    /// **Write the index as bytes**, the form ADR 0004 measured at **10.30 MB** for 5 000 clips against the text
+    /// form's **31.88 MB**.
+    ///
+    /// Layout, little-endian throughout:
+    ///
+    /// | bytes | field |
+    /// |---|---|
+    /// | 4 | `MAGIC_BINARY` |
+    /// | 4 | dimension, `u32` |
+    /// | 4 | model-name length, `u32`, then that many UTF-8 bytes |
+    /// | 4 | version length, `u32`, then that many UTF-8 bytes |
+    /// | 4 | sample rate, `u32` |
+    /// | 8 | record count, `u64` |
+    /// | per record | `u64` hash, then `dimension` × `f32` |
+    /// | 8 | provenance count, `u64`, then per entry `u64` hash + length-prefixed licence, author and source |
+    /// | 8 | loudness count, `u64`, then per entry `u64` hash + `f32` lufs + a presence byte + `2 × f32` + `2 × u64` |
+    /// | 8 | **FNV-1a of every preceding byte**, so a truncated file is detected |
+    ///
+    /// The checksum over the whole file is why the two trailing sections can be appended without a version bump: an
+    /// older reader stops at its checksum, and a newer one that finds fewer bytes than the count promises refuses.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(16 + self.records.len() * (8 + self.stamp.dimension * 4) + 2_048);
+        out.extend_from_slice(MAGIC_BINARY);
+        out.extend_from_slice(&(self.stamp.dimension as u32).to_le_bytes());
+        push_str(&mut out, &self.stamp.model);
+        push_str(&mut out, &self.stamp.version);
+        out.extend_from_slice(&self.stamp.sample_rate.to_le_bytes());
+        out.extend_from_slice(&(self.records.len() as u64).to_le_bytes());
+        for (hash, vector) in &self.records {
+            out.extend_from_slice(&hash.to_le_bytes());
+            for v in vector {
+                out.extend_from_slice(&v.to_le_bytes());
+            }
+        }
+        out.extend_from_slice(&(self.provenance.len() as u64).to_le_bytes());
+        for (hash, p) in &self.provenance {
+            out.extend_from_slice(&hash.to_le_bytes());
+            push_opt_str(&mut out, p.licence.as_deref());
+            push_opt_str(&mut out, p.author.as_deref());
+            match &p.source {
+                None => out.push(b'-'),
+                Some(super::provenance::Source::Unknown) => out.push(b'?'),
+                Some(super::provenance::Source::Url(u)) => {
+                    out.push(b'u');
+                    push_str(&mut out, u);
+                }
+                Some(super::provenance::Source::Pack(p)) => {
+                    out.push(b'p');
+                    push_str(&mut out, p);
+                }
+            }
+        }
+        out.extend_from_slice(&(self.loudness.len() as u64).to_le_bytes());
+        for (hash, l) in &self.loudness {
+            out.extend_from_slice(&hash.to_le_bytes());
+            // The presence byte is the whole reason this is not a bare `f32`: a short clip has NO integrated loudness,
+            // and writing a sentinel there is what ADR 0003 measured three implementations getting wrong.
+            match l.integrated {
+                Some(v) => {
+                    out.push(1);
+                    out.extend_from_slice(&v.to_le_bytes());
+                }
+                None => {
+                    out.push(0);
+                    out.extend_from_slice(&0.0f32.to_le_bytes());
+                }
+            }
+            out.extend_from_slice(&l.true_peak.to_le_bytes());
+            out.extend_from_slice(&l.sample_peak.to_le_bytes());
+            out.extend_from_slice(&l.blocks.to_le_bytes());
+            out.extend_from_slice(&l.blocks_possible.to_le_bytes());
+        }
+        let checksum = crate::library::fnv1a(&out);
+        out.extend_from_slice(&checksum.to_le_bytes());
+        out
+    }
+
+    /// **Read a binary index back**, refusing a foreign magic, a short file, a bad checksum and a model mismatch.
+    ///
+    /// Every read is bounds-checked: a truncated file must produce a *sentence*, not a panic, because the bytes came
+    /// from disk and a half-written file is the ordinary failure.
+    pub fn from_bytes(bytes: &[u8], loaded: &ModelStamp) -> Result<Index, IndexProblem> {
+        let bad = |why: &str| IndexProblem::Bytes { why: why.to_string() };
+        if bytes.len() < 12 {
+            return Err(bad("the file is too short to hold a header"));
+        }
+        if &bytes[..4] != MAGIC_BINARY {
+            return Err(bad("its first four bytes are not `BSI2`"));
+        }
+        // The checksum covers everything but itself, so it is checked first: a corrupt file should say so rather than
+        // fail later on a length that happens to be wrong.
+        if bytes.len() < 8 {
+            return Err(bad("the file has no checksum"));
+        }
+        let (body, tail) = bytes.split_at(bytes.len() - 8);
+        let expected = u64::from_le_bytes(tail.try_into().map_err(|_| bad("the checksum is not 8 bytes"))?);
+        let found = crate::library::fnv1a(body);
+        if found != expected {
+            return Err(IndexProblem::Checksum { expected, found });
+        }
+
+        let mut at = 4usize;
+        let dimension = read_u32(body, &mut at).map_err(|e| bad(&e))? as usize;
+        let model = read_str(body, &mut at).map_err(|e| bad(&e))?;
+        let version = read_str(body, &mut at).map_err(|e| bad(&e))?;
+        let sample_rate = read_u32(body, &mut at).map_err(|e| bad(&e))?;
+        let stamp = ModelStamp { model, version, sample_rate, dimension };
+        if &stamp != loaded {
+            return Err(IndexProblem::ModelMismatch(Box::new(Mismatch {
+                index: stamp,
+                loaded: loaded.clone(),
+            })));
+        }
+
+        let count = read_u64(body, &mut at).map_err(|e| bad(&e))? as usize;
+        let mut records = BTreeMap::new();
+        for _ in 0..count {
+            let hash = read_u64(body, &mut at).map_err(|e| bad(&e))?;
+            let mut vector = Vec::with_capacity(dimension);
+            for _ in 0..dimension {
+                vector.push(read_f32(body, &mut at).map_err(|e| bad(&e))?);
+            }
+            records.insert(hash, vector);
+        }
+
+        let mut provenance: BTreeMap<u64, Provenance> = BTreeMap::new();
+        for _ in 0..read_u64(body, &mut at).map_err(|e| bad(&e))? {
+            let hash = read_u64(body, &mut at).map_err(|e| bad(&e))?;
+            let licence = read_opt_str(body, &mut at).map_err(|e| bad(&e))?;
+            let author = read_opt_str(body, &mut at).map_err(|e| bad(&e))?;
+            let kind = *body.get(at).ok_or_else(|| bad("a provenance record ends early"))?;
+            at += 1;
+            let source = match kind {
+                b'-' => None,
+                b'?' => Some(super::provenance::Source::Unknown),
+                b'u' => Some(super::provenance::Source::Url(read_str(body, &mut at).map_err(|e| bad(&e))?)),
+                b'p' => Some(super::provenance::Source::Pack(read_str(body, &mut at).map_err(|e| bad(&e))?)),
+                other => return Err(bad(&format!("unknown provenance source kind `{}`", other as char))),
+            };
+            provenance.insert(hash, Provenance { licence, source, author });
+        }
+
+        let mut loudness: BTreeMap<u64, super::loudness::Loudness> = BTreeMap::new();
+        for _ in 0..read_u64(body, &mut at).map_err(|e| bad(&e))? {
+            let hash = read_u64(body, &mut at).map_err(|e| bad(&e))?;
+            let has = *body.get(at).ok_or_else(|| bad("a loudness record ends early"))?;
+            at += 1;
+            let value = read_f32(body, &mut at).map_err(|e| bad(&e))?;
+            let integrated = if has == 1 {
+                if !value.is_finite() {
+                    return Err(bad("a loudness record says it has a value and carries a non-finite one"));
+                }
+                Some(value)
+            } else {
+                None
+            };
+            let true_peak = read_f32(body, &mut at).map_err(|e| bad(&e))?;
+            let sample_peak = read_f32(body, &mut at).map_err(|e| bad(&e))?;
+            let blocks = read_u64(body, &mut at).map_err(|e| bad(&e))?;
+            let blocks_possible = read_u64(body, &mut at).map_err(|e| bad(&e))?;
+            loudness.insert(
+                hash,
+                super::loudness::Loudness { integrated, true_peak, sample_peak, blocks, blocks_possible },
+            );
+        }
+
+        if at != body.len() {
+            return Err(bad(&format!("{} trailing bytes after the last section", body.len() - at)));
+        }
+        Ok(Index { stamp, records, provenance, loudness })
+    }
+}
+
+/// A length-prefixed UTF-8 string, `u32` bytes long.
+fn push_str(out: &mut Vec<u8>, value: &str) {
+    out.extend_from_slice(&(value.len() as u32).to_le_bytes());
+    out.extend_from_slice(value.as_bytes());
+}
+
+/// An optional string: a presence byte, then the length-prefixed value when present.
+fn push_opt_str(out: &mut Vec<u8>, value: Option<&str>) {
+    match value {
+        None => out.push(0),
+        Some(v) => {
+            out.push(1);
+            push_str(out, v);
+        }
+    }
+}
+
+fn read_u32(bytes: &[u8], at: &mut usize) -> Result<u32, String> {
+    let slice =
+        bytes.get(*at..*at + 4).ok_or_else(|| format!("the file ends where a u32 was expected at {at}"))?;
+    *at += 4;
+    Ok(u32::from_le_bytes(slice.try_into().map_err(|_| String::from("a u32 is not 4 bytes"))?))
+}
+
+fn read_u64(bytes: &[u8], at: &mut usize) -> Result<u64, String> {
+    let slice =
+        bytes.get(*at..*at + 8).ok_or_else(|| format!("the file ends where a u64 was expected at {at}"))?;
+    *at += 8;
+    Ok(u64::from_le_bytes(slice.try_into().map_err(|_| String::from("a u64 is not 8 bytes"))?))
+}
+
+fn read_f32(bytes: &[u8], at: &mut usize) -> Result<f32, String> {
+    let slice =
+        bytes.get(*at..*at + 4).ok_or_else(|| format!("the file ends where an f32 was expected at {at}"))?;
+    *at += 4;
+    Ok(f32::from_le_bytes(slice.try_into().map_err(|_| String::from("an f32 is not 4 bytes"))?))
+}
+
+fn read_str(bytes: &[u8], at: &mut usize) -> Result<String, String> {
+    let start = *at;
+    let len = read_u32(bytes, at)? as usize;
+    let slice = bytes.get(*at..*at + len).ok_or_else(|| format!("the file ends inside a string at {at}"))?;
+    *at += len;
+    String::from_utf8(slice.to_vec()).map_err(|_| format!("the string at {start} is not UTF-8"))
+}
+
+fn read_opt_str(bytes: &[u8], at: &mut usize) -> Result<Option<String>, String> {
+    let has =
+        *bytes.get(*at).ok_or_else(|| format!("the file ends where a presence byte was expected at {at}"))?;
+    *at += 1;
+    match has {
+        0 => Ok(None),
+        1 => read_str(bytes, at).map(Some),
+        other => Err(format!("`{other}` is not a presence byte")),
+    }
+}
