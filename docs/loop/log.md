@@ -7,6 +7,79 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 5 — 2026-11-02 — a refusal names the bus only when the bus refused
+
+**Change.**
+
+- **`src/play.rs` — the refusal names the cap that refused.** `room_for` has three hard caps and returned one
+  uninformative `None` from all of them, so `answer` always blamed the cue's bus. It now returns
+  `Result<Vec<Entity>, Cap>` with a private `Cap::{Cue, Bus, Table}`; `bus: Some(name)` only for the bus's own cap,
+  `bus: None` otherwise — which is what the field's own doc says (*"the bus that had no room, when one did"*).
+  No public type, field or message changed.
+- `examples/budget.rs` — a **`refusals.txt` probe** that forces each of the three caps in the real ECS and writes the
+  payload and the sentence; a real WAV per cue, because dummy bytes are refused by the decoder (`MissingSound`) before
+  the budget is ever consulted.
+- `tests/mix.rs` — four tests: table and cue caps name no bus (both fail on the unfixed tree), a full bus still names
+  it (passes on both, so the fix cannot overshoot), and each payload shape has exactly one sentence.
+- `examples/render.rs` — the three `VoiceLimit` sentences; `needs-decision/refusal-names-its-cap.md`; `cues.yaml` case
+  24; the buses guide, the CHANGELOG (with the host consequence) and a media note.
+
+**Why.** The loop's first criterion, and worse than a silent failure: a **confidently wrong** one. The probe showed a
+table-budget refusal accusing `Ambience` for a cue on `Effects` — a bus with a free slot, not even the cue's own.
+Cases 7–9 each asserted `matches!(reason, VoiceLimit { .. })`; the wildcard was the hole, and no case read the payload.
+
+**Evidence.** `runs/2026-11-02-05/`: `eval.md` (baseline green; the table's gap named), `research.md`, `plan.md`,
+`perf.md`, `review.md`, and `evidence/{before,after}/` with the two render trees, the refusal texts and the budget
+probe.
+
+**Measured.**
+
+| cap that refused | before | after |
+|---|---|---|
+| the table's `max_voices: 1`, two buses with room | `Some("Ambience")` → ``no voice free on bus `Ambience` `` | `None` → `no voice free` |
+| the cue's `max_instances: 1`, its bus at 0 of 8 | `Some("Effects")` | `None` → `no voice free` |
+| the bus's `max_voices: 1` | `Some("Effects")` | `Some("Effects")` — unchanged, and now the only one |
+| every rendered cue and the mix | — | **byte-identical** (16/16 WAVs) |
+| frame cost, 8 / 64 / 256 voices | — | 0.022 / 0.096 / 0.667 µs — `room_for` runs per request and only its refusal changed; the harness does not drive it |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The zoom pass found one defect **in my own evidence
+harness** (four zero bytes as a sample, so the decoder refused before the budget did — every line read
+`MissingSound { sound: "line" }`, and the harness was measuring the wrong subsystem), and it exposed a second real
+refusal bug, logged rather than folded in.
+
+**A number worth keeping.** The before tree named a bus in **every** refusal, and the first row names a bus the cue
+does not play on. "No voice free" is less informative but true; the diagnostic version needs the cap in the payload,
+which is the decision file.
+
+**Traps for the command.** (1) `examples/render` **hardcodes** its refusal strings, so it cannot show a change to a
+refusal — the evidence for this iteration is `examples/budget`'s ECS probe, and `render`'s identical refusal files are
+expected, not a failure. (2) An app that inserts a dummy `AudioSource` measures `start_pending`'s decoder, not the
+budget: use a real WAV. (3) `hs distill` is still GPU-blocked (`bge-m3` wants 5000 MB; a 14.8 GB VLLM engine holds the
+card), and the metadata API returned no abstract for the instance-limiting papers, so the rule is argued from the
+crate's own R4 and Gregory §14.5.8.4's *per-group limits*, which this repository already cites.
+
+**Commit.** `3d158ae`, pushed to `main`; CI run 41552664607 is **success** on `big-s1`. Gate: build, test (52 + 4), serde (59 + 4), mixer (56 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The Cauldron panel test still pins
+`rev = "7029b20"`; it was not run, and this change's host-visible effect is a different `Entry::Refused` sentence —
+the panel prints it verbatim, so it improves without a consumer change.
+
+**Next 5.**
+
+1. **`start_pending` reports a decode failure as `MissingSound { sound: <cue> }`** — a cue's name in a field documented
+   as the sound *key*. A project greps its asset list for `footstep.grass` and finds nothing. Found by this
+   iteration's probe.
+2. **A payload that names the cap** — `needs-decision/refusal-names-its-cap.md`, with the three sentences option 2
+   would print.
+3. **`Completes` is public and can never be true** — `needs-decision/remove-completes.md`.
+4. **A crossfade a second change interrupts** replaces target and fade rather than queueing; a design question the log
+   names.
+5. **`needs-decision/stinger-release.md`** — a project-chosen stinger release; shipped at `DEFAULT_FADE_S`.
+
+**Baseline note.** Nothing was red, and the suite had 48 tests. The defect was invisible because every test that
+reaches a `VoiceLimit` matched it with `..`: the kind was asserted, the content never.
+
+---
+
 ## Iteration 4 — 2026-11-02 — a crossfade takes the time it was given
 
 **Change.**
