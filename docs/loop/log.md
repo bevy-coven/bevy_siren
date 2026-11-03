@@ -44,7 +44,11 @@ what is missing. Folding a removal into it would silently change what an existin
 citation, S2 `AudioSource`'s `Arc<[u8]>`, S3 `load_table`'s contract, S4 the two retains before this one), `plan.md`,
 `perf.md`, `eval.md`, `review.md` (three passes, GREAT), `evidence/{spectrograms,after}`.
 
-**Commit.** `7955e82` — *siren: a sound key the table dropped stops holding its handle*.
+**Commit.** `7955e82` — *siren: a sound key the table dropped stops holding its handle*, plus `f1d39d9` — *tests: use the
+second table in the merge test, so clippy passes*. The second commit fixes a red gate in the first: my merge test built
+`table_of("second")` and never used it, which is an unused-variable **error** under
+`clippy --all-targets --all-features -D warnings`. Caught by re-running clippy against the pushed commit rather than
+trusting the gate result from before the final edit.
 
 **Top 5 remaining**
 
