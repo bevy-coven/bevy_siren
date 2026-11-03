@@ -7,6 +7,58 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 102 — 2026-11-03 — a busy GPU is waited out, bounded and visible
+
+**Change.** `#37`. `budget::Deferral { wait_s: 30.0, poll_s: 0.5 }` (both design defaults), `budget::WaitState`, and
+`budget::defer`, which measures the device, waits, and returns either the attempt that succeeded or a **named refusal
+carrying both numbers**. `Session::admit_deferring` wires it to a real session, and the dimension check is extracted so
+both entry points share one comparison.
+
+**Rationale.** `#37` was the only open item **implementable and testable in this repository**: its blocker `#17` is
+closed, it needs no new dependency, no GPU and no editor. `#28` — the runner-up — needs `serde_json`, which is **absent
+from the graph** (verified: `cargo tree` finds it zero times) and `tests/leaf.rs` closes the dependency list, so it waits
+on a decision only the owner can make.
+
+**The policy, argued.** Defer, not queue or shrink. Shrinking cannot load 623 MB into 60 MB. Queueing contradicts the
+source — Choi et al. (`10.48550/arXiv.2109.01611`): *"the applications cannot wait for the batch collection
+indefinitely."* Deferral is the only one that leaves the process alive and the index readable, which is `#37`'s own
+third criterion.
+
+**Before/after.** Nothing audible changed — **all 21 rendered wavs byte-identical** to iteration 101. Eight new tests,
+all green: refused naming 623 MB against 60 MB; succeeds on attempt 3 of 60 with states `Waiting(2)`, `Waiting(3)`,
+`Ready`; gives up after **exactly 60 looks and 29.5 s**; **a real `top_k` answers between two polls**; a device with room
+never sleeps; the attempt count is derived and never zero; `admit_deferring` returns a session carrying its cost; a wrong
+dimension is still named after a wait.
+
+**Two findings, recorded rather than smoothed.**
+
+1. **My own test asserted `628 MB` and the message says `623`** — my 628 came from rounding 116.5 MB and 512 MiB
+   separately and adding them. The test now asserts the **computed** value with its derivation, so the number in the
+   message and the number in the test cannot drift.
+2. **The per-frame figures span 3.1× across three runs of unchanged code** — 256 voices measured 0.401 / 0.471 /
+   **1.263** µs per frame. Prior iterations reporting "unchanged" on that spread were reporting the machine's luck, not a
+   result. It is in `perf.md` in those words, and this iteration claims no speedup.
+
+**Verdicts.** Function **GREAT**, zoom **GREAT**, fresh eyes **GREAT**. Recorded rather than fixed: `admit_deferring`
+takes seven arguments, exactly at clippy's threshold; a `DeferralRequest` bundle would be kinder, and the same criticism
+preceded bundling `search_ranked`.
+
+**Evidence.** [`runs/2026-11-03-102/`](runs/2026-11-03-102/) — `research.md`, `plan.md`, `eval.md`, `perf.md`,
+`review.md`, `evidence/after/` (32 files).
+
+**Baseline:** nothing red — 198 / 6 / **429 semantic** / **109 lib** / 6 doc, clippy, fmt and docs clean, examples build.
+
+**Top 5 remaining — and every one is blocked outside this repository.**
+
+1. **`#28` the MCP server** — needs `serde_json` and a `leaf.rs` row. **The one line of `Cargo.toml` and one row of the
+   test are the whole blocker**; six tools, the error shape and the idempotency table already exist and are tested.
+2. **`#35` golden set** — labelled real assets and human judgements. It is also what `#23`'s reverb measure and
+   `evalbench`'s `corpus()` both wait on: the code is built, the labels are a person's work.
+3. **`#32`–`#34` the editor panel** — `search_ranked`, `Session`, `Toolset`, `search_music`, `audition` and the wait state
+   are all built for it, in `bevy_grimoire`.
+4. **`#39` music encoder** — a licence audit and a second index space.
+5. **`#38` the playable example** — blocked on `#33`, so on the editor.
+
 ## Iteration 101 — 2026-11-03 — a dry/wet estimate, and the candour the issue asked for
 
 **Change.** `#23`. `semantic::reverb` measures **ISO 3382's C50** — the early-to-late energy ratio, boundary **50 ms** from
