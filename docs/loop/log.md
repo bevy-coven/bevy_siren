@@ -49,7 +49,9 @@ returns 1.0, so the index clamp is defensive — written down so the next iterat
 name against **every** other name check: bus names and cue names are trimmed-checked, a slot's `sound` key is not.
 (5) `hs distill` GPU-blocked (twenty-second iteration).
 
-**Commit.** `7aff968`; CI on `main`.
+**Commit.** `7aff968`, pushed to `main`; CI run 41591211228 is **success** on `big-s1`. Gate: build, test (105 + 5),
+serde (112 + 5), mixer (113 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
