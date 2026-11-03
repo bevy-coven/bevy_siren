@@ -46,7 +46,7 @@ S3 the picker's owned strings, S4 `CueTable::get`'s linear scan, S5 iteration 54
 (the 989.8 µs → 8.5 µs → 0 ns ladder), `eval.md`, `review.md` (three passes, GREAT),
 `evidence/{plots,after}`.
 
-**Commit.** (see `git log`).
+**Commit.** `f7030f7` — *siren: a cue the table dropped stops holding a picker*.
 
 **Top 5 remaining**
 
