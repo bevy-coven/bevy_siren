@@ -28,7 +28,7 @@ a_duck_whose_source_keeps_playing_holds, a_second_line_extends_the_duck}`.
 
 The crate's visible harness: every bus with its level, its duck and its live voice count; the cue table **with the
 crate's own verdict on it** (`Problems`, and `<- problem` beside a cue that cannot play); the log of what played and why —
-driven by a scripted run so the capture shows a duck firing, a voice being stolen, and a music layer entering on the bar.
+driven by a scripted run so the capture shows a duck firing, a voice being stolen, a music layer entering on the bar, and a **stinger** hitting the `Music` bus — the one duck whose cause is a mechanism, shown with the deeper dialogue duck beneath it.
 
 The GIF is captured with `SIREN_FAULTS=1`, which adds two deliberate mistakes to the table so the `Problems` block and
 the row markers have something to show through the whole animation. The **still** is the clean panel, which reads
