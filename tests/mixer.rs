@@ -31,6 +31,9 @@ struct FakeOutput {
     ended: Arc<AtomicBool>,
     started: Arc<Mutex<Vec<usize>>>,
     stopped: Arc<Mutex<Vec<usize>>>,
+    /// When set, `play` refuses every sample — exactly what `MixerBackend::play` does when
+    /// `rodio::Decoder::new` returns `Err`, which is the failure this iteration is about.
+    refuses_samples: Arc<AtomicBool>,
 }
 
 impl AudioOutput for FakeOutput {
@@ -43,6 +46,9 @@ impl AudioOutput for FakeOutput {
     }
 
     fn play(&mut self, _: &str, _: &Arc<[u8]>, _: f32, _: f32, _: bool) -> Option<usize> {
+        if self.refuses_samples.load(Ordering::SeqCst) {
+            return None;
+        }
         let mut started = self.started.lock().unwrap();
         let index = started.len();
         started.push(index);
@@ -61,6 +67,7 @@ fn app_with_mixer(table: CueTable, settings: SirenSettings) -> (App, Arc<AtomicB
         ended: ended.clone(),
         started: Arc::new(Mutex::new(Vec::new())),
         stopped: Arc::new(Mutex::new(Vec::new())),
+        refuses_samples: Arc::new(AtomicBool::new(false)),
     };
     let mut app = crate::helpers::app(table, settings, SirenSounds::new(), false);
     // A **resolved** asset, not `Handle::default()`: `start_pending` starts a voice only once it has the bytes, and
@@ -213,6 +220,7 @@ fn a_music_layer_moves_its_mixer_voice() {
         ended: Arc::new(AtomicBool::new(false)),
         started: Arc::new(Mutex::new(Vec::new())),
         stopped: Arc::new(Mutex::new(Vec::new())),
+        refuses_samples: Arc::new(AtomicBool::new(false)),
     };
     app.insert_resource(Output(Box::new(fake)));
     app.insert_resource(Backend(true));
@@ -253,4 +261,86 @@ fn a_music_layer_moves_its_mixer_voice() {
 
 fn log_lines(app: &App) -> Vec<String> {
     app.world().resource::<SirenLog>().iter().map(Entry::line).collect()
+}
+
+/// **A sample the decoder refuses names its sound key, not the cue.**
+///
+/// `MixerBackend::play` returns `None` when `rodio::Decoder::new` rejects the bytes — a truncated file, a format the
+/// build does not include, a header that lies. `MissingSound::sound` is documented as *the key a project maps to a
+/// file*, and the unfixed tree put the **cue's** name there: a project would search `audio/` for `footstep.grass`,
+/// which was never a file. The fake output refuses every sample, which is exactly that path.
+#[test]
+fn a_sample_the_decoder_refuses_names_its_sound_key() {
+    let settings = SirenSettings {
+        max_voices: 4,
+        buses: vec![bevy_siren::BusLevel::new("Effects")],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    let table =
+        CueTable::new(vec![Cue { sounds: vec![SoundSlot::new("step_03")], ..Cue::new("footstep.grass") }]);
+
+    let mut app = crate::helpers::app(table, settings, SirenSounds::new(), false);
+    let refuses = Arc::new(AtomicBool::new(true));
+    app.insert_resource(Output(Box::new(FakeOutput {
+        ended: Arc::new(AtomicBool::new(false)),
+        started: Arc::new(Mutex::new(Vec::new())),
+        stopped: Arc::new(Mutex::new(Vec::new())),
+        refuses_samples: refuses.clone(),
+    })));
+    app.insert_resource(Backend(true));
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<AudioSource>>()
+        .add(AudioSource { bytes: Arc::from(vec![0u8; 4]) });
+    let mut sounds = SirenSounds::new();
+    sounds.insert("step_03", handle);
+    app.insert_resource(sounds);
+    advance(&mut app, 0.016);
+
+    app.world_mut().write_message(Play::cue("footstep.grass"));
+    app.update();
+    app.update();
+
+    let reason = refused(&mut app)
+        .into_iter()
+        .find(|r| matches!(r.reason, Refusal::MissingSound { .. }))
+        .expect("the decoder refused, so the play is refused")
+        .reason;
+    assert_eq!(reason, Refusal::MissingSound { sound: "step_03".to_owned() }, "the key, not the cue");
+    let line = reason.to_string();
+    assert!(
+        line.contains("step_03") && !line.contains("footstep.grass"),
+        "the sentence names the file to look at: {line}"
+    );
+    assert_eq!(app.world_mut().query::<&Voice>().iter(app.world()).count(), 0, "nothing plays on a refusal");
+}
+
+/// **A key with no handle still names the key.** The other cause of `MissingSound`, produced by `answer`, must not
+/// change — this is the half a fix must not overshoot.
+#[test]
+fn a_key_with_no_handle_still_names_the_key() {
+    let settings = SirenSettings {
+        max_voices: 4,
+        buses: vec![bevy_siren::BusLevel::new("Effects")],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    let table =
+        CueTable::new(vec![Cue { sounds: vec![SoundSlot::new("step_03")], ..Cue::new("footstep.grass") }]);
+    let mut app = crate::helpers::app(table, settings, SirenSounds::new(), false);
+    app.insert_resource(Output(Box::new(FakeOutput {
+        ended: Arc::new(AtomicBool::new(false)),
+        started: Arc::new(Mutex::new(Vec::new())),
+        stopped: Arc::new(Mutex::new(Vec::new())),
+        refuses_samples: Arc::new(AtomicBool::new(false)),
+    })));
+    app.insert_resource(Backend(true));
+    advance(&mut app, 0.016);
+
+    app.world_mut().write_message(Play::cue("footstep.grass"));
+    app.update();
+
+    let reason = refused(&mut app).remove(0).reason;
+    assert_eq!(reason, Refusal::MissingSound { sound: "step_03".to_owned() });
 }

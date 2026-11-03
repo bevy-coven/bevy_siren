@@ -108,6 +108,10 @@ round trip is a test.
 
 ## Repeat rules
 
+A `MissingSound` names the **sound key** a project maps to a file, never the cue — for both of its causes, a key with
+no handle and a key whose bytes the decoder refused. ``no handle or undecodable bytes for sound `step_03` `` sends you
+to `audio/step_03.wav`, which is the file to fix.
+
 `Repeat::AvoidRepeat { avoid: n }` refuses the last `n` variants, and the default `avoid: 1` is what stops the
 machine-gun footstep. When every variant is inside the window — two sounds and `avoid: 4` — the pick immediately
 before is still refused, because repeating it is the one thing the window exists to prevent. `Repeat::Shuffle` is a

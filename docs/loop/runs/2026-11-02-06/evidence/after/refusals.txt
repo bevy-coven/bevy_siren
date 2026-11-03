@@ -1,0 +1,3 @@
+table budget: VoiceLimit { bus: None } -> no voice free
+cue polyphony: VoiceLimit { bus: None } -> no voice free
+bus voices: VoiceLimit { bus: Some("Effects") } -> no voice free on bus `Effects`

@@ -283,3 +283,12 @@ fn changing_the_seed_restarts_the_stream() {
     );
     assert_ne!(before, after, "the change is heard");
 }
+
+/// **`MissingSound`'s sentence covers both of its causes** — a key with no handle, and bytes the decoder refused — so
+/// a panel's line and the variant cannot drift. The key is what a project goes and looks at in both cases.
+#[test]
+fn the_missing_sound_sentence_covers_both_causes() {
+    let line = Refusal::MissingSound { sound: "step_03".to_owned() }.to_string();
+    assert_eq!(line, "no handle or undecodable bytes for sound `step_03`");
+    assert!(line.contains("step_03"), "the file to look at is named");
+}

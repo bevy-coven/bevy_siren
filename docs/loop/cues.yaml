@@ -135,6 +135,15 @@ cases:
     green_when: Equal field for field within a seed, and different across seeds.
     evidence: "tests/play.rs::a_projects_seed_reaches_the_stream, changing_the_seed_restarts_the_stream"
 
+  - id: 25
+    cue: footstep.grass
+    authored: { variant_key: step_03, bytes: undecodable }
+    behaviour: A sample the decoder refuses is refused naming the sound key, not the cue.
+    observed_by: "`Refused::reason` for a key whose bytes the mixer cannot decode."
+    green_when: "`MissingSound { sound: \"step_03\" }`, never the cue's name; nothing plays."
+    source: "`MissingSound::sound`'s doc, \"the key with no handle\"; Bevy's own split of not-found from failed-to-load (bevy_asset LoadState::Failed)"
+    evidence: "runs/2026-11-02-06/evidence/{before,after}/missing-sound.txt, tests/mixer.rs::a_sample_the_decoder_refuses_names_its_sound_key"
+
   - id: 24
     cue: any
     authored: { caps: [table, cue, bus] }

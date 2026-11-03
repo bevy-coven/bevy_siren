@@ -11,19 +11,27 @@
 use bevy::audio::AudioSource;
 use bevy::prelude::*;
 
+use crate::cue::CueTable;
 use crate::log::{Entry, SirenLog};
 use crate::output::Output;
 use crate::play::{MixerVoice, Refusal, Refused, Samples, Voice};
+
+/// The `sound` key a cue's chosen variant names, or `None` when the table can no longer answer for it.
+fn key_of(table: &CueTable, cue: &str, variant: usize) -> Option<String> {
+    table.get(cue)?.sounds.get(variant).map(|slot| slot.sound.clone())
+}
 
 /// Starts every waiting voice on the crate's mixer, once its asset has loaded.
 ///
 /// Runs in [`SirenSystems::Play`](crate::SirenSystems) after the requests, so a play whose bytes are already in
 /// memory starts in the frame it was asked for. Without an [`Output`] — the default build, or one whose device
 /// failed to open — this system returns at once and Bevy's `AudioPlayer` owns every voice.
+#[allow(clippy::too_many_arguments)]
 pub fn start_pending(
     mut commands: Commands,
     output: Option<ResMut<Output>>,
     assets: Option<Res<Assets<AudioSource>>>,
+    table: Res<CueTable>,
     waiting: Query<(Entity, &Voice, &Samples), Without<MixerVoice>>,
     mut refused: MessageWriter<Refused>,
     mut log: ResMut<SirenLog>,
@@ -54,7 +62,15 @@ pub fn start_pending(
                 commands.entity(entity).insert((MixerVoice(index), crate::play::Completes::default()));
             }
             None => {
-                let reason = Refusal::MissingSound { sound: voice.cue.clone() };
+                // **Name the sound the decoder refused, not the cue that asked for it.** `MissingSound::sound` is
+                // documented as the key a project maps to a file, and the cue's name is not one: a broken `step_03.wav`
+                // must send a person to `step_03`, not to a `footstep.grass` that never existed as a file. The key is
+                // the one `answer` chose, recovered from the same cue and variant; a table edited between the play and
+                // the load can no longer answer, and then the cue really is unknown.
+                let reason = match key_of(&table, &voice.cue, voice.variant) {
+                    Some(sound) => Refusal::MissingSound { sound },
+                    None => Refusal::UnknownCue,
+                };
                 log.push(Entry::Refused { at_s: now, cue: voice.cue.clone(), reason: reason.to_string() });
                 refused.write(Refused { cue: voice.cue.clone(), reason });
                 commands.entity(entity).despawn();

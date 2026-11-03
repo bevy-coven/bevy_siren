@@ -120,10 +120,14 @@ pub enum Refusal {
     UnknownCue,
     /// The cue has no variants, so there is nothing to play.
     NoSounds,
-    /// The cue's chosen variant names a `sound` key with no handle in
-    /// [`SirenSounds`].
+    /// The cue's chosen variant names a `sound` key with no handle in [`SirenSounds`], or one whose bytes the
+    /// decoder refused.
+    ///
+    /// Two causes, one sentence, because both mean the same thing to a project: **this sound cannot be played, and
+    /// here is the key to go and look at**. The missing-handle case is found when the play is answered; the
+    /// undecodable case when the bytes first load, which is why this variant is produced from two places.
     MissingSound {
-        /// The key with no handle.
+        /// The key a project maps to a file — never the cue's name.
         sound: String,
     },
     /// The cue names a bus the mix table does not have.
@@ -146,7 +150,9 @@ impl std::fmt::Display for Refusal {
         match self {
             Self::UnknownCue => write!(f, "no cue of that name"),
             Self::NoSounds => write!(f, "the cue has no sounds"),
-            Self::MissingSound { sound } => write!(f, "no handle for sound `{sound}`"),
+            Self::MissingSound { sound } => {
+                write!(f, "no handle or undecodable bytes for sound `{sound}`")
+            }
             Self::UnknownBus { bus } => write!(f, "bus `{bus}` is not in the mix table"),
             Self::VoiceLimit { bus: Some(bus) } => write!(f, "no voice free on bus `{bus}`"),
             Self::VoiceLimit { bus: None } => write!(f, "no voice free"),

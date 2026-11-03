@@ -7,6 +7,12 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A sample the decoder refuses names the sound key, not the cue.** `start_pending` reported a decode failure as
+  `MissingSound { sound: voice.cue }`, putting the cue's name (`footstep.grass`) in a field documented as the key a
+  project maps to a file (`step_03`) — so a corrupt `step_03.wav` sent a person looking for a file that never existed.
+  It now recovers the key from the same cue and variant `answer` chose. The variant's sentence covers both of its
+  causes, *"no handle or undecodable bytes for sound `step_03`"*; a variant that distinguishes them is
+  `docs/loop/needs-decision/undecodable-sound.md`. No public type or field changed.
 - **A `VoiceLimit` refusal names the bus only when the bus refused.** `room_for` has three hard caps — the cue's
   `max_instances`, its bus's `max_voices`, the table's `max_voices` — and returned one uninformative `None` from all
   of them, so every refusal reported the cue's bus. A probe proved the table case blamed **`Ambience`** for a cue

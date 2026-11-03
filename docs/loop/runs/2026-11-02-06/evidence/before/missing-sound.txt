@@ -1,0 +1,2 @@
+no handle:     MissingSound { sound: "step_03" } -> no handle or undecodable bytes for sound `step_03`
+undecodable:   MissingSound { sound: "footstep.grass" } -> no handle or undecodable bytes for sound `footstep.grass`

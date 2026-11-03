@@ -230,9 +230,90 @@ fn main() {
         probe.push_str(&format!("{label}: {said}\n"));
     }
     std::fs::write(out.join("refusals.txt"), &probe).expect("refusals.txt is writable");
+    std::fs::write(out.join("missing-sound.txt"), missing_sound_probe())
+        .expect("missing-sound.txt is writable");
     std::fs::write(out.join("budget.svg"), svg(&rows, cap)).expect("budget.svg is writable");
     print!("{probe}");
     println!("budget: {} files in {}", 4, out.display());
+}
+
+/// **The two causes of `MissingSound`, side by side**, so the sentence and the key can be judged together: a key with
+/// no handle (answered by `play_requests`) and a key whose bytes the decoder refuses (answered by `start_pending`).
+/// Both must name the **sound key**, never the cue.
+fn missing_sound_probe() -> String {
+    let settings = SirenSettings {
+        max_voices: 4,
+        buses: vec![BusLevel::new("Effects")],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    let table =
+        CueTable::new(vec![Cue { sounds: vec![SoundSlot::new("step_03")], ..Cue::new("footstep.grass") }]);
+    let mut out = String::new();
+
+    // (a) A key with no handle at all: `SirenSounds` is empty.
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()))
+        .init_asset::<AudioSource>()
+        .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(16)))
+        .add_plugins(bevy_siren::SirenPlugin)
+        .insert_resource(settings.clone())
+        .insert_resource(table.clone())
+        .insert_resource(SirenSounds::new());
+    app.update();
+    app.world_mut().write_message(Play::cue("footstep.grass"));
+    app.update();
+    if let Some(r) = app.world_mut().resource_mut::<Messages<bevy_siren::Refused>>().drain().next() {
+        out.push_str(&format!("no handle:     {:?} -> {}\n", r.reason, r.reason));
+    }
+
+    // (b) A key with a handle whose bytes the decoder refuses: four zeroes are not a WAV, and the mixer's `play`
+    // returns `None` for exactly that.
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()))
+        .init_asset::<AudioSource>()
+        .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(16)))
+        .add_plugins(bevy_siren::SirenPlugin)
+        .insert_resource(settings)
+        .insert_resource(table);
+    let mut sounds = SirenSounds::new();
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<AudioSource>>()
+        .add(AudioSource { bytes: Arc::from(vec![0u8; 4]) });
+    sounds.insert("step_03", handle);
+    app.insert_resource(sounds);
+    app.insert_resource(bevy_siren::output::Output(Box::new(DecodeRefuser {
+        refused: Arc::new(Mutex::new(Vec::new())),
+    })));
+    app.insert_resource(bevy_siren::output::Backend(true));
+    app.update();
+    app.world_mut().write_message(Play::cue("footstep.grass"));
+    app.update();
+    app.update();
+    if let Some(r) = app.world_mut().resource_mut::<Messages<bevy_siren::Refused>>().drain().next() {
+        out.push_str(&format!("undecodable:   {:?} -> {}\n", r.reason, r.reason));
+    }
+    out
+}
+
+/// An output whose `play` refuses every sample, which is what the crate's mixer does when the decoder rejects bytes.
+struct DecodeRefuser {
+    refused: Arc<Mutex<Vec<usize>>>,
+}
+
+impl AudioOutput for DecodeRefuser {
+    fn set_bus_db(&mut self, _: &str, _: f32) {}
+    fn set_voice_db(&mut self, _: &str, _: usize, _: f32) {}
+    fn stop_voice(&mut self, _: &str, voice: usize) {
+        self.refused.lock().unwrap().push(voice);
+    }
+    fn play(&mut self, _: &str, _: &Arc<[u8]>, _: f32, _: f32, _: bool) -> Option<usize> {
+        None
+    }
+    fn finished(&self, _: &str, _: usize) -> bool {
+        true
+    }
 }
 
 /// A real 16-bit mono WAV, so the crate's own mixer can decode it: `start_pending` refuses a sample it cannot decode
