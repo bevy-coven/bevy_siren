@@ -47,7 +47,7 @@ S3 the master already inside `chain_db`, S4 the render harness's `sum_db` write,
 `master_trim` helper clamping to `−3.0` — a magic constant doing an unclear job; replaced by writing the file at the field
 the decision file names.
 
-**Commit.** (see `git log`).
+**Commit.** `0b5d895` — *examples: the master is the headroom trim, and two demonstration files stop clipping*.
 
 **Top 5 remaining**
 
