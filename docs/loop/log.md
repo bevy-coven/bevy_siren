@@ -50,7 +50,7 @@ so the capture proved the waiting marker by refusing every other play in the scr
 `0 / 1`. Scoping the cap to the `Music` bus isolated the point: `Effects 2 / 2`, the bus steal intact, and only the two
 music lines that matter.
 
-**Commit.** (see `git log`).
+**Commit.** `a559edc` — *music: a layer the budget refused says it is waiting*.
 
 **Top 5 remaining**
 
