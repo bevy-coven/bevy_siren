@@ -580,3 +580,59 @@ fn wav_from(samples: &[f32]) -> Vec<u8> {
     }
     v
 }
+
+/// **`#36`: the decode path is at or above its stated target**, so the constant cannot drift from the code.
+///
+/// This measures the crate's **own** work — the analysis of a decoded buffer, which is what `indexbench`'s `decode`
+/// column reports — rather than a model call, because a model is not available here and a synthetic stand-in would be a
+/// number about nothing.
+///
+/// Release-only for the same reason as the query budget: the arithmetic is 19x slower in a debug build, and asserting a
+/// released figure against it would teach a reader to ignore this test.
+#[cfg(feature = "semantic")]
+#[test]
+fn the_decode_path_meets_its_throughput_target() {
+    use bevy_siren::semantic::indexer::INDEX_TARGET_CLIPS_PER_SEC;
+
+    if cfg!(debug_assertions) {
+        println!(
+            "skipped: a released-build figure; run `cargo test --release --features semantic` to enforce it"
+        );
+        return;
+    }
+
+    // **The four analyses a build runs per clip**, on the clip length `indexbench` generates — **0.5 s**, which is what
+    // makes the two figures comparable. A 4 s buffer measures 83 clips/s rather than ~750, because the analysis work is
+    // proportional to duration while a "clip" is not: the target is per clip of a stated length, and that is stated in
+    // the constant's doc.
+    let rate = 48_000usize;
+    let mut buffer = vec![0.0f32; rate / 2];
+    let mut at = 0;
+    while at < buffer.len() {
+        for i in 0..240 {
+            if at + i < buffer.len() {
+                let t = i as f32 / rate as f32;
+                buffer[at + i] = (-t * 400.0).exp() * (std::f32::consts::TAU * 1000.0 * t).sin() * 0.6;
+            }
+        }
+        at += rate / 2;
+    }
+
+    let clips = 400;
+    let start = std::time::Instant::now();
+    for _ in 0..clips {
+        let _ = bevy_siren::semantic::loudness::measure(&buffer, rate as u32);
+        let spectra = bevy_siren::semantic::analysis::spectra(&buffer);
+        let _ = bevy_siren::semantic::spectral::analyse_spectra(&buffer, &spectra);
+        let _ = bevy_siren::semantic::tempo::estimate_spectra(&buffer, &spectra);
+        let _ = bevy_siren::semantic::key::estimate(&buffer);
+    }
+    let elapsed = start.elapsed().as_secs_f64();
+    let clips_per_second = clips as f64 / elapsed;
+
+    assert!(
+        clips_per_second >= INDEX_TARGET_CLIPS_PER_SEC,
+        "the analysis ran at {clips_per_second:.0} clips/s, below the {INDEX_TARGET_CLIPS_PER_SEC} target: either the \
+         analysis regressed or the target needs re-measuring"
+    );
+}

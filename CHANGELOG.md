@@ -7,6 +7,11 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **The indexing throughput target** — `#36`'s measurable half. `indexer::INDEX_TARGET_CLIPS_PER_SEC = 700`, against a
+  measured **748 clips/s**, enforced by a release-only test. The constant's doc states what a "clip" is (0.5 s, the
+  length `indexbench` generates — the figure is per clip, so a 4 s clip measures ~83), that the **inference target and
+  peak VRAM are not set** because no GPU host here has the graph, and that inference dominates on CPU by ~100× (ADR
+  0002: 34.9 ms against 0.37 ms), so the GPU figure is the one that matters and is the one still owed.
 - **`tools::search_music`** — `#29`'s library half, and `tools::DEFAULT_K = 3` (*describe, see three, pick one*). Each
   result carries its identity, score, breakdown, `explain()` sentence and provenance, so an agent chooses **without a
   second call**; identity is the content hash and never a path, which would be absolute to the machine that indexed it. An

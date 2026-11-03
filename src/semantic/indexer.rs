@@ -369,6 +369,42 @@ pub(super) fn embed_measured(
 /// The file a built index lives in. One name for both formats, because the bytes say which one it is.
 pub const INDEX_FILE: &str = "siren-index";
 
+/// **The indexing throughput target**, measured rather than hoped for — `#36`.
+///
+/// `#36` asks for the figure **on the target hardware** with peak VRAM, the machine's state, and the bound identified by
+/// measurement. Two of those are not available to this repository, and this constant says so rather than inventing them:
+///
+/// | | |
+/// |---|---|
+/// | **decode target** | **700 clips/s** — the crate's own work: open, downmix, resample, loudness, spectral, tempo, key |
+/// | measured | **748 clips/s** at 400 clips on this Mac (`cargo run --release --features semantic --example indexbench -- <dir> 400`), and 750 at 300 in iteration 95 |
+/// | **what a "clip" is** | **0.5 s** of 48 kHz mono, which is what `indexbench` generates. The figure is **per clip**, so it is proportional to duration: a 4 s clip measures about **83 clips/s** on the same machine. Comparing a rate against this constant without matching the duration is comparing two different measurements — which is what a first draft of the test did |
+/// | **inference target** | **not set** — needs the ONNX graph on a GPU host, which this repository's CI does not have |
+/// | peak VRAM | **not measured**, for the same reason |
+///
+/// # Why 700, when the measurement is 748
+///
+/// About 6 % below the measurement, which is the margin this machine's run-to-run spread needs — iteration 95 measured
+/// 698.6 / 766.2 / 784.0 clips/s across three runs of unchanged code. A target equal to the best run would fire on the
+/// slowest, and a tripwire that fires on a normal day is one people learn to ignore.
+///
+/// # The bound
+///
+/// **Decode is the bound on a machine with no model**, and **inference dominates on a CPU with one**: ADR 0002 measured
+/// the audio tower at **34.9 ms per clip** against a decode of **0.37 ms** — about 100×. So the interesting figure for a
+/// real library is the GPU one, and it is the one still owed. `indexbench`'s synthetic `embed` column is labelled as
+/// synthetic precisely so nobody reads it as the model.
+///
+/// # What that implies
+///
+/// At 748 clips/s the crate's own work for 5 000 clips is **7 s**; the projection including inference on a GPU needs the
+/// measurement that does not exist here. Stating *"3 s"* or *"30 min"* without that number would be the aspiration `#36`
+/// forbids.
+pub const INDEX_TARGET_CLIPS_PER_SEC: f64 = 700.0;
+
+/// The library size the target is stated for, matching the crate's other projections.
+pub const INDEX_TARGET_CLIPS: usize = 5_000;
+
 /// **Write a built index beside its library**, so the next run can load it instead of rebuilding.
 ///
 /// The path is `<root>/siren-index.txt`. A caller that wants it elsewhere writes `index.to_text()` itself; this exists
