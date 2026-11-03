@@ -7,6 +7,74 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 12 — 2026-11-02 — a stop for a sound that already ended
+
+**Change.**
+
+- **`src/mix.rs` — `stop_requests` resolves the entity against the live voice query before commanding it.** It took the
+  id straight from the `StopVoice` message and called `commands.entity(entity).insert(..)`; `retire_voices` despawns a
+  one-shot the frame it ends, and `Played::entity` is documented as the handle a game keeps **for `StopVoice`** — so
+  holding it one frame too long hit Bevy 0.20's default error handler, which **panics**:
+  `Entity despawned: … its index now has generation 1`. Now a stop for a voice that has gone is a no-op, and a second
+  stop for a voice already fading is skipped so a fade is begun once.
+- `tests/play.rs` — three tests: the stale handle (**panics inside `app.update()`** on the unfixed tree), a second stop,
+  and `StopCue` so the fix cannot narrow the name path. `cues.yaml` case 30; a "Stopping a sound" section in the cues
+  guide; the CHANGELOG and a media note.
+
+**Why.** Iteration 11's log said the most productive next pass was **a new cue case that turns something red** — and one
+did, in the first probe. This is a crash reachable from the crate's own documented workflow and its own retirement path:
+`Played` hands out an id, the crate invalidates it on its own schedule, and using it as documented took the game down.
+Every other `commands.entity(..)` in the crate takes an entity from a live query and cannot be dead; this was the one
+path where the id came from a **message**.
+
+**Evidence.** `runs/2026-11-02-12/`: `eval.md` (baseline green; the gap — case 23 stops a live loop, no case stops an
+ended voice), `research.md`, `plan.md`, `perf.md` (the panic and its absence), `review.md`, and `evidence/{before,after}/`.
+
+**Measured.**
+
+| sequence | before | after |
+|---|---|---|
+| play a one-shot, let it end, `StopVoice(handle)` | **panic: `Entity despawned … generation 1`** | no-op; nothing logged |
+| play a loop, `StopVoice` | fades | unchanged |
+| `StopVoice` twice for a fading voice | fade re-armed | skipped; one fade, one line |
+| `StopCue` with two voices | both stopped | unchanged |
+| every rendered cue and the mix | — | **byte-identical** (16/16 WAVs) |
+| frame cost, 8 / 64 / 256 voices | 0.069 / 0.628 / 1.391 µs | one `Query::get` per stop request, an event not a frame cost; load 8.0 vs 2.4 is the difference from iteration 11 |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The gate found two defects in my own work — a leftover import
+and a scaffold expression in a test — both fixed; and the commit itself shipped a throwaway probe by mistake, removed in
+the commit that follows it (`975f12b`).
+
+**Traps for the command.** (1) **Check `git status` before committing after a hunt**: `examples/probe16.rs` was deleted
+from the working tree but staged with `git add -A`, and an example directory is part of the published crate. (2) A
+command on an id that came from **outside** the world needs a guard; a command on an id from a **query** does not. Grep
+`commands.entity(` and check where each entity came from — that is the whole audit. (3) The regression test's value is
+that it **panics**, not that it asserts a value: the unfixed tree fails inside `app.update()`, which no assertion can
+express. (4) `hs distill` is still GPU-blocked (`bge-m3` wants 5000 MB; a 14.8 GB VLLM engine holds the card), tenth
+iteration running.
+
+**Commit.** `d551abb` + `975f12b`, pushed to `main`; CI run 41558456518 is **success** on `big-s1`. Gate: build, test (71 + 4), serde (78 + 4), mixer
+(78 + 4), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green.
+
+**Next 5.** The five decision files are unchanged; one minor can carry four of them.
+
+1. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+2. A variant that distinguishes "never mapped" from "corrupt file" — `needs-decision/undecodable-sound.md`.
+3. A payload that names the cap — `needs-decision/refusal-names-its-cap.md`.
+4. `Completes` is public and can never be true — `needs-decision/remove-completes.md`.
+5. A log line for a position a non-spatial cue ignores — `needs-decision/non-spatial-position.md` (its `Entry` arm can
+   land with item 4).
+
+**The hunt that worked, written down.** Iteration 11 found nothing in six probes because it tested what the crate
+*decides*; this one found a crash in the first probe because it tested **what a game does with what the crate hands it** —
+keep the entity, use it later. That is the class of case the table was missing, and the next hunt should start there:
+take a public handle, message or resource, hold it across the frame the crate changes it, and use it as documented.
+
+**Baseline note.** Nothing was red, and the suite had 68 tests. Case 23 stops a **live** loop; nothing stopped a voice
+that had **ended**, which is the only sequence that reaches the panic.
+
+---
+
 ## Iteration 11 — 2026-11-02 — the rule written the way it reads
 
 **Change.**
