@@ -7,6 +7,54 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 96 — 2026-11-03 — the ensemble, wired, and a determinism bug its own test found
+
+**Change.** `#40`'s arithmetic existed in `src/model.rs` — `Signal`, `Contribution`, `Breakdown`, `score`, `shares`,
+`strongest`, `explain` — and **nothing constructed it**: `grep` over `src/` outside `model.rs` returned zero hits. New
+`semantic::ensemble` maps every signal onto one `[0, 1]` agreement (semantic `(c+1)/2` — affine, so it cannot reorder;
+acoustic and tempo `1 − difference/tolerance` against the tolerances the filter already refuses on; key the
+compatibility table's own multiplier) and weights them. `search::search_ranked` runs stamp → ranking → floor → hard
+rules → breakdown → **re-sort by ensemble score**, so a project's weights are binding. Each result carries its
+`Breakdown` and an `explain()` sentence.
+
+**Rationale.** `#40` blocks `#44`, `#45`, `#47`, `#48`, and the tool family `#42`–`#44` reads `Breakdown` — all
+unimplementable while nothing built one.
+
+**The bug its own criterion found.** `Contribution::absent` stores `raw: f32::NAN`, and the derived `PartialEq`
+compared `NaN != NaN` — so **two identical searches were never equal** whenever any signal was absent, which is every
+asset with no tempo. `#40`'s determinism criterion was unsatisfiable against the shipped type. Fixed with a hand-written
+`PartialEq` comparing `NaN` equal only to `NaN`.
+
+**Before/after.** Per-frame audio cost unchanged (8/64/256 voices 0.041 / 0.329 / 1.228 µs per frame); this is offline
+retrieval arithmetic at O(k·4) with k typically 3, and no system schedules it. **All 21 rendered wavs byte-identical** to
+iteration 95; master **−21.5 LUFS, −7.5 dBFS true peak**.
+
+**Tests.** New `tests/semantic_ensemble.rs`, 7 tests, one per criterion plus three that pin the scale: contributions sum
+to the score and each is `raw × weight`; an absent signal is `missing` with a zero contribution, never a zero raw; two
+identical calls agree **field for field**; removing the acoustic weight **reverses the order** on a fixture built to show
+it, asserting **both** orders rather than only that they differ; the semantic map is strictly increasing across
+`[-1, 1]`; tempo agreement falls with distance and is `None`, not `0.0`, when unmeasured.
+
+**Verdicts.** Function **GREAT**, zoom **GREAT**, fresh eyes **GREAT**. Recorded rather than fixed: the acoustic
+agreement reads the noise floor from the pair when no penalty fired, so the same number is computed twice; they agree
+because both read `Weights::noise_floor_tolerance_db`, and a change to one would desynchronise them silently. The fix is
+for `Judgement` to report the agreement beside the penalty — a shape change, its own iteration.
+
+**Evidence.** [`runs/2026-11-03-96/`](runs/2026-11-03-96/) — `research.md`, `plan.md`, `eval.md`, `perf.md`,
+`review.md`, `evidence/after/` (32 files), `evidence/spectrograms/`.
+
+**Baseline:** nothing red before or after — 198 / 6 / 387 semantic / 94 lib / 6 doc, clippy and fmt clean, docs and
+examples build.
+
+**Top 5 remaining.**
+
+1. **`#42`/`#43`/`#44` tools** — `set_anchor`, `find_compatible_sfx`, `find_compatible_music`, `explain_match`. Now
+   implementable: `search_ranked` is the call they wrap, and `Breakdown::explain` is their result text.
+2. **`#47` query latency budget** — measurable now that a real end-to-end path exists; needs a number and a test.
+3. **`#36` indexing throughput target** — 750 clips/s is measured; the *target* is unset.
+4. **`Judgement` reports agreement beside penalty** — the duplication recorded in this iteration's pass 3.
+5. **`#13` chunk long tracks** — the one core index behaviour still missing; `mel` already refuses a long buffer by name.
+
 ## Iteration 95 — 2026-11-03 — one transform per frame, and a 40 % decode recovery
 
 **Change.** `spectral` and `tempo` were computing the same 1024-point FFT on the same frames with the same hop, twice.

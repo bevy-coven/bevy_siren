@@ -114,3 +114,157 @@ pub fn search(
 // *"`SearchProblem`: `std::error::Error` is not satisfied"* on three lines in a row. An error a caller has to unwrap by hand is
 // half an error.
 impl std::error::Error for SearchProblem {}
+
+/// **Everything a ranked search needs besides the index and the description**, so the call has one argument per idea.
+///
+/// Grouped into a type rather than passed as eight parameters: a call site with eight positional arguments is one whose
+/// arguments get swapped silently, and `anchor` and `k` are both integers.
+#[derive(Debug, Clone)]
+pub struct Ranked<'a> {
+    /// The embedding the description produced, on the index's own scale.
+    pub embedding: &'a [f32],
+    /// The asset the search is *relative to*: it supplies the acoustic features every candidate is judged against.
+    pub anchor: u64,
+    /// Acoustic features by content hash. An asset absent here is unjudged, never excluded.
+    pub features: &'a std::collections::BTreeMap<u64, super::filter::Features>,
+    /// How many results to return.
+    pub k: usize,
+    /// The similarity floor, applied to the model's own score before the ensemble reorders anything.
+    pub floor: Floor,
+    /// The project's weights.
+    pub weights: &'a super::weights::Weights,
+}
+
+/// **One result with its reason attached** — `#40`'s per-result breakdown, beside the score it explains.
+///
+/// `similarity` is kept separate from `breakdown` because they answer different questions: the similarity is *what the
+/// model saw*, on CLAP's own scale, and the breakdown is *why this ranked here* once the project's weights and the
+/// acoustic rules had their say. A caller filtering on similarity must not accidentally filter on the weighted score.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Scored {
+    /// The asset's content hash.
+    pub hash: u64,
+    /// The embedding similarity on the model's own scale, unchanged from [`Match::score`].
+    pub similarity: f32,
+    /// The ensemble's score: what the weighted signals sum to. **The ranking key** for [`search_ranked`].
+    pub score: f32,
+    /// Each signal's raw value, weight and contribution.
+    pub breakdown: crate::model::Breakdown,
+    /// Where the asset came from.
+    pub provenance: super::provenance::Provenance,
+}
+
+impl Scored {
+    /// **The sentence a panel or a log shows**: what carried the result, and what counted against it.
+    pub fn explain(&self) -> String {
+        self.breakdown.explain()
+    }
+}
+
+/// **An answer whose results carry their own reasons.**
+#[derive(Debug, Clone, PartialEq)]
+pub struct RankedAnswer {
+    /// The results, best first by ensemble score.
+    pub matches: Vec<Scored>,
+    /// How many were below the similarity floor and dropped.
+    pub dropped: usize,
+    /// How many the hard rules excluded — loudness or tempo beyond their tolerance.
+    pub excluded: usize,
+}
+
+impl RankedAnswer {
+    /// A sentence a panel or a log can show without the caller composing one.
+    pub fn describe(&self) -> String {
+        if self.matches.is_empty() {
+            let mut s = String::from("nothing in this library matched");
+            if self.excluded > 0 {
+                s.push_str(&format!("; {} were excluded by the acoustic rules", self.excluded));
+            }
+            if self.dropped > 0 {
+                s.push_str(&format!("; {} were below the similarity floor", self.dropped));
+            }
+            return s;
+        }
+        let mut s = format!("{} results", self.matches.len());
+        if self.excluded > 0 {
+            s.push_str(&format!(", {} excluded by the acoustic rules", self.excluded));
+        }
+        if self.dropped > 0 {
+            s.push_str(&format!(", {} below the similarity floor", self.dropped));
+        }
+        s
+    }
+}
+
+/// **Search, then score every candidate with the ensemble** — `#40`'s end-to-end path.
+///
+/// The order of operations is the design, so it is stated:
+///
+/// 1. `top_k` finds the `k` nearest by embedding similarity, on the model's own scale.
+/// 2. `filter::evaluate` applies the **hard** rules; a candidate beyond the loudness or tempo tolerance is excluded and
+///    never scored. That is what makes `#27`'s rules binding rather than advisory.
+/// 3. `ensemble::breakdown` puts every surviving signal on the common `[0, 1]` scale and weights it.
+/// 4. The results are **re-sorted by the ensemble score**, because a project's weights can reorder what the model
+///    ranked — that is the whole point of tuning them.
+///
+/// `request.features` is keyed by content hash: an anchor the map does not hold is treated as having no acoustic features,
+/// which yields an unjudged pair and a semantic-only score rather than a refusal. That is deliberate — an asset the
+/// analysis could not measure should still be findable by description.
+pub fn search_ranked(
+    index: &Index,
+    loaded: &ModelStamp,
+    query: &Query,
+    request: &Ranked,
+) -> Result<RankedAnswer, SearchProblem> {
+    if &index.stamp != loaded {
+        return Err(SearchProblem::StampMismatch);
+    }
+    if request.embedding.len() != index.stamp.dimension {
+        return Err(SearchProblem::WrongWidth {
+            got: request.embedding.len(),
+            expected: index.stamp.dimension,
+        });
+    }
+    let _ = query.text();
+
+    let k = request.k;
+    let floor = request.floor;
+    let weights = request.weights;
+    let features = request.features;
+    let anchor = request.anchor;
+    let ranked = top_k(index, request.embedding, k).map_err(SearchProblem::Rank)?;
+    let mut dropped = 0;
+    let mut excluded = 0;
+    let empty = super::filter::Features::default();
+    let anchor_features = features.get(&anchor).copied().unwrap_or(empty);
+
+    let mut matches = Vec::with_capacity(ranked.len());
+    for m in ranked {
+        if m.score < floor.min_score {
+            dropped += 1;
+            continue;
+        }
+        let candidate = features.get(&m.hash).copied().unwrap_or(empty);
+        let judgement = super::filter::evaluate(&anchor_features, &candidate, weights);
+        if !judgement.admitted() {
+            excluded += 1;
+            continue;
+        }
+        let breakdown =
+            super::ensemble::breakdown(m.score, &candidate, &anchor_features, &judgement, weights);
+        matches.push(Scored {
+            hash: m.hash,
+            similarity: m.score,
+            score: breakdown.score(),
+            breakdown,
+            provenance: m.provenance,
+        });
+    }
+
+    // **Descending ensemble score, then ascending hash.** A total order, so two runs cannot disagree.
+    matches.sort_by(|a, b| {
+        b.score.partial_cmp(&a.score).unwrap_or(core::cmp::Ordering::Equal).then_with(|| a.hash.cmp(&b.hash))
+    });
+    matches.truncate(k);
+    Ok(RankedAnswer { matches, dropped, excluded })
+}

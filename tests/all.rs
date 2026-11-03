@@ -27,6 +27,7 @@ mod semantic_buffer;
 #[cfg(feature = "semantic")]
 mod semantic_decode;
 #[cfg(feature = "semantic")]
+mod semantic_ensemble;
 mod semantic_eval;
 #[cfg(feature = "semantic")]
 mod semantic_incremental;

@@ -298,6 +298,50 @@ set where everything was filtered out reads as a sentence rather than as nothing
 A project that wants clashing keys sets `compatibility.clash_penalty: 1.0` and the key rule stops penalising — the
 number is the flag, so no separate switch is needed.
 
+## Ask with reasons: `search_ranked`
+
+`search` gives scores on CLAP's own scale. `search_ranked` gives **every result its own explanation**, and re-sorts by the
+project's weights — which is what makes a weights file binding rather than decorative.
+
+```rust
+use bevy_siren::semantic::search::{Ranked, search_ranked};
+use bevy_siren::semantic::{rank::Floor, weights::Weights};
+
+let weights = Weights::default();
+let request = Ranked {
+    embedding: &embedding,
+    anchor,                 // the asset whose acoustic features every candidate is judged against
+    features: &features,    // by content hash, from the indexer's measurements
+    k: 3,
+    floor: Floor::default(),
+    weights: &weights,
+};
+let answer = search_ranked(&index, &stamp, &query, &request)?;
+for result in &answer.matches {
+    println!("{} {:.3} — {}", result.hash, result.score, result.explain());
+}
+```
+
+**One scale, so the weights mean something.** Every signal becomes an agreement in `[0, 1]`:
+
+| signal | raw value | why that number |
+|---|---|---|
+| semantic | `(cosine + 1) / 2` | **affine**, so it cannot reorder what `top_k` found |
+| acoustic | `1 − difference / tolerance`, clamped | the same fraction the filter already refuses on |
+| tempo | `1 − difference / tolerance`, clamped | the same shape, on `tempo_tolerance_bpm` |
+| key | `compatibility.multiplier` | already `[0, 1]`, already authored — one number, both places |
+
+**A missing signal is not a disagreement.** An asset with no tempo estimated, or a key judged atonal, contributes nothing
+and is marked `missing` — never a zero, which would read as *"consulted and disagreed"*. `explain()` says which:
+
+```
+semantic carried it (+0.710 from 0.71 raw at weight 1); no value for tempo, key
+```
+
+**The hard rules run before the scoring.** A candidate beyond the loudness or tempo tolerance is excluded and never
+scored, so `#27`'s rules are binding rather than advisory; `RankedAnswer` reports `excluded` and `dropped` separately so
+an empty result can say which rule emptied it.
+
 ## Ask: one call from a description to a ranked answer
 
 ```rust

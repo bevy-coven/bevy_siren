@@ -28,6 +28,7 @@ pub mod ask;
 pub mod budget;
 pub mod buffer;
 pub mod decode;
+pub mod ensemble;
 pub mod eval;
 pub mod filter;
 pub mod incremental;

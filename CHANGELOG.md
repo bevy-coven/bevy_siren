@@ -5,6 +5,18 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **The ensemble, wired.** `semantic::ensemble::breakdown` maps every signal onto one `[0, 1]` agreement — semantic as
+  `(cosine + 1) / 2` (affine, so it cannot reorder), acoustic and tempo as `1 − difference / tolerance` against the same
+  tolerances the filter already refuses on, key as the compatibility table's own multiplier — and weights them into
+  `model::Breakdown`. `search::search_ranked` runs the whole path: stamp check, ranking, floor, the hard rules, then a
+  **re-sort by ensemble score**, which is what makes a project's weights binding. Each result carries its own breakdown
+  and an `explain()` sentence.
+- **`model::Contribution` compares absences as equal.** A derived `PartialEq` compared `raw: NaN` against `NaN` and
+  returned false, so two identical searches were never equal whenever a signal was absent — `#40`'s determinism
+  criterion was unsatisfiable against the shipped type. The hand-written impl treats `NaN` as equal only to `NaN`.
+
 ### Changed
 
 - **`spectral` and `tempo` now share one spectral pass.** They walked identical 1024-point frames with the same hop and

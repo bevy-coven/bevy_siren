@@ -594,7 +594,7 @@ impl Signal {
 /// The three are kept separate because a caller reading a result needs them separately: the raw value says *what the
 /// signal saw*, the weight says *how much the project cared*, and the contribution is the product. A result that only
 /// carried the product would leave "why is this first" unanswered whenever a weight is small.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 pub struct Contribution {
     /// Which signal this is.
     pub signal: Signal,
@@ -610,6 +610,26 @@ pub struct Contribution {
     /// one that was consulted and disagreed are different facts, and a breakdown that conflates them misleads exactly
     /// the person reading it to understand the ranking.
     pub missing: bool,
+}
+
+/// **Equality that treats two absences as equal.**
+///
+/// A derived `PartialEq` cannot do this: [`Contribution::absent`] stores `raw: f32::NAN`, and `NaN != NaN`, so two
+/// identical breakdowns from two identical runs would compare unequal and `#40`'s determinism criterion — *"two calls
+/// with the same query return identical order and scores, field for field"* — would fail on a result that had no
+/// tempo. Measured: it did, before this impl existed.
+///
+/// `NaN` is compared **only against `NaN`**, and every other value with ordinary equality, so this is a total order on
+/// the values a breakdown can hold rather than a loosening that would hide a real difference.
+impl PartialEq for Contribution {
+    fn eq(&self, other: &Self) -> bool {
+        let raw_equal = self.raw == other.raw || (self.raw.is_nan() && other.raw.is_nan());
+        raw_equal
+            && self.signal == other.signal
+            && self.weight == other.weight
+            && self.contribution == other.contribution
+            && self.missing == other.missing
+    }
 }
 
 impl Contribution {
