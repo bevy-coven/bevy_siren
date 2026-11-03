@@ -7,6 +7,67 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 73 — 2026-11-03 — the indexer: every part existed and nothing composed them
+
+**Baseline.** Green on every step: 198 / 356 + 6, clippy, fmt, rustdoc. Working tree clean at `6f86607`. **No case in
+`cues.yaml` is red** — case 31 went green in iteration 72 and stayed green.
+
+**An audit before picking, and it found three gaps worse than the item I expected.**
+
+| Gap | Evidence |
+|---|---|
+| **nothing builds an index from a folder** | `grep "scan\|build_index\|embed_folder"` over `src/semantic/*.rs` → nothing |
+| **no audio embedding** — `Model` exposes `embed_text` only | `grep "pub fn embed"` → one hit |
+| **zero documentation** — no README mention, no guide page | `grep -ci semantic README.md` → **0** |
+
+The first made every other item on the list premature: `Index::new` plus `Index::insert` is not an indexer, and a caller
+who wanted an index of their library had to write the loop — and get the content hash, the skip list, the failure policy
+and the stamp right on their own.
+
+**What shipped.** `build(root, stamp, embed)`: per file, decode (rate from the stream, not the header) → resample (tail
+flushed, so 1.000 s stays 1.000 s) → embed → insert under the content hash, so a rename does not change identity. Plus
+`write`/`read` beside the library, and `stale`/`vanished` — the two halves of an incremental rebuild, where **a rename is
+neither**.
+
+**The embedding is a `FnMut`, not a trait.** Audio embedding needs a mel spectrogram, which needs a filterbank — its own
+piece of work with its own numbers. A seam keeps the orchestration complete and testable today and lets the mel path drop
+into one place later; the module doc says plainly that it is not there yet rather than implying it is.
+
+**A defect the test caught, and it is the same fault this crate forbids one layer down.** `library::scan` reports three
+kinds of skip — `NotAudio`, `UndecodableHeader`, `Unreadable` — and the first indexer filed only the first into
+`not_audio` and **ignored the other two**. A WAV with a corrupt header vanished from both lists.
+`a_corrupt_file_is_counted_not_swallowed` asserted `failed.len() == 1` and got **0**. The fix splits the skips by what
+they mean to a caller: *not audio* is a fact about the folder, *would not read* is a failure, and both now appear.
+
+**A second defect was the test's.** `a_rebuild_is_what_an_incremental_index_asks_about` asserted that a rename changes
+nothing, using a file that had never been indexed. It failed, correctly. **A test asserting an absence can be satisfied
+by never doing the thing**, which is worth remembering.
+
+**Verdicts.** Pass 1 **GREAT**, pass 2 **GREAT**, pass 3 **GREAT** on the orchestration — with the honest note that
+**the feature as a whole is not yet usable**, because there is no audio embedding and no documentation.
+
+**Gate.** **198 default / 367 all-features**, clippy 0, fmt, rustdoc — green.
+
+**A disk failure, the sixth.** The all-features link failed at **323 MB** with `cc: error: linker command failed` — the
+first time in this project it has presented as a *linker* error rather than a `rustc` I/O error. Same cause, same fix.
+
+**Evidence.** `runs/2026-11-03-73/`: `research.md`, `plan.md`, `eval.md`, `review.md` (three passes).
+
+**Commits.** `118bbee`.
+
+**Top 5 remaining**
+
+1. **Audio embedding** — a mel spectrogram and a filterbank, which is the one thing between the indexer and a usable
+   feature. It needs no model choice and no licence audit; it is the largest blocker that is **not** a decision.
+2. **Documentation** — the semantic layer has zero README mentions and no guide page. A feature nobody can find is not
+   shipped, and this is the cheapest item on the list.
+3. **Where the weights live** — `needs-decision/weights-live-where.md` still recommends a fourth ungated section plus a
+   companion commit in `bevy_grimoire`; actionable and non-breaking, so by iteration 72's own lesson it need not wait.
+4. **`#28`** — the MCP tool host, then `#29` `search_music` and `#44` `explain_match`, all of which now have an index to
+   answer against.
+5. **`V-01`** — the labelled set, which needs a person, and would turn the floor, the band constants and the six weights
+   from design defaults into measurements.
+
 ## Iteration 72 — 2026-11-03 — case 31: the decision nobody implemented
 
 **Baseline.** Every crate test green (194 / 352 + 6, clippy, fmt, rustdoc) — but **`cues.yaml` case 31 was red**, and had
