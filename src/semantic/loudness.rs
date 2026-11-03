@@ -100,7 +100,7 @@ pub struct Loudness {
     /// | | `blocks_possible` | `blocks` |
     /// |---|---|---|
     /// | a 0.2 s sound effect | **0** | 0 |
-    /// | 3 s of digital silence | **7** | **0** |
+    /// | 1 s of digital silence | **7** | **0** |
     ///
     /// Both give `integrated == None`, and they mean opposite things to a caller — one asset needs a different
     /// measure, the other is genuinely silent and should be excluded from a mix.
@@ -191,10 +191,10 @@ mod tests {
     #[test]
     fn a_tone_matches_the_references_integrated_loudness() {
         let l = measure(&tone(1000.0, 0.1, 3.0), RATE).expect("measure");
-        let integrated = l.integrated.expect("3 s is seven gating blocks");
+        let integrated = l.integrated.expect("3 s has 27 gating blocks at 400 ms with 75% overlap");
         assert!((integrated - -23.0).abs() < 0.1, "got {integrated}, the reference gives -23.0");
         assert!((l.sample_peak - -20.0).abs() < 0.1, "got {}, the reference gives -20.0", l.sample_peak);
-        assert!(l.blocks >= 7, "3 s at 75% overlap is seven blocks, got {}", l.blocks);
+        assert_eq!(l.blocks, 27, "3 s at 400 ms blocks hopping 100 ms is 1 + (144000 - 19200)/4800 = 27");
     }
 
     /// **A louder tone reads louder, by the right amount.** 0.5 against 0.1 is a factor of five, which is
@@ -238,7 +238,7 @@ mod tests {
     #[test]
     fn silence_measures_at_the_floor_rather_than_being_absent() {
         let l = measure(&vec![0.0f32; RATE as usize * 3], RATE).expect("measure");
-        assert!(l.blocks_possible > 0, "three seconds allows seven gating blocks");
+        assert_eq!(l.blocks_possible, 27, "three seconds allows 27 gating blocks at 400 ms hopping 100 ms");
         assert_eq!(l.blocks, 0, "and every one of them is below the absolute gate");
         assert_eq!(l.integrated, None, "so there is no loudness to report");
         assert!(l.silent(), "which is silence, not a short clip");

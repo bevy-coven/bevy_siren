@@ -61,6 +61,11 @@ pub struct Built {
     /// Carried through so a caller can say *"1,204 indexed, 12 not audio, 3 failed"* in one line, which is the
     /// difference between a build a person trusts and one they have to re-run to understand.
     pub not_audio: Vec<PathBuf>,
+    /// How many files embedded but produced no loudness measurement.
+    ///
+    /// A measurement that fails does not fail the file — the vector is the index's reason to exist — so without this
+    /// count a run whose measurements all failed would report complete success and store nothing.
+    pub unmeasured: usize,
     /// Whether any file exceeded the model's one window, so the audio tower's `feature fusion` branch ran.
     ///
     /// Reported rather than assumed: the branch changes what the graph computes, and a caller comparing two indexes
@@ -80,6 +85,9 @@ impl Built {
     /// should not produce a hundred-line wall; `failed` carries the rest for a caller that wants them.
     pub fn describe(&self) -> String {
         let mut s = format!("{} indexed", self.indexed());
+        if self.unmeasured > 0 {
+            s.push_str(&format!(", {} unmeasured", self.unmeasured));
+        }
         if !self.not_audio.is_empty() {
             s.push_str(&format!(", {} not audio", self.not_audio.len()));
         }
@@ -160,6 +168,9 @@ pub fn build(
     // silence this crate refuses at every other layer.
     let mut not_audio: Vec<PathBuf> = Vec::new();
     let mut failed: Vec<Failure> = Vec::new();
+    // How many files embedded but produced no loudness. Reported rather than swallowed: a run that measures nothing
+    // must not look like one that measured everything.
+    let mut unmeasured: usize = 0;
     for skip in &library.skipped {
         match &skip.reason {
             library::SkipReason::NotAudio { .. } => not_audio.push(skip.path.clone()),
@@ -171,19 +182,26 @@ pub fn build(
         // A content hash can appear at several paths; the first is the one to read.
         let Some(relative) = asset.paths.first() else { continue };
         let path = root.join(relative);
-        match embed_one(&path, &mut embed) {
-            Ok(vector) => {
+        match embed_measured(&path, &mut embed) {
+            Ok((vector, loudness)) => {
                 // The index refuses a vector of the wrong width, and that refusal is a real failure here: the
                 // embedder and the stamp disagree about the model.
                 if let Err(e) = index.insert(asset.hash, vector) {
                     failed.push(Failure { path: relative.clone(), why: e.to_string() });
+                } else if let Some(l) = loudness {
+                    index.loudness.insert(asset.hash, l);
+                }
+                // A file that embedded but could not be measured is **not** a failure — the index's reason to exist is
+                // the vector. It is counted, so a run that measures nothing says so instead of looking complete.
+                else {
+                    unmeasured += 1;
                 }
             }
             Err(why) => failed.push(Failure { path: relative.clone(), why }),
         }
     }
 
-    Ok(Built { index, failed, not_audio, longer: false })
+    Ok(Built { index, failed, not_audio, unmeasured, longer: false })
 }
 
 /// Decode, convert and embed one file, with every step's failure turned into a sentence.
@@ -191,6 +209,22 @@ pub(super) fn embed_one(
     path: &Path,
     embed: &mut impl FnMut(&[f32]) -> Result<Vec<f32>, String>,
 ) -> Result<Vec<f32>, String> {
+    embed_measured(path, embed).map(|(vector, _)| vector)
+}
+
+/// **Decode, convert, measure and embed one file**, sharing the decode between the measurement and the embedding.
+///
+/// The two are deliberately one function. Loudness needs the same mono buffer at the model's rate that the embedder
+/// needs, so measuring in a second pass would decode every file twice — the cost the whole feature exists to avoid on a
+/// thousand-file library. The buffer is handed to `measure` and to `embed` in turn, and neither keeps it.
+///
+/// A measurement that fails does **not** fail the file: the embedding is the index's reason to exist and a loudness
+/// number is an addition to it. The failure is reported in the returned `Option` so a caller can count it, rather than
+/// silently dropping the asset's loudness with no record that anything went wrong.
+pub(super) fn embed_measured(
+    path: &Path,
+    embed: &mut impl FnMut(&[f32]) -> Result<Vec<f32>, String>,
+) -> Result<(Vec<f32>, Option<super::loudness::Loudness>), String> {
     let decoded = decode(path).map_err(|e: DecodeProblem| e.to_string())?;
     let mono = match (decoded.sample_rate, decoded.channels) {
         (0, _) => return Err(BufferProblem::ZeroSampleRate.to_string()),
@@ -206,7 +240,11 @@ pub(super) fn embed_one(
             resample::to_model_rate(&mono, rate).map_err(|e| e.to_string())?
         }
     };
-    embed(&mono)
+    // **Measured first, from the same buffer.** `measure` takes the mono signal at the model's rate, which is exactly
+    // what the embedder is about to take, so this costs one IIR pass and no second decode.
+    let loudness = super::loudness::measure(&mono, super::MODEL_SAMPLE_RATE).ok();
+    let vector = embed(&mono)?;
+    Ok((vector, loudness))
 }
 
 /// **Write a built index beside its library**, so the next run can load it instead of rebuilding.

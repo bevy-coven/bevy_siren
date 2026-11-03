@@ -8,8 +8,9 @@
 
 use std::path::{Path, PathBuf};
 
-use bevy_siren::semantic::index::ModelStamp;
-use bevy_siren::semantic::indexer::{BuildProblem, build, read, stale, vanished, write};
+use bevy_siren::semantic::EMBEDDING_DIM;
+use bevy_siren::semantic::index::{Index, ModelStamp};
+use bevy_siren::semantic::indexer::{BuildProblem, Built, build, read, stale, vanished, write};
 
 struct Scratch(PathBuf);
 
@@ -300,4 +301,72 @@ fn a_folder_builds_an_index_with_the_models_own_spectrogram() {
     assert_eq!(built.indexed(), 2, "both files indexed through the whole chain");
     assert!(built.failed.is_empty(), "{:?}", built.failed);
     assert!(!built.longer, "a 1 s and a 0.5 s file are both inside the model's window");
+}
+
+/// **A build measures every file it embeds, from the same decode.**
+///
+/// This is the wiring `#21` needed: `loudness::measure` existed and was tested since iteration 77, but nothing called
+/// it during indexing. A three-second 1 kHz tone at 0.5 amplitude is the clip the reference measures at **−9.0 LUFS**
+/// (`0.5` against the `0.1` that gives −23.0 is `20·log10(5) = 13.98 dB` louder), so the stored value must be about
+/// that — and the *count* proves it came from the build rather than from a caller.
+#[test]
+fn a_build_measures_loudness_for_every_file_it_embeds() {
+    let scratch = Scratch::new("loudness");
+    scratch.file("tone.wav", &wav(48_000, 1000.0, 48_000 * 3));
+
+    let built = build(scratch.path(), stamp(), |_buffer| Ok(vec![0.5; EMBEDDING_DIM])).expect("build");
+    assert_eq!(built.indexed(), 1);
+    assert_eq!(built.index.loudness.len(), 1, "the build stored a measurement");
+    assert_eq!(built.unmeasured, 0, "and nothing was left unmeasured");
+
+    let hash = *built.index.records.keys().next().expect("one record");
+    let measured = built.index.loudness[&hash];
+    let integrated = measured.integrated.expect("3 s is seven gating blocks");
+    assert!(
+        (integrated - -9.0).abs() < 0.5,
+        "a 0.5-amplitude tone is ~-9 LUFS (0.1 gives -23.0); got {integrated}"
+    );
+    assert_eq!(
+        measured.blocks, 27,
+        "3 s at 400 ms blocks hopping 100 ms is 27 blocks, not the 7 a non-overlapping count gives"
+    );
+}
+
+/// **A clip too short to gate is stored with an absent integrated loudness**, not with a sentinel — through a real
+/// build, not only through `to_text`.
+#[test]
+fn a_short_file_is_stored_unmeasured_rather_than_at_the_floor() {
+    let scratch = Scratch::new("short");
+    // 0.2 s: shorter than one 400 ms gating block.
+    scratch.file("click.wav", &wav(48_000, 1000.0, 9_600));
+
+    let built = build(scratch.path(), stamp(), |_| Ok(vec![0.5; EMBEDDING_DIM])).expect("build");
+    let hash = *built.index.records.keys().next().expect("one record");
+    let measured = built.index.loudness[&hash];
+    assert_eq!(measured.integrated, None, "a 0.2 s clip has no integrated loudness");
+    assert!(measured.true_peak.is_finite(), "but its peak is a real measurement");
+    assert!(measured.too_short() && !measured.silent(), "and the build keeps the two apart");
+}
+
+/// **What the summary says when measurement silently produced nothing.** The count exists so a run cannot look
+/// complete while storing no loudness at all.
+#[test]
+fn the_summary_names_unmeasured_files() {
+    let built = Built {
+        index: Index::new(stamp()),
+        failed: Vec::new(),
+        not_audio: Vec::new(),
+        unmeasured: 3,
+        longer: false,
+    };
+    assert_eq!(built.describe(), "0 indexed, 3 unmeasured");
+
+    let clean = Built {
+        index: Index::new(stamp()),
+        failed: Vec::new(),
+        not_audio: Vec::new(),
+        unmeasured: 0,
+        longer: false,
+    };
+    assert_eq!(clean.describe(), "0 indexed", "a clean run says nothing extra");
 }
