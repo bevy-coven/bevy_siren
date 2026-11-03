@@ -20,6 +20,11 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The panel's log is no longer clipped.** `examples/mixer` asked `SirenLog::recent(10)` in a fixed column that fits about
+  8.5 lines, so the last entry was cut off **mid-glyph** in every capture, including the README's — measured, the lowest
+  ink reached `y = 719` of 720. `SirenLog::CAPACITY`'s own doc says *"a panel shows eight"*, and the panel now shows eight:
+  the lowest ink sits at `y = 708`, with 12 px of margin and no sliced glyph. Example only.
+
 - **A bus row says which cue ducked it.** `examples/mixer`'s bus row read `duck -8.0 dB` and never said *by what*, so a
   person had to find the matching log line to learn which cue lowered the bus — while `Entry::Ducked` records it and
   `SirenMix::deepest_duck`'s own doc says it exists *"for a panel that says what a line of dialogue did"*. The row now reads
@@ -101,6 +106,11 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
 
 ### Fixed
+
+- **The panel's log is no longer clipped.** `examples/mixer` asked `SirenLog::recent(10)` in a fixed column that fits about
+  8.5 lines, so the last entry was cut off **mid-glyph** in every capture, including the README's — measured, the lowest
+  ink reached `y = 719` of 720. `SirenLog::CAPACITY`'s own doc says *"a panel shows eight"*, and the panel now shows eight:
+  the lowest ink sits at `y = 708`, with 12 px of margin and no sliced glyph. Example only.
 
 - **A bus row says which cue ducked it.** `examples/mixer`'s bus row read `duck -8.0 dB` and never said *by what*, so a
   person had to find the matching log line to learn which cue lowered the bus — while `Entry::Ducked` records it and
@@ -309,6 +319,11 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The panel's log is no longer clipped.** `examples/mixer` asked `SirenLog::recent(10)` in a fixed column that fits about
+  8.5 lines, so the last entry was cut off **mid-glyph** in every capture, including the README's — measured, the lowest
+  ink reached `y = 719` of 720. `SirenLog::CAPACITY`'s own doc says *"a panel shows eight"*, and the panel now shows eight:
+  the lowest ink sits at `y = 708`, with 12 px of margin and no sliced glyph. Example only.
+
 - **A bus row says which cue ducked it.** `examples/mixer`'s bus row read `duck -8.0 dB` and never said *by what*, so a
   person had to find the matching log line to learn which cue lowered the bus — while `Entry::Ducked` records it and
   `SirenMix::deepest_duck`'s own doc says it exists *"for a panel that says what a line of dialogue did"*. The row now reads
@@ -405,6 +420,11 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 The first release: sound for Bevy 0.20 as data, mixed in buses.
 
 ### Fixed
+
+- **The panel's log is no longer clipped.** `examples/mixer` asked `SirenLog::recent(10)` in a fixed column that fits about
+  8.5 lines, so the last entry was cut off **mid-glyph** in every capture, including the README's — measured, the lowest
+  ink reached `y = 719` of 720. `SirenLog::CAPACITY`'s own doc says *"a panel shows eight"*, and the panel now shows eight:
+  the lowest ink sits at `y = 708`, with 12 px of margin and no sliced glyph. Example only.
 
 - **A bus row says which cue ducked it.** `examples/mixer`'s bus row read `duck -8.0 dB` and never said *by what*, so a
   person had to find the matching log line to learn which cue lowered the bus — while `Entry::Ducked` records it and

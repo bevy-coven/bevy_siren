@@ -456,7 +456,10 @@ fn draw_panel(
                     }
                 }
             }
-            Kind::Log => log.recent(10).map(Entry::line).collect::<Vec<_>>().join("\n"),
+            // **Eight, which is the budget the crate documents.** `SirenLog::CAPACITY`'s own doc says *"a panel shows
+            // eight"*, and this panel drew ten in a fixed column that fits about 8.5: the last line was clipped
+            // mid-glyph in every capture, including the README's. Measured by looking, not by arithmetic.
+            Kind::Log => log.recent(8).map(Entry::line).collect::<Vec<_>>().join("\n"),
         };
         if text.0 != next {
             text.0 = next;
