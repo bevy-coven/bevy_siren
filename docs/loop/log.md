@@ -7,6 +7,79 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 29 — 2026-11-03 — the README shows the panel the code draws
+
+**Change.**
+
+- **`docs/media/mixer.png` regenerated** from the clean table — the state a project ships: nine cues, `Problems / none`.
+- **`docs/media/mixer.gif` regenerated** with `SIREN_FAULTS=1` — two rows `<- problem`, the block naming both.
+- **`docs/media/mixer-panel.gif` deleted** — created by iteration 26, named in no README.
+- **Both alt texts rewritten from the pictures**; the GIF's alt describes the animation, not one frame. `README.md` and
+  `docs/media/README.md` updated, with the still's and the GIF's regeneration commands.
+- **`runs/2026-11-03-29/check_media.py`** — every image a README names exists, and every image in `docs/media` is named
+  by one.
+
+**Why.** Iteration 28's lead (a stale `set_voice_db`) probed **clean** — `occupant_mut` compares the packed generation and
+the crate's own test already asserts it — as did three more (every `Attenuation` model, a settings swap mid-duck, the
+mixer's slot bookkeeping). The probe that paid was the front door: both README images were generated **before** iteration
+26's `Problems` block, and the alt text named *"eight cues … eight log lines"* against a shipped table of **nine** cues and
+a log of **ten**.
+
+**Evidence.** `runs/2026-11-03-29/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`,
+`evidence/panel/{mixer-png-before.png,mixer-gif-before.gif}`, and `check_media.py`.
+
+**Measured.**
+
+| artefact | before | after |
+|---|---|---|
+| `mixer.png` | generated **before** the `Problems` block; alt counts wrong | nine cues, `Problems` / `none` |
+| `mixer.gif` | same date, same staleness | two rows `<- problem`, block naming both |
+| `mixer-panel.gif` | **orphan** | deleted |
+| `check_media.py` | — | 6 ok, exit 0; **orphan → exit 1** on a pre-fix reproduction |
+| every test, both feature sets | — | unchanged (112 / 119 / 121 + 5) |
+| frame cost, 8 / 64 / 256 | — | 0.057 / 0.322 / 1.342 µs, load 3.1–6.6 (the quietest window recorded); no `src/` line moved |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. A defect in my own alt text, caught by looking: the first
+version said *"Dialogue ducking Music by 8 dB"*, but the GIF's first frame shows `Music -2.0 dB` with no duck — the
+animation starts at frame 30. Alt text for an animation describes what **happens**.
+
+**Traps for the command.** (1) **Nothing in `cargo test` reads `docs/`**: a stale README picture is invisible to 26
+iterations of a loop whose step 6 is "look at the panel". Look at the picture the README shows, not only the one you just
+captured. (2) A "regenerate the GIF" step that writes a **new filename** leaves the old one in place and the README
+pointing at it — one name per artefact. (3) Alt text must be read off the picture after capture: counts and levels drift
+with the panel. (4) **A check that only ever passes proves nothing** — run it against a reproduction of the old state. (5)
+`hs distill` GPU-blocked (twenty-eighth iteration).
+
+**Commit.** `a793e10`; CI on `main`.
+
+**Next 5.**
+
+1. **A `Stopped` line for a parent's despawn** — neither backend writes one; the log keeps `played` and nothing else.
+2. **Answer or route around the `CueProblem` question** — **six** items wait on it (`empty-sound-key.md`,
+   `duplicate-sound-problem.md`, `bad-gain-problem.md`, `not-a-loop-refusal.md`, `duck-recovers-entry.md`, and the despawn
+   record).
+3. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+5. Quantise a **retarget** onto the bar (iteration 14).
+
+**The hunt, eighteenth pass.** Five probes came back clean this iteration, and the clean list is now long enough to be the
+finding: the mixer class, the attenuation models, the settings-swap prunes, the stale-index guard, and the front door.
+What has **never** been probed is **`SirenSettings::problems()` against a table it must accept but a host would
+misconfigure** — specifically `master_db` at `SILENT_DB` with every bus at 0: does the mix report silence through every
+bus, and does `bus_db` say `SILENT_DB` rather than a chain that has one silent stage? Next probe.
+
+**Baseline note.** Nothing was red; the suite had 112 tests. `cues.yaml` case 31 is red by design.
+
+**Note on the skill's machine facts.** The build-loop text says `1.98.1` is "Bevy's exact floor". The crate's
+`rust-version` is **`1.97.1`**, `bevy-0.20.1`'s own `rust-version` is **`1.97.1`**, and `README.md` says MSRV 1.97.1 —
+all three agree, so the note is wrong for this dependency. Recorded; the `rust-toolchain.toml` pin at 1.99.0 is what
+every `cargo` call here uses and is unaffected.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 28 — 2026-11-03 — a despawned voice frees its mixer slot
 
 **Change.**
