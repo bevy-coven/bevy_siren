@@ -7,6 +7,57 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 105 — 2026-11-03 — a repeat rule that refuses nothing
+
+**Change.** `Repeat::AvoidRepeat { avoid: 0 }` refused **nothing**. `Repeat::avoid()` returns the field verbatim and
+`VariantPicker::pick_from` refuses `min(avoid, len)` recent sounds, so a window of zero is **byte-identical to
+`Shuffle`** — while the variant's own doc promised *"never one of the last `avoid` variants … kills the machine-gun
+footstep"*. `CueProblem::InertAvoidRepeat` now reports it.
+
+**How it was found.** Reading `Repeat::avoid()` beside `pick_from`'s refusal arithmetic. Fourth iteration in a row where a
+bug surfaced from comparing a documented claim with the code rather than from a failing test.
+
+**Why it ranks first.** `cues.yaml` case 1 is *"variants do not repeat back to back"*. A cue written `avoid: 0` fails it
+**while looking perfectly normal**: the play succeeds, no refusal is raised, and only a listener hears the machine gun. A
+generated table computing the window from a variant count (`avoid: variants - 1`) reaches it mechanically.
+
+**Proved both ways.** `a_zero_avoid_window_refuses_exactly_nothing`: two pickers, one seed, 24 draws — the `avoid: 0` and
+`Shuffle` sequences are **equal**, and the `avoid: 0` sequence **contains** a back-to-back repeat while `avoid: 1` contains
+none. `avoid_repeat_zero_is_reported_because_it_refuses_nothing`: reported for `0`; **not** for `1`, `2`, `4`, `255`, nor
+for `Shuffle`.
+
+**Reported, not repaired.** Coercing `0` to `1` would change a legal table's behaviour silently — the same failure the
+defect already is. A `problems()` sentence is the crate's existing tool for *legal but almost certainly not what you
+meant*, as `UnlimitedInstances` already is, and a panel that already shows `problems()` displays this with no UI work.
+
+**Before/after.** No audio changed — **all 21 rendered wavs byte-identical**, master **−21.5 LUFS, −7.5 dBFS true peak**.
+Per-frame cost unchanged and within the band iteration 102 recorded; the change is one `matches!` per cue at table load.
+
+**Verdicts.** Function **GREAT**, zoom **GREAT**, fresh eyes **GREAT**. Two self-inflicted lessons recorded rather than
+hidden: adding the variant **broke `tests/table.rs`'s exhaustive `match`** (a test about sentences, not about the set of
+kinds — now reads the name instead), and I first asserted an `InertAvoidRepeat` row in a fixture that has no `avoid: 0`
+cue, which failed under `--all-features`.
+
+**Filed.** `needs-decision/diagnostic-enums-are-extensible.md`. This is the **fourth** diagnostic enum here to make a
+consumer pay for a new variant, so it proposes `#[non_exhaustive]` for the print-only enums, keeps `Refusal` closed because
+a game branches on it, and writes the rule down: *an enum a consumer branches on is closed; an enum a consumer prints is
+open*.
+
+**Evidence.** [`runs/2026-11-03-105/`](runs/2026-11-03-105/) — `research.md`, `plan.md`, `eval.md`, `perf.md`,
+`review.md`, `evidence/after/` (32 files), `evidence/spectrograms/`.
+
+**Baseline:** nothing red — 198 / 6 / **436 semantic** / **109 lib** / 460 all-features / 6 doc, clippy, fmt and docs
+clean.
+
+**Top 5 remaining — all blocked outside this repository.**
+
+1. **`#28` the MCP server** — one line of `Cargo.toml` and one `leaf.rs` row. Everything it wraps exists and is tested.
+2. **`#35` golden set** — labelled real recordings; also what `#23`'s reverb measure and `evalbench`'s `corpus()` wait on.
+3. **`#[non_exhaustive]` on the print-only diagnostic enums** — this iteration's decision file; four enums, one break.
+4. **`#32`–`#34` the editor panel** — everything it needs is built, in `bevy_grimoire`.
+5. **The `Repeat` surface generally** — `Sequential` does not exist; a fixed-order variant list is a rule a table cannot
+   currently express.
+
 ## Iteration 104 — 2026-11-03 — a floor that could not be set, a category that never matched (#43)
 
 **Change.** Three defects in `semantic::tools` and `semantic::weights`, all in code this loop wrote and **closed issues
