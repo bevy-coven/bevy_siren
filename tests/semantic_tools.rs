@@ -545,3 +545,80 @@ fn every_tool_states_its_idempotency() {
     }
     assert!(Idempotency::Unsafe.describe("audition").contains("NOT safe"));
 }
+
+/// **A category is matched case-insensitively**, because it is a string a person typed into a provenance sidecar.
+///
+/// The old code lowercased the haystack and compared it with a **raw** needle, so `Some("Footsteps")` matched nothing —
+/// and the tally blamed the category rather than saying the filter could never have matched. My own iteration-97 test
+/// passed only because it happened to use the lowercase form.
+#[test]
+fn a_category_matches_regardless_of_case() {
+    let mut index = index();
+    index
+        .provenance
+        .insert(2, Provenance { source: Some(Source::Pack("Footsteps".into())), ..Provenance::default() });
+    let tools = Toolset::default();
+    let mut session = Session::new();
+    session.set_anchor(&index, 1).expect("an anchor");
+
+    // **The exact spelling a person reads in their own sidecar**, which the old code rejected.
+    for want in ["Footsteps", "footsteps", "FOOTSTEPS", "ootste"] {
+        let answer = tools.compatible_sfx(&index, &session, None, Some(want), 3).expect("a search");
+        assert_eq!(answer.results.len(), 1, "`{want}` must match the pack: {}", answer.describe());
+        assert_eq!(answer.results[0].hash, 2);
+        // **The other two candidates have no provenance at all**, so they cannot match a category and are counted as
+        // outside it — which is the honest answer: an asset whose source was never recorded is not in any category.
+        assert_eq!(
+            answer.tally.wrong_category, 2,
+            "assets 3 and 4 have no source, so `{want}` cannot admit them"
+        );
+    }
+
+    // And a category that genuinely does not match still reports it as the category's doing.
+    let none = tools.compatible_sfx(&index, &session, None, Some("Explosions"), 3).expect("a search");
+    assert!(none.results.is_empty());
+    // **Every candidate is outside it**: the footsteps pack plus the two with no source at all.
+    assert_eq!(none.tally.wrong_category, 3, "the fault is assigned to the category");
+    assert_eq!(none.tally.excluded, 0, "and not to the acoustic rules");
+}
+
+/// **The similarity floor is the caller's**, not a hardcoded default.
+///
+/// `Toolset` had no floor, so `tools.rs` compared against `Floor::default().min_score`, which is `0.0` — the branch could
+/// never fire, so `Tally::below_floor` was documented, rendered by `describe()`, and **permanently zero**, and a caller
+/// had no way to ask for a stricter filter.
+#[test]
+fn the_similarity_floor_can_be_set_and_counts_what_it_drops() {
+    use bevy_siren::semantic::weights::Weights;
+
+    let index = index();
+    let mut session = Session::new();
+    session.set_anchor(&index, 1).expect("an anchor");
+
+    // **The default keeps everything**, so no existing caller changes behaviour.
+    let open = Toolset::default();
+    let all = open.compatible_music(&index, &session, None, 4).expect("a search");
+    assert_eq!(all.tally.below_floor, 0, "a floor of 0.0 drops nothing: {}", all.describe());
+
+    // **A raised floor drops candidates and says so.** Asset 3 is orthogonal to the anchor, so its cosine is ~0.
+    let strict =
+        Toolset { music: Weights { min_similarity: 0.5, ..Weights::default() }, ..Toolset::default() };
+    let filtered = strict.compatible_music(&index, &session, None, 4).expect("a search");
+    assert!(filtered.tally.below_floor > 0, "the tally the field exists for: {}", filtered.describe());
+    assert!(filtered.describe().contains("below the similarity floor"), "and the sentence names it");
+    assert!(
+        filtered.results.iter().all(|r| r.similarity >= 0.5),
+        "every result clears the floor: {:?}",
+        filtered.results.iter().map(|r| r.similarity).collect::<Vec<_>>()
+    );
+
+    // **A floor nothing clears empties the list and blames the floor, not the acoustic rules.** `1.0` exactly, because
+    // asset 4's cosine against the anchor is **0.99995** — a floor of 0.9999 would still admit it, which is how this
+    // assertion first failed. The floor is inclusive of nothing above a perfect cosine.
+    let impossible =
+        Toolset { music: Weights { min_similarity: 1.0, ..Weights::default() }, ..Toolset::default() };
+    let none = impossible.compatible_music(&index, &session, None, 4).expect("a search");
+    assert!(none.results.is_empty());
+    assert_eq!(none.tally.excluded, 0, "the acoustic rules excluded nothing; the floor did");
+    assert!(none.tally.below_floor >= 3, "everything was below it: {}", none.describe());
+}

@@ -143,6 +143,7 @@ fn the_weights_round_trip_through_ron() {
         tempo_tolerance_bpm: 2.5,
         compatibility: Default::default(),
         drop_fraction: 0.2,
+        min_similarity: 0.15,
     };
     let text = original.to_ron().expect("serialises");
     let back = Weights::from_ron(&text).expect("parses");
@@ -159,6 +160,7 @@ fn a_file_written_before_a_field_existed_still_loads_with_that_fields_default() 
     assert_eq!(w.semantic, 2.0, "the field it set");
     assert_eq!(w.acoustic, Weights::default_acoustic(), "and the rest take their defaults");
     assert_eq!(w.drop_fraction, 0.0);
+    assert_eq!(w.min_similarity, 0.0, "the floor a tool surface filters on takes its own default");
 }
 
 #[cfg(feature = "serde")]
@@ -180,4 +182,70 @@ fn a_file_that_parses_but_means_nothing_is_caught_by_problems_not_by_the_parser(
     let w = Weights::from_ron(text).expect("it is valid RON");
     assert!(!w.is_usable(), "but it cannot rank anything");
     assert!(w.problems().contains(&WeightProblem::AllZero));
+}
+
+/// **The similarity floor is validated against the range a cosine can produce.**
+///
+/// `2.0` is not a stricter filter — it is an empty library that looks like a filter, which is the same silent-empty
+/// failure the tool surface had when it could not set the floor at all.
+#[test]
+fn a_similarity_floor_beyond_a_cosine_is_refused() {
+    use bevy_siren::semantic::weights::WeightProblem;
+
+    // **The refusal that must not fire**: every value a cosine can actually reach, including both ends.
+    for good in [-1.0, -0.5, 0.0, 0.5, 1.0] {
+        let w = Weights { min_similarity: good, ..Weights::default() };
+        assert!(
+            !w.problems().iter().any(|p| matches!(p, WeightProblem::BadSimilarity { .. })),
+            "{good} is inside a cosine's range: {:?}",
+            w.problems()
+        );
+    }
+
+    for bad in [1.5, -1.5, 2.0, f32::NAN, f32::INFINITY] {
+        let w = Weights { min_similarity: bad, ..Weights::default() };
+        let problems = w.problems();
+        assert!(
+            problems.iter().any(|p| matches!(p, WeightProblem::BadSimilarity { .. })),
+            "{bad} must be refused: {problems:?}"
+        );
+        // And the sentence names the field it is about, rather than sending a person to edit `drop_fraction`.
+        let said = problems
+            .iter()
+            .find(|p| matches!(p, WeightProblem::BadSimilarity { .. }))
+            .expect("found")
+            .to_string();
+        assert!(said.contains("min_similarity"), "the message names its own field: {said}");
+        assert!(!said.contains("drop_fraction"), "and not another one: {said}");
+    }
+}
+
+/// **A compatibility multiplier's refusal names the multiplier, not `drop_fraction`.**
+///
+/// These three checks used to push `BadDropFraction`, so a project that set `clash_penalty: 1.5` was told
+/// *"`drop_fraction` is 1.5"* — sent to edit a field it had not touched.
+#[test]
+fn a_bad_compatibility_multiplier_names_the_multiplier() {
+    use bevy_siren::semantic::key::Compatibility;
+    use bevy_siren::semantic::weights::WeightProblem;
+
+    for (field, compatibility) in [
+        ("clash_penalty", Compatibility { clash_penalty: 1.5, ..Compatibility::default() }),
+        ("parallel_penalty", Compatibility { parallel_penalty: -0.1, ..Compatibility::default() }),
+    ] {
+        let w = Weights { compatibility, ..Weights::default() };
+        let problems = w.problems();
+        let named = problems.iter().find_map(|p| match p {
+            WeightProblem::BadMultiplier { field: f, .. } => Some(*f),
+            _ => None,
+        });
+        assert_eq!(named, Some(field), "the variant names the field: {problems:?}");
+        let said = problems
+            .iter()
+            .find(|p| matches!(p, WeightProblem::BadMultiplier { .. }))
+            .expect("found")
+            .to_string();
+        assert!(said.contains(field), "the message names it: {said}");
+        assert!(!said.contains("drop_fraction"), "and never the wrong field: {said}");
+    }
 }

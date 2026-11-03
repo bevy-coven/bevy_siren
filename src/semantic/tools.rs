@@ -30,7 +30,7 @@ use crate::model::Breakdown;
 
 use super::filter::Features;
 use super::index::{Index, ModelStamp};
-use super::rank::{Floor, cosine};
+use super::rank::cosine;
 use super::weights::Weights;
 
 /// **How near two embeddings must be to count as variants of one sound**, and how many to keep.
@@ -327,7 +327,10 @@ impl Toolset {
             }
             if let Some(want) = category {
                 let source = index.provenance.get(hash).and_then(|p| p.source.as_ref());
-                if !source_of(source).contains(want) {
+                // **Both sides lowercased.** A category is a string a person typed into a provenance sidecar; comparing a
+                // lowercased haystack with a raw needle meant `Some("Footsteps")` matched nothing and the tally blamed the
+                // category rather than saying the filter could never have matched.
+                if !source_of(source).contains(&want.to_lowercase()) {
                     tally.wrong_category += 1;
                     continue;
                 }
@@ -335,7 +338,8 @@ impl Toolset {
             let Some(similarity) = cosine(anchor_embedding, vector) else {
                 continue;
             };
-            if similarity < Floor::default().min_score {
+            // **The caller's floor**, not a hardcoded default: `Tally::below_floor` was rendered and unreachable.
+            if similarity < weights.min_similarity {
                 tally.below_floor += 1;
                 continue;
             }

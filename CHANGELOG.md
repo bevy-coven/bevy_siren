@@ -7,6 +7,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Three defects in the tool surface.** (1) **The similarity floor was ignored**: `tools.rs` compared against
+  `Floor::default().min_score`, which is `0.0`, so `Tally::below_floor` was documented, rendered by `describe()`, and
+  **permanently zero** — and a caller had no way to set a stricter filter. `Weights::min_similarity` is now a field
+  (**design default `0.0`**, `Floor::min_score`'s existing default, and `0.0` because the measured semantic bands overlap:
+  a floor of 0.5 would reject every correct match). (2) **The category filter was case-broken**: `source_of` lowercased the
+  haystack but the needle was compared raw, so `Some("Footsteps")` against a pack recorded as `Footsteps` matched
+  **nothing** and the tally blamed the category. (3) **A bad compatibility multiplier named the wrong field**:
+  `clash_penalty: 1.5` produced *"`drop_fraction` is 1.5"*, sending a person to edit a field they never touched. The two new
+  `WeightProblem` variants that fix this break an exhaustive `match`, so the change is also filed in
+  `needs-decision/weight-problem-names-its-field.md`.
 - **`#20`'s stamp override could not be used.** `Index::overridden` was written by `load_allowing` and its own doc claimed
   every search would see it, but **nothing read it** and both search entry points refused on any stamp mismatch — so an
   index loaded through the override **could never be queried**, measured as `Some(StampMismatch)`. A user who followed

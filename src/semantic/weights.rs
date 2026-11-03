@@ -113,6 +113,19 @@ pub struct Weights {
     /// that hides the right answer is worse than a long list, and there is no labelled set to choose a better fraction.
     #[cfg_attr(feature = "serde", serde(default = "Weights::default_drop_fraction"))]
     pub drop_fraction: f32,
+
+    /// **The cosine below which a candidate is dropped before it is scored**, for the tool surface.
+    ///
+    /// **Design default: `0.0`**, which is [`Floor::min_score`](super::rank::Floor)'s existing default moved onto a named
+    /// field rather than a second policy. `0.0` keeps everything, and that is a **measurement**, not timidity: the correct
+    /// and incorrect semantic bands **overlap** (0.126–0.429 against −0.104–0.150), so any positive default would reject
+    /// correct answers — a floor of 0.5 would have rejected every one of them.
+    ///
+    /// It exists because `tools::Toolset` hardcoded `Floor::default()` at its filter site: `Tally::below_floor` was
+    /// documented, rendered in `describe()`, and **could never be non-zero**, and a caller had no way to set a stricter
+    /// floor. A number that only the crate can choose is a number a project cannot tune.
+    #[cfg_attr(feature = "serde", serde(default = "Weights::default_min_similarity"))]
+    pub min_similarity: f32,
 }
 
 /// **The weighting a sound-effect query uses**, which is not the music one with numbers changed quietly.
@@ -149,6 +162,7 @@ impl Default for Weights {
             tempo_tolerance_bpm: Weights::default_tempo_tolerance_bpm(),
             compatibility: Compatibility::default(),
             drop_fraction: Weights::default_drop_fraction(),
+            min_similarity: Weights::default_min_similarity(),
         }
     }
 }
@@ -195,6 +209,12 @@ impl Weights {
     /// **Design default: `0.0`** — keep everything, because a filter that hides the right answer is worse than a long
     /// list, measured in iteration 69.
     pub fn default_drop_fraction() -> f32 {
+        0.0
+    }
+
+    /// **Design default: `0.0`** — `Floor::min_score`'s default, and the measured reason it cannot be positive is in
+    /// [`Weights::min_similarity`]'s doc.
+    pub fn default_min_similarity() -> f32 {
         0.0
     }
 
@@ -246,16 +266,28 @@ impl Weights {
         if !self.compatibility.clash_penalty.is_finite()
             || !(0.0..=1.0).contains(&self.compatibility.clash_penalty)
         {
-            problems.push(WeightProblem::BadDropFraction { value: self.compatibility.clash_penalty });
+            problems.push(WeightProblem::BadMultiplier {
+                field: "clash_penalty",
+                value: self.compatibility.clash_penalty,
+            });
         }
         if !self.compatibility.parallel_penalty.is_finite()
             || !(0.0..=1.0).contains(&self.compatibility.parallel_penalty)
         {
-            problems.push(WeightProblem::BadDropFraction { value: self.compatibility.parallel_penalty });
+            problems.push(WeightProblem::BadMultiplier {
+                field: "parallel_penalty",
+                value: self.compatibility.parallel_penalty,
+            });
         }
 
         if !self.drop_fraction.is_finite() || !(0.0..1.0).contains(&self.drop_fraction) {
             problems.push(WeightProblem::BadDropFraction { value: self.drop_fraction });
+        }
+        // **A similarity floor beyond a cosine's range drops everything.** `-1.0..=1.0` is what a cosine can produce, so
+        // `2.0` is not a stricter filter, it is an empty library that looks like a filter. The same silent-empty failure
+        // the tool surface had when it could not set the floor at all.
+        if !self.min_similarity.is_finite() || !(-1.0..=1.0).contains(&self.min_similarity) {
+            problems.push(WeightProblem::BadSimilarity { value: self.min_similarity });
         }
 
         problems
@@ -328,6 +360,22 @@ pub enum WeightProblem {
         /// The value found.
         value: f32,
     },
+    /// A compatibility multiplier is outside `0..=1`.
+    ///
+    /// **Its own variant rather than [`WeightProblem::BadDropFraction`]**, which is what these three checks used to push —
+    /// so a project that set `clash_penalty: 1.5` was told *"`drop_fraction` is 1.5"* and sent to edit a field it had not
+    /// touched. The message named the wrong thing, which is the failure this crate refuses everywhere else.
+    BadMultiplier {
+        /// The field's name, as a project's file spells it.
+        field: &'static str,
+        /// The value found.
+        value: f32,
+    },
+    /// The similarity floor is outside the range a cosine can produce.
+    BadSimilarity {
+        /// The value found.
+        value: f32,
+    },
 }
 
 impl fmt::Display for WeightProblem {
@@ -353,6 +401,16 @@ impl fmt::Display for WeightProblem {
                 f,
                 "`drop_fraction` is {value}: it must be at least 0 and below 1, because it is the share of results to \
                  drop"
+            ),
+            WeightProblem::BadMultiplier { field, value } => write!(
+                f,
+                "`{field}` is {value}: it multiplies a score, so it must be between 0 and 1. Above 1 rewards a clash \
+                 and below 0 inverts the score"
+            ),
+            WeightProblem::BadSimilarity { value } => write!(
+                f,
+                "`min_similarity` is {value}: a cosine only reaches from -1 to 1, so this floor would drop every \
+                 candidate and the library would look empty rather than filtered"
             ),
         }
     }
