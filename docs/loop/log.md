@@ -45,7 +45,7 @@ is the one refused and recorded — the documented virtual-voice path working. D
 51's precedent, S4 who writes an exact range and why), `plan.md`, `perf.md`, `eval.md`, `review.md` (three passes, GREAT),
 `evidence/{spectrograms,after}`, and `docs/loop/needs-decision/exact-pitch-draw.md`.
 
-**Commit.** (see `git log`).
+**Commit.** `9542b45` — *docs: a detune draw that cannot change its answer*.
 
 **Top 5 remaining**
 
