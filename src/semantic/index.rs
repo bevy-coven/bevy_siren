@@ -24,6 +24,7 @@
 
 use std::collections::BTreeMap;
 
+use super::loudness::Loudness;
 use super::provenance::Provenance;
 use std::fmt::Write as _;
 
@@ -152,6 +153,9 @@ pub struct Index {
     pub records: BTreeMap<u64, Vec<f32>>,
     /// Where each asset came from, by content hash. Empty when nothing was recorded — never a map of unknowns.
     pub provenance: BTreeMap<u64, Provenance>,
+    /// Each asset's loudness, by content hash — the same optional-section shape as `provenance`, per
+    /// `needs-decision/loudness-in-the-index.md`.
+    pub loudness: BTreeMap<u64, Loudness>,
 }
 
 const MAGIC: &str = "bevy_siren index 1";
@@ -208,6 +212,40 @@ fn unescape(field: &str) -> Option<String> {
     Some(out)
 }
 
+/// **An integrated loudness as one field**, or `-` when the clip is too short to measure.
+///
+/// `-` rather than a sentinel number is the entire reason this section exists in this shape: ADR 0003 measured that
+/// `ffmpeg` reports `-70.0 LUFS` and `ebur128` reports `-inf` for a 0.2 s clip, and both are wrong because both are
+/// *numbers*. `-70.0` is also a real level, so a sentinel would erase the difference between "too short" and "quiet".
+fn lufs_field(value: Option<f32>) -> String {
+    match value {
+        // A non-finite value cannot round-trip through text, and reporting it as a measurement would be a lie.
+        Some(v) if v.is_finite() => format!("{v:?}"),
+        _ => String::from("-"),
+    }
+}
+
+/// A dB level as one field. A `f32` that is not finite is written `-`, because the crate's own rule is that a number
+/// which is not a number is silence and must not be presented as a measurement.
+fn db_field(value: f32) -> String {
+    if value.is_finite() { format!("{value:?}") } else { String::from("-") }
+}
+
+/// One loudness record: `<16 hex hash> <lufs|-> <dbtp> <sample peak> <blocks> <blocks_possible>`.
+fn parse_loudness_line(line: &str) -> Option<(u64, Loudness)> {
+    let mut fields = line.split(' ');
+    let hash = u64::from_str_radix(fields.next()?, 16).ok()?;
+    let integrated = match fields.next()? {
+        "-" => None,
+        text => Some(text.parse::<f32>().ok()?),
+    };
+    let true_peak = fields.next()?.parse::<f32>().ok()?;
+    let sample_peak = fields.next()?.parse::<f32>().ok()?;
+    let blocks = fields.next()?.parse::<u64>().ok()?;
+    let blocks_possible = fields.next()?.parse::<u64>().ok()?;
+    Some((hash, Loudness { integrated, true_peak, sample_peak, blocks, blocks_possible }))
+}
+
 /// One provenance record: `<16 hex hash> <licence> <author> <source>`, or `None` when the line names no hash.
 fn parse_provenance_line(line: &str) -> Option<(u64, Provenance)> {
     let mut fields = line.split(' ');
@@ -244,7 +282,7 @@ pub struct Mismatch {
 impl Index {
     /// A new, empty index for `stamp`.
     pub fn new(stamp: ModelStamp) -> Self {
-        Index { stamp, records: BTreeMap::new(), provenance: BTreeMap::new() }
+        Index { stamp, records: BTreeMap::new(), provenance: BTreeMap::new(), loudness: BTreeMap::new() }
     }
 
     /// How many assets are indexed.
@@ -306,6 +344,17 @@ impl Index {
                     Some(super::provenance::Source::Pack(p)) => format!("p{}", escape(p)),
                 };
                 let _ = writeln!(body, " {source}");
+            }
+        }
+        // **The loudness section, same rules.** Inside the checksummed body, written only when non-empty, and
+        // absence encoded as `-` rather than as a number — the whole point of ADR 0003's short-clip finding.
+        if !self.loudness.is_empty() {
+            let _ = writeln!(body, "loudness {}", self.loudness.len());
+            for (hash, l) in &self.loudness {
+                let _ = write!(body, "{hash:016x} {}", lufs_field(l.integrated));
+                let _ = write!(body, " {}", db_field(l.true_peak));
+                let _ = write!(body, " {}", db_field(l.sample_peak));
+                let _ = writeln!(body, " {} {}", l.blocks, l.blocks_possible);
             }
         }
         let checksum = crate::library::fnv1a(body.as_bytes());
@@ -382,16 +431,45 @@ impl Index {
 
         let mut records = BTreeMap::new();
         let mut provenance: BTreeMap<u64, Provenance> = BTreeMap::new();
+        let mut loudness: BTreeMap<u64, Loudness> = BTreeMap::new();
         let mut expected_provenance: Option<usize> = None;
-        // **The section marker is the only line that can start with `provenance `**, because every other line begins
-        // with a 16-hex-character hash. Everything after it is a provenance record, not a vector.
-        let mut in_provenance = false;
+        let mut expected_loudness: Option<usize> = None;
+        // **A section marker is the only line that can start with `provenance ` or `loudness `**, because every record
+        // line begins with a 16-hex-character hash. Each section runs until the next marker or the end of the body, so
+        // several can coexist and their order does not matter — except for their own records, which must follow them.
+        #[derive(Clone, Copy, PartialEq)]
+        enum Section {
+            Vectors,
+            Provenance,
+            Loudness,
+        }
+        let mut section = Section::Vectors;
         for (n, line) in body.lines().enumerate() {
             if line.trim().is_empty() {
                 continue;
             }
             let line_no = n + 8;
-            if in_provenance {
+            // **Markers are recognised before anything else**, whatever section is current. A `loudness 1` line that
+            // arrives while the provenance section is open is the *next section*, not a broken provenance record — a
+            // distinction the first version of this parser got wrong, and `provenance_and_loudness_sections_coexist`
+            // caught it as `a provenance record names no hash` on the marker line.
+            if let Some(count) = line.strip_prefix("provenance ") {
+                expected_provenance = Some(count.parse().map_err(|_| IndexProblem::Record {
+                    line: line_no,
+                    what: format!("`{count}` is not a provenance record count"),
+                })?);
+                section = Section::Provenance;
+                continue;
+            }
+            if let Some(count) = line.strip_prefix("loudness ") {
+                expected_loudness = Some(count.parse().map_err(|_| IndexProblem::Record {
+                    line: line_no,
+                    what: format!("`{count}` is not a loudness record count"),
+                })?);
+                section = Section::Loudness;
+                continue;
+            }
+            if section == Section::Provenance {
                 if let Some((hash, record)) = parse_provenance_line(line) {
                     provenance.insert(hash, record);
                 } else {
@@ -402,12 +480,18 @@ impl Index {
                 }
                 continue;
             }
-            if let Some(count) = line.strip_prefix("provenance ") {
-                expected_provenance = Some(count.parse().map_err(|_| IndexProblem::Record {
-                    line: line_no,
-                    what: format!("`{count}` is not a provenance record count"),
-                })?);
-                in_provenance = true;
+            if section == Section::Loudness {
+                if let Some((hash, record)) = parse_loudness_line(line) {
+                    loudness.insert(hash, record);
+                } else {
+                    return Err(IndexProblem::Record {
+                        line: line_no,
+                        what: String::from(
+                            "a loudness record is not \
+                             `<hash> <lufs|-> <dbtp> <sample peak> <blocks> <blocks possible>`",
+                        ),
+                    });
+                }
                 continue;
             }
             let mut fields = line.split(' ');
@@ -444,8 +528,13 @@ impl Index {
         {
             return Err(IndexProblem::Truncated { expected, found: provenance.len() });
         }
+        if let Some(expected) = expected_loudness
+            && loudness.len() != expected
+        {
+            return Err(IndexProblem::Truncated { expected, found: loudness.len() });
+        }
 
-        Ok(Index { stamp, records, provenance })
+        Ok(Index { stamp, records, provenance, loudness })
     }
 }
 

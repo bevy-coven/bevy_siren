@@ -262,3 +262,112 @@ fn a_result_cannot_be_built_without_provenance() {
     let hits = bevy_siren::semantic::rank::top_k(&index, &query, 1).expect("ranked");
     assert!(!hits[0].provenance.is_recorded(), "defaults to the explicit unknown");
 }
+
+/// **A loudness section round-trips, and a short clip's absent loudness survives the file as absence.**
+///
+/// This is the whole reason the section is not a numeric column: `Loudness::integrated` is `None` for a 0.2 s clip, and
+/// ADR 0003 measured that both `ffmpeg` (`-70.0`) and `ebur128` (`-inf`) report a *number* there — one of which is
+/// also a real level. Writing `-` keeps "too short to measure" distinguishable from "measured at −70".
+#[test]
+fn loudness_round_trips_and_a_short_clip_stays_absent() {
+    use bevy_siren::semantic::loudness::Loudness;
+
+    let mut index = index_with(2);
+    let quiet = Loudness {
+        integrated: Some(-23.01),
+        true_peak: -20.0,
+        sample_peak: -20.0,
+        blocks: 7,
+        blocks_possible: 7,
+    };
+    let short = Loudness {
+        integrated: None, // a 0.2 s clip: no gating block, so no measurement
+        true_peak: -6.02,
+        sample_peak: -6.02,
+        blocks: 0,
+        blocks_possible: 0,
+    };
+    index.loudness.insert(0x1000, quiet);
+    index.loudness.insert(0x1001, short);
+
+    let back = Index::load(&index.to_text(), &stamp()).expect("loads");
+    assert_eq!(back.loudness, index.loudness, "every field survives, including the absent loudness");
+
+    let a = back.loudness[&0x1000];
+    assert_eq!(a.integrated, Some(-23.01));
+    assert_eq!(a.blocks, 7);
+
+    let b = back.loudness[&0x1001];
+    assert_eq!(b.integrated, None, "a short clip has NO loudness after the round trip, not a sentinel");
+    assert_eq!(b.true_peak, -6.02, "but its peak is still a real measurement");
+    assert!(b.too_short());
+    assert!(!b.silent(), "a short loud clip is not silence, and the file keeps that distinction");
+}
+
+/// **An index with no loudness writes no section**, so every file written before this existed is byte-identical.
+#[test]
+fn an_index_with_no_loudness_writes_no_section() {
+    let plain = index_with(2).to_text();
+    assert!(!plain.contains("loudness "), "no section when there is nothing to write");
+    assert!(Index::load(&plain, &stamp()).expect("loads").loudness.is_empty());
+}
+
+/// **Both sections coexist and their order does not matter.**
+#[test]
+fn provenance_and_loudness_sections_coexist() {
+    use bevy_siren::semantic::loudness::Loudness;
+    use bevy_siren::semantic::provenance::{Provenance, Source};
+
+    let mut index = index_with(1);
+    index.provenance.insert(
+        0x1000,
+        Provenance {
+            licence: Some(String::from("CC0-1.0")),
+            source: Some(Source::Pack(String::from("k"))),
+            author: None,
+        },
+    );
+    index.loudness.insert(
+        0x1000,
+        Loudness {
+            integrated: Some(-14.0),
+            true_peak: -1.0,
+            sample_peak: -1.0,
+            blocks: 9,
+            blocks_possible: 9,
+        },
+    );
+    let back = Index::load(&index.to_text(), &stamp()).expect("loads");
+    assert_eq!(back.provenance[&0x1000].licence.as_deref(), Some("CC0-1.0"));
+    assert_eq!(back.loudness[&0x1000].integrated, Some(-14.0));
+}
+
+/// **A non-finite level is written as absence, not as `NaN` in a text field.** The crate's rule is that a number which
+/// is not a number is silence, and a file that could not round-trip it must not pretend it did.
+#[test]
+fn a_non_finite_level_makes_the_record_unrepresentable() {
+    use bevy_siren::semantic::loudness::Loudness;
+
+    let mut index = index_with(1);
+    index.loudness.insert(
+        0x1000,
+        Loudness {
+            integrated: Some(f32::NAN),
+            true_peak: f32::INFINITY,
+            sample_peak: 0.0,
+            blocks: 1,
+            blocks_possible: 1,
+        },
+    );
+    // `db_field` writes `-` for a non-finite level, and `parse_loudness_line` requires a number in that column, so a
+    // record with an unusable peak cannot round-trip. The parser **refuses the file by name** rather than dropping the
+    // record or substituting `0.0` — the latter would look like a measured silence, which is the class of lie this
+    // section exists to prevent. A refusal is loud; a substitution is not.
+    let err = Index::load(&index.to_text(), &stamp()).expect_err("a non-finite level cannot round-trip");
+    match err {
+        IndexProblem::Record { what, .. } => {
+            assert!(what.contains("loudness record"), "the refusal names the section: {what}")
+        }
+        other => panic!("{other:?}"),
+    }
+}
