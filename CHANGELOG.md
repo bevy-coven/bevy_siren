@@ -7,6 +7,15 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A stinger at `duck_db: 0.0` logged a duck it did not make.** `arm_stinger_ducks` armed `DuckClock::manual` and pushed
+  `Entry::Ducked { by_db }` unconditionally, while `model::active_duck_db` returns `0.0` for any `by_db >= 0.0` — so a zero
+  depth (or a positive one, meant as a lift) wrote a line saying the music stepped back and the music did not move.
+  Measured: `Stinger { duck_db: 0.0, .. }` produced `[Ducked { by_db: 0.0 }]` with `Music` unmoved. The duck is now armed
+  and logged only when it can lower the bus, using the same `by_db < 0.0` test the envelope itself uses. A stinger's own
+  hit still plays; only the dip is conditional. Iteration 52 fixed the same inert path for a table rule, where a report
+  could reach it — a stinger is a message, so the log was the only place a person could see it and it said the opposite.
+
+
 - **`SirenSounds` never released a sound key, and its handles kept whole audio files resident.** The map exposed
   `insert`/`get`/`len`/`keys`/`load_table`/`missing`/`failed` and **no remover**, and `load_table` **merges** — it asks for
   the keys it has no handle for and never drops one the table has lost. Measured: two tables of ten different keys loaded

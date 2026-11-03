@@ -818,12 +818,20 @@ pub fn arm_stinger_ducks(
         if !answered.contains(&stinger.cue) {
             continue;
         }
-        clock.manual("Music", stinger.duck_db, now, stinger.duck_s, DEFAULT_FADE_S);
-        log.push(Entry::Ducked {
-            at_s: now,
-            bus: "Music".to_owned(),
-            by_db: stinger.duck_db,
-            by: "stinger".to_owned(),
-        });
+        // **A stinger that cannot dip does not claim it did.** `active_duck_db` returns `0.0` for any
+        // `by_db >= 0.0`, so a `duck_db` of exactly `0.0` — or a positive one, meant as a lift — armed an envelope
+        // that lowers nothing while this line said `Ducked { by_db: 0.0 }`. A `Stinger` is a message with no
+        // `problems()`, so the log was the only place a person could have seen it, and it said the opposite.
+        // Iteration 52 fixed the same inert path for a table rule; this is the message that reaches it from the other
+        // side. Measured: `Stinger { duck_db: 0.0, .. }` logged `Ducked { by_db: 0.0 }`.
+        if stinger.duck_db.is_finite() && stinger.duck_db < 0.0 {
+            clock.manual("Music", stinger.duck_db, now, stinger.duck_s, DEFAULT_FADE_S);
+            log.push(Entry::Ducked {
+                at_s: now,
+                bus: "Music".to_owned(),
+                by_db: stinger.duck_db,
+                by: "stinger".to_owned(),
+            });
+        }
     }
 }

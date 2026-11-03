@@ -72,6 +72,10 @@ A stinger that **cannot** play ducks nothing: the music keeps its level, and the
 it. The duck is armed when the play is answered, not when the message is written, so a missing sound or an unknown cue
 leaves the mix where it was.
 
+**A `duck_db` of zero, or a positive one, dips nothing and logs nothing.** The envelope is inert for any `by_db >= 0.0`
+(`model::active_duck_db`), so the stinger plays its hit with the music untouched — and no `Ducked` line claims otherwise,
+because a `Ducked` line means the bus moved. A raise is a lift, and a lift is not a duck.
+
 A stinger plays once, **now** — a punctuation mark that waited for the bar would miss the moment — and ducks the
 `Music` bus while it runs. It must be a `Music`-bus cue; one that names another bus is refused with a sentence in the
 log rather than played somewhere unexpected.

@@ -7,6 +7,66 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 57 — 2026-11-03 — a stinger that cannot dip does not claim it did
+
+**Baseline.** Green on every step, no open issues. Nothing red. `bevy_siren` **0.1.0 is published** (crates.io,
+2026-11-02, 9 downloads), so the `CueProblem` break the two blocked items wait on is a real break against a real
+consumer — the decision stays open.
+
+**Change.** One condition in `arm_stinger_ducks`: arm and log the duck only when `duck_db.is_finite() && duck_db < 0.0`,
+which is `active_duck_db`'s own guard read from the other side.
+
+**Rationale.** `arm_stinger_ducks` pushed `Ducked { by_db }` **unconditionally**, while `active_duck_db` returns `0.0`
+for any `by_db >= 0.0`. So a `Stinger { duck_db: 0.0 }` — a depth a project computes from gameplay — wrote a line saying
+the music stepped back, and the music did not move.
+
+| | log | `Music` |
+|---|---|---|
+| before | **`[Ducked { by_db: 0.0, by: "stinger" }]`** | unmoved |
+| after | **`[]`** | unmoved |
+| −9.0 (non-regression) | `[-9.0]` | below −0.5 dB |
+| +6.0 (a lift) | `[]` | unmoved |
+| tests before | 154 / 162 / 164 + 6 | |
+| tests after | **155 / 163 / 165 + 6** | |
+
+**Why the log and not a report.** Iteration 52 fixed the same inert path for a table *rule*, where `problems()` could
+name it. A `Stinger` is a **message** sent at runtime — `MusicScore::problems(&table)` cannot see one that has not been
+sent — so the log line was the only place a person could learn what a stinger did, and it said the opposite of what
+happened.
+
+**Nine hypotheses probed, one bug found.** Cue-cap steal order was checked four ways (including archetype reuse after a
+free), plus a stopped voice's duck recovery and a bus level changed mid-voice — all already correct. Those four cue-cap
+probes were **deleted** rather than kept: they assert behaviour no change touched, and `tests/play.rs` is not a museum for
+this loop's questions.
+
+**Two self-inflicted breakages, both caught by the gate.** My removal script cut mid-comment and left four orphaned doc
+fragments that would not parse; then the deletion left an unused import and a non-snake-case test name. Both fixed. The
+lesson, written here because it is the second iteration running: **re-run `clippy --all-targets` after any test
+removal**, not only after additions.
+
+**No clip, and why.** The panel draws each music layer's `dB -> target`; a stinger's dip appears there for its hold, but
+the *absence* of a dip is not drawable. It names its test: `a_stinger_at_zero_db_logs_no_duck`.
+
+**Nothing else moved**: `bus-Music` still reads `duck -8.0 dB, deepest -7.96 dB, recovered by 1.97 s`; `mix.wav` still
+integrates −18.6 LUFS at −6.1 dBFS.
+
+**Evidence.** `runs/2026-11-03-57/`: `research.md` (S1 `Stinger::new`'s own doc, S2–S3 the two guards, S4 iteration 52's
+rule fix, S5 `arm_stinger_ducks`' own "not before the play is answered" reasoning), `plan.md`, `perf.md`, `eval.md`,
+`review.md` (three passes, GREAT), `evidence/{spectrograms,panel,after}`.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`, and 0.1.0 is published, so the break is real.
+2. **`AvoidRepeat`'s window that cannot be honoured is unreported** — `pick_from`'s comment promises `problems()` names
+   it; probed `problems: []` for two sounds at `avoid: 5`. Same open enum decision.
+3. **A stinger on the wrong bus writes only a log line, not a `Refused`** — `needs-decision/stinger-refusal.md`; a host
+   reading `Refused` sees an unknown-cue stinger but not a wrong-bus one.
+4. `load_table` does not call `retain_keys` itself — changes a documented contract; wants a decision file.
+5. `reset_histories` has no caller — a consumer item for `bevy_grimoire`.
+
 ## Iteration 56 — 2026-11-03 — a sound key the table dropped stops holding its handle
 
 **Baseline.** Green on every step, no open issues. Nothing red.

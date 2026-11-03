@@ -5,7 +5,8 @@
 
 use bevy::prelude::*;
 use bevy_siren::{
-    Cue, CueTable, Mode, Play, Refusal, SirenChoices, SirenSettings, SirenSounds, SoundSlot, Voice,
+    Cue, CueTable, Entry, Mode, Play, Refusal, SirenChoices, SirenLog, SirenMix, SirenSettings, SirenSounds,
+    SoundSlot, Voice,
 };
 
 use crate::helpers::{app, played, refused, run_for, sounds, voice_cues, voices};
@@ -1023,4 +1024,96 @@ fn a_second_table_leaves_the_first_tables_keys_held() {
     sounds.retain_keys(&second);
     assert_eq!(sounds.len(), 10, "the first table's ten are gone");
     assert_eq!(sounds.missing(&second).len(), 0, "and every key the second table names resolves");
+}
+/// **A stinger at `duck_db: 0.0` says it ducked and ducks nothing.**
+///
+/// `arm_stinger_ducks` calls `clock.manual("Music", stinger.duck_db, …)` unconditionally and then logs
+/// `Ducked { by_db: 0.0 }`. Iteration 52 made `SirenSettings::problems()` report a *rule* at `by_db: 0.0`, because
+/// `active_duck_db` returns `0.0` for any `by_db >= 0.0` — but a `Stinger` is a message, has no `problems()`, and
+/// reaches the same inert path with a log line that claims it worked.
+#[test]
+fn a_stinger_at_zero_db_logs_no_duck() {
+    let mut app = app(
+        CueTable::new(vec![Cue {
+            sounds: vec![SoundSlot::new("hit")],
+            bus: "Music".to_owned(),
+            ..Cue::new("sting")
+        }]),
+        SirenSettings { max_voices: 32, ..SirenSettings::default() },
+        sounds(&["hit"]),
+        true,
+    );
+    app.update();
+    app.world_mut().write_message(bevy_siren::Stinger { cue: "sting".to_owned(), duck_db: 0.0, duck_s: 1.0 });
+    app.update();
+
+    let log = app.world().resource::<SirenLog>();
+    let ducked: Vec<f32> = log
+        .iter()
+        .filter_map(|e| match e {
+            Entry::Ducked { by_db, by, .. } if by == "stinger" => Some(*by_db),
+            _ => None,
+        })
+        .collect();
+    assert!(ducked.is_empty(), "a 0 dB stinger must not claim a duck: {ducked:?}");
+}
+
+/// **A real stinger still dips and still says so**, which is the non-regression the fix must not break.
+#[test]
+fn a_negative_stinger_duck_still_logs_and_dips() {
+    let mut app = app(
+        CueTable::new(vec![Cue {
+            sounds: vec![SoundSlot::new("hit")],
+            bus: "Music".to_owned(),
+            ..Cue::new("sting")
+        }]),
+        SirenSettings { max_voices: 32, ..SirenSettings::default() },
+        sounds(&["hit"]),
+        true,
+    );
+    app.update();
+    app.world_mut().write_message(bevy_siren::Stinger {
+        cue: "sting".to_owned(),
+        duck_db: -9.0,
+        duck_s: 1.0,
+    });
+    app.update();
+
+    let log = app.world().resource::<SirenLog>();
+    let ducked: Vec<f32> = log
+        .iter()
+        .filter_map(|e| match e {
+            Entry::Ducked { by_db, by, .. } if by == "stinger" => Some(*by_db),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(ducked, vec![-9.0], "the stinger's own depth is what it logs");
+
+    // And the Music bus really is lowered this frame.
+    let music = app.world().resource::<SirenMix>().bus_db("Music");
+    assert!(music < -0.5, "the stinger dips the music: {music}");
+}
+
+/// **A positive `duck_db` is a lift, and a lift is not a duck**: `active_duck_db` returns `0.0` for any
+/// `by_db >= 0.0`, so it must not claim one either.
+#[test]
+fn a_raising_stinger_does_not_claim_a_duck() {
+    let mut app = app(
+        CueTable::new(vec![Cue {
+            sounds: vec![SoundSlot::new("hit")],
+            bus: "Music".to_owned(),
+            ..Cue::new("sting")
+        }]),
+        SirenSettings { max_voices: 32, ..SirenSettings::default() },
+        sounds(&["hit"]),
+        true,
+    );
+    app.update();
+    app.world_mut().write_message(bevy_siren::Stinger { cue: "sting".to_owned(), duck_db: 6.0, duck_s: 1.0 });
+    app.update();
+    let log = app.world().resource::<SirenLog>();
+    assert!(
+        !log.iter().any(|e| matches!(e, Entry::Ducked { by: b, .. } if b == "stinger")),
+        "a +6 dB stinger claims no duck"
+    );
 }
