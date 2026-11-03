@@ -7,6 +7,75 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 70 — 2026-11-03 — ensemble weights as data, with a report of their own
+
+**Baseline.** Green on every step: 181 / 324 + 6, clippy, fmt, rustdoc. Working tree clean at `2af5529`.
+
+**The item.** `#41` is the first item on iteration 69's remaining list that is **decidable today**: `V-01` needs a person,
+`#45`'s runner needs `V-01`'s data, and `#28` would expose a pipeline whose thresholds are still unmeasured. Building the
+weights first means `#40` has somewhere to put its numbers rather than inventing them at a call site.
+
+**A dependency the issue states that the code does not.** `#41` says *blocked by #40*, but `#40` needs `#39`'s
+music-specific encoder, which is blocked on `S-05`'s licence audit — a decision. The weights type is what `#40` would
+**consume**, so building it first inverts nothing and unblocks the half that can be judged.
+
+**Six fields, each a design default with its argument in the source.** Two rest on this crate's own measurements rather
+than taste:
+
+| Field | Default | Why |
+|---|---|---|
+| `acoustic` | **0.5** | the semantic bands **overlap** (0.126–0.429 vs −0.104–0.150, measured), so production differences are what break a near-tie |
+| `drop_fraction` | **0.0** | iteration 69 measured recall@1 at **100 %** for 0.126, **75 %** for 0.150 and **0 %** for 0.5 |
+
+The other four — `semantic` 1.0, `tempo` 0.35, `key` 0.35, `loudness_tolerance_db` 6.0 — are argued from the crate's own
+behaviour: a tempo is absent for every effect so it earns less weight; nothing measures tempo against key so ranking
+them would be a magic constant wearing a name; and 6 dB sits below the crate's own 8 dB duck.
+
+**The design decision is the line between *impossible* and *unusual*.**
+
+**Refused:** all four weights zero (nothing ranks), a negative weight (a signal meant to attract now repels), a NaN
+(compares `false` against everything), a zero tolerance (every pair penalised), a drop fraction outside `0..1`.
+
+**Allowed:** a semantic-only ranking, a **40 dB** tolerance for a stylised palette whose loudness jumps are intended —
+the issue's own example — and a tight tolerance with no dropping.
+`an_unusual_but_possible_configuration_is_allowed_through` is the more important of the two tests: **a report that
+refuses a legitimate choice is a report people learn to ignore.**
+
+**A criterion not met, and it is named rather than dropped.** The issue asks that a default configuration produce a
+non-empty result on the fixture library. That needs something to produce a result — `#40`'s ensemble — which needs an
+encoder behind a licence decision. Carved off and stated in `plan.md`.
+
+**Where a project writes them is a schema change**, so it went to
+[`needs-decision/weights-live-where.md`](needs-decision/weights-live-where.md) rather than being decided here. Its
+recommendation is a **fourth section of the project file, ungated**, because the other two options reintroduce the defect
+iteration 61 shipped a consumer fix for: **a reader with fewer fields than the writer silently deletes data.**
+
+**Verdicts.** Pass 1 **GREAT** on what it claims (the unmet criterion is named), pass 2 **GREAT**, pass 3 **GREAT**.
+
+**Gate.** 181 default / 190 serde / 191 mixer / **339 all-features**, clippy 0, fmt, rustdoc, examples — green.
+
+**A disk failure, recorded for the fourth time.** Three suites failed with errors that read as code defects —
+`rustc-LLVM ERROR: IO failure on output stream` and `failed to write lib.rmeta` — at **130 MB free**. A clean freed
+18.6 GiB and every count above was then taken from a complete build. **The machine fact, worth writing down: a debug
+build of this crate plus the full `bevy` dev-dependency is ~19 GB, and running more than two feature combinations in one
+iteration needs a clean between them.**
+
+**Evidence.** `runs/2026-11-03-70/`: `research.md`, `plan.md`, `eval.md`, `review.md` (three passes).
+
+**Commits.** `c1a0f53`.
+
+**Top 5 remaining**
+
+1. **Where the weights live** — `needs-decision/weights-live-where.md` recommends a fourth ungated section of the
+   project file plus a companion commit in `bevy_grimoire`. Until then `Weights` is unreachable from a project.
+2. **`#40`** — the ensemble with a per-result breakdown, which now has weights to consume. Still needs `#39`'s encoder,
+   which needs the licence audit.
+3. **`V-01`** — the labelled set, still the largest single lever: it turns `Floor`, the band constants **and** these six
+   weights from design defaults into measurements.
+4. **`#28`** — the MCP tool host, then `#29` `search_music`.
+5. `cues.yaml` case 31 — still the only red case in the crate. **One public-enum decision unblocks it and four other
+   `needs-decision/` files at once**, which remains the cheapest large win.
+
 ## Iteration 69 — 2026-11-03 — the evaluation metric: what a floor does to recall
 
 **Baseline.** Green on every step: 181 / 309 + 6, clippy, fmt, rustdoc, examples. Working tree clean at `593e6b8`.
