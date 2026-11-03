@@ -1,0 +1,30 @@
+# ebur128 vs ffmpeg, measured 2026-11-03
+
+## Build: pure Rust, no C
+
+    [dependencies]
+    ebur128 = { version = "0.1.11", default-features = false }
+
+    $ cargo build
+       Compiling smallvec v1.16.4
+       Compiling dasp_frame v0.11.0
+       Compiling ebcheck v0.1.0 (/private/tmp/ebcheck)
+        Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.66s
+
+    $ find target -name "*.o"   # only Rust CGU objects, no C
+    $ # no cc/clang invocation in any build script output
+
+## Measurement (mono 48 kHz WAV, Mode::I | Mode::TRUE_PEAK)
+
+    ref_1k_-23.wav         I   -23.01 LUFS  peak  -20.00 dBTP
+    ref_short_02.wav       I     -inf LUFS  peak   -6.02 dBTP   <-- 0.2 s clip
+    ref_pink.wav           I    -8.92 LUFS  peak    0.82 dBTP
+
+ffmpeg's ebur128 on the same files: -23.0 / -70.0 / -8.9 LUFS.
+
+The two long files agree to 0.01 LU. The 0.2 s clip is where they differ, and
+NEITHER number is a measurement: ffmpeg reports the -70 floor as a level, and
+ebur128 returns -inf through gated_loudness_multiple's NoBlocksAboveThreshold arm.
+relative_threshold() returning exactly -70.0 with no blocks is the same value a
+genuine -70 LUFS passage produces, so #21 must count gating blocks rather than
+trust loudness_global().

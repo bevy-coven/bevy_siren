@@ -7,6 +7,25 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Documented
 
+- **ADR 0003: acoustic features, and which crate computes them** — `docs/adr/0003-acoustic-features.md` decides the
+  layer the ensemble filters on, and unblocks #21–#25. **All six features are Rust; no sidecar is built.** The
+  load-bearing fact is that **`ebur128` 0.1.11 is pure Rust** — nine `src/*.rs`, its C confined to `capi-test/` and
+  `tests/c/`, and its `build.rs` gated on the `c-tests` feature, off by default. Verified by building it with
+  `default-features = false`: **1.66 s, no `cc`, no C object**. It costs exactly one entry in `ALLOWED_DEPS`, which
+  belongs to the commit that declares it, not to this one.
+
+  **Measured, and the measurement changed the decision.** On two long clips `ebur128` agrees with `ffmpeg`'s reference
+  to **0.01 LU** (−23.01 vs −23.0; −8.92 vs −8.9) and true peak to 0.02 dB. On a **0.2 s** clip the two disagree
+  entirely, and neither is usable: ffmpeg reports **−70.0 LUFS** — the standard's floor presented as a level — while
+  `ebur128` returns **`-inf`** from `gated_loudness_multiple`'s `NoBlocksAboveThreshold` arm. `relative_threshold()`
+  returns exactly −70.0 when there are no blocks, the same number a genuine −70 LUFS passage gives, so **#21 must carry
+  a gating-block count** rather than trust `loudness_global()`. That requirement is now in the ADR instead of being
+  rediscovered in #21.
+
+  Tempo ships in Rust with a **±2 BPM floor at 80–160 BPM** (**design default**) that is a test, not a claim, and is
+  removed from the ranking if unmet; **key is out of scope** for the Rust path rather than shipped at an accuracy no
+  source supports.
+
 - **The shared stream is spent by a play whose pitch range is exact.** `answer` computes
   `cue.pitch.at(choices.rng.next_f32())` before it knows the range cannot use the number, so a `PitchRange::exact(n)`
   cue draws anyway — and every later pick for every *other* cue moves. A project's soundscape is therefore a function of
