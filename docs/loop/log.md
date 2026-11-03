@@ -7,6 +7,82 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 76 — 2026-11-03 — the audio tower, verified to cosine 0.999999995
+
+**Baseline.** Green on every step once disk was reclaimed: 198 / 207 serde / 208 mixer / 6 doc / 12 semantic, clippy 0,
+fmt, rustdoc, examples, readme. Working tree was **dirty** at `b58ec1a` with iteration 75's first item half-done — code
+edits in `mel.rs` and `model.rs` plus one evidence file — so finishing it *was* this iteration. No cue case red.
+
+**The pass iteration 75 asked for found a defect, not a confirmation.** `runs/2026-11-03-76/evidence/audio-tower.txt`
+ended, in the half-done state, with *"the embedding agrees with the reference at cosine 0.850 … a 0.850 cosine is not a
+working feature."* Two constants were wrong, both read from `transformers/audio_utils.py`:
+
+- **The right-hand reflect pad is `WINDOW/2`.** `np.pad` pads `(512, 512)` and the **left** pad shifts the last frame,
+  so the right side needs 512 samples — not the distance to where the last frame's window ends. The tree reflected 1024;
+  an earlier attempt read past the buffer at all, which in release builds is not a panic but whatever the allocator held,
+  measured as the last frames of a 1001-frame spectrogram collapsing to −100 dB.
+- **The FFT accumulates in `f64`**, because `spectrogram` promotes with `waveform.astype(np.float64)` before `rfft`.
+  `f32` left the worst spectral value **11 dB** out at the noise floor.
+
+**A wrong oracle nearly hid it.** The first measurements compared against a **default-constructed** `ClapFeatureExtractor`,
+whose `mel_filters` differ from the pretrained checkpoint's — 582 non-zeros against 580 — and which made even the
+*reference's* row sums look non-uniform. Measuring the pretrained model instead moved the crate from "cosine 0.850,
+cause unknown" to a **0.0013 dB mean** and the two constants fell out. **The fixture was right and the oracle was wrong**,
+which is the failure mode to remember: check the reference before trusting a disagreement.
+
+| Number | Before | After | Reference |
+|---|---|---|---|
+| embedding cosine | 0.849973469 | **0.999999995** | 1.0 |
+| mel, max abs diff over 1001 × 64 | 11.004 dB | **0.0545 dB** | — |
+| mel, frame 0 band 0 | — | **2.4 × 10⁻⁵ dB** | 16.570840836 |
+| mel, frame 1000 band 0 | −100 dB (floor) | **2.6 × 10⁻⁵ dB** | 16.498333931 |
+| frames at the −100 dB floor | whole tail collapsed (0.850 cosine) | **0** | **0** |
+| graph alone, on the reference's mel | — | **1.000000007** | — |
+
+The last row separates the spectrogram from the ONNX path: the graph was **already exact**, so every remaining digit was
+mine.
+
+**Tests that would have caught it.** The old suite checked `[4][1001][64]` and frame 0 of a **101-frame** buffer — a
+shape and the one frame a short pad cannot break. Two tests now name **frames 0, 500 and 1000** of the model's
+480 000-sample window against rows measured from the pretrained extractor (tolerance 0.06 dB, measured max 0.0545), and
+assert the count of all-floor frames is **0**. Frame 1000 is the assertion that matters: a short pad turns it from 16 dB
+into −100 dB, a 116 dB error at one index.
+
+Also fixed: **`is_longer` is a `bool` tensor** (the graph rejected `int64`), and **all twelve semantic error types
+implement `std::error::Error`** — a `?` in a `Box<dyn Error>` caller could not use any of them.
+
+**A defect clippy found that the compiler did not:** the reference literals carried ten significant digits for `f32`
+values (`clippy::excessive_precision`). Truncated; the measurements are unchanged.
+
+**The disk is part of this entry.** The volume hit **100 %, 122 MB free** and six baseline steps failed with
+`ld: write() failed, errno=28` — the trap the skill names, not a code error. Deleted, with permission: the two prior
+iterations' `/tmp` probe directories (2.9 GB) and `cargo clean -p` on the heaviest dependency artifacts. Every step then
+passed. **A full `target/` was never deleted.**
+
+**Verdicts.** Pass 1 **GREAT**, pass 2 **GREAT**, pass 3 **GREAT**. Pass 3 found the guide page telling readers the
+feature was broken at cosine 0.850, which the fix had just made false in the other direction; its status line now leads
+with the measured cosine and says plainly that the *downstream* recall is still design defaults.
+
+**Gate.** 198 default / 208 mixer / 207 serde / 6 doc / 12 semantic; clippy 0, fmt, rustdoc, examples, readme — green.
+
+**Evidence.** `runs/2026-11-03-76/`: `research.md`, `plan.md`, `eval.md`, `review.md` (three passes),
+`evidence/audio-tower.txt` with a measured resolution appended.
+
+**Commits.** `b33fa89`.
+
+**Top 5 remaining**
+
+1. **`#28` the MCP tool host**, then `#29` `search_music` and `#44` `explain_match`. The index, the spectrogram, the
+   embedding path and the documented API are all now verified; nothing downstream is blocked on the audio tower.
+2. **`V-01` the labelled set** — needs a person. It turns the floor, the band constants and the six weights from design
+   defaults into measurements, and it is now the largest unmeasured thing in the layer.
+3. **Where the weights live** — `needs-decision/weights-live-where.md` recommends a fourth ungated section of the project
+   file plus a companion commit in `bevy_grimoire`; actionable and non-breaking, so it need not wait.
+4. **`cargo run --example semantic`** — the artifact a reader believes without building it themselves. Iteration 76
+   measured the same path from a probe and left the example, which was carved off deliberately.
+5. **Free disk before the next release build.** 122 MB free at the start of this iteration cost six baseline steps and
+   an unplanned round of `cargo clean -p`. A release build wants ~2 GB.
+
 ## Iteration 75 — 2026-11-03 — the last closure, and the page that makes it findable
 
 **Baseline.** Green on every step: 198 / 367 + 6, clippy, fmt, rustdoc. Working tree clean at `bf52554`. No case red.

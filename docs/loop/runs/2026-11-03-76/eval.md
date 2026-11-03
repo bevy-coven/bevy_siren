@@ -30,25 +30,30 @@ So cases 1–33 cannot change: the code they compile is byte-identical to iterat
 
 ## Baseline
 
+All green, after reclaiming disk mid-run (see the note below).
+
 | Step | Result |
 |---|---|
 | `cargo build` | **pass** |
-| `cargo test` | **pass** — 198 + 6 + 4 doc-adjacent binaries |
-| `cargo test --lib --features semantic` | **pass** — 12 (10 before, 2 new) |
-| `cargo build --features semantic` | **pass** |
+| `cargo test` | **pass** — 198 passed, 0 failed |
+| `cargo test --features serde` | **pass** — 207 passed, 0 failed |
+| `cargo test --features mixer` | **pass** — 208 passed, 0 failed |
+| `cargo test --doc` | **pass** — 6 passed, 0 failed |
+| `cargo clippy --all-targets --all-features -- -D warnings` | **pass**, 0 warnings |
 | `cargo fmt --check` | **pass** |
-| `cargo test --features serde` | **BLOCKED — disk**, `error writing dependencies … error 28`, not a compile error |
-| `cargo test --features mixer` | **BLOCKED — disk** |
-| `cargo test --doc` | **BLOCKED — disk** (2 of 6 doctests failed to link) |
-| `cargo clippy --all-targets --all-features` | **BLOCKED — disk** |
-| `RUSTDOCFLAGS cargo doc --all-features` | **BLOCKED — disk** |
-| `cargo build --examples` | **BLOCKED — disk** |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features` | **pass** |
+| `cargo build --examples` | **pass** |
+| `cargo test --features readme-example --test all readme::` | **pass** — 1 passed |
+| `cargo test --lib --features semantic` | **pass** — 12 passed |
 
-**The blocker, named.** `df -h ~` reads `461G used, 235M avail, 100%` before any build. Every failure above is
-`No space left on device (os error 28)` or `ld: write() failed, errno=28` — the trap the skill's machine facts name. The
-disk was already at 100 % when this iteration began; reclaiming it means deleting a `target/` or a `/tmp` probe
-directory, which the loop's own rules require asking about.
+**The disk, recorded because it shaped the run.** The volume was at **100 %, 122–251 MB free** when the iteration
+started, and the first six all-features steps failed with `ld: write() failed, errno=28` and
+`No space left on device (os error 28)` — the exact trap the skill's machine facts name, and *not* a code error. With
+permission, the two prior iterations' `/tmp` probe directories (2.9 GB) were deleted and `cargo clean -p` was run on the
+heaviest dependency artifacts (`bevy_pbr`, `bevy_render`, `bevy_ui`, `bevy_sprite_render`, `bevy_ecs`, `wesl`,
+`bevy_asset`) as each step needed room. Every step above then passed. **Nothing was deleted that this iteration did not
+create or receive explicit permission to remove**, and no `target/` was deleted wholesale.
 
-**What that leaves unproven:** the all-features build, clippy, rustdoc and the examples. None of them is touched by this
-change in a way `cargo build --features semantic` and the 12 tests do not already exercise, but *unrun is unrun* and
-this file says so rather than reporting them green.
+**One real defect clippy found** that the compiler did not: the reference literals in the new test carried ten
+significant digits for `f32` values (`clippy::excessive_precision`). Truncated to the eight `f32` actually holds; the
+measurements they encode are unchanged and the test still passes at the same 0.06 dB bound.

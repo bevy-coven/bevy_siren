@@ -59,3 +59,26 @@ The remaining suspects, in the order I would test them:
 
 **A 0.850 cosine is not a working feature**, and the guide page's status line still says the audio tower has not been
 run — it has now, and the honest replacement sentence is *"it runs, and its output does not yet match the reference."*
+
+---
+
+# Resolution, measured after the fix
+
+The two suspects this file listed were both right, and neither was the tiling:
+
+| Suspect | Measured outcome |
+|---|---|
+| the tiled buffer's phase | **not the cause.** The reference's own row sums on this tone run −3269.26 … 519.28, because the tone is a `f32` sine whose phase resets at each tile edge. The "constant row sums" noted above were measured against a default-constructed extractor, whose filterbank differs from the pretrained one. |
+| the frame offset | **the cause.** The right-hand reflect pad was 1024 samples where `np.pad(waveform, (512, 512))` needs 512; the left pad already supplies the rest. Separately the FFT ran in `f32` where `spectrogram` promotes to `float64`. |
+
+After both fixes, on `laion/clap-htsat-fused`:
+
+    mel    max abs diff over 1001 x 64 values   0.0545 dB   (was 11.004 dB)
+    mel    frame 0, band 0                       2.4e-5 dB
+    mel    frame 1000, band 0                    2.6e-5 dB
+    mel    frames at the -100 dB floor           0           (the reference's own count)
+    graph  fed the reference's mel, cosine       1.000000007
+    full   cosine vs the model's embedding       0.999999995  (was 0.849973469)
+
+The graph was never the problem: given the reference's spectrogram it reproduces the reference embedding to 6e-7. Every
+remaining digit of disagreement was this crate's spectrogram.
