@@ -18,9 +18,10 @@
 //! - `SIREN_FAULTS=1` adds two deliberate mistakes to the cue table — a cue on a bus the mix does not have, and one
 //!   whose pitch range is inverted — so a capture can show the `Problems` block and the `<- problem` markers doing
 //!   something. The shipped table is clean: it is the picture everyone sees.
-//! - `SIREN_KEYS=steal,layer,duck` stages one step every `SIREN_KEY_EVERY` frames (default 20) from frame 30, cycling:
-//!   `duck` plays a line of dialogue, `steal` fills the bus capped at two, `layer` brings the combat layer in on
-//!   the next bar.
+//! - `SIREN_KEYS=steal,layer,duck,refuse` stages one step every `SIREN_KEY_EVERY` frames (default 20) from frame 30,
+//!   cycling: `duck` plays a line of dialogue, `steal` fills the bus capped at two, `layer` brings the combat layer in
+//!   on the next bar, and `refuse` asks for a cue the table does not have — the log's `refused` line, which is what the
+//!   panel is for.
 //!
 //! # Why the sounds are synthesised
 //!
@@ -64,6 +65,11 @@ enum Step {
     Duck,
     Steal,
     Layer,
+    /// **A play the crate answers with nothing.** The panel's claim is *"the log of what played and why"*, and a
+    /// `Refused` is the "why" that matters most — a cue that never plays and never says why is the hardest thing in a
+    /// game to find. Nothing else in this script refuses: `steal` steals, `duck` ducks, `layer` moves, and every one of
+    /// them plays something. So the panel had never shown the one line a person opens it for.
+    Refuse,
 }
 
 /// The frame staged steps start on: after the layout and the first mix have settled.
@@ -514,7 +520,16 @@ fn draw_panel(
             // captures: the Music block is 68 px (heading 40 + line 28) against the 63 px three removed cue rows freed,
             // so eight lines leaves **1 px** of margin — a clipped glyph, the defect iteration 32 fixed. Seven restores
             // it. The crate's number describes a panel; this panel has one more block than that sentence knew about.
-            Kind::Log => log.recent(7).map(Entry::line).collect::<Vec<_>>().join("\n"),
+            // **Fewer lines when the `Problems` block has something in it.** Measured, the fault table costs THREE log
+            // lines: it adds two cue rows *and* two problem sentences. Seven leaves `1 px` of margin (a clipped glyph),
+            // five still leaves `1 px`, and **four restores 11 px**. The block's height is a function of the table it
+            // describes, so the log's is too — a panel with faults shows fewer log lines, which is the right trade: the
+            // faults are what the reader came for.
+            Kind::Log => log
+                .recent(if table.problems_in(&settings).is_empty() { 7 } else { 4 })
+                .map(Entry::line)
+                .collect::<Vec<_>>()
+                .join("\n"),
         };
         if text.0 != next {
             text.0 = next;
@@ -554,6 +569,11 @@ fn stage(
             plays.write(Play::cue("engine.idle"));
             plays.write(Play::cue("sword.hit"));
         }
+        Step::Refuse => {
+            // A cue the table does not have: `Refusal::UnknownCue`, named in the log and in `Refused`. The clearest
+            // refusal there is — the reason is the cue's own name.
+            plays.write(Play::cue("no.such.cue"));
+        }
         Step::Layer => {
             layers.write(
                 MusicLayers::new(vec![
@@ -573,12 +593,16 @@ fn capture_config() -> Capture {
     // on the **default** run — the very command the module doc tells a person to type. The default is the three
     // things the panel exists to show, in the order the doc names them.
     let keys: Vec<Step> = std::env::var("SIREN_KEYS")
-        .unwrap_or_else(|_| "steal,layer,duck".to_owned())
+        // **The default script includes `refuse`**, so the showcase shows the panel doing the thing it exists for. The
+        // order ends on `refuse` before the still: a refusal is a line, not a sound, and it is the last thing a person
+        // reading the log wants to have missed.
+        .unwrap_or_else(|_| "steal,layer,duck,refuse".to_owned())
         .split(',')
         .filter_map(|token| match token.trim() {
             "duck" => Some(Step::Duck),
             "steal" => Some(Step::Steal),
             "layer" => Some(Step::Layer),
+            "refuse" => Some(Step::Refuse),
             _ => None,
         })
         .collect();
@@ -587,10 +611,10 @@ fn capture_config() -> Capture {
         // something else would put the wrong picture in the evidence folder.
         if std::env::var("SIREN_KEYS").is_ok_and(|v| !v.trim().is_empty()) {
             eprintln!(
-                "siren: SIREN_KEYS has no step this example knows; staging the default steal,layer,duck"
+                "siren: SIREN_KEYS has no step this example knows; staging the default steal,layer,duck,refuse"
             );
         }
-        vec![Step::Steal, Step::Layer, Step::Duck]
+        vec![Step::Steal, Step::Layer, Step::Duck, Step::Refuse]
     } else {
         keys
     };

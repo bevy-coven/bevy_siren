@@ -30,6 +30,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`examples/mixer` shows a refusal.** Its claim is *"the log of what played and why"*, and the scripted run never refused
+  anything — `steal` steals, `duck` ducks, `layer` moves, every step plays — so the `Log` block had never drawn a `Refused`
+  line, the one message the skill calls the most valuable. A `refuse` step now asks for a cue the table does not have
+  (`Refusal::UnknownCue`) and joins the default script, so `cargo run --example mixer` with no environment shows
+  `refused \`no.such.cue\`: no cue of that name` at the top of its log. The log also shows **four** lines instead of seven
+  when the `Problems` block has content: measured, the fault table costs three log lines (two cue rows, two problem
+  sentences) and seven leaves a 1 px margin, a clipped glyph. The GIF is captured at native 1280 rather than down-scaled.
+
 - **`examples/mixer`'s header counts what the panel shows.** It read `9 cues` from `table.cues.len()` while the cue list
   showed **seven** — iteration 36 moved the score's two layers into a `Music` block and the header was not part of that
   change, so the one number a reader can check by counting rows was wrong. It now names the split:
@@ -163,6 +171,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   leaves 1 px and a clipped glyph.
 
 ### Fixed
+
+- **`examples/mixer` shows a refusal.** Its claim is *"the log of what played and why"*, and the scripted run never refused
+  anything — `steal` steals, `duck` ducks, `layer` moves, every step plays — so the `Log` block had never drawn a `Refused`
+  line, the one message the skill calls the most valuable. A `refuse` step now asks for a cue the table does not have
+  (`Refusal::UnknownCue`) and joins the default script, so `cargo run --example mixer` with no environment shows
+  `refused \`no.such.cue\`: no cue of that name` at the top of its log. The log also shows **four** lines instead of seven
+  when the `Problems` block has content: measured, the fault table costs three log lines (two cue rows, two problem
+  sentences) and seven leaves a 1 px margin, a clipped glyph. The GIF is captured at native 1280 rather than down-scaled.
 
 - **`examples/mixer`'s header counts what the panel shows.** It read `9 cues` from `table.cues.len()` while the cue list
   showed **seven** — iteration 36 moved the score's two layers into a `Music` block and the header was not part of that
@@ -423,6 +439,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`examples/mixer` shows a refusal.** Its claim is *"the log of what played and why"*, and the scripted run never refused
+  anything — `steal` steals, `duck` ducks, `layer` moves, every step plays — so the `Log` block had never drawn a `Refused`
+  line, the one message the skill calls the most valuable. A `refuse` step now asks for a cue the table does not have
+  (`Refusal::UnknownCue`) and joins the default script, so `cargo run --example mixer` with no environment shows
+  `refused \`no.such.cue\`: no cue of that name` at the top of its log. The log also shows **four** lines instead of seven
+  when the `Problems` block has content: measured, the fault table costs three log lines (two cue rows, two problem
+  sentences) and seven leaves a 1 px margin, a clipped glyph. The GIF is captured at native 1280 rather than down-scaled.
+
 - **`examples/mixer`'s header counts what the panel shows.** It read `9 cues` from `table.cues.len()` while the cue list
   showed **seven** — iteration 36 moved the score's two layers into a `Music` block and the header was not part of that
   change, so the one number a reader can check by counting rows was wrong. It now names the split:
@@ -571,6 +595,14 @@ The first release: sound for Bevy 0.20 as data, mixed in buses.
   leaves 1 px and a clipped glyph.
 
 ### Fixed
+
+- **`examples/mixer` shows a refusal.** Its claim is *"the log of what played and why"*, and the scripted run never refused
+  anything — `steal` steals, `duck` ducks, `layer` moves, every step plays — so the `Log` block had never drawn a `Refused`
+  line, the one message the skill calls the most valuable. A `refuse` step now asks for a cue the table does not have
+  (`Refusal::UnknownCue`) and joins the default script, so `cargo run --example mixer` with no environment shows
+  `refused \`no.such.cue\`: no cue of that name` at the top of its log. The log also shows **four** lines instead of seven
+  when the `Problems` block has content: measured, the fault table costs three log lines (two cue rows, two problem
+  sentences) and seven leaves a 1 px margin, a clipped glyph. The GIF is captured at native 1280 rather than down-scaled.
 
 - **`examples/mixer`'s header counts what the panel shows.** It read `9 cues` from `table.cues.len()` while the cue list
   showed **seven** — iteration 36 moved the score's two layers into a `Music` block and the header was not part of that

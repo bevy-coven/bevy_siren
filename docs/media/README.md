@@ -43,9 +43,14 @@ block beneath it: the `Cues` rows, the `Music` block, the `Buses` rows, and the 
 A **`Music` block** shows the score's layers with their live gain, and `-> target` while a layer moves — the crate's
 adaptive music, visible. The cue list below it carries only cues that are **not** layers.
 
+The log opens with a **refusal** — `refused \`no.such.cue\`: no cue of that name` — because the default script's fourth
+step asks for a cue the table does not have. That is the line the panel exists for, and until iteration 39 nothing in the
+script produced one.
+
 The log shows **seven** lines: `CAPACITY`'s doc says *"a panel shows eight"*, and the column fits eight — until a block is
 added above the log. Measured, the `Music` block costs 68 px against the 63 px the three music cue rows freed, so eight
-leaves 1 px and a clipped glyph; seven leaves 11 px.
+leaves 1 px and a clipped glyph; seven leaves 11 px. A table with **faults** costs three log lines — two extra cue rows and
+two problem sentences — so the fault capture shows **four** (measured: seven and five both leave 1 px, four leaves 11).
 
 A bus row reads `duck -8.0 dB by dialogue.greeting` while a duck holds — how far *and* by what, from the `Entry::Ducked`
 the log already carries (iteration 31) — and drops the clause the frame the duck releases.
