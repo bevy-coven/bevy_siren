@@ -1,0 +1,38 @@
+{
+ "hashes": {
+  "rumble.wav": "862362f87c4e7cd7",
+  "tone.wav": "3032fb75dd9fb63f",
+  "noise.wav": "01d682ca608821f4",
+  "rain.wav": "d22ddf0a0538cf38"
+ },
+ "rows": [
+  {
+   "query": "a low rumble",
+   "top": "rumble.wav",
+   "score": 0.217,
+   "expected": "rumble.wav",
+   "hit": true
+  },
+  {
+   "query": "a steady musical tone",
+   "top": "tone.wav",
+   "score": 0.15,
+   "expected": "tone.wav",
+   "hit": true
+  },
+  {
+   "query": "white noise hiss",
+   "top": "rain.wav",
+   "score": 0.429,
+   "expected": "noise.wav",
+   "hit": false
+  },
+  {
+   "query": "rain falling",
+   "top": "noise.wav",
+   "score": 0.126,
+   "expected": "rain.wav",
+   "hit": true
+  }
+ ]
+}

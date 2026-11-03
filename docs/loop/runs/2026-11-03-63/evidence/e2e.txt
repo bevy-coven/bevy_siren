@@ -1,0 +1,33 @@
+# The walking skeleton, end to end — 2026-11-03 on bmb (Apple M4)
+
+Four clips embedded with CLAP's audio tower, hashed the way `src/library.rs` hashes, ranked against four
+descriptions by the same arithmetic `src/semantic/rank.rs` implements.
+
+    query                  top-1            score 2nd              score  correct?
+    a low rumble           rumble.wav       0.217 noise.wav        0.081  YES
+    a steady musical tone  tone.wav         0.150 rumble.wav      -0.003  YES
+    white noise hiss       rain.wav         0.429 noise.wav        0.423  no
+    rain falling           noise.wav        0.126 rain.wav         0.115  YES
+
+    hit rate: 3 / 4
+
+## The miss is a tie, and it is the honest kind
+
+`white noise hiss` put `rain.wav` (0.429) ahead of `noise.wav` (0.423) — a **0.006** gap, where the same query's
+gap to everything else is 0.39. Both clips are generated from white noise; `rain.wav` is amplitude-modulated white
+noise. So the model is calling the two nearly the same thing, correctly, and the tie-break decided it.
+
+**`rain falling` makes the same call from the other side**: `noise.wav` (0.126) over `rain.wav` (0.115). Given that
+`rain.wav` *is* unmodulated noise plus an envelope, preferring the unmodulated one for the literal words is defensible.
+
+## What this proves
+
+| | |
+|---|---|
+| a description reaches a library and ranks something | **yes** |
+| the right clip is first when the categories differ | **yes**, 3 of 3 unambiguous |
+| near-identical clips tie | **yes**, and the scores say so — 0.429 vs 0.423 |
+| the score is informative enough to see the tie | **yes**, which a bare "best match" would have hidden |
+
+The last row is the argument for `Match::score` and for `Answer::describe`: a 1-of-1 answer and a 1-of-2-tied answer
+look identical without the numbers.

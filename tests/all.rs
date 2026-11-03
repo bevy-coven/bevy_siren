@@ -22,9 +22,13 @@ mod semantic_buffer;
 #[cfg(feature = "semantic")]
 mod semantic_index;
 #[cfg(feature = "semantic")]
+mod semantic_model;
+#[cfg(feature = "semantic")]
 mod semantic_query;
 #[cfg(feature = "semantic")]
 mod semantic_rank;
+#[cfg(feature = "semantic")]
+mod semantic_search;
 #[cfg(feature = "semantic")]
 mod semantic_session;
 #[cfg(feature = "serde")]
