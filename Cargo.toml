@@ -36,6 +36,11 @@ mixer = ["dep:rodio"]
 # Nothing enables this in normal use. `tests/readme.rs` checks the README's quick start against the
 # crate-root doctest, so the two cannot drift.
 readme-example = []
+# Semantic selection: describe a sound in words, get candidates back, and find the sounds that fit a chosen
+# one. Off by default and deliberately empty of new dependencies for now — the crate's dependency list is
+# closed by `tests/leaf.rs`, and each dependency this feature needs is argued for in `S-09` before it lands.
+# A user who does not enable it sees no change at all, in the graph or in the binary.
+semantic = []
 
 [dependencies]
 # The umbrella with defaults off. A game already has the full `bevy`, so these features cost it nothing;

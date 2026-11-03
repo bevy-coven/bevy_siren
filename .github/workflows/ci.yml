@@ -63,3 +63,15 @@ jobs:
       # The examples need a window at run time, not build time, so building them is the check that fits in CI.
       - name: Build examples
         run: cargo build --examples
+
+      # **The semantic feature builds on a machine with no GPU.** That is the whole contract of the feature: it
+      # adds retrieval, never a device requirement. If this step ever needs a CUDA toolkit or a driver, `S-09`'s
+      # dependency arguments have gone wrong rather than the runner.
+      - name: Build (semantic)
+        run: cargo build --features semantic
+
+      - name: Test (semantic)
+        run: cargo test --features semantic
+
+      - name: Test (all features)
+        run: cargo test --all-features

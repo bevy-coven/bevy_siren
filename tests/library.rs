@@ -209,3 +209,41 @@ fn a_symlink_that_leaves_the_root_is_refused_not_followed() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// The `semantic` feature's boundary, pinned.
+// ---------------------------------------------------------------------------------------------------------------
+
+/// **The `semantic` feature adds no dependency.** That is its entire contract: a user who wants retrieval gets
+/// retrieval, and a user who does not gets the graph `0.1.0` shipped.
+///
+/// This is asserted against the manifest rather than `cargo tree` because a test may not shell out to Cargo, and the
+/// thing that would actually regress is a dependency added to the feature without the argument `S-09` requires.
+#[test]
+fn the_semantic_feature_declares_no_dependency_of_its_own() {
+    let manifest =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml")).expect("manifest");
+    let line = manifest
+        .lines()
+        .find(|l| l.trim_start().starts_with("semantic ="))
+        .expect("the semantic feature is declared");
+    let rhs = line.split('=').nth(1).expect("a feature has a value").trim();
+    assert!(
+        !rhs.contains("dep:") && !rhs.contains('-'),
+        "the semantic feature must not pull a dependency or another feature yet: `{line}`.\n\
+         When it does, the dependency is argued for in `tests/leaf.rs`'s ALLOWED_DEPS in the same commit."
+    );
+}
+
+/// **The model constants are the numbers the model reported**, not round numbers that look plausible.
+///
+/// Each is measured in `runs/2026-11-03-62/research.md`; a change here without a new measurement is a magic constant
+/// wearing a name.
+#[cfg(feature = "semantic")]
+#[test]
+fn the_model_constants_match_the_measurement() {
+    use bevy_siren::semantic::{EMBEDDING_DIM, MODEL_MEL_FRAMES, MODEL_SAMPLE_RATE};
+    assert_eq!(MODEL_SAMPLE_RATE, 48_000, "CLAP's feature extractor resamples to 48 kHz");
+    assert_eq!(MODEL_MEL_FRAMES, 1001, "every duration produced 1001 mel frames");
+    assert_eq!(EMBEDDING_DIM, 512, "get_audio_features returns [batch, 512]");
+}

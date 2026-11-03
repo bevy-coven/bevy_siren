@@ -93,6 +93,10 @@ pub mod play;
 pub mod playback;
 pub mod sounds;
 
+/// Semantic selection, behind the `semantic` feature.
+#[cfg(feature = "semantic")]
+pub mod semantic;
+
 #[cfg(feature = "mixer")]
 pub mod mixer;
 
