@@ -49,7 +49,7 @@ gate silently runs zero tests under a filter that misses: confirm the count, not
 **clean** is a result, not a wasted pass — write down what was probed so the next iteration does not repeat it.
 (5) `hs distill` GPU-blocked (twentieth iteration).
 
-**Commit.** `82d227e` (library; CI green). **The consumer fix is committed in `bevy_grimoire` as `799fad2` but NOT
+**Commit.** `82d227e` (library; CI run 41585200646 is **success** on `big-s1`). **The consumer fix is committed in `bevy_grimoire` as `799fad2` but NOT
 pushed**, because `origin/main` there does not compile with `bevy_siren` — proved from a clean worktree of `e00d1f1`:
 
 ```
