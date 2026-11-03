@@ -56,7 +56,7 @@ for an iteration that adds one.
 S5 the crate's own "a number that disables a feature" precedent), `plan.md`, `perf.md`, `eval.md`, `review.md` (three
 passes, GREAT), `evidence/{spectrograms,after}`.
 
-**Commit.** (see `git log`).
+**Commit.** `0de8501` — *siren: MusicScore::default() is the score the file loader gives*.
 
 **Top 5 remaining**
 
