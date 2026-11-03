@@ -150,11 +150,14 @@ impl Model {
             }
         }
         let shape = vec![1i64, 4, MODEL_MEL_FRAMES as i64, 64];
-        let longer = vec![if is_longer { 1i64 } else { 0 }];
+        // **`is_longer` is a `bool` tensor, not an `i64` one.** Measured: the graph rejected `int64` with *"Unexpected
+        // input data type. Actual: (tensor(int64)) , expected: (tensor(bool))"*. The type is declared by the graph and
+        // was guessed from the Python side, where `is_longer` arrives as a bool tensor.
+        let longer = vec![is_longer];
         // No `mut`: `embed_audio` clones its captures rather than moving them, so the closure is `Fn`.
         let run = || -> Result<Vec<f32>, String> {
             let feats = Tensor::from_array((shape.clone(), flat)).map_err(|e| e.to_string())?;
-            let longer_t = Tensor::from_array((vec![1i64, 1], longer)).map_err(|e| e.to_string())?;
+            let longer_t = Tensor::from_array((vec![1i64, 1], longer.clone())).map_err(|e| e.to_string())?;
             let outputs = self
                 .session
                 .run(ort::inputs!["input_features" => feats, "is_longer" => longer_t])

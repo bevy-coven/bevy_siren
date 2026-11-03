@@ -108,3 +108,9 @@ pub fn search(
     let dropped = total - matches.len();
     Ok(Answer { matches, dropped })
 }
+
+// **`std::error::Error` as well as `Display`.** Without it a caller writing `?` in a function returning
+// `Box<dyn Error>` cannot use any of this crate's failures — measured: a probe on the GPU host failed to compile with
+// *"`SearchProblem`: `std::error::Error` is not satisfied"* on three lines in a row. An error a caller has to unwrap by hand is
+// half an error.
+impl std::error::Error for SearchProblem {}

@@ -27,6 +27,26 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The audio tower's embedding now matches the model it targets.** Feeding this crate's own spectrogram to
+  `laion/clap-htsat-fused` produced an embedding at **cosine 0.850** against `transformers`'; it now produces
+  **0.999999995**. Two constants, both read from `transformers/audio_utils.py`:
+  - **The right-hand reflect pad is `WINDOW/2`.** `np.pad` pads `(512, 512)`, and the left pad *shifts* the last frame,
+    so the right side needs 512 samples, not the distance to where the last frame's window ends. The old value reflected
+    1024 and, before that, read past the buffer — which in a release build is not a panic but whatever the allocator
+    held, measured as the last frames of a 1001-frame spectrogram collapsing to the −100 dB floor.
+  - **The FFT accumulates in `f64`.** The reference promotes with `waveform.astype(np.float64)` before `rfft`; `f32`
+    left the worst spectral value **11 dB** out at the noise floor. With both fixed, the maximum deviation over
+    1001 × 64 mel values is **0.0545 dB**.
+
+  The graph itself was already exact — fed the reference's mel it reproduces the reference embedding at cosine
+  **1.000000007** — so the entire residual was the spectrogram. Measured in
+  `src/semantic/mel.rs::against_the_model::{the_tiled_model_window_matches_the_extractors_own_output,
+  no_frame_of_the_tiled_window_falls_to_the_floor}`, which name frames **0, 500 and 1000** rather than checking a shape;
+  frame 1000 is the one a short pad turns into −100 dB.
+- **`is_longer` is a `bool` tensor.** The graph declares `tensor(bool)` and rejected the `int64` the crate sent:
+  *"Unexpected input data type. Actual: (tensor(int64)) , expected: (tensor(bool))"*.
+- **Every semantic error implements `std::error::Error`**, all twelve of them. A caller writing `?` in a function
+  returning `Box<dyn Error>` could not use any of them — `error[E0277]: MelProblem: std::error::Error is not satisfied`.
 
 - **A `MusicLayers` change naming a layer the score does not have was silently dropped.** `move_layers` applied each target
   with `if let Some(layer) = state.layers.iter_mut().find(|l| l.name == name)`, so a name that matched nothing vanished:

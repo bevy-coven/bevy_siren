@@ -132,8 +132,10 @@ the first 32 footsteps and quietly stole or refused every one after that.
   rather than guessing: [spatial](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/spatial.md).
 - **Describe a sound and find it, behind `semantic`** — a folder of audio becomes an index keyed by content, a
   description becomes a ranked answer through CLAP's own tokeniser and spectrogram, and every result carries the score
-  that explains it. Off by default, and a crate that does not enable it sees no change: `cargo tree` reads the same 413
-  lines either way: [semantic](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md).
+  that explains it. The spectrogram is **CLAP's, to 0.0545 dB**, and the audio tower's embedding matches
+  `laion/clap-htsat-fused` at **cosine 0.999999995** — both measured against the reference, not assumed. Off by default,
+  and a crate that does not enable it sees no change: `cargo tree` reads the same 413 lines either way:
+  [semantic](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md).
 - **Ship the sound as data, and edit it in the Cauldron** — with `serde`, the cue table, the mix table and the score
   are RON files; `bevy_grimoire`'s audio panel edits this crate's own types in
   `<project>/family/bevy_siren.ron`, never a second schema:

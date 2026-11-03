@@ -1,0 +1,61 @@
+# The audio tower, run from Rust — and the two bugs that found
+
+Run 2026-11-03 on `bmb` (Apple M4, `rustc 1.99.0`, `ort 2.0.0-rc.15`), against `clap-audio.onnx` (116 505 727 bytes).
+
+## It loads and it runs
+
+    [ok] loaded: inputs ["input_features", "is_longer"] dynamic_batch true
+    [ok] my mel: 4ch x 1001 x 64
+    [ok] embedding: 512 values, norm 1.000000
+    [ok] first 6 from Rust: [-0.056594674, 0.039216783, 0.014411794, 0.015704377, -0.017887628, -0.019266916]
+
+**The last unverified link in the chain now runs.** The tower takes my `mel::input_features` output, returns a 512-d
+vector, and the vector is unit-norm — the property `rank::top_k` relies on.
+
+## Three bugs it found, and the second is the one that matters
+
+| Bug | Symptom | Fix |
+|---|---|---|
+| **`is_longer` is a `bool` tensor**, not `int64` | the graph refused: *"Unexpected input data type. Actual: (tensor(int64)) , expected: (tensor(bool))"* | send `bool` |
+| **`padding` is `"repeatpad"`**, not zero-padding | the reference has **zero** frames at the −100 dB floor, where zero-padding leaves 80 % of them | tile the waveform, then zero-pad to the window |
+| **the repeat count is `int(max_length / len)`** | my `while len < window { extend }` loop over-tiles any buffer whose length does not divide | the extractor's own integer floor |
+
+The second is the one worth keeping: **a zero-padded 1 s tone leaves 80 % of its frames silent, and the reference has
+none.** That single measurement — `floor frames per channel [0, 0, 0, 0]` — pointed at the real answer after two wrong
+guesses that both produced the right *shape*.
+
+## And one defect this found in my own error types
+
+None of the semantic layer's twelve error types implemented `std::error::Error`, so a caller writing `?` in a function
+returning `Box<dyn Error>` could not use any of them:
+
+    error[E0277]: `?` couldn't convert the error: `MelProblem: std::error::Error` is not satisfied
+
+All twelve now do. An error a caller has to unwrap by hand is half an error.
+
+## What is NOT verified, stated plainly
+
+**The embedding agrees with the reference at cosine 0.850, not 1.000.**
+
+| | |
+|---|---|
+| reference (`transformers`, real model) | `norm 0.9999999403953552`, first 6 `[-0.082811, 0.030209, …]` |
+| this crate (my mel, real ONNX graph) | `norm 1.000000`, first 6 `[-0.056595, 0.039217, …]` |
+| **cosine** | **0.849973469** |
+| max abs difference | 0.09599810 |
+
+The **mel** is close but not exact on the tiled buffer: frames 0 and 500 agree to 0.0001 and 0.23 dB respectively, but
+the row sums differ by **20 %** and the worst frames are **95, 195, 295, 395, 595, 695** — once per 1-second tile. The
+reference's interior row sums are *constant* (−3378.03 for frames 99–501), mine are not.
+
+The remaining suspects, in the order I would test them:
+
+1. **the tiled buffer's phase.** My tone is `(i as f32 / sr as f32)`; at `i ≈ 480 000` an `f32` cannot represent the
+   phase exactly, and each tile restarts from `i = 0`. Measured: `x32[47999] = -1.31e-4` against `x64[47999] = -6.5e-5`,
+   a 2× error at the tile edge that accumulates across ten tiles.
+2. **the frame offset.** `transformers`' `spectrogram` centres with `np.pad(waveform, (WINDOW/2, WINDOW/2))` and then
+   takes frame `n` at `n * hop`; my `log_mel` does the same, but on a buffer whose length is exactly the window the
+   last frame's right pad is zero-length, so the two implementations differ there and I have not proved they do not.
+
+**A 0.850 cosine is not a working feature**, and the guide page's status line still says the audio tower has not been
+run — it has now, and the honest replacement sentence is *"it runs, and its output does not yet match the reference."*

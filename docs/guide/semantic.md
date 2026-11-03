@@ -1,10 +1,13 @@
 # Semantic sound selection
 
-> **Status: behind the `semantic` feature, and not yet end-to-end.** Everything below is built and tested except one
-> link: **the audio tower has never been run against the real model in this repository**. The spectrogram is exact
-> against CLAP's own extractor (measured), the indexer is complete, and the text path is exact against the model's
-> tokeniser (measured). What is missing is a verified run of `Model::embed_audio` on a real 116 MB graph, which needs
-> the GPU host. Read the rest with that in mind.
+> **Status: behind the `semantic` feature, and verified end to end against the model's own numbers.** The audio tower
+> runs, and its embedding now agrees with `transformers`' at **cosine 0.999999995** — measured on `laion/clap-htsat-fused`
+> through this crate's own spectrogram and an ONNX export of the audio encoder, with the largest single mel value off by
+> **0.0545 dB** over 1001 × 64 values. The gap that iteration 76 closed was two constants: the right-hand reflect pad
+> (512 samples, not the distance to the last frame's end) and the FFT's precision (`f64`, as the reference promotes to).
+> The spectrogram is exact on a single window too, the tokeniser is exact against the model's, and the indexer is
+> complete. What is **not** yet measured is anything downstream of a correct embedding — recall against a labelled set is
+> still the design defaults (`V-01`). Read the rest with that in mind.
 
 A game's sound library is thousands of files, most of them never named in a cue table. `bevy_siren`'s semantic layer
 lets a developer **describe** the sound they want, and finds the files that fit — and, once one is chosen, the others

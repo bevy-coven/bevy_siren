@@ -125,3 +125,9 @@ pub fn decode_for_model(path: &Path) -> Result<Vec<f32>, DecodeProblem> {
     }
     resample::to_model_rate(&mono, decoded.sample_rate).map_err(DecodeProblem::Buffer)
 }
+
+// **`std::error::Error` as well as `Display`.** Without it a caller writing `?` in a function returning
+// `Box<dyn Error>` cannot use any of this crate's failures — measured: a probe on the GPU host failed to compile with
+// *"`DecodeProblem`: `std::error::Error` is not satisfied"* on three lines in a row. An error a caller has to unwrap by hand is
+// half an error.
+impl std::error::Error for DecodeProblem {}

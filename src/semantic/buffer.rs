@@ -115,3 +115,9 @@ pub fn model_buffer(interleaved: &[f32], channels: u16, sample_rate: u32) -> Res
 pub fn peak(buffer: &[f32]) -> f32 {
     buffer.iter().fold(0.0f32, |m, s| if s.is_finite() { m.max(s.abs()) } else { m })
 }
+
+// **`std::error::Error` as well as `Display`.** Without it a caller writing `?` in a function returning
+// `Box<dyn Error>` cannot use any of this crate's failures — measured: a probe on the GPU host failed to compile with
+// *"`BufferProblem`: `std::error::Error` is not satisfied"* on three lines in a row. An error a caller has to unwrap by hand is
+// half an error.
+impl std::error::Error for BufferProblem {}
