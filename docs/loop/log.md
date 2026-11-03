@@ -7,6 +7,70 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 78 — 2026-11-03 — every music encoder is non-commercial, and the corpus has no licence
+
+**Baseline.** `cargo fmt --check` green. `cargo test --lib --features semantic` and every other step **BLOCKED by
+disk**: 122–152 MB free all iteration, `cargo clean -p` buying 1.2 GB that `bevy_pbr`'s archive consumed in one link.
+`du` over the home directory now times out at 120 s at this occupancy, so even finding the consumer needs a decision
+about what may be deleted. **Fourth consecutive iteration the disk has cost**, and this is the first where the item was
+chosen *because* it needs no build — a workaround, not a fix.
+
+**The item: #6, closed.** p0, blocked by nothing, blocking #10, #39 and #14. A document, so no build was needed to
+finish it, which is exactly what this machine could do.
+
+**What the audit found, read from each model card on 2026-11-03.**
+
+| Model | Licence | Commercial |
+|---|---|---|
+| `laion/clap-htsat-fused`, `-unfused` | **Apache-2.0** | **yes** |
+| `m-a-p/MERT-v1-95M`, `-v1-330M` | **CC BY-NC 4.0** | **no** |
+| `OpenMuQ/MuQ-large-msd-iter`, `MuQ-MuLan-large` | **CC BY-NC 4.0** | **no** |
+| `musicfm-v-demo`, `audio-flamingo-hf`, `EF-CLAP` | **no licence tag** | **no grant** |
+
+**Every music-specific encoder on the shortlist is non-commercial.** That retires #39's premise — it asks for exactly
+that encoder — before #39 was built, which is the entire reason a p0 ADR has to arrive first.
+
+**And #6's own insistence on auditing the corpus was right.** CLAP's weights are Apache-2.0, but `LAION-audio-630k`
+has **no licence file at all** — the repo's `LICENSE` path returns `404` and the GitHub API reports `license: null` —
+while its README documents eight sources including **Epidemic Sound, Audiostock, Sonniss and Paramount**, several
+purchased by LAION. Recorded as an **open risk with a named escape hatch** (consume an index as data via `ModelStamp`)
+rather than resolved by assertion.
+
+**Decision.** CLAP only; no weights vendored; MERT and MuQ are **blockers with the fallback named** (CLAP's text tower
+plus anchors). Weights arrive at **first use**, cached by content hash, pinned to a **commit sha**, verified against a
+**SHA-256 recorded in the crate**, and every failure — offline, hash mismatch, download forbidden — is a refusal naming
+the model rather than a silent fallback to different weights.
+
+**A gap stated rather than implied.** `ModelStamp` does **not** carry a pinned sha today; its own doc says the version
+*"names the measurement rather than a tag, because the spike did not pin a revision"*. The ADR records the pinning
+story as a **requirement on the fetch**, not a description of what exists — so nobody trusts two machines' indexes to
+be comparable before that lands.
+
+**Verdicts.** Pass 1 **GREAT** (all four acceptance criteria met, each with a URL and a date), pass 2 **GREAT** (the
+corpus risk is named, not buried; the `ModelStamp` gap is admitted), pass 3 **GREAT** (a reader can see why #39 is
+blocked in one table). The baseline gap is stated in `eval.md`, not claimed green.
+
+**Gate.** fmt green; everything else **unrun, disk**. The change is docs-only — `git diff HEAD -- src/ tests/
+Cargo.toml` is **0 files** — so no compiled behaviour moved.
+
+**Evidence.** `runs/2026-11-03-78/`: `research.md`, `plan.md`, `eval.md`, `perf.md`,
+`evidence/model-licences.txt` (the raw API output, so a later reader can re-run it).
+
+**Commits.** `e938e4f`.
+
+**Top 5 remaining**
+
+1. **Free the disk — this is now the only item that blocks everything else.** Four iterations have lost steps to
+   `errno=28`, and this one lost the entire baseline. It needs a human decision about what may be deleted: the volume
+   reports 461 GB used and 122 MB free, `~/bevy_siren/target` is 16 GB, and `du` cannot even finish enumerating the
+   rest at this occupancy. Until that is answered, every iteration ships documents rather than code.
+2. **`#16` incremental indexing by content hash** — p0, its blockers (#11, #15) are closed, and `library.rs`'s `fnv1a`
+   is already its seed. The next implementable p0.
+3. **`#14` per-asset licence and source metadata** — unblocked by this iteration; needs the same "explicit unknown"
+   discipline the ADR just applied to models.
+4. **`#21`'s index round trip** — waiting on `needs-decision/loudness-in-the-index.md`.
+5. **`#5` the vector-store ADR** — p0 and unblocked, and like this one it needs no build.
+
 ## Iteration 77 — 2026-11-03 — the acoustic-features ADR, and loudness with the short clip as a state
 
 **Baseline.** `cargo build` and `cargo test --lib --features semantic` (20 tests) green; `cargo fmt` green. Everything
