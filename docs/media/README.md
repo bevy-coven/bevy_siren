@@ -37,6 +37,9 @@ the row markers have something to show through the whole animation. The **still*
 `SIREN_SHOT_EVERY` is **hundredths of a second** (4 = 40 ms), not an update count: a layer fade is 50 ms, and sampling it
 by updates gave half a sample per fade until iteration 37.
 
+The header names **what the panel shows** — `7 cues, 2 layers, 4 buses, 4 voices` — and each number can be counted in the
+block beneath it: the `Cues` rows, the `Music` block, the `Buses` rows, and the sum of their live counts.
+
 A **`Music` block** shows the score's layers with their live gain, and `-> target` while a layer moves — the crate's
 adaptive music, visible. The cue list below it carries only cues that are **not** layers.
 

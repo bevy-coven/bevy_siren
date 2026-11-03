@@ -381,12 +381,19 @@ fn draw_panel(
 ) {
     for (panel, mut text) in &mut texts {
         let next = match panel.0 {
-            Kind::Header => format!(
-                "bevy_siren: {} cues, {} buses, {} voices",
-                table.cues.len(),
-                settings.buses.len(),
-                mix.voices.values().sum::<usize>()
-            ),
+            Kind::Header => {
+                // **The header counts what the panel shows.** It said *"{} cues"* from `table.cues.len()`, and since the
+                // `Music` block took the score's layers out of the cue list, that number and the rows beneath it disagreed:
+                // a header saying **9** over a list of **7** reads as a lie even when the two moved cues are visible in
+                // the `Music` block. Name the split instead.
+                let layers = music.score.as_ref().map_or(0, |s| s.layers.len());
+                let cues = table.cues.len().saturating_sub(layers);
+                format!(
+                    "bevy_siren: {cues} cues, {layers} layers, {} buses, {} voices",
+                    settings.buses.len(),
+                    mix.voices.values().sum::<usize>()
+                )
+            }
             Kind::BusesHeading
             | Kind::CuesHeading
             | Kind::MusicHeading

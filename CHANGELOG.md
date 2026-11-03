@@ -30,6 +30,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`examples/mixer`'s header counts what the panel shows.** It read `9 cues` from `table.cues.len()` while the cue list
+  showed **seven** — iteration 36 moved the score's two layers into a `Music` block and the header was not part of that
+  change, so the one number a reader can check by counting rows was wrong. It now names the split:
+  `7 cues, 2 layers, 4 buses, 4 voices`, with the cue count `saturating_sub` the layers so a layer naming a cue the table
+  lacks — which `problems()` reports — cannot underflow. Under `SIREN_FAULTS=1` it reads `9 cues, 2 layers` over nine rows,
+  which a hard-coded count could not do.
+
 - **`examples/mixer`'s GIF samples a fade by the second, not by the update.** `SIREN_SHOT_DIR` kept every
   `SIREN_SHOT_EVERY`th **update**, but a layer fade is `MIX_TAU_S` = 50 ms — about six updates at the example's ~8.3 ms —
   and the shipped GIF sampled every twelve: **0.5 samples per fade**, so the `Music` block's `-> target` arrow appeared by
@@ -156,6 +163,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   leaves 1 px and a clipped glyph.
 
 ### Fixed
+
+- **`examples/mixer`'s header counts what the panel shows.** It read `9 cues` from `table.cues.len()` while the cue list
+  showed **seven** — iteration 36 moved the score's two layers into a `Music` block and the header was not part of that
+  change, so the one number a reader can check by counting rows was wrong. It now names the split:
+  `7 cues, 2 layers, 4 buses, 4 voices`, with the cue count `saturating_sub` the layers so a layer naming a cue the table
+  lacks — which `problems()` reports — cannot underflow. Under `SIREN_FAULTS=1` it reads `9 cues, 2 layers` over nine rows,
+  which a hard-coded count could not do.
 
 - **`examples/mixer`'s GIF samples a fade by the second, not by the update.** `SIREN_SHOT_DIR` kept every
   `SIREN_SHOT_EVERY`th **update**, but a layer fade is `MIX_TAU_S` = 50 ms — about six updates at the example's ~8.3 ms —
@@ -409,6 +423,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`examples/mixer`'s header counts what the panel shows.** It read `9 cues` from `table.cues.len()` while the cue list
+  showed **seven** — iteration 36 moved the score's two layers into a `Music` block and the header was not part of that
+  change, so the one number a reader can check by counting rows was wrong. It now names the split:
+  `7 cues, 2 layers, 4 buses, 4 voices`, with the cue count `saturating_sub` the layers so a layer naming a cue the table
+  lacks — which `problems()` reports — cannot underflow. Under `SIREN_FAULTS=1` it reads `9 cues, 2 layers` over nine rows,
+  which a hard-coded count could not do.
+
 - **`examples/mixer`'s GIF samples a fade by the second, not by the update.** `SIREN_SHOT_DIR` kept every
   `SIREN_SHOT_EVERY`th **update**, but a layer fade is `MIX_TAU_S` = 50 ms — about six updates at the example's ~8.3 ms —
   and the shipped GIF sampled every twelve: **0.5 samples per fade**, so the `Music` block's `-> target` arrow appeared by
@@ -550,6 +571,13 @@ The first release: sound for Bevy 0.20 as data, mixed in buses.
   leaves 1 px and a clipped glyph.
 
 ### Fixed
+
+- **`examples/mixer`'s header counts what the panel shows.** It read `9 cues` from `table.cues.len()` while the cue list
+  showed **seven** — iteration 36 moved the score's two layers into a `Music` block and the header was not part of that
+  change, so the one number a reader can check by counting rows was wrong. It now names the split:
+  `7 cues, 2 layers, 4 buses, 4 voices`, with the cue count `saturating_sub` the layers so a layer naming a cue the table
+  lacks — which `problems()` reports — cannot underflow. Under `SIREN_FAULTS=1` it reads `9 cues, 2 layers` over nine rows,
+  which a hard-coded count could not do.
 
 - **`examples/mixer`'s GIF samples a fade by the second, not by the update.** `SIREN_SHOT_DIR` kept every
   `SIREN_SHOT_EVERY`th **update**, but a layer fade is `MIX_TAU_S` = 50 ms — about six updates at the example's ~8.3 ms —
