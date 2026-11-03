@@ -60,6 +60,15 @@ verdict — finish or revert it first; a new item on top of a broken one measure
   needs nothing installed.
 - Disk has run to 100 % in this project twice. Before a release build, check `df -h ~`: a Bevy release build wants
   ~2 GB and a full disk fails as `ld: write() failed, errno=28`, which looks like a code error and is not one.
+- **When the disk is full, clean THIS CRATE, not its dependencies.** `cargo clean -p bevy_siren --target-dir target`
+  is the fix and it is one command: measured 2026-11-03, it removed **645 files / 6.3 GB** and took the volume from
+  **122 MB to 6.2 GB free**, because `target/debug/examples` alone held **4.2 GB** of this crate's own stale binaries
+  and `deps` another 2 GB of its artifacts. `cargo clean -p <dependency>` is the **wrong lever** — it is what made each
+  later build need a fresh copy and dug the hole deeper across two iterations. Six iterations lost steps to `errno=28`
+  before this was found, and one of them shipped a red test because the suite could not link: **a baseline you cannot
+  run is a blocker of the first order, ranking above every feature.** If the volume is still short after cleaning this
+  crate, `~/.cache/huggingface` and other apps' caches are **the owner's to delete, not yours** — say what holds the
+  space, in GB, and ask.
 
 ## 2. Choose the single most valuable item
 

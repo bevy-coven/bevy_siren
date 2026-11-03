@@ -7,6 +7,84 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 80 — 2026-11-03 — the second ratchet, and the disk actually solved
+
+**Baseline, and the first thing worth saying: it now runs.** `cargo test` had not run for **five consecutive
+iterations** — `errno=28` every time — and it was **red**:
+
+```
+library::the_semantic_feature_declares_no_dependency_of_its_own ... FAILED
+  left:  ["dep:ort", "dep:rodio", "dep:rubato", "dep:ebur128"]
+  right: ["dep:ort", "dep:rodio", "dep:rubato"]
+```
+
+**That red was mine, from iteration 77.** This crate guards its dependency list twice: `tests/leaf.rs` reads the
+`[dependencies]` table and asks *"may this crate exist here?"*, and `tests/library.rs` reads the `semantic` feature's
+value and asks *"does the feature pull anything beyond what we decided?"*. Iteration 77 added `ebur128` to the manifest,
+to the feature **and** to `ALLOWED_DEPS`, and missed the third. **Two guards, one updated.** Both messages name each
+other and say *"in the same commit"*, which is why the fix was one string and a comment.
+
+**The disk, actually solved rather than worked around.** The two iterations before this one spent their time on
+`cargo clean -p` of **dependency** artifacts — the wrong lever, which made every later build need a fresh copy and dug
+the hole deeper. The right lever is this crate's own output:
+
+    $ cargo clean -p bevy_siren --target-dir target
+         Removed 645 files, 6.3GiB total
+
+`target/debug/examples` alone held **4.2 GB** of stale binaries. One command took the volume from **122 MB to 6.2 GB
+free**, touching no dependency, and every step below then ran. **The fix is now in the skill's machine facts**, with the
+measurement and the instruction not to touch other apps' caches.
+
+| Step | Result |
+|---|---|
+| `cargo test` | **198 passed** |
+| `cargo test --features serde` | **207 passed** |
+| `cargo test --features mixer` | **208 passed** |
+| `cargo test --doc` | **6 passed** |
+| `cargo test --lib --features semantic` | **20 passed** |
+| clippy `-D warnings` / fmt / rustdoc / examples | **0 warnings**, all pass |
+
+**Case 19, measured for the first time since iteration 75.** `perfcheck` on an idle M4:
+
+| voices | µs/frame | µs/voice |
+|---|---|---|
+| 8 | **0.084** | 0.0105 |
+| 64 | **0.472** | 0.0074 |
+| 256 | **1.576** | 0.0062 |
+
+The per-voice cost **falls** with count, which is what a fixed per-frame cost amortised must do. `perfcheck`'s own
+footer calls it an upper bound — every voice is costed, including the ones `update_mix` skips.
+
+**The visual gate, looked at.** 32 render files, **14 of 14 distinct** cue hashes, master **−21.5 LUFS** and
+**−7.5 dBFS** — identical to iterations 67, 71, 74 and 75. `bang-spectrum.png` shows a broadband transient filling the
+first ~35 ms and discrete harmonics decaying out of 2–7 kHz by ~0.21 s, with **no vertical line at t=0** (a click),
+**no flat shelf at 0 dBFS** (clipping) and **no hole** (a dropped voice); the attack and tail windows at 50 and 100 ms
+show a smooth onset-to-decay transition. The footstep's partials are visibly narrower and decay faster, which is the
+difference the two cues exist to have.
+
+**Before/after is byte-identical.** `cue-bang-0.wav` and `mix.wav` hash the same as iteration 75's render — a proof, not
+a measurement, that the audio path could not have moved.
+
+**Verdicts.** Pass 1 **GREAT**, pass 2 **GREAT**, pass 3 **GREAT** (the `--voices 64` re-render reports its own
+**+2.9 dBFS / 290 samples past full scale** honestly, which is the renderer doing its job rather than a defect).
+
+**Evidence.** `runs/2026-11-03-80/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,before,fresh,spectrograms}/`.
+
+**Commits.** `00e8bbd`.
+
+**Top 5 remaining**
+
+1. **`#16` incremental indexing by content hash** — p0, blockers closed, and ADR 0004 has fixed the format it writes
+   into. The first item in six iterations that is a build rather than a repair or a document.
+2. **`#14` per-asset licence and source metadata** — p0, unblocked by ADR 0005 and ADR 0004's key policy.
+3. **`#21`'s index round trip** — `needs-decision/loudness-in-the-index.md` can now be answered against ADR 0004's
+   settled store.
+4. **The binary index writer** ADR 0004 specifies, with a test asserting the **10.30 MB** figure rather than accepting
+   it — and the text form's 3× overhead is a fact no test asserts today.
+5. **`#22` spectral centroid, rolloff and noise floor** — unblocked by ADR 0003 and the cheapest of the three
+   hand-rolled features, since they share one FFT pass.
+
 ## Iteration 79 — 2026-11-03 — the vector store, sized rather than guessed
 
 **Baseline.** All cargo steps **BLOCKED by disk**: 148 MB free at the start, `cargo clean -p bevy_pbr` buying 326 MB,
