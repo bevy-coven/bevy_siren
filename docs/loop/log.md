@@ -55,7 +55,9 @@ for an **input**; the boundary is "did the crate compute this number". (4) Norma
 change** and belongs in a decision file, not in a patch's fine print. (5) `hs distill` GPU-blocked (seventeenth
 iteration).
 
-**Commit.** `see git log`; CI on `main`.
+**Commit.** `fdbc1d5`, pushed to `main`; CI run 41578642257 is **success** on `big-s1`. The Cauldron's
+`audio_panel_reads_the_crates_file` passes (4 tests). Gate: build, test (88 + 4), serde (95 + 4), mixer (96 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green.
 
 **Next 5.**
 
