@@ -53,7 +53,7 @@ one of them about the frame rather than the table; moved to the `Music` block. (
 twice because `cargo fmt` had reflowed the block and both `replace`s silently missed — caught by **re-reading the
 capture** and seeing the sentence still there.
 
-**Commit.** (see `git log`).
+**Commit.** `4882723` — *mix: a bus's worst-case peak is readable, and clipping is not "the budget's job"*.
 
 **Top 5 remaining**
 
