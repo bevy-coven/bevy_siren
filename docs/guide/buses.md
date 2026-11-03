@@ -58,7 +58,11 @@ read is a decision nobody can debug.
 
 ## The voice budget
 
-`max_voices` is the whole table's budget; a bus's own `max_voices` caps it further (`0` is the table's). A request
+`max_voices` is the whole table's budget; a bus's own `max_voices` caps it further (`0` is the table's). A cue's
+`max_instances` is the same kind of number for one cue — and all three are **budgets on plays**, not standing counts:
+they decide whether the *next* request may start, and a voice already admitted lives out its length. Editing a table
+while sounds are playing is therefore safe — the new numbers govern the next play, and nothing is cut on a frame the
+game asked for nothing. A request
 stops voices to make room in this order: the cue's own polyphony, its bus's cap, then the table's. Each cap is hard:
 
 - The lowest priority goes first, then the oldest of that priority, so the newest sound is what a player keeps

@@ -507,3 +507,68 @@ fn a_stealable_voice_plays_beside_an_unstealable_one() {
         log.iter().map(Entry::line).collect::<Vec<_>>()
     );
 }
+
+/// **A cap lowered under live voices does not end them.** `Cue::max_instances` is a **budget on plays**, not a standing
+/// count: the cap decides whether the *next* play may start, and a voice it admitted lives out its length. A table is a
+/// resource a game may replace at any time, so this is the ordinary path — and the alternative, ending a sound on a
+/// frame the game asked for nothing, is the worse surprise.
+#[test]
+fn a_cap_lowered_under_live_voices_does_not_end_them() {
+    let settings = SirenSettings {
+        max_voices: 8,
+        buses: vec![BusLevel::new("Effects")],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    // Unstealable, so the lowered cap cannot be met by taking one of them — it must refuse instead.
+    let table = CueTable::new(vec![Cue { mode: bevy_siren::Mode::Loop, ..cue("hum", "Effects", 200, 2) }]);
+    let mut app = app(table, settings, sounds(&["hum"]), false);
+
+    for _ in 0..2 {
+        app.world_mut().write_message(Play::cue("hum"));
+        app.update();
+        played(&mut app);
+    }
+    assert_eq!(live_voices(&mut app), 2, "the cue's cap of 2 admitted both");
+
+    // The table shrinks the cap under the live voices.
+    app.world_mut().resource_mut::<CueTable>().cues[0].max_instances = 1;
+    app.world_mut().write_message(Play::cue("hum"));
+    app.update();
+
+    assert!(
+        refused(&mut app).iter().any(|r| matches!(r.reason, Refusal::VoiceLimit { .. })),
+        "the next play is refused by the new cap"
+    );
+    assert_eq!(live_voices(&mut app), 2, "and the two sounding voices are untouched");
+    assert!(
+        !app.world().resource::<SirenLog>().iter().any(|e| matches!(e, Entry::Stopped { .. })),
+        "nothing was ended to enforce a count nobody asked to enforce: {:?}",
+        app.world().resource::<SirenLog>().iter().map(Entry::line).collect::<Vec<_>>()
+    );
+}
+
+/// **A cap raised under live voices lets the next play through** — the pair that stops the test above from passing
+/// vacuously, since a build that refused every play would be green there and red here.
+#[test]
+fn a_cap_raised_under_live_voices_lets_the_next_play_through() {
+    let settings = SirenSettings {
+        max_voices: 8,
+        buses: vec![BusLevel::new("Effects")],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    let table = CueTable::new(vec![Cue { mode: bevy_siren::Mode::Loop, ..cue("hum", "Effects", 0, 1) }]);
+    let mut app = app(table, settings, sounds(&["hum"]), false);
+
+    app.world_mut().write_message(Play::cue("hum"));
+    app.update();
+    assert_eq!(played(&mut app).len(), 1, "the first play is admitted");
+
+    app.world_mut().resource_mut::<CueTable>().cues[0].max_instances = 2;
+    app.world_mut().write_message(Play::cue("hum"));
+    app.update();
+
+    assert_eq!(played(&mut app).len(), 1, "the raised cap admits the second play");
+    assert_eq!(live_voices(&mut app), 2);
+}

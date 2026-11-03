@@ -43,8 +43,15 @@ pub struct Cue {
     /// Whether one play ends or loops.
     #[cfg_attr(feature = "serde", serde(default))]
     pub mode: Mode,
-    /// How many of this cue may sound at once; `0` is no per-cue limit, which
+    /// How many of this cue may **start** at once; `0` is no per-cue limit, which
     /// [`CueProblem::UnlimitedInstances`] reports because it is almost never what a project meant.
+    ///
+    /// **A budget on plays, not a standing count of the voices sounding.** The cap decides whether the *next* play may
+    /// start, and a voice it admits lives out its length. A table edited while voices are playing — the ordinary path,
+    /// since a [`CueTable`] is a resource a game may replace at any time — does not end them: two voices of a cue whose
+    /// `max_instances` was just lowered to one keep sounding, and the next play is refused with
+    /// [`VoiceLimit`](crate::Refusal). Ending them would cut a sound on a frame the game asked for nothing, which is a
+    /// worse surprise than the one it would fix.
     #[cfg_attr(feature = "serde", serde(default = "Cue::one"))]
     pub max_instances: u16,
     /// Which cue keeps its voice when the budget is full: higher survives.
@@ -358,6 +365,10 @@ impl CueTable {
     }
 
     /// Adds `cue`, replacing a cue of the same name and returning the one it replaced.
+    ///
+    /// Voices already playing the replaced cue are **not** ended: its `max_instances` governs whether the next play may
+    /// start, so lowering it under live voices leaves them sounding and refuses the next request. See
+    /// [`Cue::max_instances`].
     pub fn insert(&mut self, cue: Cue) -> Option<Cue> {
         match self.cues.iter_mut().find(|c| c.name == cue.name) {
             Some(slot) => Some(std::mem::replace(slot, cue)),

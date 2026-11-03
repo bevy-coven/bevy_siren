@@ -3,6 +3,13 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 13, the cap is a budget on plays
+
+No clip: the change is **two doc sentences and two tests**. No behaviour moved, so every rendered WAV is byte-identical
+and `examples/music` still prints *"transitions on the bar: yes"*. The evidence is the probe
+(`runs/2026-11-02-13/eval.md`: two voices sounding against a cap of one, the next play refused) and the mutation in
+`perf.md`, which shows the new test catches a "reconcile by ending" implementation.
+
 ## No clip: iteration 12, a stale handle stops nothing
 
 No clip: the change is a **guard on a command**, and every rendered WAV is byte-identical because no level that is written

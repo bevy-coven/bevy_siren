@@ -7,6 +7,11 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- **`max_instances` is documented as a budget on plays, not a standing count.** The field read *"how many of this cue
+  may sound at once"*; the crate keeps it at the moment of each play, so a table edited while voices are sounding leaves
+  them playing and refuses the next request rather than cutting a voice the game did not stop. `Cue::max_instances`,
+  `CueTable::insert` and the buses guide now say which reading the crate takes, and two tests hold it — including the
+  mutation that would adopt the other one. No behaviour changed.
 - **`UNSTEALABLE_PRIORITY`'s rule is now stated directly in the suite.** It was proved through
   `the_table_budget_refuses_rather_than_grow`, whose second request is the *same* unstealable cue — a path that takes a
   paragraph to explain. Two tests now ask it the way the rule is written: a priority-0 request against a priority-200
