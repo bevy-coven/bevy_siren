@@ -3,6 +3,14 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 11, the rule written the way it reads
+
+No clip, and **no code**: this iteration changes tests and a case table's observation, not behaviour. Every rendered WAV
+is byte-identical because `src/` is byte-identical. The evidence is the mutation in
+`runs/2026-11-02-11/perf.md` — removing `steal`'s `!c.unstealable` filter reddens both new tests **and**
+`the_table_budget_refuses_rather_than_grow`, which is what makes the claim honest: the suite already covered the rule,
+and the new tests make it legible rather than closing a hole.
+
 ## No clip: iteration 10, the mix forgets a bus that left
 
 No capture: the change is **which keys a map holds**. Every rendered WAV is byte-identical because no level that is

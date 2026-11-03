@@ -428,3 +428,82 @@ fn an_empty_bus_list_still_means_the_crates_four() {
     names.sort_unstable();
     assert_eq!(names, ["Ambience", "Dialogue", "Effects", "Music"], "{names:?}");
 }
+
+/// **A voice at `UNSTEALABLE_PRIORITY` is never taken — whatever arrives.** Gregory §14.5.8.4: a cue marked unstealable
+/// is one that *"plays, even despite their priority settings"*. The existing table-budget test asks the same
+/// unstealable cue for a third voice, so it proves only that a full budget of unstealable voices refuses another
+/// unstealable one; this asks a **stealable** request to take one, which is the direction that matters.
+#[test]
+fn an_unstealable_voice_is_never_taken_by_a_stealable_request() {
+    let settings = SirenSettings {
+        max_voices: 1,
+        buses: vec![BusLevel::new("Music")],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    let table = CueTable::new(vec![
+        cue("line", "Music", 200, 0),
+        // Priority 0: the lowest a cue can be, and still not allowed to take an unstealable voice.
+        cue("hit", "Music", 0, 0),
+    ]);
+    let mut app = app(table, settings, sounds(&["line", "hit"]), false);
+
+    app.world_mut().write_message(Play::cue("line"));
+    app.update();
+    let line = app
+        .world_mut()
+        .query::<(&Voice, Entity)>()
+        .iter(app.world())
+        .find(|(v, _)| v.cue == "line")
+        .map(|(_, e)| e)
+        .expect("the unstealable voice is live");
+
+    app.world_mut().write_message(Play::cue("hit"));
+    app.update();
+
+    assert!(
+        refused(&mut app).iter().any(|r| matches!(r.reason, Refusal::VoiceLimit { .. })),
+        "a stealable request against a full budget of unstealable voices is refused"
+    );
+    assert_eq!(live_voices(&mut app), 1, "nothing plays beside it");
+    assert!(
+        app.world().get::<Voice>(line).is_some(),
+        "and the voice a player is listening to is still there"
+    );
+    assert!(
+        !app.world().resource::<SirenLog>().iter().any(|e| matches!(e, Entry::Stopped { cue, why, .. }
+            if cue == "line" && why.starts_with("stolen by"))),
+        "a steal that could not be made is not logged as one: {:?}",
+        app.world().resource::<SirenLog>().iter().map(Entry::line).collect::<Vec<_>>()
+    );
+}
+
+/// **A stealable voice still plays beside an unstealable one** — the pair that stops the test above from passing
+/// vacuously. A build that refused too much would be green there and red here, which is the rule `cues.yaml` states for
+/// cases 10–13.
+#[test]
+fn a_stealable_voice_plays_beside_an_unstealable_one() {
+    let settings = SirenSettings {
+        max_voices: 2,
+        buses: vec![BusLevel::new("Music")],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    let table = CueTable::new(vec![cue("line", "Music", 200, 0), cue("hit", "Music", 0, 0)]);
+    let mut app = app(table, settings, sounds(&["line", "hit"]), false);
+
+    app.world_mut().write_message(Play::cue("line"));
+    app.update();
+    app.world_mut().write_message(Play::cue("hit"));
+    app.update();
+
+    let answers = played(&mut app);
+    assert!(answers.iter().any(|p| p.cue == "hit"), "the stealable request plays: {answers:?}");
+    assert_eq!(live_voices(&mut app), 2, "two voices, one of each");
+    let log = app.world().resource::<SirenLog>();
+    assert!(
+        !log.iter().any(|e| matches!(e, Entry::Stopped { why, .. } if why.starts_with("stolen by"))),
+        "and nothing was taken to make room: {:?}",
+        log.iter().map(Entry::line).collect::<Vec<_>>()
+    );
+}

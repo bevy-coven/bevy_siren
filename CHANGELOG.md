@@ -5,6 +5,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+
+- **`UNSTEALABLE_PRIORITY`'s rule is now stated directly in the suite.** It was proved through
+  `the_table_budget_refuses_rather_than_grow`, whose second request is the *same* unstealable cue — a path that takes a
+  paragraph to explain. Two tests now ask it the way the rule is written: a priority-0 request against a priority-200
+  voice is refused with nothing stolen, and a stealable voice still plays beside one so neither can pass vacuously. No
+  `src/` file changed; the mutation check (`steal` ignoring `unstealable`) reddens both new tests **and** the old one.
+
 ### Fixed
 
 - **An empty `buses` list mixed every voice at −80 dB.** `answer`, the editor's panel and `SirenSettings::bus_names()`

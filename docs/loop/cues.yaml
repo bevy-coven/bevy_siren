@@ -71,9 +71,10 @@ cases:
     cue: dialogue.greeting
     authored: { bus: Dialogue, priority: 180, bus_full: true }
     behaviour: A voice a player is listening to is never stolen; the request is refused instead.
-    observed_by: "`Refused` and the live count."
-    green_when: Refusal::VoiceLimit, nothing spawned, the dialogue voice still live.
-    source: UNSTEALABLE_PRIORITY, design default (docs/research/siren.md).
+    observed_by: "`Refused` and the live count — and a **stealable** request of priority 0 against it, which must also be refused."
+    green_when: Refusal::VoiceLimit, nothing spawned, the dialogue voice still live, and no `stolen by` line for it.
+    source: Gregory §14.5.8.4 — unstealable "plays, even despite their priority settings"; UNSTEALABLE_PRIORITY, design default
+    evidence: "tests/mix.rs::{an_unstealable_voice_is_never_taken_by_a_stealable_request, a_stealable_voice_plays_beside_an_unstealable_one}"
 
   - id: 10
     cue: footstep.snow
