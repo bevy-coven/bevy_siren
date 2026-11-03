@@ -18,8 +18,8 @@ use std::sync::OnceLock;
 use ort::session::Session as OrtSession;
 use ort::value::Tensor;
 
-use super::session::{LoadProblem, Loaded};
 use super::MODEL_MEL_FRAMES;
+use super::session::{LoadProblem, Loaded};
 
 /// **One ONNX Runtime environment per process**, created once.
 ///
@@ -128,7 +128,11 @@ impl Model {
     /// in `runs/2026-11-03-62/research.md`: `patch_embed` bakes the batch into a `Reshape` and any batch but 1 fails. So
     /// this takes exactly one clip, and a caller that wants many calls it once per clip. `Loaded::dynamic_batch` says
     /// which kind of graph was loaded, so this can refuse rather than fail inside the runtime.
-    pub fn embed_audio(&mut self, features: &[Vec<Vec<f32>>], is_longer: bool) -> Result<Vec<f32>, LoadProblem> {
+    pub fn embed_audio(
+        &mut self,
+        features: &[Vec<Vec<f32>>],
+        is_longer: bool,
+    ) -> Result<Vec<f32>, LoadProblem> {
         let unusable = |e: String| LoadProblem::Unreadable { path: String::from("<audio>"), error: e };
         if features.len() != 4 || features.iter().any(|c| c.len() != MODEL_MEL_FRAMES) {
             return Err(unusable(format!(
@@ -147,7 +151,8 @@ impl Model {
         }
         let shape = vec![1i64, 4, MODEL_MEL_FRAMES as i64, 64];
         let longer = vec![if is_longer { 1i64 } else { 0 }];
-        let mut run = || -> Result<Vec<f32>, String> {
+        // No `mut`: `embed_audio` clones its captures rather than moving them, so the closure is `Fn`.
+        let run = || -> Result<Vec<f32>, String> {
             let feats = Tensor::from_array((shape.clone(), flat)).map_err(|e| e.to_string())?;
             let longer_t = Tensor::from_array((vec![1i64, 1], longer)).map_err(|e| e.to_string())?;
             let outputs = self

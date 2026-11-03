@@ -7,6 +7,8 @@ Every page here is about one thing a game does with sound, the way `bevy_siren` 
   listening to.
 - [Music](music.md) — layers that change on the beat or the bar, and stingers that do not wait.
 - [Spatial](spatial.md) — place a sound in the world and let distance decide its gain.
+- [Semantic selection](semantic.md) — describe a sound and find it, behind the `semantic` feature: a folder becomes a
+  content-keyed index, a description becomes a ranked answer, and every result says why.
 - [The Cauldron](cauldron.md) — what `bevy_grimoire`'s audio panel reads and writes in
   `<project>/family/bevy_siren.ron`.
 

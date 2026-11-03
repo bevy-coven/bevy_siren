@@ -254,3 +254,50 @@ fn a_file_that_is_not_audio_is_reported_as_such_not_as_a_failure() {
     assert_eq!(built.not_audio.len(), 1);
     assert!(built.describe().contains("1 not audio"), "{}", built.describe());
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// The whole feature: a folder in, a stamped index out, with the model doing the embedding.
+// ---------------------------------------------------------------------------------------------------------------
+
+#[test]
+fn a_folder_builds_an_index_with_the_models_own_spectrogram() {
+    // **The chain, end to end**: decode → resample → mel → embed → insert. The model here is the 16 KB fixture, which
+    // has the text tower's shape contract; `mel::input_features` is given a stand-in audio tower below, so what this
+    // proves is that the *mel path* feeds the *embedder* and the result enters the index — not that the 116 MB audio
+    // tower runs, which needs `ort` on `bmb`.
+    use bevy_siren::semantic::mel::{self, Filterbank};
+
+    let s = Scratch::new("full");
+    s.file("a.wav", &wav(48_000, 440.0, 48_000));
+    s.file("b.wav", &wav(44_100, 660.0, 22_050));
+
+    let weights: Vec<f32> =
+        include_str!("fixtures/clap-mel-filters.txt").lines().filter_map(|l| l.trim().parse().ok()).collect();
+    let filterbank = Filterbank::from_weights(weights).expect("the extractor's own 64 by 513");
+
+    // Stand in for `Model::embed_audio`: run the mel path, then summarise the four channels into a 512-d vector so two
+    // different files give two different vectors.
+    let built = build(s.path(), stamp(), |buffer: &[f32]| {
+        let features = mel::input_features(buffer, &filterbank).map_err(|e| e.to_string())?;
+        let mut v = vec![0.0f32; 512];
+        for (c, channel) in features.iter().enumerate() {
+            for (f, frame) in channel.iter().enumerate() {
+                for (b, value) in frame.iter().enumerate() {
+                    v[(c * 7 + f * 3 + b) % 512] += value;
+                }
+            }
+        }
+        let norm: f32 = v.iter().map(|x| x * x).sum::<f32>().sqrt();
+        if norm > 0.0 {
+            for x in &mut v {
+                *x /= norm;
+            }
+        }
+        Ok(v)
+    })
+    .expect("builds");
+
+    assert_eq!(built.indexed(), 2, "both files indexed through the whole chain");
+    assert!(built.failed.is_empty(), "{:?}", built.failed);
+    assert!(!built.longer, "a 1 s and a 0.5 s file are both inside the model's window");
+}

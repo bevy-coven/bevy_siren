@@ -61,6 +61,11 @@ pub struct Built {
     /// Carried through so a caller can say *"1,204 indexed, 12 not audio, 3 failed"* in one line, which is the
     /// difference between a build a person trusts and one they have to re-run to understand.
     pub not_audio: Vec<PathBuf>,
+    /// Whether any file exceeded the model's one window, so the audio tower's `feature fusion` branch ran.
+    ///
+    /// Reported rather than assumed: the branch changes what the graph computes, and a caller comparing two indexes
+    /// needs to know whether one of them took it.
+    pub longer: bool,
 }
 
 impl Built {
@@ -178,7 +183,7 @@ pub fn build(
         }
     }
 
-    Ok(Built { index, failed, not_audio })
+    Ok(Built { index, failed, not_audio, longer: false })
 }
 
 /// Decode, convert and embed one file, with every step's failure turned into a sentence.
@@ -235,4 +240,33 @@ pub fn vanished(root: &Path, index: &Index) -> Vec<u64> {
     let library = library::scan(root);
     let present: BTreeMap<u64, ()> = library.assets.keys().map(|h| (*h, ())).collect();
     index.records.keys().copied().filter(|h| !present.contains_key(h)).collect()
+}
+
+/// **Build an index with the model**, which is the whole feature in one call: a folder in, a stamped index out.
+///
+/// [`build`] takes an embedder as a seam so the orchestration is testable without weights. This is the seam filled in:
+/// [`super::mel::input_features`] turns each buffer into the audio tower's four channels, and [`super::model::Model::embed_audio`]
+/// turns those into a vector. Nothing else is decided here.
+///
+/// `longer` says whether any clip exceeded the model's window. The model's own extractor sets it per clip; here it is
+/// `true` when a file was longer than ten seconds, which is the same condition read from the buffer's length rather
+/// than from a flag — and it is reported rather than assumed, because it changes which branch of the audio tower runs.
+pub fn build_from_model(
+    root: &Path,
+    model: &mut super::model::Model,
+    filterbank: &super::mel::Filterbank,
+    stamp: ModelStamp,
+) -> Result<Built, BuildProblem> {
+    // A `Cell` rather than a `RefCell`: the closure is `FnMut` and the value is `Copy`, so the flag is written by the
+    // embedder and read once afterwards.
+    let longer = std::cell::Cell::new(false);
+    let mut built = build(root, stamp, |buffer: &[f32]| {
+        if buffer.len() > super::mel::MODEL_WINDOW_SAMPLES {
+            longer.set(true);
+        }
+        let features = super::mel::input_features(buffer, filterbank).map_err(|e| e.to_string())?;
+        model.embed_audio(&features, longer.get()).map_err(|e| e.to_string())
+    })?;
+    built.longer = longer.get();
+    Ok(built)
 }
