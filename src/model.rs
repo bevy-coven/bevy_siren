@@ -278,28 +278,48 @@ pub fn next_boundary(now_s: f64, tempo_bpm: f32, beats: f64) -> f64 {
     ratio.ceil() * period
 }
 
-/// Deterministic xorshift64\*, seeded once per simulation and threaded through every choice.
+/// Deterministic xorshift64, seeded once per simulation and threaded through every choice.
 ///
 /// A game that wants its sounds reproducible — a replay, a capture, a test — seeds this and gets the
 /// same sequence; one that does not still gets a sequence, because a `0` seed is mapped to a constant.
 /// Never seeded from the clock inside this crate: a sound that cannot be reproduced cannot be debugged.
+///
+/// **The seed a stream came from is [`seed`](Self::seed)'s answer, not the one a caller asked for.** They differ for
+/// `0`, which maps to [`ZERO_SEED`](Self::ZERO_SEED) — a value that is also `SirenSettings::default_seed()`, so
+/// `seed: 0` and the default are **one stream**, and a report must say so rather than naming a number the stream did not
+/// come from.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Rng(u64);
+pub struct Rng {
+    /// The xorshift state, which changes on every draw.
+    state: u64,
+    /// The seed the state was built from, which never changes: **the number [`seed`](Self::seed) answers**, and the one
+    /// a report, a log line and a panel must agree on.
+    built_from: u64,
+}
 
 impl Rng {
-    /// A generator from `seed`. A zero seed is replaced by a fixed constant, because xorshift's state
-    /// must never be zero — it would produce zero forever.
+    /// The state a zero seed maps to: xorshift's state must never be zero, or it produces zero forever.
+    pub const ZERO_SEED: u64 = 0x5EED_51AE_0000_0001;
+
+    /// A generator from `seed`. A zero seed is replaced by [`ZERO_SEED`](Self::ZERO_SEED).
     pub fn new(seed: u64) -> Self {
-        Self(if seed == 0 { 0x5EED_51AE_0000_0001 } else { seed })
+        let built_from = if seed == 0 { Self::ZERO_SEED } else { seed };
+        Self { state: built_from, built_from }
+    }
+
+    /// The seed this stream was **built from** — `0` reported as [`ZERO_SEED`](Self::ZERO_SEED), which is the state it
+    /// started at. It does not change as the stream advances.
+    pub fn seed(&self) -> u64 {
+        self.built_from
     }
 
     /// The next 32 bits.
     pub fn next_u32(&mut self) -> u32 {
-        let mut x = self.0;
+        let mut x = self.state;
         x ^= x << 13;
         x ^= x >> 7;
         x ^= x << 17;
-        self.0 = x;
+        self.state = x;
         (x >> 32) as u32
     }
 

@@ -1,0 +1,7 @@
+settings seed 0            -> SirenChoices::seed() = 6840213216811810817  (stream ["k2", "k0", "k2", "k1", "k3", "k0"])
+settings default seed      -> SirenChoices::seed() = 6840213216811810817  (stream ["k2", "k0", "k2", "k1", "k3", "k0"])
+settings seed 1            -> SirenChoices::seed() = 1  (stream ["k0", "k2", "k1", "k2", "k1", "k0"])
+
+seed 0 and the default are one stream: true
+seed 1 is a different stream:          true
+Rng::ZERO_SEED = 0x5eed51ae00000001, default_seed() = 0x5eed51ae00000001

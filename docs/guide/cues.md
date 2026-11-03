@@ -156,3 +156,8 @@ what makes a capture, a replay and an A/B of an audio change reproducible.
 Changing the seed while the game runs **replaces** the stream and every variant history rather than continuing from
 the old position: the next play is the new seed's first draw. The seed is configuration, so the change is not written
 to `SirenLog` — the log is for what happened to a sound.
+
+**`0` is not a stream of its own.** xorshift's state must never be zero, so `Rng::new(0)` maps it to
+`model::Rng::ZERO_SEED` — which is exactly `SirenSettings::default_seed()`. A project that writes `seed: 0` therefore
+hears the crate's **default** stream, and `SirenChoices::seed()` reports `ZERO_SEED`, not `0`, because that is the seed
+the stream was built from. If you want a stream unlike the default, write any other number.

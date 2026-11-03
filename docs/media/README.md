@@ -3,6 +3,15 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 23, the seed the stream was built from
+
+No clip: the change is **what `seed()` answers**, and every rendered cue is byte-identical (21 of 21) because no sound
+moves. The evidence is `runs/2026-11-03-23/evidence/seed{,-before}.txt`: before, a project writing `seed: 0` and one
+taking the default heard the **same stream** while `SirenChoices::seed()` reported `0` and `6840213216811810817`
+respectively; after, both report `6840213216811810817`, which is what the stream started at. Tests:
+`tests/model.rs::{a_zero_seed_reports_the_seed_it_used, a_nonzero_seed_reports_itself,
+a_streams_seed_does_not_move_as_it_draws, a_zero_seed_and_the_default_seed_are_one_stream}`.
+
 ## No clip: iteration 22, `AvoidRepeat` avoids the sound rather than the index
 
 No clip: the change is **which variant the picker refuses**, and every rendered cue is byte-identical (21 of 21) because

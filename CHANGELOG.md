@@ -20,6 +20,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`SirenChoices::seed()` reports the seed the stream was built from, not the one asked for.** `Rng::new(0)` maps a zero
+  state to `ZERO_SEED` (`0x5EED_51AE_0000_0001`), which is also `SirenSettings::default_seed()` — so `seed: 0` and the
+  default are **one stream** — but `SirenChoices` recorded the argument, and `seed()` — documented as *"the seed this
+  stream was built from"* — named a number the stream did not come from (`0` for a stream that started at `0x5EED…`).
+  `Rng` now remembers what it was built from (`Rng::seed()`, `Rng::ZERO_SEED`) and `SirenChoices::seed()` returns it, so a
+  log line, a panel and a test agree with the sound. No sound changes; no public type changed.
+
 - **`AvoidRepeat` now avoids the sound, not the slot index.** A cue may list one file twice — a copy-pasted line, a
   generated table — and two slots naming one key are two indices and **one sound**. `VariantPicker` refused indices, so
   under the *default* `Repeat::AvoidRepeat { avoid: 1 }` a cue with `["a", "a", "b"]` played the same recording three
@@ -37,6 +44,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
 
 ### Fixed
+
+- **`SirenChoices::seed()` reports the seed the stream was built from, not the one asked for.** `Rng::new(0)` maps a zero
+  state to `ZERO_SEED` (`0x5EED_51AE_0000_0001`), which is also `SirenSettings::default_seed()` — so `seed: 0` and the
+  default are **one stream** — but `SirenChoices` recorded the argument, and `seed()` — documented as *"the seed this
+  stream was built from"* — named a number the stream did not come from (`0` for a stream that started at `0x5EED…`).
+  `Rng` now remembers what it was built from (`Rng::seed()`, `Rng::ZERO_SEED`) and `SirenChoices::seed()` returns it, so a
+  log line, a panel and a test agree with the sound. No sound changes; no public type changed.
 
 - **`SirenSettings::problems()` agrees with the mix about what a bus is, and names each fault once.** The report built
   its own bus set from `self.buses` instead of asking `bus_names()`, the one answer every other reader uses — so a table
@@ -181,6 +195,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`SirenChoices::seed()` reports the seed the stream was built from, not the one asked for.** `Rng::new(0)` maps a zero
+  state to `ZERO_SEED` (`0x5EED_51AE_0000_0001`), which is also `SirenSettings::default_seed()` — so `seed: 0` and the
+  default are **one stream** — but `SirenChoices` recorded the argument, and `seed()` — documented as *"the seed this
+  stream was built from"* — named a number the stream did not come from (`0` for a stream that started at `0x5EED…`).
+  `Rng` now remembers what it was built from (`Rng::seed()`, `Rng::ZERO_SEED`) and `SirenChoices::seed()` returns it, so a
+  log line, a panel and a test agree with the sound. No sound changes; no public type changed.
+
 - **`AvoidRepeat` now avoids the sound, not the slot index.** A cue may list one file twice — a copy-pasted line, a
   generated table — and two slots naming one key are two indices and **one sound**. `VariantPicker` refused indices, so
   under the *default* `Repeat::AvoidRepeat { avoid: 1 }` a cue with `["a", "a", "b"]` played the same recording three
@@ -213,6 +234,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 The first release: sound for Bevy 0.20 as data, mixed in buses.
 
 ### Fixed
+
+- **`SirenChoices::seed()` reports the seed the stream was built from, not the one asked for.** `Rng::new(0)` maps a zero
+  state to `ZERO_SEED` (`0x5EED_51AE_0000_0001`), which is also `SirenSettings::default_seed()` — so `seed: 0` and the
+  default are **one stream** — but `SirenChoices` recorded the argument, and `seed()` — documented as *"the seed this
+  stream was built from"* — named a number the stream did not come from (`0` for a stream that started at `0x5EED…`).
+  `Rng` now remembers what it was built from (`Rng::seed()`, `Rng::ZERO_SEED`) and `SirenChoices::seed()` returns it, so a
+  log line, a panel and a test agree with the sound. No sound changes; no public type changed.
 
 - **`AvoidRepeat` now avoids the sound, not the slot index.** A cue may list one file twice — a copy-pasted line, a
   generated table — and two slots naming one key are two indices and **one sound**. `VariantPicker` refused indices, so

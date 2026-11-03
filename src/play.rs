@@ -260,10 +260,19 @@ pub struct SirenChoices {
 impl SirenChoices {
     /// A stream seeded from `seed`.
     pub fn new(seed: u64) -> Self {
-        Self { rng: Rng::new(seed), seeded: seed, pickers: HashMap::new() }
+        let rng = Rng::new(seed);
+        // **The seed the stream was built from**, not the one asked for: `Rng::new(0)` maps to
+        // `Rng::ZERO_SEED`, so recording the argument made `seed()` report a number the stream did not come from —
+        // and `seed_choices` compare against that same number to decide whether to re-seed.
+        Self { seeded: rng.seed(), rng, pickers: HashMap::new() }
     }
 
     /// The seed this stream was built from.
+    ///
+    /// This is the **effective** seed: a project that writes `seed: 0` is told
+    /// [`Rng::ZERO_SEED`](crate::model::Rng::ZERO_SEED), which is the value its stream actually started at, and the same
+    /// value [`SirenSettings::default_seed`](crate::mix::SirenSettings::default_seed) returns. A nonzero seed is reported
+    /// as written.
     pub fn seed(&self) -> u64 {
         self.seeded
     }

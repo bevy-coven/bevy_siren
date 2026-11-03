@@ -273,3 +273,60 @@ fn the_panner_law_is_what_a_spatial_cue_divides_out() {
         "which is {db} dB — a cue reported at 0 dB would be silent in practice"
     );
 }
+
+/// **A `0` seed reports the seed it used.** `Rng::new(0)` maps a zero state to `ZERO_SEED`, because xorshift's state must
+/// never be zero; `SirenChoices` recorded the **argument**, so `seed()` — documented as *"the seed this stream was built
+/// from"* — named a number the stream did not come from. `ZERO_SEED` is also the crate's default seed, so `seed: 0` and
+/// the default are **one stream wearing two names**, and the report has to say which one.
+#[test]
+fn a_zero_seed_reports_the_seed_it_used() {
+    use bevy_siren::SirenChoices;
+    assert_eq!(
+        SirenChoices::new(0).seed(),
+        bevy_siren::model::Rng::ZERO_SEED,
+        "the stream started at ZERO_SEED, so that is what it reports"
+    );
+    assert_eq!(
+        bevy_siren::model::Rng::new(0).seed(),
+        bevy_siren::model::Rng::ZERO_SEED,
+        "and `Rng` says the same thing, because it owns the mapping"
+    );
+}
+
+/// **A nonzero seed reports itself.** The guard: the fix is a report of a mapping, not a blanket rewrite of every seed.
+#[test]
+fn a_nonzero_seed_reports_itself() {
+    use bevy_siren::SirenChoices;
+    assert_eq!(SirenChoices::new(7).seed(), 7);
+    assert_eq!(bevy_siren::model::Rng::new(7).seed(), 7);
+}
+
+/// **The seed does not change as the stream advances.** `seed()` reads the value the state started at, not the state
+/// itself — the bug this test exists to prevent was reading the live state, which changes on every draw.
+#[test]
+fn a_streams_seed_does_not_move_as_it_draws() {
+    let mut rng = bevy_siren::model::Rng::new(5);
+    let before = rng.seed();
+    for _ in 0..64 {
+        let _ = rng.next_u32();
+    }
+    assert_eq!(rng.seed(), before, "64 draws later, the seed is still 5");
+}
+
+/// **A `0` seed and the crate's default seed are one stream.** Pinning the behaviour the report describes: a future change
+/// that split them would be a behaviour change with its own decision, and this test makes that visible rather than quiet.
+#[test]
+fn a_zero_seed_and_the_default_seed_are_one_stream() {
+    use bevy_siren::mix::SirenSettings;
+    use bevy_siren::model::Rng;
+
+    assert_eq!(Rng::new(0).seed(), SirenSettings::default_seed(), "the same number");
+    let mut zero = Rng::new(0);
+    let mut default = Rng::new(SirenSettings::default_seed());
+    for i in 0..32 {
+        assert_eq!(zero.next_u32(), default.next_u32(), "and the same stream, draw {i}");
+    }
+    let mut one = Rng::new(1);
+    let mut zero = Rng::new(0);
+    assert_ne!(zero.next_u32(), one.next_u32(), "while seed 1 is a different stream");
+}
