@@ -7,6 +7,70 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 30 — 2026-11-03 — the panel's `Problems` block is bounded so the log survives
+
+**Change.**
+
+- **`examples/mixer.rs` — the `Problems` block shows three sentences**, and when there are more it prints
+  `and N more; the log below is what played`. The panel's fixed column has no scroll and the log is its last section.
+- **`SIREN_FAULTS=many`** adds four more deliberate faults, so the case reproduces; `SIREN_FAULTS=1` (two faults, the
+  README's GIF) stays under the bound and is unchanged.
+- `docs/media/mixer.{png,gif}` regenerated; `docs/media/README.md` says why the block is bounded; a CHANGELOG line.
+
+**Why.** Iteration 29's lead (`master_db` at silence) probed **clean**, as did *one answer per play* (6 asks → 2 `Played` +
+4 `Refused` = 6, each naming the right thing). The probe that paid came from **looking at a capture**: with six faults the
+block pushed the `Log` heading and its ten lines off the bottom of a 1280×720 frame — the section that answers *"why is the
+music quiet"*, lost exactly when there was most to read. The log block was already bounded at `recent(10)`; the block
+above it was not.
+
+**Evidence.** `runs/2026-11-03-30/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/panel/{many-faults,many-faults-after,two-faults-after,clean-after,zoom-problems-many}.png`.
+
+**Measured.**
+
+| faults | before | after |
+|---|---|---|
+| six (`SIREN_FAULTS=many`) | six sentences; **`Log` off screen** | three + `and 3 more; …`; **log on screen** |
+| two (the README GIF) | both sentences, log present | **unchanged** — the bound does not fire |
+| none | `Problems` / `none` | unchanged |
+| every test, both feature sets | — | unchanged (112 / 119 / 121 + 5) |
+| every rendered cue | — | **byte-identical** (21/21) |
+| panel frame time | 8.34–8.84 ms | 8.34–8.84 ms; the bound does strictly **less** work on a fault-heavy table |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. A defect in my own first version, caught by looking: the count
+line used an em dash and the panel's font has no glyph for it — the capture showed `and 3 more ▯ the log`. It is ASCII now.
+
+**Traps for the command.** (1) A **fixed, unscrollable column** is a budget: every section added takes height from the ones
+below, and the last one wins or loses. (2) If the panel bounds one list (`recent(10)`) it must bound the next, or the
+unbounded one eats the bounded one's space. (3) **A debug font is not a text editor**: an em dash drew a box; keep panel
+text ASCII. (4) The failure was invisible in every clean capture — six faults were needed, and `SIREN_FAULTS=many` exists
+so the next run can see it. (5) `hs distill` GPU-blocked (twenty-ninth iteration).
+
+**Commit.** `5905ae4`; CI on `main`.
+
+**Next 5.**
+
+1. **A `Stopped` line for a parent's despawn** — neither backend writes one; the log keeps `played` and nothing else.
+2. **Answer or route around the `CueProblem` question** — **seven** items wait on it (`empty-sound-key.md`,
+   `duplicate-sound-problem.md`, `bad-gain-problem.md`, `not-a-loop-refusal.md`, `duck-recovers-entry.md`, the despawn
+   record, and now `SIREN_FAULTS=many`'s four faults have no case in `cues.yaml`).
+3. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+5. Quantise a **retarget** onto the bar (iteration 14).
+
+**The hunt, nineteenth pass.** The panel class has now closed three defects (26's absent block, 29's stale pictures, 30's
+overflow), and each was found by **looking**, not by a test. What the panel still cannot show is **`SirenMix::deepest_duck`**
+— the bus rows carry a `duck` figure but nothing names *which* duck is deepest or that a duck **finished**; the header
+counts cues, buses and voices but not ducks. Next probe: does the panel have any line for a duck that ended, and is the
+header's count the one a person needs?
+
+**Baseline note.** Nothing was red; the suite had 112 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 29 — 2026-11-03 — the README shows the panel the code draws
 
 **Change.**
