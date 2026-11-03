@@ -7,6 +7,71 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 31 — 2026-11-03 — the bus row names the cue that ducked it
+
+**Change.**
+
+- **`examples/mixer.rs` — the bus row says `duck -8.0 dB by dialogue.greeting`** while the duck holds, from the newest
+  `Entry::Ducked` naming that bus in the `SirenLog` the panel already holds. The clause is inside the `duck < -0.05` branch,
+  so it disappears the frame the duck releases.
+- **`tests/mix.rs::the_newest_duck_naming_a_bus_is_the_one_a_panel_shows`** — the rule pinned where the suite can see it:
+  a non-duck entry between two ducks does not confuse it, a bus nothing ducked has no name, a newer duck on the same bus
+  wins.
+- `docs/media/mixer.{png,gif}` regenerated; `docs/media/README.md` and a CHANGELOG line.
+
+**Why.** Iteration 30's lead asked what the panel could not show. Reading the code answered it: `SirenMix::deepest_duck`
+is documented *"for a panel that says what a line of dialogue did"* — and the panel never drew it. Probed further, the bus
+row showed **how far** and never **by what**, while `Entry::Ducked` records the cue. A person had to find the log line to
+learn which cue lowered the bus, with the answer already in the panel's hand.
+
+**Evidence.** `runs/2026-11-03-31/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/panel/{duck-by-1280,duck-by-1920,no-duck-1280}.png`.
+
+**Measured.**
+
+| state | before | after |
+|---|---|---|
+| Music ducked by a line | `duck -8.0 dB` | `duck -8.0 dB **by dialogue.greeting**`, one line at 1280 and 1920 |
+| the duck releases | — | `duck +0.00 -> row shows no duck` (probed) |
+| a second duck on the same bus | — | the newest `Ducked` wins (test) |
+| a bus nothing ducked | — | no name (test) |
+| every test, both feature sets | 112 / 119 / 121 + 5 | 113 / 120 / 122 + 5 |
+| every rendered cue | — | **byte-identical** (21/21) |
+| frame cost, 8 / 64 / 256 | — | 0.066 / 0.332 / 0.884 µs, load 3.9–5.1; the annotation scans the 256-entry log once per **ducked bus** on a debug view |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The **released** state was reached through a probe rather than
+a capture, because the scripted run re-fires a duck every 20 frames — drive the state, not the animation.
+
+**Traps for the command.** (1) A method whose doc names a consumer and which that consumer never calls is either a dead API
+or a **missing view**; check which before deleting or keeping. (2) A panel row is a **width budget**: measure the annotated
+row (71 chars) against the columns that fit (~114 at 1280) *and* look at the capture. (3) An annotation whose condition is
+the same as the fact it annotates cannot go stale — render it **inside** the guard. (4) The example is outside the suite, so
+pin the **rule** it uses in `tests/`, or a change to `Entry`/`recent` breaks the panel in silence. (5) `hs distill`
+GPU-blocked (thirtieth iteration).
+
+**Commit.** `b4f141b`; CI on `main`.
+
+**Next 5.**
+
+1. **A `Stopped` line for a parent's despawn** — neither backend writes one; the log keeps `played` and nothing else.
+2. **Answer or route around the `CueProblem` question** — **seven** items wait on it.
+3. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+5. Quantise a **retarget** onto the bar (iteration 14).
+
+**The hunt, twentieth pass.** The panel class has now paid four times (26, 29, 30, 31), and every one was found by reading
+the code against the picture. What the panel still does **not** show, and the crate records, is the **music's own state**:
+`MusicState::layer_db`, `target_db` and `moving()` are drawn by no view, and the panel's `Cues` block lists `track.calm`
+and `track.combat` as ordinary cues when they are **layers of a score**. Next probe: run `examples/mixer` with
+`MusicPlugin` and a score, and see whether the panel can tell a layer from a one-shot.
+
+**Baseline note.** Nothing was red; the suite had 112 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 30 — 2026-11-03 — the panel's `Problems` block is bounded so the log survives
 
 **Change.**
