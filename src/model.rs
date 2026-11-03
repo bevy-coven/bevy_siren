@@ -318,12 +318,62 @@ impl Rng {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct VariantPicker {
     history: VecDeque<usize>,
+    /// The **keys** heard, most recent last, for [`pick_from`](Self::pick_from). Kept apart from `history` so
+    /// [`pick`](Self::pick) stays byte-identical for every caller that has no keys.
+    heard: VecDeque<String>,
 }
 
 impl VariantPicker {
     /// A picker that remembers the last `capacity` picks.
     pub fn new(capacity: usize) -> Self {
-        Self { history: VecDeque::with_capacity(capacity) }
+        Self { history: VecDeque::with_capacity(capacity), heard: VecDeque::with_capacity(capacity) }
+    }
+
+    /// **Picks a variant by what a player would hear**, or `None` when the cue has no variant to play.
+    ///
+    /// `keys[i]` is the `sound` slot `i` names. The avoided window is made of **keys**, not indices, so two slots naming
+    /// one file are one candidate for repetition: after `"a"` is heard, every slot whose key is `"a"` is refused. That is
+    /// the guarantee `Repeat::AvoidRepeat` makes — *"never one of the last `avoid` variants"* — and a player hears keys.
+    ///
+    /// [`pick`](Self::pick) is the same rule without keys and is unchanged; a picker that has never been given keys
+    /// behaves exactly as it always did.
+    pub fn pick_from(&mut self, keys: &[&str], avoid: u8, rng: &mut Rng) -> Option<usize> {
+        let len = keys.len();
+        if len == 0 {
+            return None;
+        }
+        if len == 1 {
+            self.remember(0);
+            self.remember_key(keys[0]);
+            return Some(0);
+        }
+        let refused = usize::from(avoid).min(len);
+        let recent: Vec<&str> = self.heard.iter().rev().take(refused).map(String::as_str).collect();
+        let mut choices = Vec::with_capacity(len);
+        for (i, key) in keys.iter().enumerate() {
+            if !recent.contains(key) {
+                choices.push(i);
+            }
+        }
+        // Every key is inside the window: refuse only the sound heard immediately before this one.
+        if choices.is_empty() {
+            let last = self.heard.back().map(String::as_str);
+            for (i, key) in keys.iter().enumerate() {
+                if Some(*key) != last {
+                    choices.push(i);
+                }
+            }
+        }
+        // A cue of one sound repeated has no alternative at all, and refusing it would be the crate inventing a
+        // refusal for a table that is simply thin. It plays, and `problems()` is where the table should be named.
+        if choices.is_empty() {
+            choices.extend(0..len);
+        }
+        let at = ((rng.next_f32() * choices.len() as f32) as usize).min(choices.len() - 1);
+        let picked = choices[at];
+        self.remember(picked);
+        self.remember_key(keys[picked]);
+        Some(picked)
     }
 
     /// Picks a variant index in `0..len`, or `None` when the cue has no variant to play.
@@ -361,6 +411,18 @@ impl VariantPicker {
     /// Forgets every pick, so the next one is unconstrained.
     pub fn reset(&mut self) {
         self.history.clear();
+        self.heard.clear();
+    }
+
+    fn remember_key(&mut self, key: &str) {
+        let capacity = self.heard.capacity();
+        if capacity == 0 {
+            return;
+        }
+        if self.heard.len() == capacity {
+            self.heard.pop_front();
+        }
+        self.heard.push_back(key.to_owned());
     }
 
     fn remember(&mut self, index: usize) {

@@ -1,0 +1,4 @@
+["a","a","b"] Avoid1      : b a b a b a b a b a b a b a b a                 adjacent repeats = 0
+["a","a","a","b"] Avoid1  : a b a b a b a b a b a b a b a b                 adjacent repeats = 0
+["a","b"] Avoid1 (control): b a b a b a b a b a b a b a b a                 adjacent repeats = 0
+["a"] Avoid1 (one sound)  : a a a a a a a a a a a a a a a a                 adjacent repeats = 15

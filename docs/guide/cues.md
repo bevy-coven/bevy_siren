@@ -131,6 +131,13 @@ machine-gun footstep. When every variant is inside the window — two sounds and
 before is still refused, because repeating it is the one thing the window exists to prevent. `Repeat::Shuffle` is a
 plain draw, repeats included: a burst weapon wants one sample and no variation.
 
+**The window is made of *sounds*, not of slot positions.** A cue that lists one file twice — a copy-pasted line, a table
+generated from a folder scan — has two slots and one sound, and `AvoidRepeat` refuses both slots once that sound has been
+heard. So `sounds: [(sound: "a"), (sound: "a"), (sound: "b")]` always alternates, where it used to be able to play `a`
+three times running; a cue of `[(sound: "a")]` alone still repeats, because the crate cannot invent a recording. If a
+cue is meant to have two recordings, deliver both — `problems()` does not yet report a duplicate, and
+`docs/loop/needs-decision/duplicate-sound-problem.md` is where that waits.
+
 ## Stopping a sound
 
 `StopVoice` takes the entity `Played` reported and fades it over `DEFAULT_FADE_S`; `StopCue` stops every voice of a cue

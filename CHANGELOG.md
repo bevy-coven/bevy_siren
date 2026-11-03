@@ -18,6 +18,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   voice is refused with nothing stolen, and a stealable voice still plays beside one so neither can pass vacuously. No
   `src/` file changed; the mutation check (`steal` ignoring `unstealable`) reddens both new tests **and** the old one.
 
+### Fixed
+
+- **`AvoidRepeat` now avoids the sound, not the slot index.** A cue may list one file twice — a copy-pasted line, a
+  generated table — and two slots naming one key are two indices and **one sound**. `VariantPicker` refused indices, so
+  under the *default* `Repeat::AvoidRepeat { avoid: 1 }` a cue with `["a", "a", "b"]` played the same recording three
+  times running (`… b a a a b`) — the machine-gun footstep `Repeat` exists to kill — and `["a","a","a","b"]` played four
+  in a row. `VariantPicker::pick_from(&[&str], avoid, rng)` builds the avoided window from **keys**, so after a sound is
+  heard every slot naming it is refused; `pick(len, ..)` is unchanged for every caller that has no keys, and the two
+  agree whenever keys are distinct. A cue with one sound still repeats — the crate cannot invent a recording.
+
 ### Added
 
 - **`CueTable::problems_in(&SirenSettings)`** — the report against **the buses the mix actually has**. `problems()` is a
@@ -169,6 +179,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   first frame — a cut where the crate promises a fade. The mix now writes the voice's own gain into the mixer and
   its whole chain into a Bevy sink, records which in `Applied`, and one writer still owns both.
 
+### Fixed
+
+- **`AvoidRepeat` now avoids the sound, not the slot index.** A cue may list one file twice — a copy-pasted line, a
+  generated table — and two slots naming one key are two indices and **one sound**. `VariantPicker` refused indices, so
+  under the *default* `Repeat::AvoidRepeat { avoid: 1 }` a cue with `["a", "a", "b"]` played the same recording three
+  times running (`… b a a a b`) — the machine-gun footstep `Repeat` exists to kill — and `["a","a","a","b"]` played four
+  in a row. `VariantPicker::pick_from(&[&str], avoid, rng)` builds the avoided window from **keys**, so after a sound is
+  heard every slot naming it is refused; `pick(len, ..)` is unchanged for every caller that has no keys, and the two
+  agree whenever keys are distinct. A cue with one sound still repeats — the crate cannot invent a recording.
+
 ### Added
 
 - `examples/budget` (`--features mixer`) — a headless run of N one-shots against a voice cap, with a scripted output
@@ -191,6 +211,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [0.1.0] - 2026-11-02
 
 The first release: sound for Bevy 0.20 as data, mixed in buses.
+
+### Fixed
+
+- **`AvoidRepeat` now avoids the sound, not the slot index.** A cue may list one file twice — a copy-pasted line, a
+  generated table — and two slots naming one key are two indices and **one sound**. `VariantPicker` refused indices, so
+  under the *default* `Repeat::AvoidRepeat { avoid: 1 }` a cue with `["a", "a", "b"]` played the same recording three
+  times running (`… b a a a b`) — the machine-gun footstep `Repeat` exists to kill — and `["a","a","a","b"]` played four
+  in a row. `VariantPicker::pick_from(&[&str], avoid, rng)` builds the avoided window from **keys**, so after a sound is
+  heard every slot naming it is refused; `pick(len, ..)` is unchanged for every caller that has no keys, and the two
+  agree whenever keys are distinct. A cue with one sound still repeats — the crate cannot invent a recording.
 
 ### Added
 

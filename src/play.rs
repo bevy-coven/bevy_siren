@@ -269,11 +269,16 @@ impl SirenChoices {
     }
 
     /// The variant index to play for `cue`.
+    ///
+    /// **By key, not by index.** A cue may list one file twice — a copy-pasted line, a generated table — and those are
+    /// two indices and one sound. `pick` refused indices, so under the default `AvoidRepeat { avoid: 1 }` such a cue
+    /// played the same recording **eight times running**: the machine-gun footstep `Repeat` exists to kill.
     fn pick(&mut self, cue: &Cue) -> Option<usize> {
         let avoid = cue.repeat.avoid();
         let capacity = usize::from(avoid).max(1);
+        let keys: Vec<&str> = cue.sounds.iter().map(|slot| slot.sound.as_str()).collect();
         let picker = self.pickers.entry(cue.name.clone()).or_insert_with(|| VariantPicker::new(capacity));
-        picker.pick(cue.sounds.len(), avoid, &mut self.rng)
+        picker.pick_from(&keys, avoid, &mut self.rng)
     }
 
     /// Forgets every variant history, so the next play of each cue is unconstrained.

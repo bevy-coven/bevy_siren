@@ -644,3 +644,87 @@ fn a_silent_bus_still_silences_its_voices() {
         mix.bus_db("Effects")
     );
 }
+
+/// **A duplicate key must not defeat `AvoidRepeat`.** `VariantPicker` refused the last **indices**, and a cue that lists
+/// one file twice has two indices and one sound: under the crate's *default* `Repeat::AvoidRepeat { avoid: 1 }` such a
+/// cue played the same recording **three times running** (`["a", "a", "b"]` ended `a a a`), which is the machine-gun
+/// footstep `Repeat` exists to kill. A player hears keys, so the avoided window is made of keys.
+#[test]
+fn a_duplicate_key_never_repeats_under_avoid_repeat() {
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("a"), SoundSlot::new("a"), SoundSlot::new("b")],
+        ..Cue::new("step")
+    }]);
+    let mut app = app_with(table, sounds(&["a", "b"]));
+    let mut heard = Vec::new();
+    for _ in 0..32 {
+        app.world_mut().write_message(Play::cue("step"));
+        app.update();
+        heard.extend(played(&mut app).into_iter().map(|p| p.sound));
+    }
+
+    assert!(!heard.windows(2).any(|w| w[0] == w[1]), "no adjacent repeat: {heard:?}");
+    assert!(
+        heard.contains(&"a".to_owned()) && heard.contains(&"b".to_owned()),
+        "and both sounds play: {heard:?}"
+    );
+}
+
+/// **A cue of one sound still repeats.** The guard: a table with nothing to alternate has no alternative, and refusing
+/// it would be the crate inventing a fault for a cue that is merely thin.
+#[test]
+fn a_cue_of_one_sound_still_repeats() {
+    let table = CueTable::new(vec![Cue { sounds: vec![SoundSlot::new("a")], ..Cue::new("shot") }]);
+    let mut app = app_with(table, sounds(&["a"]));
+    let mut heard = Vec::new();
+    for _ in 0..4 {
+        app.world_mut().write_message(Play::cue("shot"));
+        app.update();
+        heard.extend(played(&mut app).into_iter().map(|p| p.sound));
+    }
+    assert_eq!(heard, vec!["a".to_owned(); 4], "one sound is one sound: {heard:?}");
+}
+
+/// **A duplicate key still plays its own sound.** The fix must not move a play to a neighbour: `Played.sound` is the key
+/// the cue's slot names, and `Played.variant` is a slot index into that cue's own list.
+#[test]
+fn a_duplicate_key_still_plays_its_own_sound() {
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("a"), SoundSlot::new("a"), SoundSlot::new("b")],
+        ..Cue::new("step")
+    }]);
+    let mut app = app_with(table, sounds(&["a", "b"]));
+    let mut heard = Vec::new();
+    for _ in 0..8 {
+        app.world_mut().write_message(Play::cue("step"));
+        app.update();
+        heard.extend(played(&mut app).into_iter().map(|p| p.sound));
+    }
+    // Every sound played is one this cue names, and the variant the voice reports is the slot that named it.
+    let cues = app.world().resource::<CueTable>().clone();
+    let cue = cues.get("step").expect("the cue");
+    assert!(heard.iter().all(|s| cue.sounds.iter().any(|slot| &slot.sound == s)), "{heard:?}");
+    let voices: Vec<String> =
+        app.world_mut().query::<&Voice>().iter(app.world()).map(|v| v.cue.clone()).collect();
+    assert!(voices.iter().all(|c| c == "step"), "and every voice is the cue asked for: {voices:?}");
+}
+
+/// **`pick` without keys is unchanged.** It is public, and a caller with no keys still gets index avoidance; the two
+/// agree whenever the keys are distinct, which is every table that has no duplicate.
+#[test]
+fn pick_without_keys_still_avoids_indices() {
+    use bevy_siren::model::{Rng, VariantPicker};
+    let mut by_index = VariantPicker::new(1);
+    let mut by_key = VariantPicker::new(1);
+    let mut a = Rng::new(7);
+    let mut b = Rng::new(7);
+    let keys = ["x", "y", "z"];
+    let mut index_picks = Vec::new();
+    let mut key_picks = Vec::new();
+    for _ in 0..16 {
+        index_picks.push(by_index.pick(3, 1, &mut a).expect("a pick"));
+        key_picks.push(by_key.pick_from(&keys, 1, &mut b).expect("a pick"));
+    }
+    assert_eq!(index_picks, key_picks, "distinct keys: the two rules agree");
+    assert!(!index_picks.windows(2).any(|w| w[0] == w[1]), "{index_picks:?}");
+}

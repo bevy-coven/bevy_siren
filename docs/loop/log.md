@@ -7,6 +7,79 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 22 — 2026-11-03 — `AvoidRepeat` avoids the sound, not the slot index
+
+**Change.**
+
+- **`src/model.rs` — `VariantPicker::pick_from(&[&str], avoid, rng)`.** The avoided window is made of **keys**, so two
+  slots naming one file are one candidate for repetition. `pick(len, ..)` is unchanged for every caller with no keys,
+  and the two agree when keys are distinct (a test seeds both from `Rng::new(7)`).
+- **`src/play.rs` — `SirenChoices::pick` calls it** with the cue's slot keys, so the play path gets the fix with no API
+  change.
+- Four tests; a *"the window is made of sounds"* paragraph in `docs/guide/cues.md`; a CHANGELOG line; and
+  `needs-decision/duplicate-sound-problem.md` for the report half.
+
+**Why.** Iteration 21's lead was colliding slot keys. One key → two files is not representable (by design), but the
+**same key twice in one cue** is, and the picker could not see it: it refused **indices**, so under the crate's *default*
+`Repeat::AvoidRepeat { avoid: 1 }` a cue with `["a", "a", "b"]` played the same recording **three times running**
+(`… b a a a b`), and `["a","a","a","b"]` played four. That is the machine-gun footstep `Repeat` exists to kill — the
+crate's headline feature — defeated by a copy-pasted line, on by default, with `problems()` silent.
+
+**Evidence.** `runs/2026-11-03-22/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/duplicate-keys{,-before}.txt`.
+
+**Measured.**
+
+| cue, `AvoidRepeat { avoid: 1 }`, 16 plays | before | after |
+|---|---|---|
+| `["a", "a", "b"]` | **3** adjacent repeats | **0** |
+| `["a", "a", "a", "b"]` | **8** | **0** |
+| `["a", "b"]` (control) | 0 | 0 |
+| `["a"]` (one sound, guard) | 15 | 15 |
+| every rendered cue, the mix | — | **byte-identical** (21/21); `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| frame cost, 8 / 64 / 256 | median 1.31 µs at 256 | same binary spread 0.393–1.350 µs across five runs, load 8.6–16.5; the change is once per **play** |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. One correction recorded rather than smoothed: the first
+perf run read 2.5× *faster* than iteration 21 — impossible for a change that adds work — so five runs were taken and
+the spread reported instead of the flattering sample.
+
+**Traps for the command.** (1) A guarantee about what a **player hears** must key on what they hear: an index is the
+crate's internal name for a slot, and two slots can name one recording. (2) When a public method gains a keyed variant,
+keep the old one byte-identical and **prove** the two agree on the inputs where they should — that is the no-regression
+half. (3) A perf figure from one run on a machine at load 16 is a scheduler measurement; take five and report the spread.
+(4) A test file behind a feature gate can run zero tests under a filter that misses — count the result, do not read "ok".
+(5) `hs distill` GPU-blocked (twenty-first iteration).
+
+**Commit.** `see git log`; CI on `main`.
+
+**Next 5.**
+
+1. **`duplicate-sound-problem.md`** — a `CueProblem` for a duplicate key, conditional on `AvoidRepeat` (option B).
+2. **`CueProblem::BadGain`** — `needs-decision/bad-gain-problem.md`; `cues.yaml` case 31 is red until it lands.
+3. **`Refusal::NotALoop { layer, cue }`** — `needs-decision/not-a-loop-refusal.md` (iteration 16).
+4. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+5. `load_table`'s path join — a key of `../outside` becomes `audio/../outside`; named here, not built.
+
+**Consumer status.** `bevy_siren` is green. The Cauldron's audio panel test **cannot** pass: `bevy_grimoire`'s `main`
+is still `e00d1f1`, still with two `pub mod audio_panel;` and no `AudioPanelPlugin` — iteration 21's blocker, unchanged,
+not mine. My consumer commit `799fad2` sits on local `main`, ahead by one, waiting.
+
+**The hunt, eleventh pass.** `SirenSounds` is now closed: one key → one handle is by design, a duplicate in one cue is
+fixed here, and `load_table`'s path join is named. Probing the **`Rng` stream** next, before writing it down:
+
+```
+seed u64::MAX, 2,000,000 draws:  max next_f32 = 0.999999583,  values >= 1.0: 0
+```
+
+So `next_f32` never reaches `1.0`, and the `min(choices.len() - 1)` clamp in `pick` is defensive rather than load-bearing
+— **clean**, no item. What remains genuinely unprobed is **`Rng`'s period**: a xorshift64\* with seed `0` still produces a
+stream (measured: `0.7037902, 0.34525365, 0.2853828`), so the seed is mixed rather than used raw, but nothing asserts how
+many draws it takes to cycle. That is a determinism question, not a sound one, and it is the next probe.
+
+**Baseline note.** Nothing was red; the suite had 97 tests. `cues.yaml` case 31 is red by design.
+
+---
+
 ## Iteration 21 — 2026-11-02 — `problems_in`, and the report's blind spot recorded
 
 **Change.**

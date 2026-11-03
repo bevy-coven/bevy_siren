@@ -3,6 +3,15 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 22, `AvoidRepeat` avoids the sound rather than the index
+
+No clip: the change is **which variant the picker refuses**, and every rendered cue is byte-identical (21 of 21) because
+no fixture cue lists a duplicate key. The evidence is `runs/2026-11-03-22/evidence/duplicate-keys{,-before}.txt`: with
+`Repeat::AvoidRepeat { avoid: 1 }`, a cue of `["a", "a", "b"]` had **3 adjacent repeats** before and **0** after, and
+`["a","a","a","b"]` had **8** and **0**, with the distinct-key and one-sound controls unmoved. Tests:
+`tests/play.rs::{a_duplicate_key_never_repeats_under_avoid_repeat, a_cue_of_one_sound_still_repeats,
+a_duplicate_key_still_plays_its_own_sound, pick_without_keys_still_avoids_indices}`.
+
 ## No clip: iteration 21, the wrapper that cannot see a project's own buses
 
 No clip: the change is **which call the panel makes**, and every rendered cue is byte-identical (21 of 21) — a report, not
