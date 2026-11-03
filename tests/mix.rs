@@ -572,3 +572,60 @@ fn a_cap_raised_under_live_voices_lets_the_next_play_through() {
     assert_eq!(played(&mut app).len(), 1, "the raised cap admits the second play");
     assert_eq!(live_voices(&mut app), 2);
 }
+
+/// **A table that lists no buses means the crate's four — and the report must know it too.**
+///
+/// `docs/guide/buses.md`: *"A table that lists no buses means the crate's four (`DEFAULT_BUSES`) **everywhere** — for a
+/// play's bus check, for the panel, and for the mix."* `bus_names()` is that one answer. `problems()` built its own set
+/// from `self.buses`, so a table the crate **mixes correctly** was reported as four missing buses — the worst thing a
+/// report can do, because it teaches an author to ignore it. (Iteration 10 closed the identical bypass in `update_mix`.)
+#[test]
+fn an_empty_bus_list_reports_no_bus_problems() {
+    let table = SirenSettings { buses: vec![], ..SirenSettings::default() };
+    assert_eq!(table.bus_names().len(), 4, "the crate's four");
+    let problems = table.problems();
+    assert!(
+        !problems.iter().any(|p| p.contains("bus")),
+        "and not one of them is reported missing: {problems:?}"
+    );
+}
+
+/// **A bus named by two duck rules is reported once.** `default_ducks()` is `Dialogue → Music` and `Dialogue →
+/// Effects`, so `Dialogue` is the `source` of both: the ordinary two-bus menu table produced the same sentence twice,
+/// and a panel that prints `problems()` verbatim read that as two faults.
+#[test]
+fn the_default_ducks_name_their_missing_source_once() {
+    let table = SirenSettings {
+        buses: vec![BusLevel::new("Music"), BusLevel::new("Effects")],
+        ..SirenSettings::default()
+    };
+    let problems = table.problems();
+    let dialogue: Vec<&String> = problems.iter().filter(|p| p.contains("`Dialogue`")).collect();
+    assert_eq!(dialogue.len(), 1, "one sentence for one missing bus: {problems:?}");
+    assert!(dialogue[0].contains("starts on bus"), "and it says which side: {}", dialogue[0]);
+}
+
+/// **A duck naming a bus that really is absent still says so, once, with the right words.** The "must not happen"
+/// half: a report that stopped reporting would also pass the two tests above.
+#[test]
+fn a_duck_naming_a_missing_bus_is_still_reported() {
+    let table = SirenSettings {
+        buses: vec![BusLevel::new("Music")],
+        ducks: vec![Duck::new("Ghost", "Music"), Duck::new("Ghost", "Music")],
+        ..SirenSettings::default()
+    };
+    let problems = table.problems();
+    let ghost: Vec<&String> = problems.iter().filter(|p| p.contains("`Ghost`")).collect();
+    assert_eq!(ghost.len(), 1, "one sentence for two rules naming one absent bus: {problems:?}");
+    assert_eq!(
+        ghost[0], "a duck starts on bus `Ghost`, which the table does not have",
+        "and the sentence is the one it always was"
+    );
+}
+
+/// **The guard: the crate's default settings report nothing.** The empty-list fix must not turn a clean table into a
+/// noisy one — the default table lists all four buses, so there is nothing to say.
+#[test]
+fn a_default_table_reports_nothing() {
+    assert!(SirenSettings::default().problems().is_empty(), "{:?}", SirenSettings::default().problems());
+}

@@ -7,6 +7,86 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 20 — 2026-11-02 — the report agrees with the mix about buses
+
+**Change.**
+
+- **`src/mix.rs` — `SirenSettings::problems()` asks `bus_names()`, and names each fault once.** It built its own bus set
+  from `self.buses`, so a table with `buses: []` — documented as *"the crate's four … everywhere"* — was reported as
+  having **four false missing buses** while the crate mixed it correctly. And a duck fault was pushed once per rule, so
+  the crate's own default pair (`Dialogue → Music`, `Dialogue → Effects`) printed the same sentence twice.
+- `tests/mix.rs` — four tests, three failing on the base commit, the fourth the default-table guard; a `buses.md`
+  paragraph; a CHANGELOG line and a media note.
+
+**Why.** Iteration 19's log ended with a **probe, not a guess**, and it found two faults in one function. The worse one is
+the false report: a table the crate **mixes correctly** was reported as four mistakes, which is worse than no report —
+it teaches an author to ignore the panel. This is the last caller bypassing `bus_names()` (iteration 10 closed the same
+bypass in `update_mix`).
+
+**Evidence.** `runs/2026-11-02-20/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/report{,-before}.txt`.
+
+**Measured.**
+
+| table | before | after |
+|---|---|---|
+| `buses: []` (the crate's four) | **4** sentences, all false | **0** |
+| two buses (a menu mix) | **2** identical for `Dialogue` | **1** |
+| one bus + two rules naming `Ghost` | **2** identical | **1**, exact words |
+| default table (guard) | 0 | 0 |
+| every rendered cue, the mix | — | **byte-identical** (21/21); `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| frame cost, 8 / 64 / 256 | 0.064 / 0.361 / 1.311 µs | 0.046 / 0.327 / 0.991 µs, load 8.12/14.44/19.28 — every row faster, which is the load and not this change; `problems()` is a **host** call, off the per-frame path |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. One defect in my own fix, caught by the **pre-existing**
+test: deduplicating by **bus name** collapsed `Nope → Music` and `Music → Nope` — two genuinely different faults about one
+absent bus — into one sentence. The key must be the **sentence**: identical sentences are one fault, different sentences
+about one bus are two.
+
+**Traps for the command.** (1) A report that **invents** faults is worse than one that misses them: it trains the reader
+to ignore it. (2) When a resource has a `bus_names()`-style accessor, every reader must use it — a second set is a second
+rule, and the crate's own trap list is about exactly that. (3) Deduplicate a report by the **sentence**, not by its
+subject: two rules about one bus can be two faults, and one rule pair about one bus can be one. (4) A **pre-existing**
+test is the cheapest specification you have — the old `problems_names_each_mistake` caught the over-merge before it
+shipped. (5) `hs distill` GPU-blocked (nineteenth iteration).
+
+**Commit.** `see git log`; CI on `main`.
+
+**Next 5.**
+
+1. **`Refusal::NotALoop { layer, cue }`** — `needs-decision/not-a-loop-refusal.md` (iteration 16's item 1).
+2. **`CueProblem::BadGain` + the refusal for a bad request** — `needs-decision/bad-gain-problem.md` (iteration 18).
+3. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+5. Quantise a **retarget** onto the bar (iteration 14's item 1).
+
+**The hunt, ninth pass.** The **report** class has now paid four times (16, 18, 19, 20) and is closed: `problems()` on
+the settings and the score, the log, and the refusals all say what the crate does. Probing the budget next produced
+something I could not honestly call a bug, and it is written down here rather than dropped:
+
+**`cues.yaml` case 8 is internally inconsistent.** It authors `engine.idle` with `bus_max_voices: 2`, `mode: Loop` and
+**no `max_instances`** — so the cue keeps its default `max_instances: 1` — then expects *"Two voices live, one steal
+logged, and no third `Played`"* from three requests in one frame. Measured:
+
+```
+three requests, one frame, bus cap 2, max_instances 1     played 3, refused 0, live voices 1
+```
+
+The crate is **self-consistent**: each request steals the one previous voice of its own cue (the cue cap, not the bus
+cap), so the bus never exceeds 2 and one voice is live — exactly what `max_instances: 1` means. A test that wants two
+live voices must author `max_instances: 2`, which `tests/mix.rs::a_full_bus_steals_the_oldest_and_then_refuses` already
+does with `cue("hit", "Effects", 0, 4)`. I tried making an unlimited cue respect the bus cap as a fix; the crate's own
+test showed that would break a documented behaviour, so it was **reverted** and `src/play.rs` is untouched. The case's
+`authored` block should gain `max_instances: 2` — a `cues.yaml` edit, which the loop's rules reserve for a new behaviour,
+so it is recorded for the owner rather than made.
+
+**Next probe:** nothing in the budget. The untested surface is the **`serde` round trip against a table that parses and
+is wrong in a field no `problems()` reads** — starting with whether `from_ron` accepts a `max_instances` past the
+table's `max_voices`, and whether `to_ron(from_ron(x))` is stable for a table with a non-finite number in it.
+
+**Baseline note.** Nothing was red; the suite had 92 tests.
+
+---
+
 ## Iteration 19 — 2026-11-02 — a music layer's gain is a caller value like any other
 
 **Change.**

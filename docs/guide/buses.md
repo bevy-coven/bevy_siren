@@ -40,6 +40,11 @@ back 8 dB and the effects 4 dB, holding a quarter second and recovering over a f
 A table that lists no buses means the crate's four (`DEFAULT_BUSES`) everywhere — for a play's bus check, for the panel,
 and for the mix — so a cue the crate accepts always has a row to be mixed on.
 
+`problems()` is one of those places: it asks `SirenSettings::bus_names()`, the same answer a play's `UnknownBus` check
+reads, so a table with no buses reports **nothing** about buses. And a fault is named **once**: two duck rules that name
+the same missing bus — which is the crate's own default pair, `Dialogue → Music` and `Dialogue → Effects` — produce one
+sentence, while two *different* faults about one bus (a duck starting on it, a duck lowering it) stay two.
+
 ## This frame's mix, readable
 
 `SirenMix` is what the panel draws and what your own meter should read:

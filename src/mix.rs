@@ -139,13 +139,33 @@ impl SirenSettings {
                 out.push(format!("bus `{}` has a gain that is not a number", bus.name));
             }
         }
-        let names: BTreeSet<&str> = self.buses.iter().map(|b| b.name.as_str()).collect();
+        // **The report asks `bus_names()`, like every other reader.** A table that lists no buses means the crate's
+        // four - `docs/guide/buses.md` says *"everywhere - for a play's bus check, for the panel, and for the mix"* -
+        // and `bus_names()` is that one answer. Building a set from `self.buses` here reported a **correctly mixed**
+        // table as four missing buses, which is the worst thing a report can do: teach an author to ignore it.
+        // (Iteration 10 closed the identical bypass in `update_mix`; this was the last caller doing it.)
+        let names: BTreeSet<&str> = self.bus_names().into_iter().collect();
+        // **One sentence per bus, however many rules name it.** `default_ducks()` is `Dialogue -> Music` and
+        // `Dialogue -> Effects`, so the ordinary table has two rules with the same `source`; a panel that prints these
+        // sentences verbatim showed the same fault twice and read as two faults.
+        // The key is the **sentence**, not the bus: `Nope -> Music` and `Music -> Nope` are two different faults about
+        // one absent bus (a duck that starts on a missing bus, and one that lowers one), and a report must keep them
+        // apart. Two rules that are *the same* fault — `Dialogue -> Music` and `Dialogue -> Effects`, which is the
+        // crate's own default pair — produce identical sentences and are one.
+        let mut said: BTreeSet<String> = BTreeSet::new();
         for duck in &self.ducks {
             if !names.contains(duck.source.as_str()) {
-                out.push(format!("a duck starts on bus `{}`, which the table does not have", duck.source));
+                let sentence =
+                    format!("a duck starts on bus `{}`, which the table does not have", duck.source);
+                if said.insert(sentence.clone()) {
+                    out.push(sentence);
+                }
             }
             if !names.contains(duck.target.as_str()) {
-                out.push(format!("a duck lowers bus `{}`, which the table does not have", duck.target));
+                let sentence = format!("a duck lowers bus `{}`, which the table does not have", duck.target);
+                if said.insert(sentence.clone()) {
+                    out.push(sentence);
+                }
             }
             if duck.by_db > 0.0 {
                 out.push(format!(

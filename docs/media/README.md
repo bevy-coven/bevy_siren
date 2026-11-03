@@ -3,6 +3,15 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 20, the report agrees with the mix about buses
+
+No clip: the change is **which sentences `problems()` produces**, and every rendered cue is byte-identical (21 of 21) —
+the report does not touch the mix. The evidence is `runs/2026-11-02-20/evidence/report{,-before}.txt`, four tables: before,
+`buses: []` produces **4 false sentences** and a two-bus table prints `Dialogue` **twice**; after, **0** and **1**, with
+the genuinely-absent-bus table still reporting, once. Tests:
+`tests/mix.rs::{an_empty_bus_list_reports_no_bus_problems, the_default_ducks_name_their_missing_source_once,
+a_duck_naming_a_missing_bus_is_still_reported, a_default_table_reports_nothing}`.
+
 ## No clip: iteration 19, a music layer's gain that is not a number
 
 No clip: the change is **which number a layer holds and what `layer_db` reports**, and every rendered cue is

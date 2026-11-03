@@ -1,0 +1,16 @@
+default table (all four buses):
+   bus_names() ["Music", "Effects", "Ambience", "Dialogue"], 0 sentence(s)
+buses: [] (the crate's four):
+   bus_names() ["Music", "Effects", "Ambience", "Dialogue"], 4 sentence(s)
+     a duck starts on bus `Dialogue`, which the table does not have
+     a duck lowers bus `Music`, which the table does not have
+     a duck starts on bus `Dialogue`, which the table does not have
+     a duck lowers bus `Effects`, which the table does not have
+two buses (a menu mix):
+   bus_names() ["Music", "Effects"], 2 sentence(s)
+     a duck starts on bus `Dialogue`, which the table does not have
+     a duck starts on bus `Dialogue`, which the table does not have
+one bus, and a duck naming a bus that really is absent:
+   bus_names() ["Music"], 2 sentence(s)
+     a duck starts on bus `Ghost`, which the table does not have
+     a duck starts on bus `Ghost`, which the table does not have

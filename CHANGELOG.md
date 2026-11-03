@@ -20,6 +20,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`SirenSettings::problems()` agrees with the mix about what a bus is, and names each fault once.** The report built
+  its own bus set from `self.buses` instead of asking `bus_names()`, the one answer every other reader uses — so a table
+  with `buses: []`, which `docs/guide/buses.md` documents as *"the crate's four … everywhere"*, was reported as having
+  **four missing buses** while the crate mixed it correctly. And a duck fault was pushed once per rule, so the crate's
+  own default pair (`Dialogue → Music`, `Dialogue → Effects`) printed the same sentence twice — a panel reading
+  `problems()` verbatim read one fault as two. The report now asks `bus_names()`, and deduplicates by **sentence**: two
+  rules that are the same fault are one, while two different faults about one bus (a duck starting on it, a duck lowering
+  it) stay two. No public type changed.
 - **A music layer's gain that is not a number no longer silences the stem behind a `NaN` fader.** Iteration 18 gave the
   crate one rule for a non-finite caller value — the neutral value for what it measures — and applied it to the numbers
   that enter `answer`. A layer's `gain_db` entered by another door: `NaN` went into `layer_db`, `target_db` and the
