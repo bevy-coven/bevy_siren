@@ -7,6 +7,20 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A duck rule the mix table dropped kept its start for the life of the process.** `DuckClock::started` is keyed by
+  `(source, target)` and was only ever emptied by `clear()`, which nothing calls; `prune(now_s)` retained the *manual*
+  envelope list and not the rules'. Measured: **2000 `fire`s followed by a `prune` at t=1000 still held 2000 entries**,
+  and 100 table edits left 100 — reachable in the Cauldron, which rewrites and re-reads `family/bevy_siren.ron` on every
+  edit. `DuckClock::retain_rules(&settings)` now drops a start no current rule names, and `update_mix` calls it every
+  frame beside `prune`. A running duck is unchanged across a retain (−8.0 dB at the same moment before and after), and
+  the call costs **13 ns per frame**, measured at 1, 10 and 1000 held starts.
+
+### Added
+
+- **`DuckClock::retain_rules` and `DuckClock::rule_starts`** — the retain, and the number it holds, so a panel can draw
+  it and a test can assert it. Additive; `prune`'s signature is unchanged.
+
+
 - **`MusicScore::default()` was not the score the file loader gives.** `beats_per_bar` carried
   `serde(default = "MusicScore::default_beats_per_bar")` — **4.0** — while `derive(Default)` gave it **0.0**, so the same
   score was four beats and a `Some(2.0)` bar from RON and **zero beats with `bar_s() == None`** from `Default`: no beat

@@ -2,8 +2,8 @@
 
 use bevy::prelude::*;
 use bevy_siren::{
-    BusLevel, Cue, CueTable, Duck, Entry, Mode, Play, Refusal, SirenLog, SirenMix, SirenSettings, SoundSlot,
-    StopCue, Voice,
+    BusLevel, Cue, CueTable, Duck, DuckClock, Entry, Mode, Play, Refusal, SirenLog, SirenMix, SirenSettings,
+    SoundSlot, StopCue, Voice,
 };
 
 use crate::helpers::{advance, app, live_voices, played, refused, run_for, sounds, voices};
@@ -1287,5 +1287,85 @@ fn a_zero_depth_duck_still_fires_and_still_moves_nothing() {
         log.iter().any(|e| matches!(e, Entry::Ducked { bus, .. } if bus == "Music")),
         "{:?}",
         log.iter().collect::<Vec<_>>()
+    );
+}
+
+/// **A duck rule the table no longer names does not keep its start.**
+///
+/// `started` is keyed by `(source, target)` and lived until `clear()`, so a rule a project edited away — a bus renamed,
+/// a duck deleted, an editor's file reloaded — kept its entry for the life of the process. Measured before the fix:
+/// five source buses fired against one target, a `prune` at t=100, and `("Dialogue", "Music")` was still held;
+/// **100 table edits left 100 entries**.
+#[test]
+fn a_rule_the_table_dropped_stops_holding_a_start() {
+    let settings = |source: &str| SirenSettings {
+        max_voices: 32,
+        ducks: vec![Duck::new(source, "Music").by_db(-8.0).hold_s(0.25).fade_s(0.6)],
+        ..SirenSettings::default()
+    };
+    let mut clock = DuckClock::default();
+    clock.fire("Dialogue", "Music", 0.0);
+    clock.fire("Voice", "Music", 1.0);
+    assert_eq!(clock.rule_starts(), 2);
+
+    // The table now names only `Voice`.
+    clock.retain_rules(&settings("Voice"));
+    assert_eq!(clock.rule_starts(), 1, "the dropped rule's start must go");
+
+    // And a hundred edits leave a hundred entries only if nothing retains — which is what the fix removes.
+    let mut clock = DuckClock::default();
+    for i in 0..100 {
+        clock.fire(&format!("bus_{i}"), "Music", i as f64);
+    }
+    clock.retain_rules(&settings("bus_99"));
+    assert_eq!(clock.rule_starts(), 1, "one rule in the table, one start held");
+}
+
+/// **A rule the table still names keeps its envelope**, which is the non-regression: retaining must not restart or
+/// shorten a duck that is running.
+#[test]
+fn a_live_rule_keeps_its_start_across_a_retain() {
+    let settings = SirenSettings {
+        max_voices: 32,
+        ducks: vec![Duck::new("Dialogue", "Music").by_db(-8.0).hold_s(0.25).fade_s(0.6)],
+        ..SirenSettings::default()
+    };
+    let mut clock = DuckClock::default();
+    clock.fire("Dialogue", "Music", 0.0);
+    let during_hold = clock.duck_db("Music", &settings, 0.10);
+    clock.retain_rules(&settings);
+    assert_eq!(clock.rule_starts(), 1);
+    assert_eq!(
+        clock.duck_db("Music", &settings, 0.10),
+        during_hold,
+        "a retain must not move a running envelope"
+    );
+    assert_eq!(during_hold, -8.0, "and it is still the rule's own depth");
+}
+
+/// **A `DuckClock` in an app prunes itself on every frame**, through `update_mix` — the path a project actually runs.
+#[test]
+fn the_mix_prunes_a_table_it_no_longer_has() {
+    let mut app = app(
+        CueTable::new(vec![cue("line", "Dialogue", 180, 1)]),
+        SirenSettings {
+            max_voices: 32,
+            ducks: vec![Duck::new("Dialogue", "Music").by_db(-8.0).hold_s(0.25).fade_s(0.6)],
+            ..SirenSettings::default()
+        },
+        sounds(&["line"]),
+        false,
+    );
+    app.world_mut().write_message(Play::cue("line"));
+    app.update();
+    assert_eq!(app.world().resource::<DuckClock>().rule_starts(), 1);
+
+    // The project deletes the rule; the next frame must not keep its start.
+    app.world_mut().resource_mut::<SirenSettings>().ducks.clear();
+    app.update();
+    assert_eq!(
+        app.world().resource::<DuckClock>().rule_starts(),
+        0,
+        "a rule the table dropped left its start behind"
     );
 }

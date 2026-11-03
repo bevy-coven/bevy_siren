@@ -549,8 +549,34 @@ impl DuckClock {
 
     /// Drops manual envelopes that have finished recovering: they are over, and keeping them would grow
     /// the list for the life of the process.
+    ///
+    /// **This does not touch the rules' own starts.** An entry in `started` belongs to a `(source, target)` pair, and
+    /// whether that pair is still a rule is a question only the mix table can answer — so it is
+    /// [`retain_rules`](Self::retain_rules), which `update_mix` calls beside this one. Measured before that split:
+    /// 2000 `fire`s followed by a `prune` at t=1000 still held **2000** entries.
     pub fn prune(&mut self, now_s: f64) {
         self.manual.retain(|d| active_duck_db(d.by_db, now_s - d.since_s, d.hold_s, d.fade_s) < 0.0);
+    }
+
+    /// **Drops every rule's start that the table no longer names.**
+    ///
+    /// A start is kept per `(source, target)` pair and lives until it is removed, so a rule that a project edited away —
+    /// a bus renamed, a duck deleted, an editor's file reloaded a hundred times — left its entry behind for the life of
+    /// the process. Measured: five different source buses fired against one target, one `prune` at t=100, and
+    /// `("Dialogue", "Music")` was still held; **100 table edits left 100 entries**.
+    ///
+    /// The pair is dropped only when no rule in `settings` names it. A manual duck is not a rule and is untouched here;
+    /// it is [`prune`](Self::prune)'s.
+    pub fn retain_rules(&mut self, settings: &SirenSettings) {
+        self.started.retain(|(source, target), _| {
+            settings.ducks.iter().any(|d| d.source == *source && d.target == *target)
+        });
+    }
+
+    /// How many rule starts are held. A number a panel can draw and a test can assert, so the retained set is
+    /// observable rather than inferred from `Debug`.
+    pub fn rule_starts(&self) -> usize {
+        self.started.len()
     }
 
     /// Forgets every duck: a scene change, or a test that wants a clean envelope.
@@ -638,6 +664,10 @@ pub fn update_mix(
     let now = real.elapsed_secs_f64();
     let dt = real.delta_secs();
     clock.prune(now);
+    // **A start belongs to a rule, and a rule the table no longer names has no start worth keeping.** `prune` drops
+    // finished manual envelopes; this drops the rule starts of a table that was edited. Without it a project that
+    // reloads its mix table kept one entry per rule it had ever had — measured at 100 edits, 100 entries.
+    clock.retain_rules(&settings);
 
     let master = if settings.master_db.is_finite() { settings.master_db } else { SILENT_DB };
 

@@ -7,6 +7,61 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 54 — 2026-11-03 — a duck rule the table dropped stops holding its start
+
+**Baseline.** Green on every step, no open issues. Nothing red. `/tmp/pq-target` (2.2 GB) was this loop's own scratch from
+iteration 53 and was removed, leaving 8.9 GB.
+
+**Change.** `DuckClock::retain_rules(&settings)` + `rule_starts()`, called by `update_mix` beside `prune`.
+
+**Rationale.** `started` is keyed by `(source, target)` and was only emptied by `clear()`, which nothing calls;
+`prune(now_s)` retained the *manual* envelope list and not the rules'. The two are different questions — *is this envelope
+over?* (the clock can answer) and *is this rule still a rule?* (only the table can) — and conflating them is why one
+collection was cleaned and the other was not.
+
+**Measured** (through `Debug`, no API needed):
+
+| scenario | before | after |
+|---|---|---|
+| 2000 fires, then `prune` at t=1000 | **2000 entries** | 0 |
+| 2 fires, table names one | 2 | **1** |
+| 100 table edits, table names one | 100 | **1** |
+| a live rule across a retain | −8.0 dB | **−8.0 dB, unchanged** |
+| the new call's cost | — | **13 ns/frame** (flat at 1/10/1000 starts) |
+| tests | 143 / 151 / 153 + 6 | **144 / 152 / 154 + 6** |
+
+**Reachable**: `DuckClock::fire` is public, and the crate's own `fire_all` grows the map whenever a table's rule set
+changes — which the Cauldron does on every edit of `family/bevy_siren.ron`.
+
+**A wrong claim from last iteration, corrected here.** Iteration 53 logged this as *"unobservable — no accessor, so no
+capture could prove it"*. It was observable all along: `DuckClock` derives `Debug`. The accessor is worth adding for a
+panel and a test, but the claim that nothing could prove it was false and it cost an iteration.
+
+**A drawing mistake, caught by looking.** `showwavespic` on `bus-Music.wav` rendered **blank** — the file is a gain
+staircase, not audio, and the skill says to draw a bus gain as a **line**. The first line plot then drew nothing because
+its path used `var(--accent)`, which the rasterizer does not resolve; the final plot
+(`evidence/plots/bus-music-gain.svg`) uses literal colours and reads in both. It shows 0.00 dB flat to 1.00 s, a
+staircase to −7.96 dB at 1.27 s, recovery complete by 1.97 s — **no restart, no second duck**.
+
+**Evidence.** `runs/2026-11-03-54/`: `research.md` (S1 Gregory's "for a while", S2 the voice budget's discipline,
+S3 `prune`'s own doc naming the fault for one collection, S4 the bus-pruning precedent), `plan.md`, `perf.md`, `eval.md`,
+`review.md` (three passes, GREAT), `evidence/{plots,spectrograms,after}`.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`AvoidRepeat`'s window that cannot be honoured is unreported** — `pick_from`'s comment promises `problems()` names
+   it; probed `problems: []` for two sounds at `avoid: 5`. Same open enum decision.
+3. **`SirenChoices::pickers` is never pruned either** — one `VariantPicker` per cue name, grown by procedure and never
+   removed. The same shape as this iteration's bug, one resource over; it needs a `retain_cues(&table)` beside
+   `retain_rules`.
+4. **`reset_histories` has no caller** — the Cauldron's table reload should reset pickers; a consumer item for
+   `bevy_grimoire`, its own commit.
+5. `SirenSettings::master_db` defaults to `0.0` — no trim; the guide says what to turn, a lower default is a decision.
+
 ## Iteration 53 — 2026-11-03 — `MusicScore::default()` is the score the file loader gives
 
 **Baseline.** Green on every step, no open issues. Nothing red. Disk arrived at **100 % (3.3 GB)**; `/tmp/pz-target`

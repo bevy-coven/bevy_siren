@@ -77,6 +77,22 @@ fn meter(mix: Res<SirenMix>) {
 It is one number per bus, not a private float per sink: a bus's level is a decision, and a decision that cannot be
 read is a decision nobody can debug.
 
+## The duck clock, and what it forgets
+
+`DuckClock` is the resource holding **when each duck last started** — a duck is an envelope with a start, not a volume
+change, so it cannot live on a sink. Two of its collections are pruned for different reasons, and a host that calls
+`fire` or `manual` itself should know both:
+
+- **`prune(now_s)`** drops *manual* envelopes that have finished recovering. It answers a question the clock can answer
+  alone: is this envelope over?
+- **`retain_rules(&settings)`** drops a *rule's* start when no rule in the table names its `(source, target)` any more.
+  Only the table can answer that, so it is a separate call — `update_mix` makes it every frame, and a project that
+  replaces `SirenSettings` gets it for free.
+
+Before that split only the manual list was pruned, so a rule a project edited away — a renamed bus, a deleted duck, an
+editor's file reloaded — kept its entry for the life of the process. Measured: **2000 fires followed by a `prune` still
+held 2000 entries**, and 100 table edits held 100. `DuckClock::rule_starts()` is the number if you want to draw it.
+
 ## The voice budget
 
 `max_voices` is the whole table's budget; a bus's own `max_voices` caps it further (`0` is the table's). **A bus number
