@@ -151,6 +151,12 @@ wrote an empty licence is **recorded** as empty — both answer `None`, and the 
 an explicit unknown, so a pack whose README says "all CC0" gets unknown provenance for every file. Only a per-file
 record counts.
 
+**A build reads the sidecar for you.** Drop it beside the audio and the join happens during `build`: a sidecar names
+files, the index names content hashes, and every path a content appears at is checked. Three things a sidecar can get
+wrong are reported rather than swallowed — a record naming a file the folder does not have (*"1 licence records matched
+no file"*), a sidecar that exists and will not parse (*"Licence record unreadable: …"*), and, importantly, **nothing at
+all** when there is no sidecar, which is normal.
+
 Sidecar columns are matched **by name**, so this reads whichever way a pack ordered it:
 
 ```csv

@@ -7,6 +7,26 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **A build reads a folder's sidecar, so licences reach the index.** `Sidecar::read` was tested since iteration 82 and
+  **nothing called it**. `build` now reads the sidecar before embedding and joins it to the scan — the only place the
+  two identities meet, since a sidecar names **files** and the index keys by **content hash**:
+
+      Asset.paths (relative, several per content) × Sidecar.records (names)  →  Asset.hash → Index.provenance
+
+  A `licences.csv` beside the audio is enough; the named file's search result reports its licence and source, and every
+  other file carries `unknown` and answers `None` to `permits_commercial_use()` rather than inheriting a folder-level
+  claim.
+
+  **Three facts that used to be silent are now reported:**
+
+  - A record naming a file the folder does not have is counted in `Built::unattributed` and named in the summary. The
+    commonest cause is a typo, and ignoring it makes a licence *look* recorded while being attached to nothing.
+  - A sidecar that **exists and cannot be read** is carried in `Built::sidecar` with the reader's own words, while the
+    audio still indexes. That is a different fact from *no sidecar here*, which is normal and says nothing.
+  - A content that appears at several paths matches if **any** of them is named, because it is one asset.
+
+### Documented
+
 - **A build now measures loudness, from the decode it already has.** `loudness::measure` existed and was tested since
   iteration 77, and **nothing called it** — the index stored only what a caller supplied. `build` now measures every
   file it embeds and stores the result, sharing the decode: `embed_measured` decodes, downmixes and resamples **once**,

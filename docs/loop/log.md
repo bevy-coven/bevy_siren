@@ -7,6 +7,86 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 86 — 2026-11-03 — the sidecar joined to the scan, and the last unwired reader
+
+**Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **367 semantic** / 36 lib; clippy 0,
+fmt, rustdoc, examples. Volume held **21 GB** free.
+
+**The item was iteration 85's first leftover**, and the last of the "built but not wired" shape: `Sidecar::read` had been
+tested since iteration 82 and **nothing called it**, so a folder's licences never reached the index.
+
+**The join is the only place two identities meet.** A sidecar names **files**; the index keys by **content hash**. The
+scan already holds the key — each `Asset` carries its hash and every path that content appears at — so the mapping is
+`Asset.paths × Sidecar.records → Asset.hash`.
+
+**Three facts that were silent are now reported**, which is the substance of the change:
+
+- **A record matching no file is counted.** The commonest cause is a typo, and ignoring it makes a licence *look*
+  recorded from the sidecar author's view and absent from every asset's.
+- **An unreadable sidecar is not "no licences".** One means every licence is missing; the other means none was expected.
+  The build carries the reader's own words and still indexes the audio.
+- **No sidecar at all is normal** and says nothing, so a clean folder still reads `"1 indexed"`.
+
+**The compiler confirmed the change is observable.** Adding `unattributed` and `sidecar` to `Built` broke two test
+literals with `missing fields`. `Built` exists to report what a run did, so a new fact about a run should be impossible
+to add without a construction site noticing — a builder or `#[non_exhaustive]` would have hidden it, and for this struct
+hidden is wrong.
+
+**A limitation stated rather than glossed.** The path normalisation is a `\` → `/` string replace, not a path resolver. A
+sidecar spelling an absolute path does not match and is an **unattributed record** rather than a guessed match:
+attaching a licence to the wrong file is worse than attaching none.
+
+**Measured.** A sidecar naming `step.wav` produces **one** provenance record on that file's hash, with the other file
+carrying nothing — downstream `unknown`, never permission. A typo is counted and printed as *"1 licence records matched
+no file"*. A sidecar with no `file` column leaves the audio indexed and reports *"Licence record unreadable: …"*. A pack
+name with a space (`kenney sounds`) survives the build **and** a `to_text`/`load` round trip.
+
+| voices | µs/frame | iteration 85 |
+|---|---|---|
+| 8 | **0.059** | 0.063 |
+| 64 | **0.329** | 0.365 |
+| 256 | **1.141** | 0.963 |
+
+**No regression.** The change is inside `semantic`, which the default build does not compile. Across iterations 80–86 the
+same audio code reads 0.059–0.084 / 0.329–0.472 / **0.501–1.576** µs — the 256-voice figure has ranged over 3× on
+identical code.
+
+**The cost added is per build, not per file**: one `read_to_string` and one parse of a sidecar per folder. `#36`'s
+throughput number would show it and has still not been taken, now with three added costs to account for.
+
+**Visual gate unchanged:** 32 render files, **14 of 14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to
+iterations 67, 71, 74, 75, 80–85. `bang-spectrum.png` read: broadband onset, harmonic comb to 10 kHz, no click line, no
+clipping shelf, no gap.
+
+**Verdicts.** Pass 1 **GREAT** (five claims, each failing a store-only or name-blind implementation), pass 2 **GREAT**
+(the compiler-forced construction sites explained as the right trade, and the path limitation named), pass 3 **GREAT**
+(drop a CSV, build, and each failure mode is a sentence).
+
+**Nothing in `semantic::` is now unwired.** Every reader is called from a production-shaped path.
+
+**Docs.** The guide says a build reads the sidecar and names the three reports; the README line says read during the
+build; `CHANGELOG.md` gains the join and the three facts.
+
+**Evidence.** `runs/2026-11-03-86/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,spectrograms}/`.
+
+**Commits.** `d3ed633`.
+
+**Top 5 remaining**
+
+1. **The binary index writer** ADR 0004 specifies. The text form is **31.88 MB** at 5 000 clips — plus provenance and
+   loudness sections now — against **10.30 MB** binary. The 3× overhead has been quoted for four iterations and never
+   asserted by a test.
+2. **`#36` indexing throughput.** `build` now embeds, measures loudness, parses a sidecar and joins it; three costs were
+   added and the number that says whether they are affordable has never been taken.
+3. **`#22` spectral centroid, rolloff and noise floor** — unblocked by ADR 0003, and cheapest now that
+   `embed_measured` holds the exact buffer they need.
+4. **`#28` the MCP tool host**, then `#29`/`#44`/`#30` — the largest user-facing win, consuming an index that now
+   produces its own vectors, loudness and provenance.
+5. **`#27` hard filters and penalties** — the consumer of everything built since iteration 77: loudness for the 12 LU
+   rule, tempo and key for theirs. Its own criteria require that an unknown feature never excludes an asset, which the
+   provenance and loudness types already model as `None`.
+
 ## Iteration 85 — 2026-11-03 — measuring in the build, and the block count that was wrong in three places
 
 **Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **362 semantic** / 36 lib; clippy 0,
