@@ -76,6 +76,19 @@ artist delivers anything.
 `sounds.missing(&table)` is every key still unanswered (an editor shows it), and `sounds.failed(&assets_server, &table)`
 is every key whose load the server reported as failed.
 
+**A reload must call `retain_keys` first.** `load_table` **merges**: it asks for the keys it has no handle for and never
+drops one the table has lost, and `SirenSounds` has no other remover. That matters because a handle is what keeps an
+`AudioSource` alive, and an `AudioSource` is the **whole encoded file** — so a project that reloads a table with renamed
+keys kept one audio file resident per key it had ever loaded:
+
+```rust
+sounds.retain_keys(&new_table);                 // drop what the new table does not name
+let asked = sounds.load_table(&assets, &new_table, "audio");
+```
+
+Measured: two tables of ten different keys loaded in turn left **twenty** keys held. `sounds.len()` is the number of keys
+the table names once a reload retains.
+
 ## Checking a table
 
 `CueTable::problems()` returns `CueProblem`s in sentences a person reads on a status line: a cue with no sounds, a

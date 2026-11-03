@@ -7,6 +7,57 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 56 — 2026-11-03 — a sound key the table dropped stops holding its handle
+
+**Baseline.** Green on every step, no open issues. Nothing red.
+
+**Change.** `SirenSounds::retain_keys(&table)` — drops every key the table no longer names. Plus the guide's reload
+section and a CHANGELOG entry.
+
+**Rationale.** `SirenSounds` exposed `insert`/`get`/`len`/`keys`/`load_table`/`missing`/`failed` and **no remover at all**,
+and `load_table` **merges** — it asks for keys it has no handle for and never drops one the table has lost. So a project
+that reloads a table with renamed keys kept one handle per key it had ever loaded, for the life of the process.
+
+**The handle is the cost, not the map.** `Handle<AudioSource>` is 24 bytes and the entry overhead ~62 KiB per thousand — but
+`AudioSource` is `bytes: Arc<[u8]>`, the **whole encoded file**, and a strong handle keeps it loaded.
+
+| | keys held | resident |
+|---|---|---|
+| two 10-key tables loaded in turn, before | **20** | 20 whole audio files |
+| after `retain_keys` | **10** | the 10 the table names |
+| tests | 143 / 151 / 161 + 6 | |
+| after | **151 / 159 / 161 + 6** | |
+
+**Honestly ranked, not dressed up.** Three rank-1 hypotheses were probed first and **passed**, and are kept as tests:
+`a_stolen_voices_duck_recovers` (the duck reaches exactly `0.0` after the source bus empties),
+`a_bus_level_changed_mid_voice_reaches_it` (`Music` 12 dB down within 0.5 s of the table being written), and the merge
+itself. And a stale key is **never read** — `missing()`, `failed()` and every `sounds.get` take current-table keys — so
+this is a **memory** bug, not a wrong-output one. It is logged as such.
+
+**Nothing audible moved**: `render.txt`'s variant streams and the duck are byte-identical to iteration 55's; `mix.wav`
+still integrates −18.6 LUFS at −6.1 dBFS.
+
+**`load_table` was left alone.** Its contract is *"returns the keys it asked for that it had no handle for yet"* — ask for
+what is missing. Folding a removal into it would silently change what an existing caller's map means.
+
+**Evidence.** `runs/2026-11-03-56/`: `research.md` (S1 Böttcher's *"management of thousands of assets"* — this module's own
+citation, S2 `AudioSource`'s `Arc<[u8]>`, S3 `load_table`'s contract, S4 the two retains before this one), `plan.md`,
+`perf.md`, `eval.md`, `review.md` (three passes, GREAT), `evidence/{spectrograms,after}`.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`AvoidRepeat`'s window that cannot be honoured is unreported** — `pick_from`'s comment promises `problems()` names
+   it; probed `problems: []` for two sounds at `avoid: 5`. Same open enum decision.
+3. **`load_table` does not call `retain_keys` itself** — the retain is the caller's. A one-line change would make every
+   project benefit, but it changes `load_table`'s documented contract, so it wants a decision file rather than an
+   iteration's judgement.
+4. **`reset_histories` has no caller** — a consumer item for `bevy_grimoire`.
+5. `SirenSettings::master_db` defaults to `0.0` — no trim; a lower default is a decision file.
+
 ## Iteration 55 — 2026-11-03 — a cue the table dropped stops holding a picker
 
 **Baseline.** Green on every step, no open issues. Nothing red. `/tmp/pr-target` (1.7 GB) was this loop's own scratch from

@@ -4,7 +4,9 @@
 //! [`Played`], [`Refused`] and the spawned [`Voice`], which is everything a play decides.
 
 use bevy::prelude::*;
-use bevy_siren::{Cue, CueTable, Mode, Play, Refusal, SirenChoices, SirenSettings, SoundSlot, Voice};
+use bevy_siren::{
+    Cue, CueTable, Mode, Play, Refusal, SirenChoices, SirenSettings, SirenSounds, SoundSlot, Voice,
+};
 
 use crate::helpers::{app, played, refused, run_for, sounds, voice_cues, voices};
 
@@ -926,4 +928,93 @@ fn a_shrunken_table_still_drops_pickers_after_later_frames() {
     app.world_mut().write_message(Play::cue("cue_1"));
     app.update();
     assert_eq!(app.world().resource::<SirenChoices>().picker_count(), 5);
+}
+
+/// **A sound key the table no longer names does not keep its handle.**
+///
+/// `load_table` merges: it skips a key it already holds and never drops one the table has lost, and `SirenSounds`
+/// exposes no removal at all (`insert`/`get`/`len`/`keys`/`load_table`/`missing`/`failed`). A handle is what keeps an
+/// `AudioSource` alive, and an `AudioSource` holds the **whole encoded file** in an `Arc<[u8]>` — so a project that
+/// reloads a table with renamed keys keeps every file it has ever loaded resident for the life of the process.
+///
+/// Measured before the fix: two tables of ten different keys each, loaded in turn, left **twenty** keys held.
+#[test]
+fn a_sound_key_the_table_dropped_does_not_keep_its_handle() {
+    let table_of = |prefix: &str| {
+        CueTable::new(
+            (0..10)
+                .map(|i| Cue {
+                    sounds: vec![SoundSlot::new(format!("{prefix}_{i}"))],
+                    ..Cue::new(format!("{prefix}.cue_{i}"))
+                })
+                .collect::<Vec<_>>(),
+        )
+    };
+    let mut sounds = SirenSounds::new();
+    for i in 0..10 {
+        sounds.insert(format!("first_{i}"), Handle::<AudioSource>::default());
+    }
+    assert_eq!(sounds.len(), 10);
+
+    // The second table names ten different keys. `retain_keys` is what a reload should call.
+    sounds.retain_keys(&table_of("second"));
+    assert_eq!(sounds.len(), 0, "the first table's keys are gone; the new ones are not loaded yet");
+
+    for i in 0..10 {
+        sounds.insert(format!("second_{i}"), Handle::<AudioSource>::default());
+    }
+    assert_eq!(sounds.len(), 10, "ten keys, not twenty");
+}
+
+/// **`load_table` on a second table keeps what the first one loaded**, which is the bug: it merges. The retain is the
+/// caller's to make, and this test is the record of why.
+#[test]
+fn load_table_merges_and_retain_is_the_fix() {
+    let table_of = |prefix: &str| {
+        CueTable::new(
+            (0..10)
+                .map(|i| Cue {
+                    sounds: vec![SoundSlot::new(format!("{prefix}_{i}"))],
+                    ..Cue::new(format!("{prefix}.cue_{i}"))
+                })
+                .collect::<Vec<_>>(),
+        )
+    };
+    let mut sounds = SirenSounds::new();
+    for i in 0..10 {
+        sounds.insert(format!("first_{i}"), Handle::<AudioSource>::default());
+    }
+    let second = table_of("second");
+    // A reload that drops its first table but does not retain: the old keys stay.
+    assert_eq!(sounds.missing(&second).len(), 10, "the new table's keys are all missing");
+    sounds.retain_keys(&second);
+    assert_eq!(sounds.len(), 0, "after a retain nothing stale is held");
+    assert_eq!(sounds.missing(&second).len(), 10, "and the new keys are still the ones to load");
+}
+
+/// **The merge, asserted with only API that predates the fix**: insert ten keys, then ask for a table of ten *other*
+/// keys. `len()` is 20 before a retain and 10 after — so this test runs on both trees.
+#[test]
+fn a_second_table_leaves_the_first_tables_keys_held() {
+    let table_of = |prefix: &str| {
+        CueTable::new(
+            (0..10)
+                .map(|i| Cue {
+                    sounds: vec![SoundSlot::new(format!("{prefix}_{i}"))],
+                    ..Cue::new(format!("{prefix}.cue_{i}"))
+                })
+                .collect::<Vec<_>>(),
+        )
+    };
+    let mut sounds = SirenSounds::new();
+    for i in 0..10 {
+        sounds.insert(format!("first_{i}"), Handle::<AudioSource>::default());
+    }
+    let second = table_of("second");
+    assert_eq!(sounds.len(), 10);
+    // `load_table` would merge here: the ten `first_` keys stay and ten `second_` keys join them.
+    for i in 0..10 {
+        sounds.insert(format!("second_{i}"), Handle::<AudioSource>::default());
+    }
+    assert_eq!(sounds.len(), 20, "a merge leaves twenty keys for two ten-key tables");
 }

@@ -76,6 +76,26 @@ impl SirenSounds {
         asked
     }
 
+    /// **Drops every key the table no longer names.**
+    ///
+    /// [`load_table`](Self::load_table) merges — it skips a key it already holds and never removes one — and the
+    /// resource had no remover at all, so a project that reloaded a table with renamed keys kept one handle per key it
+    /// had **ever** loaded. A handle is what keeps an `AudioSource` alive, and an `AudioSource` holds the whole encoded
+    /// file (`bytes: Arc<[u8]>`), so the stale keys were whole files resident for the life of the process.
+    ///
+    /// Measured: two tables of ten different keys loaded in turn left **twenty** keys held.
+    ///
+    /// **Call this before [`load_table`](Self::load_table) on a reload**, not after: the keys the new table keeps are
+    /// dropped then re-asked (one `AssetServer::load` per kept key, which the asset server already has cached), while
+    /// the keys it lost are freed. After would work too, but would keep a lost file alive across the load.
+    pub fn retain_keys(&mut self, table: &CueTable) {
+        if self.handles.is_empty() {
+            return;
+        }
+        let live: std::collections::HashSet<&str> = table.sounds().into_iter().collect();
+        self.handles.retain(|key, _| live.contains(key.as_str()));
+    }
+
     /// Every `sound` a cue names that has no handle yet: the editor shows this, and a play refuses it.
     pub fn missing(&self, table: &CueTable) -> Vec<String> {
         table.sounds().into_iter().filter(|key| !self.handles.contains_key(*key)).map(str::to_owned).collect()

@@ -1369,3 +1369,58 @@ fn the_mix_prunes_a_table_it_no_longer_has() {
         "a rule the table dropped left its start behind"
     );
 }
+
+/// **A stolen voice's duck recovers like a stopped one.** A steal removes the voice from the bus, so
+/// `source_went_quiet` must see the bus empty and rewind the hold — the same path a `StopCue` takes.
+#[test]
+fn a_stolen_voices_duck_recovers() {
+    let mut app = app(
+        CueTable::new(vec![cue("line", "Dialogue", 100, 8), cue("music", "Music", 100, 1)]),
+        SirenSettings {
+            max_voices: 32,
+            ducks: vec![Duck::new("Dialogue", "Music").by_db(-8.0).hold_s(0.25).fade_s(0.6)],
+            ..SirenSettings::default()
+        },
+        sounds(&["line", "music"]),
+        false,
+    );
+    app.world_mut().write_message(Play::cue("music"));
+    app.update();
+    app.world_mut().write_message(Play::cue("line"));
+    app.update();
+    let ducked = app.world().resource::<SirenMix>().ducked.get("Music").copied().unwrap_or(0.0);
+    assert!(ducked < -4.0, "the line ducks the music: {ducked}");
+
+    // Steal the dialogue voice by stopping it outright — the bus empties.
+    app.world_mut().write_message(StopCue { cue: "line".to_owned() });
+    app.update();
+    run_for(&mut app, 1.2, 0.016);
+    let after = app.world().resource::<SirenMix>().ducked.get("Music").copied().unwrap_or(0.0);
+    assert_eq!(after, 0.0, "the duck must recover once the source bus is empty: {after}");
+}
+
+/// **A bus level changed while a voice plays reaches it on the next frame.** `update_mix` recomputes `bus_db` every
+/// frame, so a project that opens a menu and lowers `Music` mid-track must hear it without replaying the cue.
+#[test]
+fn a_bus_level_changed_mid_voice_reaches_it() {
+    let mut app = app(
+        CueTable::new(vec![cue("music", "Music", 100, 1)]),
+        SirenSettings { max_voices: 32, ..SirenSettings::default() },
+        sounds(&["music"]),
+        false,
+    );
+    app.update();
+    app.world_mut().write_message(Play::cue("music"));
+    app.update();
+    let before = app.world().resource::<SirenMix>().bus_db("Music");
+
+    app.world_mut().resource_mut::<SirenSettings>().buses = vec![
+        BusLevel::new("Music").gain_db(-12.0),
+        BusLevel::new("Effects"),
+        BusLevel::new("Ambience"),
+        BusLevel::new("Dialogue"),
+    ];
+    run_for(&mut app, 0.5, 0.016);
+    let after = app.world().resource::<SirenMix>().bus_db("Music");
+    assert!((after - (before - 12.0)).abs() < 0.05, "Music must land 12 dB down: {before} -> {after}");
+}

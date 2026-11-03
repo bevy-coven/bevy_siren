@@ -7,6 +7,20 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`SirenSounds` never released a sound key, and its handles kept whole audio files resident.** The map exposed
+  `insert`/`get`/`len`/`keys`/`load_table`/`missing`/`failed` and **no remover**, and `load_table` **merges** — it asks for
+  the keys it has no handle for and never drops one the table has lost. Measured: two tables of ten different keys loaded
+  in turn left **twenty** keys held. The map overhead is small (~62 KiB per thousand) but a `Handle<AudioSource>` is what
+  keeps an asset alive, and `AudioSource` is `bytes: Arc<[u8]>` — **the whole encoded file** — so every stale key was an
+  audio file held for the life of the process. `SirenSounds::retain_keys(&table)` now drops the keys the table no longer
+  names; call it before `load_table` on a reload. Not a wrong-output bug: a stale key is never read, checked at every
+  `sounds.get`.
+
+### Added
+
+- **`SirenSounds::retain_keys`** — drop the keys a table no longer names. Additive; `load_table`'s contract is unchanged.
+
+
 - **A cue the table no longer had kept its `VariantPicker` for the life of the process.** `SirenChoices::pickers` is keyed
   by cue name and an entry is created on a cue's first play; nothing removed one. `reset_histories` clears each picker's
   *contents* and is not a retain, so it did not help. Measured: 200 cue names played, the table cut to ten, and **200
