@@ -978,7 +978,7 @@ fn a_layer_on_the_music_bus_still_starts() {
     assert!(two_layer_score().problems(&two_layer_table()).is_empty(), "and a good score reports nothing");
 }
 
-/// **`MusicScore::problems` docs itself as nine checks, and all nine fire.**
+/// **Every check `MusicScore::problems` performs fires, and the set is exactly the documented one.**
 ///
 /// Its doc listed **four** while the function performed nine — the doc was written when the report was new, and the two
 /// faults this loop added (a gain that is not a number, a layer on the wrong bus) were never added to it. A reader trusted a
@@ -1017,7 +1017,7 @@ fn a_score_reports_every_fault_its_doc_lists() {
     };
     let reported = score.problems(&table);
     let sentences: Vec<&str> = reported.iter().map(String::as_str).collect();
-    for (needle, what) in [
+    let needles = vec![
         ("tempo_bpm is negative", "the tempo"),
         ("beats_per_bar is not a positive", "the bar"),
         ("has no name", "a blank layer name"),
@@ -1026,7 +1026,21 @@ fn a_score_reports_every_fault_its_doc_lists() {
         ("which the table does not have", "a missing cue"),
         ("which is not a loop", "a non-looping cue"),
         ("a layer is a stem of the `Music` bus", "a wrong bus"),
-    ] {
+    ];
+    // **The set is the documented set**, and its own count used to be prose: *"this list is the whole of them"* with
+    // nothing asserting it. Measured before this: a tenth check added to `problems` left the suite green.
+    const DEDICATED_FIXTURE: &[&str] = &["the score has no layers"];
+    assert_eq!(
+        needles.len() + DEDICATED_FIXTURE.len(),
+        bevy_siren::MUSIC_CHECKS.len(),
+        "every check in `MUSIC_CHECKS` needs a needle here or a dedicated fixture: {:?}",
+        bevy_siren::MUSIC_CHECKS
+    );
+    for check in DEDICATED_FIXTURE {
+        assert!(bevy_siren::MUSIC_CHECKS.contains(check), "`{check}` is not a check any more");
+    }
+
+    for (needle, what) in needles {
         assert!(sentences.iter().any(|s| s.contains(needle)), "the report names {what}: {reported:?}");
     }
     // The ninth is `the score has no layers`, which needs an empty score of its own.

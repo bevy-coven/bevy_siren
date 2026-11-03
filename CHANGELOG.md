@@ -7,6 +7,11 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`MusicScore::problems()` claimed a complete list and nothing enforced it.** Its doc said *"Nine checks, and this list
+  is the whole of them"*, and a test asserted each of the nine fires — but the nine were correct **by hand**: adding a tenth
+  check to `problems` left the suite green while the doc went on claiming completeness. `music::MUSIC_CHECKS` is now the
+  one list the doc names and the test walks, proved by adding a tenth check **and its name** and watching it fail at
+  `9 != 10`. Same repair as `mix::SETTINGS_CHECKS`, applied to the sibling type.
 - **`SirenSettings::problems()` advertised a guarantee nothing provided.** Its doc said *"Twelve checks, and
   `tests/mix.rs::problems_names_every_mistake` walks all twelve so this list and the code cannot drift apart"*. Measured:
   the code performed **thirteen**, the test asserted **eleven**, and the prose said twelve — and the check missing from

@@ -106,7 +106,7 @@ pub use mix::{
     BusLevel, DEFAULT_BUSES, Duck, DuckClock, SETTINGS_CHECKS, SirenMix, SirenSettings, Stopping,
     UNSTEALABLE_PRIORITY,
 };
-pub use music::{MusicLayer, MusicLayers, MusicScore, MusicState, MusicVoice, Stinger, When};
+pub use music::{MUSIC_CHECKS, MusicLayer, MusicLayers, MusicScore, MusicState, MusicVoice, Stinger, When};
 pub use output::{AudioOutput, Backend, Output};
 pub use play::{
     Compensation, Completes, MixerVoice, Play, Played, Refusal, Refused, Samples, SirenChoices, StopCue,

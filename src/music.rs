@@ -61,6 +61,33 @@ impl Default for MusicScore {
     }
 }
 
+/// **Every check [`MusicScore::problems`] performs**, by name — the one list the doc and the test both read.
+///
+/// The doc used to say *"Nine checks, and this list is the whole of them"*, and a test asserted each of the nine fires.
+/// **Nothing asserted the set was exactly nine**: the nine were correct **by hand**, checked only when someone counted.
+/// Adding a tenth check to `problems` left the suite green and the doc still claiming the list was the whole of it — the
+/// guarantee held by luck rather than by construction.
+///
+/// The constant is what makes it construction: **a tenth check needs a tenth name here**, and
+/// `a_score_reports_every_fault_its_doc_lists` fails naming the list when the two disagree. Proved by adding both and
+/// watching it fail at `9 != 10`.
+///
+/// This is iteration 106's repair applied to the sibling type: Ousterhout's **Information Leakage** is one decision
+/// written in several modules, and the fix is one list that the doc **names** and the test **walks**.
+///
+/// **Adding a check means adding a name here**, and the test fails naming the one that has no needle yet.
+pub const MUSIC_CHECKS: &[&str] = &[
+    "tempo is negative or not a number",
+    "bar is not a positive number",
+    "the score has no layers",
+    "a layer has no name",
+    "a layer is listed more than once",
+    "a layer gain is not a number",
+    "a layer names a cue the table does not have",
+    "a layer names a cue that is not a loop",
+    "a layer names a cue not on the Music bus",
+];
+
 impl MusicScore {
     /// Four beats to the bar.
     pub fn default_beats_per_bar() -> f32 {
@@ -84,21 +111,15 @@ impl MusicScore {
         Some(f64::from(60.0 / self.tempo_bpm) * f64::from(self.beats_per_bar))
     }
 
-    /// **Everything wrong with the score**, as sentences a person reads. Nine checks, and this list is the whole of
-    /// them — a doc that says "should" or that lists four of nine leaves a reader believing the crate catches less than
-    /// it does:
+    /// **Everything wrong with the score**, as sentences a person reads.
     ///
-    /// - a tempo that is negative or not a number, or a bar that is not a positive number;
-    /// - a score with no layers;
-    /// - a layer with no name, or the same layer listed twice;
-    /// - a layer whose `gain_db` is not a number;
-    /// - a layer naming a cue the table does not have;
-    /// - a layer naming a cue that is not a loop, so it cannot hold a layer;
-    /// - a layer naming a cue **not on the `Music` bus** — a layer is a stem of that bus, and the plugin refuses to
-    ///   start one elsewhere.
+    /// **The checks are [`MUSIC_CHECKS`], and that constant is the only list.** This doc used to enumerate them and say
+    /// *"this list is the whole of them"* while nothing asserted the set — measured: a tenth check added to this function
+    /// left the suite green and the sentence still claiming completeness.
     ///
-    /// The plugin enforces the last two: it does not start such a layer and writes one line, word for word the sentence
-    /// this report gives.
+    /// [`MUSIC_CHECKS`] names each one; the reasons worth reading are where they are performed. The two the plugin also
+    /// enforces (**a cue that is not a loop**, and **a cue not on the `Music` bus**) are refused at start with one line,
+    /// word for word the sentence this report gives.
     pub fn problems(&self, table: &CueTable) -> Vec<String> {
         let mut out = Vec::new();
         if !self.tempo_bpm.is_finite() || self.tempo_bpm < 0.0 {
