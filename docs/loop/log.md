@@ -47,7 +47,7 @@ Full gate green: build, 119+5, 126+5 (serde), 128+5 (mixer), 5 doctests, clippy 
 `check_media.py`: 0 problems. **A defect in this iteration's own review, found on the fresh-eyes frame**: the long form
 invented a second duck for a rule that was merely recovering; fixed before shipping and re-reviewed.
 
-**Commit.** (see `git log`).
+**Commit.** `79d41b9` — *examples: the panel names the duck whose depth it shows, and plays a stinger*.
 
 **Top 5 remaining**
 
