@@ -88,6 +88,24 @@ they follow the score:
 
 `MusicState::names()` is in score order, whatever the edit.
 
+## When a stem's voice dies
+
+A layer is a **voice**, and a voice can be stopped by something other than the score. The plugin reconciles its mirror
+every frame, so `voice(name)` never names an entity the world no longer has and `live()` is true:
+
+- **the budget took it** — a stem is never the victim: a music-layer voice is unstealable whatever priority its cue
+  authored. `UNSTEALABLE_PRIORITY` is a label a cue carries, and a layer is a stem; a play that needs room on the music
+  bus is refused instead of taking one. If a voice dies anyway, it is asked for again at the layer's own gain.
+- **the game stopped it** — `StopCue` is a decision the crate was told to make. The layer stays stopped, `voice(name)` is
+  `None`, and `layer_db(name)` reads `SILENT_DB`. A **retarget** re-arms it: the score names a different sound.
+- **its first play was refused** — the intent to start is retried when a voice frees, not every frame: the retry waits
+  for the live count to fall below the count at the refusal, so a full budget writes **one** refusal line, not one per
+  frame.
+
+A stem that comes back starts from the beginning, so it is out of phase with the others. That is the price of a voice
+that died; the crate does not re-time it, because what a restart means after a gain change is a decision the score does
+not carry.
+
 ## As data
 
 ```ron

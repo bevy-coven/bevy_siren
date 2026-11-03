@@ -320,14 +320,18 @@ struct Live {
 }
 
 impl Live {
-    fn of((entity, voice): (Entity, &Voice)) -> Self {
+    /// **A music layer's voice is unstealable whatever priority its cue authored.** `UNSTEALABLE_PRIORITY` is a
+    /// *label* a cue carries; a layer is a **stem**, and R4's "music, stingers and dialogue are not stolen" is about
+    /// the sound, not about whether the score's author remembered `priority: 180`. The plugin marks every voice it
+    /// adopts with [`MusicVoice`](crate::music::MusicVoice), which is the fact this row reads.
+    fn of((entity, voice, music): (Entity, &Voice, Option<&crate::music::MusicVoice>)) -> Self {
         Self {
             entity,
             cue: voice.cue.clone(),
             bus: voice.bus.clone(),
             priority: voice.priority,
             start_s: voice.start_s,
-            unstealable: voice.unstealable,
+            unstealable: voice.unstealable || music.is_some(),
         }
     }
 
@@ -366,7 +370,7 @@ pub fn play_requests(
     mut log: ResMut<SirenLog>,
     real: Res<Time<Real>>,
     listener: Query<(&GlobalTransform, &SpatialListener)>,
-    voices: Query<(Entity, &Voice), Without<Stopping>>,
+    voices: Query<(Entity, &Voice, Option<&crate::music::MusicVoice>), Without<Stopping>>,
     backend: Res<crate::output::Backend>,
     mut played: MessageWriter<Played>,
     mut refused: MessageWriter<Refused>,
@@ -396,6 +400,7 @@ pub fn play_requests(
                     bus: started.bus.clone(),
                     priority: started.priority,
                     start_s: now,
+                    // A play written this frame has not been adopted by the music plugin yet, so it cannot be a layer.
                     unstealable: started.priority >= UNSTEALABLE_PRIORITY,
                 });
                 if settings.ducks.iter().any(|d| d.source == started.bus) {

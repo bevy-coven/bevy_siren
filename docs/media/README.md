@@ -3,6 +3,16 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 15, a stem whose voice dies
+
+No clip: the change is **what happens when a music layer's voice dies**, and it happens on a frame — nothing is
+rendered, so every WAV is byte-identical (21 of 21). The evidence is a scripted probe,
+`runs/2026-11-02-15/evidence/layer-voices{,-before}.txt`, which on the unfixed tree prints
+`voices ["ui.click"] … steals ["track.calm stolen by ui.click"]` — the stem gone, the layer still saying it plays — and
+after prints `voices ["track.calm"] … steals []`. Every row is a test:
+`tests/music.rs::{a_one_shot_cannot_steal_a_music_layer, a_layer_whose_voice_died_is_restarted,
+a_layer_the_game_stopped_stays_stopped, a_refused_layer_start_is_tried_again_when_room_frees}`.
+
 ## No clip: iteration 14, a score edit reconciles its voices
 
 No clip: the change is **what happens to a voice when the score changes**, and every rendered WAV is byte-identical

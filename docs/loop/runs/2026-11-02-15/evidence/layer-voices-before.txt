@@ -1,0 +1,13 @@
+warning: function `live` is never used
+  --> examples/probe_layers.rs:22:4
+   |
+22 | fn live(app: &mut App) -> usize {
+   |    ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `bevy_siren` (example "probe_layers") generated 1 warning
+1. StopCue on a stem:  voice() Some(47v0) -> Some(47v0), live() 1, layer_db Some(-80.0)
+2. ui.click beside a priority-0 stem: voices ["ui.click"], layer true, steals ["track.calm stolen by ui.click"]
+3. a stem whose voice died: Some(47v0) -> Some(47v0), live() 1
+4. a refused layer start: live() 0 after the slot frees, refusals logged 1 -> 1

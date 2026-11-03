@@ -5,11 +5,11 @@
 
 use bevy::prelude::*;
 use bevy_siren::{
-    Cue, CueTable, Mode, MusicLayer, MusicLayers, MusicScore, MusicState, Play, SirenMix, SirenSettings,
-    SoundSlot, Stinger, Voice, When,
+    Cue, CueTable, Mode, MusicLayer, MusicLayers, MusicScore, MusicState, Play, SirenLog, SirenMix,
+    SirenSettings, SoundSlot, Stinger, StopCue, Voice, When,
 };
 
-use crate::helpers::{advance, app, refused, run_for, sounds, voices};
+use crate::helpers::{advance, app, played, refused, run_for, sounds, voices};
 
 /// A headless app with a score, the crate's default mix, and the voices the score's layers need.
 fn app_with(score: MusicScore, table: CueTable, keys: &[&str]) -> App {
@@ -515,4 +515,153 @@ fn a_layer_whose_gain_changed_keeps_its_voice() {
     let cues: Vec<String> =
         app.world_mut().query::<&Voice>().iter(app.world()).map(|v| v.cue.clone()).collect();
     assert!(cues.contains(&"track.calm".to_owned()), "and it still plays the same cue: {cues:?}");
+}
+
+/// **A play on the music bus cannot take a layer's voice, whatever priority the layer's cue authored.**
+///
+/// `Voice::unstealable`'s doc says *"music, stingers and dialogue are not stolen"*, and R4 in `docs/research/siren.md`
+/// makes that a rule. The mechanism was `priority >= UNSTEALABLE_PRIORITY`, so a layer authored with the crate's
+/// default `priority: 0` was **called** music and **treated as** a footstep: a `ui.click` on the same bus at
+/// `max_voices: 1` stopped the stem (`stopped track.calm: stolen by ui.click`) and the score never heard about it.
+/// A layer is a **stem**; the budget refuses the newcomer instead.
+#[test]
+fn a_one_shot_cannot_steal_a_music_layer() {
+    // The layer's cue carries the crate's **default** priority, so `unstealable` is false by label: the protection this
+    // test is about must come from the voice being a layer, not from the number the author wrote.
+    let mut table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("track.calm")],
+        bus: "Music".to_owned(),
+        mode: Mode::Loop,
+        ..Cue::new("track.calm")
+    }]);
+    table.insert(Cue {
+        sounds: vec![SoundSlot::new("ui.click")],
+        bus: "Music".to_owned(),
+        ..Cue::new("ui.click")
+    });
+    let mut app = app(
+        table,
+        SirenSettings { max_voices: 1, ..SirenSettings::default() },
+        sounds(&["track.calm", "ui.click"]),
+        true,
+    );
+    app.insert_resource(MusicScore {
+        layers: vec![MusicLayer::new("calm", "track.calm")],
+        tempo_bpm: 120.0,
+        beats_per_bar: 4.0,
+    });
+    app.update();
+    app.update();
+    let calm = app.world().resource::<MusicState>().voice("calm").expect("the calm layer has a voice");
+    assert_eq!(
+        app.world().resource::<CueTable>().get("track.calm").expect("cue").priority,
+        0,
+        "the layer's cue is not unstealable by label"
+    );
+
+    app.world_mut().resource_mut::<Messages<Play>>().write(Play::cue("ui.click"));
+    app.update();
+
+    let refused = refused(&mut app);
+    assert!(refused.iter().any(|r| r.cue == "ui.click"), "the newcomer is refused: {refused:?}");
+    assert_eq!(
+        app.world().resource::<MusicState>().voice("calm"),
+        Some(calm),
+        "the stem is still playing, on the same entity"
+    );
+    let lines: Vec<String> = app.world().resource::<SirenLog>().recent(8).map(|e| e.line()).collect();
+    assert!(
+        !lines.iter().any(|l| l.contains("stolen by") && l.contains("track.calm")),
+        "no line says the stem was stolen: {lines:?}"
+    );
+}
+
+/// **A layer whose voice died for a reason the plugin did not ask for plays again**, at the layer's own gain.
+///
+/// Gregory §14.5.8.4: a stopped voice frees its resources, and a *logical* sound outlives its physical voice. The mirror
+/// in `MusicState` was written once and never reconciled, so a voice that vanished left `voice()` naming a
+/// **despawned** entity and the stem silent for the rest of the process.
+#[test]
+fn a_layer_whose_voice_died_is_restarted() {
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    app.update();
+    app.update();
+    let first = app.world().resource::<MusicState>().voice("calm").expect("the calm layer has a voice");
+
+    // The voice dies without the music plugin asking: a stopped sample's owner despawns it.
+    app.world_mut().entity_mut(first).despawn();
+    app.update();
+    app.update();
+
+    let second = app.world().resource::<MusicState>().voice("calm");
+    assert!(second.is_some(), "the layer has a voice again");
+    assert_ne!(second, Some(first), "and it is a new one");
+    assert_eq!(app.world().resource::<MusicState>().live(), 2, "both layers are live, which is the truth");
+}
+
+/// **A layer a game stopped with `StopCue` stays stopped.** The restart rule exists for a voice that died behind the
+/// plugin's back, not for one the game asked for: restarting a stem a game stopped would be the crate overriding a
+/// decision it was told to make.
+#[test]
+fn a_layer_the_game_stopped_stays_stopped() {
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    app.update();
+    app.update();
+    assert!(app.world().resource::<MusicState>().voice("calm").is_some(), "it starts");
+
+    let before = played(&mut app).len();
+    app.world_mut().resource_mut::<Messages<StopCue>>().write(StopCue { cue: "track.calm".into() });
+    run_for(&mut app, 3.0, 1.0 / 60.0);
+
+    let started_after = played(&mut app);
+    assert!(!started_after.iter().any(|p| p.cue == "track.calm"), "it is not restarted: {started_after:?}");
+    let _ = before;
+    let state = app.world().resource::<MusicState>();
+    assert_eq!(state.voice("calm"), None, "the mirror no longer names a dead entity");
+    assert_eq!(state.live(), 1, "only the layer that was not stopped is live");
+    let calm = state.layer_db("calm").expect("the layer is still in the score");
+    assert!(
+        calm <= bevy_siren::model::SILENT_DB,
+        "and its gain reads silent, not the last gain it played at: {calm}"
+    );
+}
+
+/// **A layer whose first play was refused is asked for again once a voice frees**, and refused only once.
+///
+/// `awaiting` is the intent to start a layer. It was pushed and never cleared, so a layer refused by a full budget was
+/// blocked for the life of the process — no retry, no second line. Retrying every frame would instead write one refusal
+/// per frame into the panel's log, so the retry waits for the live count to fall below the count at the refusal.
+#[test]
+fn a_refused_layer_start_is_tried_again_when_room_frees() {
+    let mut table = two_layer_table();
+    table.insert(Cue {
+        sounds: vec![SoundSlot::new("bed")],
+        bus: "Music".to_owned(),
+        mode: Mode::Loop,
+        priority: 200,
+        ..Cue::new("bed")
+    });
+    let mut app = app_with(MusicScore::default(), table, &["track.calm", "track.combat", "bed"]);
+    app.insert_resource(SirenSettings { max_voices: 1, ..SirenSettings::default() });
+    app.update();
+    // A bed takes the one slot before the score arrives.
+    app.world_mut().resource_mut::<Messages<Play>>().write(Play::cue("bed"));
+    app.update();
+    app.update();
+    app.insert_resource(two_layer_score());
+    run_for(&mut app, 0.2, 1.0 / 60.0);
+    assert_eq!(
+        app.world().resource::<MusicState>().live(),
+        0,
+        "the score's layers were refused: {:#?}",
+        refused(&mut app)
+    );
+
+    app.world_mut().resource_mut::<Messages<StopCue>>().write(StopCue { cue: "bed".into() });
+    run_for(&mut app, 2.0, 1.0 / 60.0);
+
+    assert!(
+        app.world().resource::<MusicState>().live() > 0,
+        "a layer is live now that the bed freed its slot"
+    );
 }

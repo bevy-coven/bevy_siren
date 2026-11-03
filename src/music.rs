@@ -26,7 +26,7 @@ use crate::cue::CueTable;
 use crate::log::{Entry, SirenLog};
 use crate::mix::{DuckClock, Stopping};
 use crate::model::{DEFAULT_FADE_S, SILENT_DB, approach, next_boundary, tau_for_fade};
-use crate::play::{Play, Played, Refusal, Voice};
+use crate::play::{Play, Played, Refusal, Refused, Voice};
 
 /// A music score: the layers a track is made of, and its tempo.
 ///
@@ -265,6 +265,14 @@ struct LiveLayer {
     /// The arrival time this layer was last given, in seconds. `0` is the crate's [`MIX_TAU_S`] easing, which is what
     /// a layer starts at and what a change that names no fade leaves alone.
     fade_s: f32,
+    /// Whether a voice that dies is asked for again. **A reason the plugin did not ask for is restarted; a reason the
+    /// game asked for is not.** Gregory §14.5.8.4 — a logical sound outlives its physical voice, so a stem the budget
+    /// took comes back; a stem a game stopped with [`StopCue`](crate::StopCue) was meant to stop.
+    restart: bool,
+    /// The live voice count at the frame this layer's start was **refused**, or `None` when it was never refused. A
+    /// virtual voice is promoted when a voice frees, not every frame: retrying while the budget is unchanged would
+    /// write one refusal line per frame into a log a player's panel reads.
+    blocked_at: Option<usize>,
 }
 
 /// A stinger whose `Play` has been written this frame and not yet answered.
@@ -333,19 +341,24 @@ pub fn start_layers(
     mut state: ResMut<MusicState>,
     mut plays: MessageWriter<Play>,
     mut log: ResMut<SirenLog>,
-    voices: Query<(Entity, &Voice)>,
+    voices: LayerVoices,
     mut commands: Commands,
     real: Res<Time<Real>>,
 ) {
     let Some(score) = score else {
         return;
     };
-    let unchanged = !score.is_changed() && state.score.is_some();
-    if unchanged {
+    let now = real.elapsed_secs_f64();
+    let live = &voices;
+    // **The mirror is reconciled every frame**, not only when the score changes. `MusicState` records the entity a
+    // layer's `Played` reported, and a voice can die for a reason the score never heard about: the budget steals it
+    // (§ R4), a game stops it (`StopCue`), a one-shot it named ends. Nothing in the plugin noticed, so `voice()` kept
+    // naming a **despawned** entity, `live()` counted it, and the layer was silent for the rest of the process.
+    reconcile(&mut state, live);
+    if !score.is_changed() && state.score.is_some() {
+        start_missing(&mut state, &mut plays, live);
         return;
     }
-    let now = real.elapsed_secs_f64();
-    let _ = now;
     state.score = Some(score.clone());
 
     // **A layer's voice belongs to the score's layer, and follows it.** A score is a resource a project and the
@@ -368,6 +381,10 @@ pub fn start_layers(
             if let Some(voice) = layer.voice {
                 stops.push((voice, "layer retargeted"));
             }
+            // **A retarget re-arms a layer a game had stopped.** The layer is dropped here and re-created by the loop
+            // below with `restart: true`, because the score now names a *different* sound, which is a stem the game
+            // asked for. Keeping the old `restart: false` would re-add the layer and then never start it — exactly the
+            // silent disagreement this iteration exists to remove.
             return false;
         }
         true
@@ -377,7 +394,7 @@ pub fn start_layers(
     // reason, keeps the one fade (`apply_stopping`) and the true log line — and `stop_requests` never sees it, so there
     // is no second line. `start_layers` runs in `Choose` and `apply_stopping` in `Mix`, so the fade begins this frame.
     for (entity, why) in stops {
-        if let Ok((_, voice)) = voices.get(entity) {
+        if let Ok((_, voice, _, _)) = voices.get(entity) {
             log.push(Entry::Stopped { at_s: now, cue: voice.cue.clone(), why: why.to_owned() });
         }
         commands.entity(entity).insert(Stopping { since_s: now, why: why.to_owned() });
@@ -391,6 +408,8 @@ pub fn start_layers(
                 db: layer.gain_db,
                 target_db: layer.gain_db,
                 fade_s: 0.0,
+                restart: true,
+                blocked_at: None,
             });
         }
     }
@@ -399,13 +418,71 @@ pub fn start_layers(
     state.layers.sort_by_key(|layer| {
         score.layers.iter().position(|scored| scored.name == layer.name).unwrap_or(usize::MAX)
     });
+    start_missing(&mut state, &mut plays, live);
+}
+
+/// The voices the plugin may see, for the reconcile and for the budget it must not fill.
+type LayerVoices<'w, 's> = Query<
+    'w,
+    's,
+    (Entity, &'static crate::play::Voice, Option<&'static MusicVoice>, Option<&'static Stopping>),
+>;
+
+/// **Clears a layer's voice when the voice has died**, and remembers whether it should come back.
+fn reconcile(state: &mut MusicState, live: &LayerVoices) {
+    let mut alive: Vec<Entity> = Vec::new();
+    for (entity, voice, _, _) in live.iter() {
+        let _ = voice;
+        alive.push(entity);
+    }
+    for layer in &mut state.layers {
+        let Some(voice) = layer.voice else { continue };
+        if alive.contains(&voice) {
+            // Still in the world: read **why** it is going while the reason is still there. `Stopping` is removed with
+            // the entity, so a frame later the question is unanswerable.
+            if let Ok((_, _, _, Some(stopping))) = live.get(voice)
+                && is_game_stop(&stopping.why)
+            {
+                layer.restart = false;
+            }
+            continue;
+        }
+        layer.voice = None;
+        if !layer.restart {
+            // The game asked for this stop, so the layer stays stopped. It is **silent**, and `layer_db` must say so:
+            // a panel reading a fader that no voice is following would be reading the gain of the last frame the layer
+            // played, which is not this frame's music.
+            layer.db = crate::model::SILENT_DB;
+            layer.target_db = crate::model::SILENT_DB;
+        }
+    }
+}
+
+/// Whether a [`Stopping`] reason is the game's, rather than the crate's own housekeeping.
+fn is_game_stop(why: &str) -> bool {
+    why == "stop" || why == "cue stopped"
+}
+
+/// **Asks for a voice for every layer that has none and may have one.** A refused start is retried **when something
+/// made room** — the live count fell below the count at the refusal — because a budget that has not changed will refuse
+/// identically, and writing that line every frame is noise in the panel the log exists for.
+fn start_missing(state: &mut MusicState, plays: &mut MessageWriter<Play>, live: &LayerVoices) {
+    let count = live.iter().count();
     let start: Vec<(String, String, f32)> = state
         .layers
         .iter()
-        .filter(|layer| layer.voice.is_none() && !state.awaiting.iter().any(|(cue, _)| *cue == layer.cue))
+        .filter(|layer| {
+            layer.voice.is_none()
+                && layer.restart
+                && !state.awaiting.iter().any(|(cue, _)| *cue == layer.cue)
+                && layer.blocked_at.is_none_or(|blocked| count < blocked)
+        })
         .map(|layer| (layer.cue.clone(), layer.name.clone(), layer.db))
         .collect();
     for (cue, name, db) in start {
+        if let Some(layer) = state.layers.iter_mut().find(|l| l.name == name) {
+            layer.blocked_at = None;
+        }
         state.awaiting.push((cue.clone(), name));
         plays.write(Play::cue(cue).gain(db));
     }
@@ -415,9 +492,27 @@ pub fn start_layers(
 /// after [`SirenSystems::Play`](crate::SirenSystems) so the [`Played`] of this frame is seen this frame.
 pub fn adopt_layers(
     mut played: MessageReader<Played>,
+    mut refused: MessageReader<Refused>,
     mut state: ResMut<MusicState>,
+    voices: LayerVoices,
     mut commands: Commands,
 ) {
+    // How many voices the world holds **when the answer arrived**, which is the number a retry must fall below: at a
+    // refusal the budget is full, so the same count would refuse identically.
+    let live_count = voices.iter().count();
+    // **A refusal is an answer too.** `awaiting` is the intent to start a layer, and an intent that produced a
+    // `Refused` is spent: leaving it there blocked the layer for the life of the process, because `start_layers` skips
+    // a layer whose cue is already awaiting. Clear it and record the count it was refused at, so the retry waits for a
+    // voice to free rather than writing the same refusal into the panel's log every frame.
+    for answer in refused.read() {
+        let Some(at) = state.awaiting.iter().position(|(cue, _)| *cue == answer.cue) else {
+            continue;
+        };
+        let (_, name) = state.awaiting.remove(at);
+        if let Some(layer) = state.layers.iter_mut().find(|l| l.name == name) {
+            layer.blocked_at = Some(live_count);
+        }
+    }
     for answer in played.read() {
         let Some(at) = state.awaiting.iter().position(|(cue, _)| *cue == answer.cue) else {
             continue;

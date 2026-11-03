@@ -20,6 +20,17 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A music layer's voice could die and the layer never notice.** `MusicState` wrote the entity a layer's `Played`
+  reported and never reconciled it, so a voice stopped by the game (`StopCue`), taken by the budget, or refused at its
+  first play left `voice(name)` naming a **despawned** entity, `live()` counting it, and the stem silent for the rest of
+  the process. The mirror now reconciles every frame: a dead voice is cleared, a stem that died behind the plugin's back
+  is restarted at its own gain, a `StopCue` stays stopped, and a refused first start is retried **when a voice frees**
+  (one refusal line, not one per frame).
+- **A music layer is unstealable whatever priority its cue authored.** `Voice::unstealable`'s doc says *"music, stingers
+  and dialogue are not stolen"*, but the mechanism was `priority >= UNSTEALABLE_PRIORITY`: a layer authored with the
+  crate's default `priority: 0` was called music and treated as a footstep, so a `ui.click` on the same bus at
+  `max_voices: 1` stopped the stem. The budget now reads the `MusicVoice` the plugin already inserts; the newcomer is
+  refused instead.
 - **A `MusicScore` edited at runtime now reconciles its voices, not only its layer list.** `MusicScore` is a resource a
   project and the Cauldron edit, and `start_layers` only ever *added* layers: a layer **removed** from the score kept a
   looping voice playing forever, ownerless (`retire_voices` skips loops by design), and a layer **retargeted** to a new

@@ -7,6 +7,74 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 15 — 2026-11-02 — a music layer's voice dies, and now the layer knows
+
+**Change.**
+
+- **`src/music.rs` — `MusicState` reconciles its voices every frame.** It wrote the entity a layer's `Played`
+  reported and never looked again, so a stem stopped by the game, stolen by the budget, or refused at its first play
+  left `voice(name)` naming a **despawned** entity, `live()` counting it, and the stem silent for the process's life.
+  Three rules now: a dead voice is cleared; a stem that died behind the plugin's back is restarted at the layer's own
+  gain; a `StopCue` stays stopped and reads `SILENT_DB`; a refused first start is retried **when a voice frees**.
+- **`src/play.rs` — a music layer is unstealable whatever its cue authored.** `Voice::unstealable`'s doc says *"music,
+  stingers and dialogue are not stolen"*; the mechanism was `priority >= UNSTEALABLE_PRIORITY`, so a layer authored with
+  the default `priority: 0` was called music and treated as a footstep. The budget reads the `MusicVoice` the plugin
+  already inserts; the newcomer is refused.
+- `tests/music.rs` — four tests, all failing on the base commit; a *"When a stem's voice dies"* section and a
+  `CHANGELOG.md` line.
+
+**Why.** Iteration 14's advice was to hunt `SirenSettings`; the hunt found a **contract class** one level up — a
+resource that mirrors another system's entities. Iteration 12 was one path of it (a handle that outlived its voice);
+this is the mirror itself. The worst row is rank 1: a **stem silently stolen by a UI click**, which R4 and the crate's
+own research say must never happen.
+
+**Evidence.** `runs/2026-11-02-15/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/layer-voices{,-before}.txt`.
+
+**Measured.**
+
+| row | before | after |
+|---|---|---|
+| `StopCue` on a stem | `voice()` `Some(47v0)` — **despawned**; `live()` 1 | `None`, `live()` 0, `layer_db` −80 dB |
+| `ui.click` beside a `priority: 0` stem, `max_voices: 1` | `voices ["ui.click"]`, **`track.calm stolen by ui.click`** | `voices ["track.calm"]`, no steals; the click refused |
+| a stem whose voice died | `Some(47v0)` → `Some(47v0)`, still dead, `live()` **1** | `Some(47v0)` → `Some(48v0)`, `live()` 1 |
+| a refused first start | `live()` **0** forever | `live()` 1; refusals **1 → 1** |
+| every rendered cue, the mix | — | **byte-identical** (21/21); `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| frame cost, 8 / 64 / 256 voices | 0.062 / 0.353 / 1.135 µs | 0.064 / 0.351 / 0.734 µs |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. Two defects caught in my own work: the retry compared
+against the count of *pending intents* instead of *voices* (so it never retried — probe 27 caught it), and a
+game-stopped layer kept reporting the gain of its last playing frame.
+
+**Traps for the command.** (1) A mirror of another system's entities must be reconciled **every frame**; a `voice:
+Option<Entity>` is a claim the world can falsify without telling you. (2) Read *why* a voice is stopping while
+`Stopping` is still on it — it despawns with the entity, and a frame later the reason is gone. (3) `voice: Option` is
+not truthiness: `live()` counted the dead. (4) A retry condition must count the resource it waits for, not the queue
+that asks for it. (5) The Cauldron panel test needs ~14 GB; disk hit 99 % and it failed with `ld: errno=28` — the skill's
+own warning. `hs distill` is GPU-blocked (fourteenth iteration).
+
+**Commit.** see `git log` below; CI on `main`.
+
+**Next 5.**
+
+1. **Re-time a restarted stem to the bar.** A restart is a new play from sample zero and is out of phase. Needs a
+   decision about what a restart means after a gain change: `needs-decision/restart-on-the-bar.md`.
+2. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+3. A `Refusal` variant separating "never mapped" from "corrupt" — `needs-decision/undecodable-sound.md`.
+4. Quantise a **retarget** onto the bar (iteration 14's item 1).
+5. A `Refusal` payload that names the cap — `needs-decision/refusal-names-its-cap.md`.
+
+**The hunt, fourth pass.** The **resource-contract** class has now paid three times: `max_instances`'s sentence (13),
+`MusicScore`'s edits (14), `MusicState`'s mirror (15). The remaining unprobed surface of it is the **other direction** —
+what a *consumer* resource holds about the crate: `SirenSounds`, `SirenChoices`, and the `Output`/`Backend` a host
+installs. `SirenChoices` is a `Resource` a project may reset; check what resetting it mid-stream does to a determinism
+promise.
+
+**Baseline note.** Nothing was red; the suite had 76 tests. No case in `cues.yaml` stops a layer's voice or authors a
+layer with the default priority.
+
+---
+
 ## Iteration 14 — 2026-11-02 — a score edited at runtime reconciles its voices
 
 **Change.**
