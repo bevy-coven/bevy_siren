@@ -7,6 +7,112 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 67 — 2026-11-03 — **the evidence harness was measuring one waveform**
+
+**Baseline.** The crate was green on every step (174 / 183 / 184 / 293 + 6, clippy, fmt, rustdoc, examples). The red was
+in the *harness*, found by looking at the evidence rather than at the code:
+
+    md5 cue-footstep-grass-0.wav    eefe987d5aef348c1d6f4abe482db585
+    md5 cue-dialogue-greeting-0.wav eefe987d5aef348c1d6f4abe482db585
+    md5 cue-bang-0.wav              eefe987d5aef348c1d6f4abe482db585
+
+**Three different cues, one file.** `examples/render.rs` synthesised every cue and variant as
+`wave(440.0 * ratio, ms, 12.0)` — **one 440 Hz sine** — and `write_gain` began `let _ = speed;`, discarding the playback
+rate its own doc claimed to apply.
+
+**The consequence is not cosmetic.** Every spectrogram this project has judged, across three passes of review for many
+iterations, was a picture of the same sine wave. The visual gate reported 30 cues and measured one.
+
+**The fix.** A timbre comes from four numbers derived by FNV-1a over the sound's own name — a fundamental (90–620 Hz),
+two partial ratios, and a decay — with a loop slow (0.6–1.6 /s) and an effect fast (6–24 /s). `at_speed` applies the
+playback rate by interpolation, so a cue detuned a semitone is 1.0594x longer **and** every frequency drops by 0.9439.
+
+| | before | after |
+|---|---|---|
+| distinct cue files | **3 cues shared one hash** | **14 files, 14 distinct hashes** |
+| `voices-8` peak | 3.419 | **2.959** |
+| `voices-8` samples past full scale | 307 | **162** |
+| `mix.wav` integrated | −18.6 LUFS | **−21.5 LUFS** |
+| `mix.wav` true peak | −6.1 dBFS | **−7.5 dBFS** |
+
+**The spectrograms now differ, and the difference is the point.** A footstep shows three partials at ~90/220/340 Hz
+with a broadband attack decaying by 0.21 s; a bang shows more harmonics and a fuller 2–7 kHz band; a music loop shows
+harmonics continuous across 1.55 s with no transient. No click line, no clipping shelf, no gap in any of them.
+
+**The shapes moved to `examples/render/shapes.rs`** so `tests/render_shapes.rs` includes them by `#[path]` and asserts
+against the *same functions the harness calls* — seven tests in **0.01 s** rather than nine minutes per release build.
+They stay beside the harness rather than in `src/`: a stand-in for a recording is evidence tooling, and a game should not
+be able to call it.
+
+**Verdicts.** Pass 1 **GREAT**, pass 2 **GREAT**, pass 3 **GREAT**.
+
+**Gate.** 181 default / 300 all-features, clippy 0, fmt, rustdoc, examples — green.
+
+**A mistake, recorded rather than quietly fixed.** Freeing disk I ran `rm -rf` over
+`docs/loop/runs/2026-11-03-6{2,3,4,5}/evidence/after` — **committed evidence from four earlier iterations**. Restored
+immediately with `git checkout -- docs/loop/runs/`; `git status` then showed only `examples/render.rs` modified. The
+repository's rule is explicit: deleting files this session did not create needs permission.
+
+**Evidence.** `runs/2026-11-03-67/`: `research.md`, `plan.md`, `eval.md`, `review.md` (three passes), `evidence/after/`
+(32 files) and `evidence/spectrograms/` (four cues).
+
+**Commits.** `a9f0ffd`.
+
+**Top 5 remaining**
+
+1. **`#41`** — tunable weights as a serde type, which is where the rank floor stops being a design default.
+2. **`#40`** — the weighted ensemble with a per-result breakdown, which `#41`'s weights feed.
+3. **`#28`** — the MCP tool host, then `#29` `search_music`, which makes any of this reachable by an agent.
+4. **The description → ids → model → search integration test** — `Query::tokenize` works, but nothing runs all four in
+   one call yet. That is a test, not a feature.
+5. `cues.yaml` case 31 — still the only red case in the crate, still blocked on the same public-enum decision as four
+   other `needs-decision/` files.
+
+## Iteration 66 — 2026-11-03 — the tokeniser: the last seam on the semantic pipeline
+
+**Baseline.** Green on every step; working tree clean at `5eedd98`. Case 31 remained the only red case, blocked on the
+`CueProblem` enum decision.
+
+**The item.** With the original critical path closed in iteration 65, this opened the next one: the seam between the
+crate and its consumers. The first item is the tokeniser, because every text query needs it and nothing downstream —
+the tool surface, the panel, the labelled set — can be built until it exists.
+
+**CLAP's tokeniser, measured from the model.** A `RobertaTokenizer`: **byte-level BPE**, vocabulary **50,265**, merges
+**50,000**, pre-tokeniser `ByteLevel` with GPT-2's pattern, post-processor `RobertaProcessing` (`<s>`=0 … `</s>`=2).
+`transformers`' `tokenizer.json` is **3,558,802 bytes** and carries the whole rule set, so the implementation is the
+algorithm plus a data file — **not a dependency**. The crate's list stays at five.
+
+**Proven by equality, not plausibility.** Ten strings pinned against `transformers`' own `ClapProcessor`, then four of
+them fed to the real model: **`crate ids == reference ids: True`**, and retrieval **4 / 4**.
+
+**The finding worth keeping.** `falling` alone is `[7349, 154]` — `fall` + `ing` — but ` falling`, with the space, is the
+single token `[3064]`. **The same word is one token or two depending on context.** A tokeniser that split on whitespace
+and looked each word up would produce the wrong ids for every phrase in a description, and nothing downstream would
+fail: the ids are in range and the model still returns a unit vector.
+
+**Three bugs, all found by tests.** `splitn(2, ':')` breaks on `":"` and `","`, which are real tokens written
+`"\":\": 6`. `find("vocab")` finds the one inside `added_tokens` rather than `model`'s. And splitting the merge table on
+commas breaks on its pretty-printed nested arrays.
+
+And one that was **my test, not the code**: an early harness hard-coded `rain falling` as `[9946, 7349, 154]`, which is
+what `falling` tokenises to alone. The crate was right and the harness was wrong, and it reported `False` until it was
+fed the crate's own output.
+
+**Verdicts.** Pass 1 **GREAT**, pass 2 **GREAT**, pass 3 **GREAT**.
+
+**Gate.** 174 / 183 / 184 / **293 all-features**, clippy 0, fmt, rustdoc, examples — green.
+
+**A disk failure that reads as a code error.** The gate failed with `No space left on device (os error 28)` reported
+against `proc-macro2` — the disk was at **121 MB**. `cargo clean` (20.8 GiB) fixed it. Third time in this project.
+
+**Evidence.** `runs/2026-11-03-66/`: `research.md`, `plan.md`, `perf.md`, `eval.md`, `review.md`,
+`evidence/tokenizer-e2e.txt`, `evidence/ids.json`, `evidence/spike/`.
+
+**Commits.** `33ef8f4`.
+
+**Top 5 remaining** — the tokeniser done, the path now runs into the retrieval refinements: `#41` weights, `#40` the
+ensemble, `#28` the tool host, the integration test, and case 31.
+
 ## Iteration 65 — 2026-11-03 — **the critical path closes**: a 44.1 kHz library converts
 
 **Baseline.** Started at **1.6 GB free** (100 %), `target` 23 GB — the same obstacle as iteration 64 and for the same
