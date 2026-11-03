@@ -7,6 +7,78 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 8 — 2026-11-02 — a non-spatial cue is never handed to the panner
+
+**Change.**
+
+- **`src/play.rs` — one predicate decides placement.** `spawn_voice` set Bevy's `PlaybackSettings.spatial`, and
+  attached a `Transform`, from `request.position.is_some()` alone, while `answer` applied attenuation under
+  `cue.spatial && position.is_some()`. A cue authored `spatial: false` and played with `.at(..)` therefore went through
+  `rodio`'s panner, which applies `min(1, 1/d²)` as well as a pan: **−38.7 dB at 8 m**, while `Played.gain_db` read
+  **0.00 dB**. `Started.spatial` now carries the resolved fact and all three places read it.
+- `tests/play.rs` — four tests: the mismatch (fails on the unfixed tree), and the three cases it must not overshoot
+  (spatial at a position, spatial without one, spatial without a listener). Two `PlaybackSettings` assertions are gated
+  to Bevy's path, because the `mixer` build has no settings component — the two backends must answer identically, and
+  the test had only been testing one. `tests/model.rs` pins the panner's own law at 0.0117 linear / −38.7 dB.
+- `examples/render.rs` — a `panner:` line giving that law in dB; `cues.yaml` case 27; the spatial guide, the CHANGELOG
+  (with who could notice) and a media note; `needs-decision/non-spatial-position.md`.
+
+**Why.** Rank 1 — wrong output — and its worst sub-class: a `Played` whose own `gain_db` disagrees with the sample, so a
+game's meter believes a sound is at 0 dB while it plays 38 dB down. The crate's guide already states the principle the
+code broke: *"playing it flat, or at the origin, is a different sound from the one the game asked for."* The three
+higher-listed next-5 items are all decision-blocked, so this was the only rank-1 item buildable today.
+
+**Evidence.** `runs/2026-11-02-08/`: `eval.md` (baseline green; the fourth combination of the spatial table not covered),
+`research.md`, `plan.md`, `perf.md`, `review.md`, and `evidence/{before,after}/` with both render trees, the panner line,
+the spectrograms and the loudness numbers.
+
+**Measured.**
+
+| request | before | after |
+|---|---|---|
+| non-spatial cue, `.at(8 m)` | panned, **−38.7 dB audible**, `Played.gain_db` 0.00 | flat at its own gain, no `Transform`, no panner |
+| spatial cue, `.at(8 m)` | −6.02 dB, compensated, placed | unchanged |
+| spatial cue, no position | flat at its own gain | unchanged (documented) |
+| spatial cue, no listener | `SpatiallyMute` | unchanged |
+| every rendered cue and the mix | — | **byte-identical** (16/16 WAVs) |
+| frame cost, 8 / 64 / 256 voices | 0.063 / 0.354 / 1.343 µs | not on this path; one `bool` computed once per play |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The zoom pass caught a real defect in my own tests: both
+`PlaybackSettings` assertions panicked under `--features mixer`, where the crate's own graph owns playback and there is
+no settings component. Gated, and the rule that the two backends answer identically is now honoured by the test rather
+than assumed.
+
+**A number worth keeping.** The panner's own law at 8 m on-axis is **0.0117 linear, −38.7 dB** — computed from
+`model::backend_spatial_gain`, printed by `examples/render`, and pinned by a test. That is the size of the silence a
+"flat" cue was being handed while the log said 0 dB.
+
+**Traps for the command.** (1) `render.txt`'s `panner:` line reads the same in both trees **by design** — it computes the
+law, not the routing decision. It is evidence of magnitude; the test is evidence of the fix; confusing them is exactly
+the trap iteration 7 hit. (2) A test that reads `PlaybackSettings` only compiles and passes on Bevy's path; under
+`--features mixer` it panics on a missing component, which is not a crate bug. (3) `hs distill` is still GPU-blocked
+(`bge-m3` wants 5000 MB; a 14.8 GB VLLM engine holds the card), sixth iteration running.
+
+**Commit.** `f75c633`, pushed to `main`; CI run 41555323150 is **success** on `big-s1`, and so is the docs commit that follows it. Gate: build, test (59 + 4), serde (66 + 4), mixer (66 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The Cauldron panel test still pins
+`rev = "7029b20"`; `PlaybackSettings` is not something the panel reads, and `Played.gain_db` is now true rather than
+false for this case, which can only improve what it prints.
+
+**Next 5.**
+
+1. **A log line for an ignored position** — `needs-decision/non-spatial-position.md`, option 2, which shares its `Entry`
+   arm with `remove-completes.md`. One edit can land both.
+2. **A variant that distinguishes "never mapped" from "corrupt file"** — `needs-decision/undecodable-sound.md`.
+3. **A payload that names the cap** — `needs-decision/refusal-names-its-cap.md`.
+4. **`Completes` is public and can never be true** — `needs-decision/remove-completes.md`.
+5. **The mixer's decode error is discarded** (`Decoder::new(..).ok()?`); carrying it into the refusal would say *why* a
+   file failed. Same decision as item 2.
+
+**Baseline note.** Nothing was red, and the suite had 54 tests. Case 14 proves a spatial cue at two distances and case
+13 the no-listener refusal; no case reached the fourth combination — `spatial: false` **with** a position — which is the
+one that lied.
+
+---
+
 ## Iteration 7 — 2026-11-02 — a voice slot is reused, not appended
 
 **Change.**
