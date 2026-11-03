@@ -20,6 +20,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The README shows the panel the code draws.** Both images it carries — `docs/media/mixer.png` and `docs/media/mixer.gif` —
+  were generated *before* the panel gained its `Problems` block, so a developer's first look at the crate showed a panel
+  that no longer existed; the alt text named *"eight cues … eight log lines"* where the shipped table has nine cues and
+  the log shows ten. They are regenerated (the still from the clean table, the GIF with `SIREN_FAULTS=1` so the `Problems`
+  block and the `<- problem` markers are visible), the alt text is read off the new pictures, and the orphan
+  `docs/media/mixer-panel.gif` that iteration 26 created and no README named is gone.
+
 - **A voice whose entity is despawned frees its mixer slot.** `Play::on(entity)` parents the voice to a game entity, and
   despawning that entity is the ordinary way a parented sound ends. On Bevy's path the sink is a component on the voice's
   own entity and dies with it; on the crate's own mixer the voice's number was also a component there, so the despawn
@@ -82,6 +89,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
 
 ### Fixed
+
+- **The README shows the panel the code draws.** Both images it carries — `docs/media/mixer.png` and `docs/media/mixer.gif` —
+  were generated *before* the panel gained its `Problems` block, so a developer's first look at the crate showed a panel
+  that no longer existed; the alt text named *"eight cues … eight log lines"* where the shipped table has nine cues and
+  the log shows ten. They are regenerated (the still from the clean table, the GIF with `SIREN_FAULTS=1` so the `Problems`
+  block and the `<- problem` markers are visible), the alt text is read off the new pictures, and the orphan
+  `docs/media/mixer-panel.gif` that iteration 26 created and no README named is gone.
 
 - **A voice whose entity is despawned frees its mixer slot.** `Play::on(entity)` parents the voice to a game entity, and
   despawning that entity is the ordinary way a parented sound ends. On Bevy's path the sink is a component on the voice's
@@ -271,6 +285,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The README shows the panel the code draws.** Both images it carries — `docs/media/mixer.png` and `docs/media/mixer.gif` —
+  were generated *before* the panel gained its `Problems` block, so a developer's first look at the crate showed a panel
+  that no longer existed; the alt text named *"eight cues … eight log lines"* where the shipped table has nine cues and
+  the log shows ten. They are regenerated (the still from the clean table, the GIF with `SIREN_FAULTS=1` so the `Problems`
+  block and the `<- problem` markers are visible), the alt text is read off the new pictures, and the orphan
+  `docs/media/mixer-panel.gif` that iteration 26 created and no README named is gone.
+
 - **A voice whose entity is despawned frees its mixer slot.** `Play::on(entity)` parents the voice to a game entity, and
   despawning that entity is the ordinary way a parented sound ends. On Bevy's path the sink is a component on the voice's
   own entity and dies with it; on the crate's own mixer the voice's number was also a component there, so the despawn
@@ -348,6 +369,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 The first release: sound for Bevy 0.20 as data, mixed in buses.
 
 ### Fixed
+
+- **The README shows the panel the code draws.** Both images it carries — `docs/media/mixer.png` and `docs/media/mixer.gif` —
+  were generated *before* the panel gained its `Problems` block, so a developer's first look at the crate showed a panel
+  that no longer existed; the alt text named *"eight cues … eight log lines"* where the shipped table has nine cues and
+  the log shows ten. They are regenerated (the still from the clean table, the GIF with `SIREN_FAULTS=1` so the `Problems`
+  block and the `<- problem` markers are visible), the alt text is read off the new pictures, and the orphan
+  `docs/media/mixer-panel.gif` that iteration 26 created and no README named is gone.
 
 - **A voice whose entity is despawned frees its mixer slot.** `Play::on(entity)` parents the voice to a game entity, and
   despawning that entity is the ordinary way a parented sound ends. On Bevy's path the sink is a component on the voice's

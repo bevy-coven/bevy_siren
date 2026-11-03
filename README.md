@@ -11,12 +11,12 @@ that changes on the bar, and a log of what played and why.
 [![Bevy](https://img.shields.io/badge/bevy-0.20-blue.svg)](https://bevyengine.org)
 [![licence](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue.svg)](#who-and-licence)
 
-![The audio panel: four bus rows with their levels, the Dialogue row ducking Music by 8 dB, the Effects row at two of two voices after a steal, the cue table below and the log tail showing the duck, the steal and a music layer entering on the bar](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/mixer.gif)
+![The audio panel, animated: four bus rows with their levels, ducks and live voice counts; a line of dialogue ducks Music by 8 dB and Effects by 4 dB; a third footstep steals a voice from a bus capped at two; the combat layer comes in on the bar. Below, the eleven-cue table — `SIREN_FAULTS=1` adds two deliberate mistakes, so two rows carry `<- problem` and the `Problems` block names them — and the log tail reporting each decision as it happens.](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/mixer.gif)
 
 *`examples/mixer`: a scripted run — a line of dialogue ducks the music, a third footstep steals a voice from a bus
 capped at two, and the combat layer comes in on the bar.*
 
-![The same panel at rest: Music at −2 dB, Effects at 0 dB with one voice, Ambience at −6 dB, Dialogue at 0 dB, the eight cues with their buses, modes and priorities, and eight log lines](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/mixer.png)
+![The same panel at rest: Music at −9 dB with a −8 dB duck, Effects at −4 dB with one of two voices, Ambience at −6 dB, Dialogue at 0 dB, the nine shipped cues with their buses, modes, gains and priorities, `Problems` reading `none`, and the log tail](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/mixer.png)
 
 *The still: 1280 × 720.*
 

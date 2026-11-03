@@ -20,23 +20,34 @@ frame **40** (was 60), while a looping source, a second line mid-hold, and a one
 — one row of four. Tests: `tests/mix.rs::{a_duck_ends_its_hold_when_its_source_is_stopped,
 a_duck_whose_source_keeps_playing_holds, a_second_line_extends_the_duck}`.
 
-## `mixer-panel.gif` — the audio panel, as a program
+## `mixer.gif` and `mixer.png` — the audio panel, as a program
 
-![the audio panel](mixer-panel.gif)
+![the audio panel](mixer.gif)
+
+![the same panel as a still](mixer.png)
 
 The crate's visible harness: every bus with its level, its duck and its live voice count; the cue table **with the
 crate's own verdict on it** (`Problems`, and `<- problem` beside a cue that cannot play); the log of what played and why —
 driven by a scripted run so the capture shows a duck firing, a voice being stolen, and a music layer entering on the bar.
 
-This GIF is captured with `SIREN_FAULTS=1`, which adds two deliberate mistakes to the table so the `Problems` block and
-the row markers have something to show. Drop it for the clean panel, which reads `Problems / none`.
+The GIF is captured with `SIREN_FAULTS=1`, which adds two deliberate mistakes to the table so the `Problems` block and
+the row markers have something to show through the whole animation. The **still** is the clean panel, which reads
+`Problems / none` — that is the state a project ships, and it is what `README.md` shows at rest.
+
+**Both must be regenerated whenever the panel's layout changes** — iteration 26 added the `Problems` block and the
+row markers, and the two images the README pointed at were a day stale until iteration 29. Nothing in `cargo test` reads
+`docs/`; `docs/loop/runs/2026-11-03-29/check_media.py` asserts that every image a README names exists and that every
+image here is named by one.
 
 ```sh
 cargo run --release --example mixer            # the panel, interactive
 SIREN_FAULTS=1 SIREN_FRAMES=200 SIREN_SIZE=1280x720 SIREN_SHOT_DIR=/tmp/frames SIREN_SHOT_FROM=30 \
   SIREN_SHOT_EVERY=10 cargo run --release --example mixer   # 18 frames at 6 fps
 ffmpeg -y -framerate 6 -i /tmp/frames/f_%04d.png \
-  -vf "scale=960:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" -loop 0 docs/media/mixer-panel.gif
+  -vf "scale=960:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" -loop 0 docs/media/mixer.gif
+
+SIREN_FRAMES=140 SIREN_SHOT=docs/media/mixer.png SIREN_SIZE=1280x720 \
+  cargo run --release --example mixer          # the still
 ```
 
 Iteration 25 gave the capture a **default script**: `SIREN_KEYS` unset used to panic on `% 0` and write no still, so
