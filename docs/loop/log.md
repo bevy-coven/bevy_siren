@@ -7,6 +7,83 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 25 — 2026-11-03 — the capture harness runs with no environment at all
+
+**Change.**
+
+- **`examples/mixer.rs` — `capture_config` gives `SIREN_KEYS` the default its doc describes.** Unset used to yield an
+  empty step list, and `stage_keys` evaluated `% c.keys.len()` — `% 0` — so `SIREN_FRAMES=140 cargo run --release
+  --example mixer` **panicked and wrote no still**. The default is now `steal,layer,duck`; a `SIREN_KEYS` that parses to
+  nothing prints one line naming the typo before using it.
+- **The panel, captured and looked at for the first time** at 1280×720 and 1920×1080, with a bus/log crop and
+  `docs/media/mixer-panel.gif` (18 frames via `SIREN_SHOT_DIR`); a `docs/media/README.md` entry with the commands.
+- A CHANGELOG line and a media note.
+
+**Why.** Iteration 24's lead was `examples/mixer`, and running it was the probe. `%` on an integer panics in every
+profile, so this was not a debug assertion: the crate's only **visible** harness died on the command its own module doc
+gives, which is why every visible change this loop has shipped was evidenced by the headless `examples/render` alone.
+
+**Evidence.** `runs/2026-11-03-25/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`,
+`evidence/panel/{mixer-1280,mixer-1920,zoom-buses,zoom-log}.png`, `evidence/panel/default-run{,-before}.txt`, and
+`docs/media/mixer-panel.gif`.
+
+**Measured.**
+
+| command | before | after |
+|---|---|---|
+| `SIREN_FRAMES` only | **panic**, no still | still written at both sizes |
+| `SIREN_KEYS=bogus` | panic | one line naming the typo, then the default |
+| `SIREN_KEYS=layer` (guard) | works | unchanged |
+| no environment at all | panic | 20 s, no panic |
+| panel frame time (new figure) | — | 8.3–13.6 ms mean, an example's number, not the crate's |
+| crate frame cost, 8 / 64 / 256 | 0.061 / 0.348 / 1.244 µs | unchanged — no `src/` line moved |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The panel **passes the skill's own pass-3 test**: every
+number on a bus row (`dialogue.greeting` ducked Music by −8.0 and Effects by −4.0; `engine.idle` `stolen by sword.hit`)
+is one the log beneath it explains, so a developer reads it without the code. One crop mistake of mine is recorded rather
+than quietly fixed: `zoom-buses.png` starts at `Ambience`, because I offset by 150 px and the Music row *is* at 150.
+
+**Traps for the command.** (1) A documented **optional** knob that is load-bearing is a crash waiting for the default
+command. (2) `% len()` on a list built from an env var needs the empty case answered before the modulo, not after.
+(3) An example that cannot run cannot be **looked at**, and this loop's step 6 depends on looking — the missing panel
+evidence was not laziness, it was a panic. (4) When a crop looks wrong, check the offset before the panel: `zoom-buses`
+starts at `Ambience` and the full still has all four buses. (5) `hs distill` GPU-blocked (twenty-fourth iteration).
+
+**Commit.** `97f79ff`; CI on `main`.
+
+**Next 5.**
+
+1. **Answer the `CueProblem` question, or route around it.** Four variants wait on one decision
+   (`empty-sound-key.md`, `duplicate-sound-problem.md`, `bad-gain-problem.md`, `not-a-loop-refusal.md`); iteration 24
+   asked, and this one did not re-ask. If the owner does not want the break, the next run should pick outside the enum.
+2. `Refusal::NotALoop { layer, cue }` — `needs-decision/not-a-loop-refusal.md` (iteration 16).
+3. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+5. Quantise a **retarget** onto the bar (iteration 14).
+
+**The hunt, fourteenth pass.** The visible-harness class is now open in a way it was not: the panel exists as a picture
+and **has never been checked against a table the crate rejects**. Probed before writing it down — `draw_panel`'s four
+resources are `SirenMix`, `CueTable`, `SirenSettings` and `SirenLog`, in that order, and **`problems()` is not among
+them**:
+
+```rust
+fn draw_panel(mix: Res<SirenMix>, table: Res<CueTable>, settings: Res<SirenSettings>, log: Res<SirenLog>, …)
+```
+
+So the panel draws a cue on an unknown bus, or one with an inverted pitch range, exactly as it draws a good one. That is
+the editor's whole job — making a fault visible — and it is the **next item**, measured rather than guessed.
+
+**The hunt, fifteenth step (recorded, not built):** the Cauldron's `audio_panel.rs` *does* chain `problems_in(&read)` into
+its status line, so the editor has the line the crate's own example lacks. The gap is in the example, and it is named
+above so the next run does not have to find it again.
+
+**Baseline note.** Nothing was red; the suite had 109 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 24 — 2026-11-03 — a refusal outlives a burst of plays
 
 **Change.**
