@@ -7,6 +7,73 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 7 — 2026-11-02 — a voice slot is reused, not appended
+
+**Change.**
+
+- **`src/mixer/mod.rs`, `src/model.rs` — the mixer's per-bus slot list is bounded.** `play` pushed a `VoiceTrack` (a
+  `rodio::Player` and its queues) per play and never removed one, so a game on the crate's own mixer retained a player
+  for every sound it had ever played. It now reuses the first slot whose voice has ended. An index packs a **slot and
+  a generation** (`model::pack_voice`, `unpack_voice`, `VOICE_SLOT_BITS`), bumped on each hand-out, and every
+  index-taking method goes through one `occupant_mut` so a stale `MixerVoice` is a no-op rather than a cross-wire.
+  `MixerBackend::voices()` is documented as *slots*, not sounds played. **No public type or trait signature changed.**
+- `tests/mixer.rs` — a test that drives the **real** backend through 200 one-shots and asserts slots bounded, samples
+  started and 200 distinct names *together*; it returns early with a sentence where no device exists. `tests/model.rs`
+  pins the encoding at both range ends. `tests/helpers.rs` gains a real 64-sample WAV.
+- `cues.yaml` case 26; the buses guide, the CHANGELOG and a media note.
+
+**Why.** Iteration 2 found this and deferred it ("a memory leak of one `Player` handle per one-shot … what a second
+iteration's 'compact the voice list' item is for"). Five iterations later it was still there, and it is the one cost in
+the crate that grows with how long a game is played: the budget bounds **concurrent** voices, and this list counted
+**cumulative** ones. Gregory §14.5.8.4 calls the voice count fixed; here it was not. The other rank-1-class items are
+all decision-blocked, so this was the only one buildable today.
+
+**Evidence.** `runs/2026-11-02-07/`: `eval.md` (baseline green; the gap between case 21's budget release and the
+backend's own list named), `research.md`, `plan.md`, `perf.md`, `review.md`, and `evidence/{before,after}/` with both
+render trees, the spectrograms and the loudness numbers.
+
+**Measured** (real audio device, `MixerBackend::open`):
+
+| | before | after |
+|---|---|---|
+| 400 one-shots, all ended: slots held | **400** | **6** |
+| 200 one-shots: slots held | 200 | ≤ 32 asserted (2 measured) |
+| 200 one-shots: distinct indices handed out | 200 | 200 — each hand-out is a fresh *name* |
+| a stale index's `finished` / gain / stop | moved the slot's new occupant | no-op; `finished` says ended |
+| every rendered cue and the mix | — | **byte-identical** (16/16 WAVs) |
+| frame cost, 8 / 64 / 256 voices | 0.062 / 0.354 / 1.263 µs | not on this path; `perfcheck` drives neither the mixer nor the music |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The zoom pass found one defect in my own work: the first
+probe I wrote for `examples/budget` used a fake output handing out its own indices, so it measured the crate's entity
+side — never the leak — and would have printed the same line on both trees. Deleted; the measurement that matters came
+from the real backend, which this machine can open.
+
+**Traps for the command.** (1) A fake `AudioOutput` cannot measure `MixerBackend`: the leak is the real graph's slot
+vector. Test the real backend where a device exists and skip with a sentence where it does not. (2) Bounding slots by
+**reusing indices** would be a worse bug than the leak — a stale `MixerVoice` would move another voice's gain — so the
+test asserts *slots bounded* and *names distinct* in the same breath; either alone passes vacuously. (3) `hs distill`
+is still GPU-blocked (`bge-m3` wants 5000 MB behind a 14.8 GB VLLM engine), fifth iteration running; the rule is
+argued from the vendored `rodio` source and Gregory §14.5.8.4, both already cited here.
+
+**Commit.** `32f0ce3`, pushed to `main`; CI run 41554421622 is **success** on `big-s1`. Gate: build, test (54 + 4), serde (61 + 4), mixer (61 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The Cauldron panel test still pins
+`rev = "7029b20"`; `MixerBackend::voices()` is unused there, so the one changed accessor reaches no consumer.
+
+**Next 5.**
+
+1. **A variant that distinguishes "never mapped" from "corrupt file"** — `needs-decision/undecodable-sound.md`; a new
+   `match` arm for a consumer, so the owner's call.
+2. **A payload that names the cap** — `needs-decision/refusal-names-its-cap.md`.
+3. **`Completes` is public and can never be true** — `needs-decision/remove-completes.md`.
+4. **The mixer's decode error is discarded** at `mixer/mod.rs` (`Decoder::new(..).ok()?`); carrying it into the refusal
+   would say *why* a file failed. Same decision as item 1.
+5. **A crossfade a second change interrupts** replaces target and fade rather than queueing; a design question.
+
+**Baseline note.** Nothing was red, and the suite had 53 tests. Cases 20–21 prove the **budget** frees a voice; none
+could see the **backend's** own list, which is why five iterations of green runs sat on top of a 400-slot leak.
+
+---
+
 ## Iteration 6 — 2026-11-02 — a refused sample names the sound, not the cue
 
 **Change.**
