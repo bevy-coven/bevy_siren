@@ -1,0 +1,24 @@
+# Model licence audit, read 2026-11-03 via the Hugging Face API
+
+    $ curl -s https://huggingface.co/api/models/<id> | jq ".tags[] | select(startswith(\"license:\"))"
+
+laion/clap-htsat-fused           license:apache-2.0
+laion/clap-htsat-unfused         license:apache-2.0
+m-a-p/MERT-v1-95M                license:cc-by-nc-4.0
+m-a-p/MERT-v1-330M               license:cc-by-nc-4.0
+OpenMuQ/MuQ-large-msd-iter       license:cc-by-nc-4.0
+OpenMuQ/MuQ-MuLan-large          license:cc-by-nc-4.0
+minzwon/musicfm-v-demo           NO license tag
+nvidia/audio-flamingo-hf         NO license tag
+EffOrg/EF-CLAP                   NO license tag
+
+## The training corpus
+
+    $ curl -sI https://raw.githubusercontent.com/LAION-AI/audio-dataset/main/LICENSE
+    HTTP 404
+    $ curl -s https://api.github.com/repos/LAION-AI/audio-dataset | jq .license
+    null
+
+LAION-audio-630k's README states it was assembled from eight sources including Epidemic
+Sound, Audiostock, Sonniss Game Effects and Paramount Motion Sound Effects, several of
+which LAION purchased, and that only four of the eight are released.
