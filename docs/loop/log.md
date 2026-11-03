@@ -7,6 +7,72 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 35 — 2026-11-03 — the report's doc is the whole list, and a layer's bus is a `must`
+
+**Change.**
+
+- **`src/music.rs` — `MusicScore::problems`'s doc lists all nine checks it performs**, each a clause, with the note that the
+  plugin enforces the last two and writes the same sentence to the log. It named **four**.
+- **`MusicLayer::cue`'s doc says `must`, not `should`**, and what happens otherwise.
+- `tests/music.rs::a_score_reports_every_fault_its_doc_lists` walks all nine; a CHANGELOG line; and
+  `needs-decision/above-unity-gain.md` for a gain above 0 dB.
+
+**Why.** Iteration 34's log named the sweep: *"grep everything `should` in `src/` and check each has a mechanism."* Five hits,
+**two real**: the report's doc (four of nine names) and `MusicLayer::cue` (*"should"* where iteration 34 made it a
+**refusal**). Three are comments describing history, true as written.
+
+**Evidence.** `runs/2026-11-03-35/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/nine-checks.txt`.
+
+**Measured.**
+
+| row | before | after |
+|---|---|---|
+| checks the report's doc names | **4** | **9** |
+| `MusicLayer::cue`'s wording | *"should"* — while the plugin refuses | *"must"*, and what happens |
+| the nine checks themselves | all present | unchanged — **no executable line moved** |
+| an empty cue (absolute claim) | only refuses | unchanged |
+| a budget of 2, six unstealable | plays 2, refuses 4, never 3 | unchanged |
+| every test, both feature sets | 118 / 125 / 127 + 5 | 119 / 126 / 128 + 5 |
+| every rendered cue | — | **byte-identical** (21/21) |
+| frame cost, 8 / 64 / 256 | — | 0.123 / 0.452 / 1.235 µs, load 9.4–6.6; **nothing executable changed** |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. A gate failure in my own doc, caught by
+`RUSTDOCFLAGS="-D warnings"`: `[`SirenLog`](crate::SirenLog)` is a redundant explicit target. A probe that lied, caught
+rather than shipped: my first sweep row read *"layer cue on another bus → 0 problems"* because the cue I used was **on
+`Music`** — the label was wrong, not the code.
+
+**Traps for the command.** (1) **A doc that lists a mechanism's checks must list them all** — it was written when the report
+had four and grew to nine without the list following. (2) *"Should"* where the code does nothing and *"should"* where the code
+**refuses** are the same failure in opposite directions; grep both. (3) An **absolute claim** in a doc is testable: "only
+refuses" and "never a 33rd voice" both held, and both are now known rather than assumed. (4) `RUSTDOCFLAGS="-D warnings"` is
+part of the baseline for a reason — it caught a redundant intra-doc link in a doc-only change. (5) `hs distill` GPU-blocked
+(thirty-fourth iteration).
+
+**Commit.** `6974c51`; CI on `main`.
+
+**Next 5.**
+
+1. **A Music block in the panel** — deferred a **fourth** time. The budget is measured (12 px free, ~134 needed) and the fix
+   needs a layout decision: the cue list has nine rows and three are music cues the block would show better. **The next run
+   should make that decision, not route around it again.**
+2. A `Stopped` line for a parent's despawn — neither backend writes one.
+3. **Answer or route around the `CueProblem` question** — **seven** items wait on it.
+4. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+5. A gain above 0 dB — `needs-decision/above-unity-gain.md`, recommendation to **not** add it.
+
+**The hunt, twenty-fourth pass.** The **`should`/absolute-claim** sweep is now done in `cue.rs`, `music.rs`, `mix.rs` and
+`play.rs`: two real finds, both fixed. What has never been swept is **`docs/guide/`** against the code — the guide's
+sentences are what a project reads before it writes a table, and iteration 32 found one (the log's eight lines) by accident.
+The next run should diff each guide claim against the constant or accessor it names, starting with `buses.md` and `spatial.md`.
+
+**Baseline note.** Nothing was red; the suite had 118 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 34 — 2026-11-03 — a layer is a stem of the `Music` bus
 
 **Change.**
