@@ -46,7 +46,9 @@ unbounded one eats the bounded one's space. (3) **A debug font is not a text edi
 text ASCII. (4) The failure was invisible in every clean capture — six faults were needed, and `SIREN_FAULTS=many` exists
 so the next run can see it. (5) `hs distill` GPU-blocked (twenty-ninth iteration).
 
-**Commit.** `5905ae4`; CI on `main`.
+**Commit.** `5905ae4`, pushed to `main`; CI run 41596029576 is **success** on `big-s1`. Gate: build, test (112 + 5),
+serde (119 + 5), mixer (121 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
