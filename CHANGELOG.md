@@ -5,7 +5,26 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **`examples/render`'s `mix.wav` was written past full scale.** It applied `sum_db` of **every** cue's gain — `+18.58 dB`
+  — to one 0.5-amplitude tone, so the file was `4.2×` full scale: `ebur128` read **`+0.2 dBFS` true peak, `−4.3 LUFS`**.
+  `sum_db` of ten cues is the number if all of them sounded at once through nothing; the file's job is to let the mix be
+  heard, so it is now written at `settings.master_db` and reads **`−6.1 dBFS`, `−18.6 LUFS`** (below the −14 a game mix
+  targets). The `mix:` line states what the sum is and what the file is. Example only.
+- **`examples/mixer`'s own table no longer clips.** `Effects` reached `+6.0 dBFS` and `Music` `+4.0 dBFS` with two
+  voices, which the panel has shown since iteration 49 and which the guide's new headroom section makes actionable:
+  `Effects` `0.0 → −7.0` and `Music` `−2.0 → −7.1`, both a decibel inside the rail (`2 × 10^(−7/20) = −0.98 dBFS`). The
+  panel's peak clause disappears because nothing reaches 0 dBFS. Example only.
+
 ### Added
+
+- **The guide states that `master_db` is the headroom trim, and that it is inside `worst_peak_db`.** The decision file
+  `docs/loop/needs-decision/above-unity-gain.md` recommends *no* report for loudness and names the master as *"the tool
+  for it"*; nothing had tested that sentence or written it where a reader looks. `tests/mix.rs::
+  the_master_is_inside_the_worst_peak` measures it — one voice at unity reads `0`, `−6`, `−20` dBFS at masters of `0`,
+  `−6`, `−20` — and `docs/guide/buses.md` now says so, with why `problems()` stays deliberately silent about loudness.
+
 
 - **`SirenMix::worst_peak_db(bus)` — the worst-case peak a bus can reach this frame, in dBFS.** The crate could mix
   past full scale and had no way for a game to ask: `max_voices` is a **sample cost** (*"fewer than a mixer's worth of

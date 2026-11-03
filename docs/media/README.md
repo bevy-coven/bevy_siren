@@ -32,6 +32,10 @@ a_duck_whose_source_keeps_playing_holds, a_second_line_extends_the_duck}`.
 
 ![the panel with a bus cap above the table's budget](mixer-overbudget.png)
 
+Both stills carry **no peak clause** since iteration 50: `Effects` sits at `−7.0 dB` and `Music` at `−7.1`, so
+`SirenMix::worst_peak_db` reads below 0 dBFS on every bus and the `Music` block has nothing to warn about. Before that,
+two voices on either bus put it over the rail — `+6.0` and `+4.0 dBFS` — and the clause said so.
+
 `mixer-broken.png` is the same panel under `SIREN_MIX=broken`, which gives the **mix** table faults instead of the cue
 table's — so the `Problems` block can be seen drawing `SirenSettings::problems()`, which it never did before iteration
 45 (`SIREN_FAULTS` adds *cue* faults, which it already drew). The broken table carries three at once: a NaN

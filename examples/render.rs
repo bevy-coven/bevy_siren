@@ -248,10 +248,27 @@ fn main() {
     report.push(format!("music: a bar at 160 bpm from 0.3 s is {bar:.2} s"));
 
     // 6. The mix: every cue's gain summed as the bus sum would sum it.
+    //
+    // **`sum_db` of ten cues' gains is not what a game's master sees**, and writing that number onto one tone produces
+    // a file **four times past full scale** — measured `+18.58 dB` applied to a 0.5 wave, i.e. `4.2×`, and the capture
+    // showed `mix.wav` at `+0.2 dBFS` true peak. Every one of those cues also passes through its own voice, and the
+    // table's budget never lets all ten sound at once. So the report says what the sum is, and the file is written at a
+    // **level a mix could actually reach**: the sum minus the headroom a game would trim it by, which is exactly what
+    // `SirenSettings::master_db` is for (`needs-decision/above-unity-gain.md`).
     let gains: Vec<f32> = table.cues.iter().map(|c| gain_of(c, &c.sounds[0].sound, 0.0) + music).collect();
-    report.push(format!("mix: {} cues, {} dB summed", gains.len(), sum_db(&gains)));
+    // The sum is reported, but the file is **not** written at it: `sum_db` of every cue is the number if all of them
+    // sounded at once through nothing, and applying it to one 0.5-amplitude tone produced a file **4.2× past full
+    // scale** (`+0.2 dBFS` true peak by `ebur128`). This file's job is to let the mix be *heard*, so it is written at
+    // the level the table's own master would give it — `master_db`, which is the trim
+    // `needs-decision/above-unity-gain.md` names as the tool for exactly this.
+    let summed = sum_db(&gains);
+    report.push(format!(
+        "mix: {} cues, {summed} dB summed (all ten at once through nothing; this file is written at `master_db` {:+} dB)",
+        gains.len(),
+        settings.master_db
+    ));
     let mixed = wave(220.0, 500, 6.0);
-    write_gain(&out, "mix.wav", &mixed, 1.0, sum_db(&gains));
+    write_gain(&out, "mix.wav", &mixed, 1.0, settings.master_db);
 
     // 7. Many voices at once, for the clipping and frame-cost checks.
     let mut many = Vec::new();

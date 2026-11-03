@@ -206,5 +206,11 @@ if peak > -1.0 {
 ```
 
 It is an **upper bound** — every live voice counted at full scale, because the crate mixes samples and never reads their
-amplitude — so a bus reading below 0 dBFS cannot clip and one reading above it may. `examples/mixer` draws it in the
+amplitude — so a bus reading below 0 dBFS cannot clip and one reading above it may.
+
+**`master_db` is the trim, and it is inside the number.** `SirenSettings::master_db` applies after every bus, so lowering
+it lowers `worst_peak_db` by the same amount: one voice at unity on a 0 dB bus reads `0.0 dBFS` at a 0 dB master and
+`−6.0` at −6 dB. `tests/mix.rs::the_master_is_inside_the_worst_peak` holds that. A table that clips wants a decibel or two
+of master, not a limiter — and `problems()` does **not** report a loud table, deliberately: a gain above unity is a mixing
+decision, not an authoring mistake (`needs-decision/above-unity-gain.md`). `examples/mixer` draws it in the
 `Music` block: `peak Effects +6.0 dBFS / 2  Music +4.0 dBFS / 2`.

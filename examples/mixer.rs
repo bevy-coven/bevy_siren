@@ -194,9 +194,14 @@ fn settings() -> SirenSettings {
         master_db: if broken { f32::NAN } else { 0.0 },
         max_voices: if overbudget { 4 } else { 12 },
         buses: vec![
-            BusLevel::new("Music").gain_db(-2.0).max_voices(if tight { 1 } else { 0 }),
+            // **Levels chosen so the demonstration has headroom.** `worst_peak_db` counts every live voice at full
+            // scale, so two voices at 0 dB on a 0 dB bus reach **+6.02 dBFS** — measured at `+6.0` and `+4.0` on the
+            // panel before this change, for `Effects` and `Music`. `2·10^(−7/20)` is **−0.98 dBFS** and at −7.1 it is
+            // **−1.08**: both buses sit a decibel inside the rail, which is the "decibel in hand" the guide's headroom
+            // section asks for. Nothing about the crate changed; the example stopped shipping over the rail.
+            BusLevel::new("Music").gain_db(-7.1).max_voices(if tight { 1 } else { 0 }),
             // The bus asks for more than the table allows, so `bus_voice_limit` gives it the table's 4 and says so.
-            BusLevel::new("Effects").max_voices(if overbudget { 16 } else { 2 }),
+            BusLevel::new("Effects").gain_db(-7.0).max_voices(if overbudget { 16 } else { 2 }),
             BusLevel::new("Ambience").gain_db(-6.0),
             BusLevel::new("Dialogue"),
         ],

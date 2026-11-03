@@ -1175,3 +1175,29 @@ fn worst_peak_is_the_linear_sum_of_the_live_voices() {
     mix.db.insert("Effects".to_owned(), -20.0);
     assert!(mix.worst_peak_db("Effects") < 0.0, "−20 dB bus, two voices: {}", mix.worst_peak_db("Effects"));
 }
+
+/// **`master_db` is the headroom trim, and `worst_peak_db` follows it.** `docs/loop/needs-decision/above-unity-gain.md`
+/// recommends *no* report for loudness — *"a gain above unity is a **mixing decision**, not an authoring mistake"* — and
+/// names `SirenSettings::master_db` as *"the tool for it"*. That is only true if the master is inside the number. This
+/// test pins it: one voice at unity on a 0 dB bus is 0 dBFS, and −6 dB of master makes it −6.
+#[test]
+fn the_master_is_inside_the_worst_peak() {
+    let settings = |master_db: f32| SirenSettings {
+        master_db,
+        buses: vec![BusLevel::new("Effects")],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    let table = CueTable::new(vec![Cue { mode: bevy_siren::Mode::Loop, ..cue("hum", "Effects", 0, 1) }]);
+
+    for (master, expected) in [(0.0, 0.0), (-6.0, -6.0), (-20.0, -20.0)] {
+        let mut app = app(table.clone(), settings(master), sounds(&["hum"]), false);
+        app.world_mut().write_message(Play::cue("hum"));
+        app.update();
+        let peak = app.world().resource::<SirenMix>().worst_peak_db("Effects");
+        assert!(
+            (peak - expected).abs() < 1e-3,
+            "master {master:+} dB, one voice: expected {expected:+} dBFS, got {peak:+}"
+        );
+    }
+}

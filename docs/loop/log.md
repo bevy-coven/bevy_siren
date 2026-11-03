@@ -7,6 +7,59 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 50 — 2026-11-03 — the master is the headroom trim, and two demonstration files stop clipping
+
+**Baseline.** Green on every step, no open issues. Nothing red.
+
+**Change.**
+1. **`tests/mix.rs::the_master_is_inside_the_worst_peak`** — one voice at unity reads **`0`, `−6`, `−20` dBFS** at masters
+   of `0`, `−6`, `−20`. The claim `needs-decision/above-unity-gain.md` rests on, measured for the first time.
+2. **`examples/mixer`'s buses trimmed**: `Effects` `0.0 → −7.0`, `Music` `−2.0 → −7.1` — `2 × 10^(−7/20) = −0.98 dBFS`,
+   `−1.08` at −7.1. The panel's peak clause **disappears**, because nothing reaches 0 dBFS.
+3. **`examples/render`'s `mix.wav`** written at `settings.master_db` instead of `sum_db(&gains)`.
+4. **The guide** states *"`master_db` is the trim, and it is inside the number"*, and why `problems()` stays silent.
+
+**Rationale.** Iteration 49 left the shipped table's clipping as *"an art decision"*. It is not: `above-unity-gain.md`'s
+recommendation **C — do nothing** rests on *"`SirenSettings::master_db` is the tool for it"*, and nothing had tested that
+sentence, written it in the guide, or applied it to the crate's own two demonstration files. `mix.wav` was **`4.2×` full
+scale** — `sum_db` of ten cues (+18.58 dB) applied to one 0.5-amplitude tone — and read `+0.2 dBFS / −4.3 LUFS`.
+
+**Not built: case 31** — still blocked on `needs-decision/bad-gain-problem.md`. The loudness question was **not** blocked:
+its decision already recommends C, so a report was never the answer.
+
+**Evidence.** `runs/2026-11-03-50/`: `research.md` (S1 the decision's *"the master is the tool"*, S2 `master_db`'s doc,
+S3 the master already inside `chain_db`, S4 the render harness's `sum_db` write, S5 the −14 LUFS target),
+`plan.md`, `perf.md`, `eval.md`, `review.md` (three passes, GREAT), `evidence/{panel,after}`.
+
+| | before | after |
+|---|---|---|
+| `examples/mixer`'s `Effects` | `+0.0 dB`, `peak +6.0 dBFS / 2` | **`−7.0 dB`**, no peak clause |
+| `examples/mixer`'s `Music` | `−2.0 dB`, `peak +4.0 dBFS / 2` | **`−7.1 dB`**, no peak clause |
+| `render`'s `mix.wav` true peak | **`+0.2 dBFS`** (4.2× full scale) | **`−6.1 dBFS`** |
+| `render`'s `mix.wav` integrated | `−4.3 LUFS` | **`−18.6 LUFS`** |
+| `worst_peak_db` vs `master_db` | untested | **1:1**, at `0`, `−6`, `−20` dB |
+| tests | 128 / 136 / 139 + 6 | **129 / 137 / 140 + 6** |
+| perf | — | **0.500 / 0.501 µs** at 256 voices, load 4.6 — the steadiest run this loop has recorded |
+
+**Three mistakes in this iteration's own work, all caught by reading captures or numbers.** (1) `Music` was first set to
+`−5.1`, which is `+0.9 dBFS` — the capture said so and my arithmetic had not. (2) `Effects`'s line carries an
+`if overbudget` conditional, so my `replace` missed and the row still read `+0.0 dB`. (3) My first fix for `mix.wav` was a
+`master_trim` helper clamping to `−3.0` — a magic constant doing an unclear job; replaced by writing the file at the field
+the decision file names.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`Duck::new`'s zero hold/fade defaults** — reported since iteration 46, but the constructor still hands back an inert
+   rule where `by_db` gets a real `-6.0`. Changing it is a behaviour change and needs a decision file.
+3. **`SirenSettings::master_db` defaults to `0.0`** — no trim at all, so a project starting from `default()` has no
+   headroom. The guide now says what to turn; whether the default should be lower is a decision file, not an iteration.
+4. No capture shows the panel with a **missing sound** refused (iteration 39 showed `unknown-cue` only).
+5. `docs/media/mixer.gif` captures at ~8 fps; a fade shorter than 120 ms falls between frames.
+
 ## Iteration 49 — 2026-11-03 — a bus's worst-case peak is readable, and the harness stops calling clipping the budget's job
 
 **Baseline.** Green on every step, no open issues. Nothing red.
