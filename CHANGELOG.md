@@ -7,6 +7,29 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **A build now produces tempo and key, and stores them.** Both features existed and `build` called neither, so a filter
+  could never read them. `Index` gains `tempo` and `key` as a fifth and sixth optional section, in both formats, produced
+  from the buffer `embed_measured` already decodes.
+
+  **Three states, all preserved** — which is the point rather than a detail:
+
+  | asset | tempo record | key record |
+  |---|---|---|
+  | a 4 s click track | `bpm: Some(120.0)` | present, *no key* |
+  | a 0.1 s clip | present, `bpm: None` | **absent** — shorter than a chroma window |
+  | never measured | absent | absent |
+
+  A `None` *inside* a record and *no record at all* are different facts: `#27` reads the first as **unjudged** and the
+  second as **unknown**, and collapsing them would make every short asset look unmeasured. An empty section is not
+  written, so every index from before this iteration is byte-identical and loads.
+
+  **The cost is real and is stated as the headline**: decode fell from **~1 150** to **420–569 clips/s**, measured twice,
+  because tempo runs an autocorrelation and key an **8 192-point** transform over every file. That is the case this
+  iteration targeted, so it is a trade — 13 s for 5 000 clips is still far below the ~3 minutes the audio tower would
+  take — but it is the **third consecutive iteration where a feature added a pass**.
+
+### Documented
+
 - **Key and mode detection, measured rather than assumed out of scope.** ADR 0003 excluded key from the Rust path on the
   assumption of a detector *"wrong 40 % of the time"* — a figure nobody had measured. `semantic::key` implements
   **Krumhansl-Schmuckler** with the Krumhansl-Kessler profiles, and on a corpus of **24 keys** (every tonic, both modes,

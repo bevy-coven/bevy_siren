@@ -207,6 +207,18 @@ The centroid is an `Option` for the same reason loudness is: **silence has no br
 a DC offset measures 9.375 Hz — so returning zero would make silence indistinguishable from a constant, in memory and in
 the file.
 
+**Tempo and key are produced by a build too**, from the same decode. The three states they can be in are worth knowing,
+because they mean different things to a filter:
+
+| asset | tempo record | key record |
+|---|---|---|
+| a 4 s click track | `bpm: Some(120.0)` | present, *no key* |
+| a 0.1 s clip | present, `bpm: None` | **absent** — shorter than a chroma window |
+| never measured | absent | absent |
+
+`None` *inside* a record means **judged and found to have none**; no record means **never measured**. The filter reads the
+first as unjudged and the second as unknown.
+
 **It is stored, and it travels with the answer.** `Index.provenance` is a trailing section inside the checksummed body,
 so a hand-edited licence is a corrupt file rather than a silent change, and an index with no provenance writes no
 section at all — every file written before this existed still loads. `Match` carries `provenance` and is **no longer

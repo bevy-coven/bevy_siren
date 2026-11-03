@@ -7,6 +7,80 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 93 — 2026-11-03 — tempo and key produced, and a 2.7× decode regression
+
+**Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **380 semantic** / **80 lib**; clippy
+0, fmt, rustdoc, examples. Volume held **19 GB** free.
+
+**The item was iteration 92's first leftover**: tempo and key were built and tested, and `build` called **neither**, so
+`#27`'s remaining two rules could never read them. One schema change carries both, which is why they waited.
+
+**Three states, and all of them are preserved** — which is the design rather than a detail:
+
+| asset | tempo record | key record |
+|---|---|---|
+| a 4 s click track | `bpm: Some(120.0)` | present, *no key* |
+| a 0.1 s clip | present, `bpm: None` | **absent** — shorter than a chroma window |
+| never measured | absent | absent |
+
+A `None` *inside* a record means **judged and found to have none**; no record means **never measured**. `#27` reads the
+first as unjudged and the second as unknown, and collapsing them would make every short asset look unmeasured. An empty
+section is not written, so every index from before this iteration is byte-identical and loads — the additive promise
+holding for the fifth and sixth time.
+
+**Measured, and the cost is the headline: decode fell from ~1 150 to 419.8 / 568.8 clips/s** — two runs — because tempo
+runs an autocorrelation and key an **8192-point** transform over every file. That is the case this iteration targeted, so
+it is a trade rather than a leak, and 13 s for 5 000 clips is still far below the ~3 minutes the audio tower itself would
+take.
+
+**But it is the third consecutive iteration where a feature added a pass.** Spectral (89), tempo (91), key (92) — three
+passes over frames the mel path already computes. One shared spectral pass producing mel, centroid, chroma and onset is
+now the obvious fix and is named as such.
+
+**Two defects, both in my assertions.**
+
+1. `a_clip_too_short_to_analyse_still_embeds` claimed a 0.1 s clip has **no tempo record**. It has one: 4 800 samples
+   exceeds tempo's two 1 024-sample frames, so tempo records and reports `bpm: None` — only **key** skips the record,
+   since 4 800 is under its 8 192-sample window. The test now asserts all three states, which is a stronger test than
+   the one I set out to write.
+2. `Key` has no confidence field; `Estimate` carries it. My first write called `confidence_of()` on a `Key`. Storing the
+   `Estimate` is also the better design, since `#27` may want the confidence.
+
+| voices | µs/frame | iteration 92 |
+|---|---|---|
+| 64 | **0.323** | 0.107 |
+| 256 | **1.119** | 0.833 |
+
+No audio-path change.
+
+**Visual gate unchanged:** 32 render files, **14 of 14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to
+iterations 67, 71, 74, 75, 80–92. The README's headline rate was corrected from ~1 150 to **~450 clips/s**, because a
+stale number in a headline is what this loop exists to catch.
+
+**Verdicts.** Pass 1 **GREAT** (a build produces a number no caller supplied, and the three states are asserted rather
+than described), pass 2 **GREAT** (the regression measured twice and named as the third of its kind), pass 3 **GREAT**
+(the two-level absence is the shape `#27` needs, and the additive promise holds again).
+
+**Docs.** The guide gains the three-state table; the README says a build produces both and its rate is corrected;
+`CHANGELOG.md` gains the sections, the states and the cost.
+
+**Evidence.** `runs/2026-11-03-93/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,spectrograms}/`.
+
+**Commits.** `029ddbd`.
+
+**Top 5 remaining**
+
+1. **`#27`'s tempo and key rules** — unblocked by this iteration, and they are the last two in its set. Its criterion
+   that an unknown never excludes is satisfied by the three-state model now stored.
+2. **One shared spectral pass** — mel, centroid, chroma and onset from one FFT per frame. Three features each walk the
+   audio now; this is the measured 2.7× and the only way back.
+3. **`#28` the MCP tool host**, then `#29`/`#44`/`#30` — the largest user-facing win, and now over an index with every
+   feature the filter set needs.
+4. **Finish `#36` on the GPU** — clone the current commit to `big`, transfer the graph, build `ort` with CUDA.
+5. **`V-01`'s labelled set** — the only thing that can turn key's 100 %, tempo's ±2 BPM and the six weights from claims
+   about synthetic material into measurements of a real library.
+
 ## Iteration 92 — 2026-11-03 — key detection, and an ADR's assumption disproved
 
 **Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **376 semantic** / **80 lib**; clippy
