@@ -48,7 +48,9 @@ is the bug — the quieter mechanism is the harder one to see. (3) A notice list
 the sentence at the print cannot grow a second fault; carry the **sentence**. (4) A test's own table is code: a wrong sound
 key made a correct fix look broken. (5) `hs distill` GPU-blocked (thirty-third iteration).
 
-**Commit.** `d7b5bb3`; CI on `main`.
+**Commit.** `d7b5bb3`, pushed to `main`; CI run 41598441440 is **success** on `big-s1`. Gate: build, test (118 + 5),
+serde (125 + 5), mixer (127 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
