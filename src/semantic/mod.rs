@@ -34,6 +34,7 @@ pub mod indexer;
 pub mod loudness;
 pub mod mel;
 pub mod model;
+pub mod provenance;
 pub mod query;
 pub mod rank;
 pub mod resample;
