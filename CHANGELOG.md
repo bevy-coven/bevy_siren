@@ -20,6 +20,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`examples/mixer`'s panel shows the crate's own verdict on its cue table.** It drew each cue's name, bus, mode, gain
+  and priority and **not** `problems()`, so a cue on a bus the mix did not have, or one whose `pitch.low` was past
+  `pitch.high`, looked exactly like a healthy one — the picture said a broken cue was fine. The panel now has a
+  `Problems` block (listing `table.problems_in(&settings)`, or `none`) and marks a bad cue's row with `<- problem`, so the
+  column says *which* cue and the block says *what*. `SIREN_FAULTS=1` adds two deliberate mistakes to the capture so the
+  view can be proved; the shipped table stays clean.
+
 - **`examples/mixer` no longer panics on the command its own doc gives.** Its capture knobs are documented as optional
   beside three that default, but `SIREN_KEYS` had none: unset gave an empty step list, and `stage_keys` evaluated
   `% c.keys.len()` — `% 0` — so `SIREN_FRAMES=140 cargo run --release --example mixer` died with *"attempt to calculate
@@ -59,6 +66,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
 
 ### Fixed
+
+- **`examples/mixer`'s panel shows the crate's own verdict on its cue table.** It drew each cue's name, bus, mode, gain
+  and priority and **not** `problems()`, so a cue on a bus the mix did not have, or one whose `pitch.low` was past
+  `pitch.high`, looked exactly like a healthy one — the picture said a broken cue was fine. The panel now has a
+  `Problems` block (listing `table.problems_in(&settings)`, or `none`) and marks a bad cue's row with `<- problem`, so the
+  column says *which* cue and the block says *what*. `SIREN_FAULTS=1` adds two deliberate mistakes to the capture so the
+  view can be proved; the shipped table stays clean.
 
 - **`examples/mixer` no longer panics on the command its own doc gives.** Its capture knobs are documented as optional
   beside three that default, but `SIREN_KEYS` had none: unset gave an empty step list, and `stage_keys` evaluated
@@ -225,6 +239,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`examples/mixer`'s panel shows the crate's own verdict on its cue table.** It drew each cue's name, bus, mode, gain
+  and priority and **not** `problems()`, so a cue on a bus the mix did not have, or one whose `pitch.low` was past
+  `pitch.high`, looked exactly like a healthy one — the picture said a broken cue was fine. The panel now has a
+  `Problems` block (listing `table.problems_in(&settings)`, or `none`) and marks a bad cue's row with `<- problem`, so the
+  column says *which* cue and the block says *what*. `SIREN_FAULTS=1` adds two deliberate mistakes to the capture so the
+  view can be proved; the shipped table stays clean.
+
 - **`examples/mixer` no longer panics on the command its own doc gives.** Its capture knobs are documented as optional
   beside three that default, but `SIREN_KEYS` had none: unset gave an empty step list, and `stage_keys` evaluated
   `% c.keys.len()` — `% 0` — so `SIREN_FRAMES=140 cargo run --release --example mixer` died with *"attempt to calculate
@@ -279,6 +300,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 The first release: sound for Bevy 0.20 as data, mixed in buses.
 
 ### Fixed
+
+- **`examples/mixer`'s panel shows the crate's own verdict on its cue table.** It drew each cue's name, bus, mode, gain
+  and priority and **not** `problems()`, so a cue on a bus the mix did not have, or one whose `pitch.low` was past
+  `pitch.high`, looked exactly like a healthy one — the picture said a broken cue was fine. The panel now has a
+  `Problems` block (listing `table.problems_in(&settings)`, or `none`) and marks a bad cue's row with `<- problem`, so the
+  column says *which* cue and the block says *what*. `SIREN_FAULTS=1` adds two deliberate mistakes to the capture so the
+  view can be proved; the shipped table stays clean.
 
 - **`examples/mixer` no longer panics on the command its own doc gives.** Its capture knobs are documented as optional
   beside three that default, but `SIREN_KEYS` had none: unset gave an empty step list, and `stage_keys` evaluated

@@ -7,14 +7,17 @@ below. A media file a published README names is never moved; a re-capture replac
 
 ![the audio panel](mixer-panel.gif)
 
-The crate's visible harness: every bus with its level, its duck and its live voice count; the cue table; the log of what
-played and why — driven by a scripted run so the capture shows a duck firing, a voice being stolen, and a music layer
-entering on the bar.
+The crate's visible harness: every bus with its level, its duck and its live voice count; the cue table **with the
+crate's own verdict on it** (`Problems`, and `<- problem` beside a cue that cannot play); the log of what played and why —
+driven by a scripted run so the capture shows a duck firing, a voice being stolen, and a music layer entering on the bar.
+
+This GIF is captured with `SIREN_FAULTS=1`, which adds two deliberate mistakes to the table so the `Problems` block and
+the row markers have something to show. Drop it for the clean panel, which reads `Problems / none`.
 
 ```sh
 cargo run --release --example mixer            # the panel, interactive
-SIREN_FRAMES=200 SIREN_SIZE=1280x720 SIREN_SHOT_DIR=/tmp/frames SIREN_SHOT_FROM=30 SIREN_SHOT_EVERY=10 \
-  cargo run --release --example mixer          # 18 frames at 6 fps
+SIREN_FAULTS=1 SIREN_FRAMES=200 SIREN_SIZE=1280x720 SIREN_SHOT_DIR=/tmp/frames SIREN_SHOT_FROM=30 \
+  SIREN_SHOT_EVERY=10 cargo run --release --example mixer   # 18 frames at 6 fps
 ffmpeg -y -framerate 6 -i /tmp/frames/f_%04d.png \
   -vf "scale=960:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" -loop 0 docs/media/mixer-panel.gif
 ```

@@ -1,6 +1,6 @@
 //! **The audio panel, as a program**: every bus with its level, its duck and its live voice count; the cue
-//! table; the log of what played and why — driven by a scripted run so a capture shows a duck, a stolen voice
-//! and a music layer entering on the bar.
+//! table **with the crate's own verdict on it**; the log of what played and why — driven by a scripted run so a
+//! capture shows a duck, a stolen voice and a music layer entering on the bar.
 //!
 //! ```sh
 //! cargo run --release --example mixer
@@ -13,6 +13,9 @@
 //! - `SIREN_SHOT_DIR=<dir>` also keeps every `SIREN_SHOT_EVERY`th frame from `SIREN_SHOT_FROM` there as
 //!   `f_%04d.png`, for a GIF.
 //! - `SIREN_SIZE=<w>x<h>` sets the window size (default 1280x720).
+//! - `SIREN_FAULTS=1` adds two deliberate mistakes to the cue table — a cue on a bus the mix does not have, and one
+//!   whose pitch range is inverted — so a capture can show the `Problems` block and the `<- problem` markers doing
+//!   something. The shipped table is clean: it is the picture everyone sees.
 //! - `SIREN_KEYS=steal,layer,duck` stages one step every `SIREN_KEY_EVERY` frames (default 20) from frame 30, cycling:
 //!   `duck` plays a line of dialogue, `steal` fills the bus capped at two, `layer` brings the combat layer in on
 //!   the next bar.
@@ -71,10 +74,12 @@ enum Kind {
     Bus(&'static str),
     Log,
     Cues,
+    Problems,
     Header,
     BusesHeading,
     CuesHeading,
     LogHeading,
+    ProblemsHeading,
 }
 
 /// A body line: one `Text` a panel section fills.
@@ -111,7 +116,7 @@ fn main() {
     }))
     .add_plugins((SirenPlugin, MusicPlugin))
     .insert_resource(settings())
-    .insert_resource(cues())
+    .insert_resource(cues_with_faults())
     .insert_resource(score())
     .init_resource::<Clock>()
     .add_systems(Startup, setup)
@@ -152,6 +157,28 @@ fn settings() -> SirenSettings {
         ],
         ..SirenSettings::default()
     }
+}
+
+/// The cues the panel lists — the shipped table, or with `SIREN_FAULTS=1`, the same table plus two deliberate mistakes,
+/// so a capture can show the `Problems` block and the row markers **doing something**.
+///
+/// The shipped table stays clean: it is the crate's face, and a fault in the picture everyone sees would be a worse
+/// picture. The fault table exists to prove the view, and is selected only by the capture knob.
+fn cues_with_faults() -> CueTable {
+    let mut table = cues();
+    if std::env::var("SIREN_FAULTS").is_ok_and(|v| v != "0") {
+        table.insert(Cue {
+            sounds: vec![SoundSlot::new("hit_01")],
+            bus: "Reverb".to_owned(),
+            ..Cue::new("sword.hit.wrong-bus")
+        });
+        table.insert(Cue {
+            sounds: vec![SoundSlot::new("click")],
+            pitch: bevy_siren::PitchRange { low: 2.0, high: 1.0 },
+            ..Cue::new("ui.click.inverted-pitch")
+        });
+    }
+    table
 }
 
 /// The cues the panel lists, and the keys their samples are synthesised under.
@@ -270,6 +297,8 @@ fn setup(mut commands: Commands, mut sounds: ResMut<SirenSounds>, mut assets: Re
             row(Kind::Bus("Dialogue")),
             heading("Cues", Kind::CuesHeading),
             row(Kind::Cues),
+            heading("Problems", Kind::ProblemsHeading),
+            row(Kind::Problems),
             heading("Log", Kind::LogHeading),
             row(Kind::Log),
         ],
@@ -304,6 +333,16 @@ fn wav_bytes(hz: f32, ms: u32, decay: f32) -> Vec<u8> {
     out
 }
 
+/// Whether `problem` is about the cue called `name`.
+///
+/// Every `CueProblem` variant writes its sentence as ``cue `{name}` …`` — the leading token is the cue and nothing else,
+/// checked against `src/cue.rs`'s `Display` — so a **prefix** match is exact and cannot be fooled by a bus name that
+/// happens to look like a cue name. A match over the enum would need a new arm each time it grows; the panel is a view,
+/// not a second classifier.
+fn problem_names(problem: &bevy_siren::CueProblem, name: &str) -> bool {
+    problem.to_string().starts_with(&format!("cue `{name}` "))
+}
+
 /// The panel's numbers, from [`SirenMix`] and [`SirenLog`] — the same resources a game's meter reads.
 ///
 /// A heading is static text and is never rewritten; a bus row owns one bus; the cue list and the log own their
@@ -324,7 +363,7 @@ fn draw_panel(
                 settings.buses.len(),
                 mix.voices.values().sum::<usize>()
             ),
-            Kind::BusesHeading | Kind::CuesHeading | Kind::LogHeading => continue,
+            Kind::BusesHeading | Kind::CuesHeading | Kind::LogHeading | Kind::ProblemsHeading => continue,
             Kind::Bus(bus) => {
                 let db = mix.bus_db(bus);
                 let duck = mix.ducked.get(bus).copied().unwrap_or(0.0);
@@ -332,21 +371,43 @@ fn draw_panel(
                 let cap = settings.bus_voice_limit(bus);
                 format!("{bus:<10} {db:+7.1} dB{duck}   {} / {cap} voices", mix.voices_on(bus))
             }
-            Kind::Cues => table
-                .cues
-                .iter()
-                .map(|cue| {
-                    let mode = if cue.mode.is_loop() { "loop" } else { "once" };
-                    format!(
-                        "{:<20} {:<10} {mode:<4} {:+5.1} dB  priority {}",
-                        cue.name,
-                        cue.bus_name(),
-                        cue.gain_db,
-                        cue.priority
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n"),
+            Kind::Cues => {
+                // **A bad cue is marked on its own row, and the sentence lives in the `Problems` block.** The marker
+                // is deliberately a short word: a full sentence here wrapped onto a second line and broke the column's
+                // alignment (caught by looking at the 1280 capture), and it repeated what the block below already
+                // says. One form per idea: the row says *which* cue, the block says *what*.
+                let problems = table.problems_in(&settings);
+                table
+                    .cues
+                    .iter()
+                    .map(|cue| {
+                        let mode = if cue.mode.is_loop() { "loop" } else { "once" };
+                        let bad = problems.iter().any(|p| problem_names(p, &cue.name));
+                        let mark = if bad { "  <- problem" } else { "" };
+                        format!(
+                            "{:<26} {:<10} {mode:<4} {:+5.1} dB  priority {}{mark}",
+                            cue.name,
+                            cue.bus_name(),
+                            cue.gain_db,
+                            cue.priority
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            }
+            // **The crate's own verdict on its table.** A cue on a bus the mix does not have, or one whose pitch range
+            // is inverted, was drawn here with the same four columns as a healthy cue — nothing marked it, and the
+            // panel's whole job is to make a fault visible. `problems_in(&settings)` is the settings-aware report
+            // (iteration 21): the example's table uses `Ambience` and `Music`, and `problems()` assumes the crate's
+            // default four, which would report every cue on them as `UnknownBus`.
+            Kind::Problems => {
+                let problems = table.problems_in(&settings);
+                if problems.is_empty() {
+                    "none".to_owned()
+                } else {
+                    problems.iter().map(|p| p.to_string()).collect::<Vec<_>>().join("\n")
+                }
+            }
             Kind::Log => log.recent(10).map(Entry::line).collect::<Vec<_>>().join("\n"),
         };
         if text.0 != next {
