@@ -56,7 +56,7 @@ line** — caught by reading the capture, shortened to 78. (2) `SIREN_MIX=broken
 I nearly read it as "the new one does not fire". (3) `let mut app = app(...)` shadowed the helper, and one assertion used
 `None` where `ducked` holds every bus at `0.0`.
 
-**Commit.** (see `git log`).
+**Commit.** `1145170` — *mix: a duck that starts on the bus it lowers is reported*.
 
 **Top 5 remaining**
 
