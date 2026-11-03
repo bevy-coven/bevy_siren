@@ -48,7 +48,9 @@ than the fade or the capture is a coin flip; compute the ratio before trusting t
 "the arrow rendered" from "the arrow happened to be in the one frame I looked at". (4) A conversion factor in a system is a
 magic constant; change the **unit** instead. (5) `hs distill` GPU-blocked (thirty-sixth iteration).
 
-**Commit.** `10491d1`; CI on `main`.
+**Commit.** `10491d1`, pushed to `main`; CI run 41600471552 is **success** on `big-s1`. Gate: build, test (119 + 5),
+serde (126 + 5), mixer (128 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
