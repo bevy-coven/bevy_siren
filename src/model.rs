@@ -335,18 +335,61 @@ impl Rng {
 /// is what a footstep needs; a burst weapon sets `0` and takes the plain random draw. When every variant
 /// is inside the avoided window — a cue with two sounds and `avoid: 4` — the most recent one is still
 /// refused, because repeating it immediately is the one thing the window exists to prevent.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VariantPicker {
     history: VecDeque<usize>,
     /// The **keys** heard, most recent last, for [`pick_from`](Self::pick_from). Kept apart from `history` so
     /// [`pick`](Self::pick) stays byte-identical for every caller that has no keys.
     heard: VecDeque<String>,
+    /// **How many picks this picker remembers** — the field, not `VecDeque::capacity()`.
+    ///
+    /// `remember` used to bound itself by the deque's **allocator** capacity, which is a different number: `with_capacity(3)`
+    /// may hand back more than three, and a picker built at `capacity 1` could never grow. The window a caller asked for
+    /// is the window refused, so it is kept where it can be read and changed.
+    window: usize,
+}
+
+impl Default for VariantPicker {
+    /// One pick of memory: the same window [`Repeat::default`](crate::cue::Repeat::default) refuses.
+    fn default() -> Self {
+        Self::new(1)
+    }
 }
 
 impl VariantPicker {
     /// A picker that remembers the last `capacity` picks.
     pub fn new(capacity: usize) -> Self {
-        Self { history: VecDeque::with_capacity(capacity), heard: VecDeque::with_capacity(capacity) }
+        Self {
+            history: VecDeque::with_capacity(capacity),
+            heard: VecDeque::with_capacity(capacity),
+            window: capacity,
+        }
+    }
+
+    /// **The window this picker refuses, changed to `capacity` picks.**
+    ///
+    /// [`pick_from`](Self::pick_from) takes `avoid` per call, so a rule read fresh from the cue can ask for a wider
+    /// window than the picker was built with — a table reload that raises `Repeat::AvoidRepeat { avoid }`, or a cue that
+    /// arrives with more variants. Without this the picker silently refuses only what its first play sized:
+    /// `capacity 1, avoid 3` produced the **byte-identical** sequence to `capacity 1, avoid 1` over 24 picks.
+    ///
+    /// Growing reserves room; shrinking keeps the **most recent** picks, because the rule refuses what was heard
+    /// recently and the oldest memory is the first thing a narrower window can no longer honour.
+    pub fn set_capacity(&mut self, capacity: usize) {
+        self.window = capacity;
+        self.history.reserve(capacity.saturating_sub(self.history.len()));
+        self.heard.reserve(capacity.saturating_sub(self.heard.len()));
+        while self.history.len() > capacity {
+            self.history.pop_front();
+        }
+        while self.heard.len() > capacity {
+            self.heard.pop_front();
+        }
+    }
+
+    /// The window this picker refuses, in picks.
+    pub fn capacity(&self) -> usize {
+        self.window
     }
 
     /// **Picks a variant by what a player would hear**, or `None` when the cue has no variant to play.
@@ -361,6 +404,12 @@ impl VariantPicker {
         let len = keys.len();
         if len == 0 {
             return None;
+        }
+        // **The memory grows to meet the rule it is asked to enforce**, so `avoid` means what it says however the
+        // picker was built. It never shrinks here: a narrower `avoid` simply reads a shorter slice of the same memory,
+        // and a caller that built a wider window keeps it.
+        if usize::from(avoid) > self.window {
+            self.set_capacity(usize::from(avoid));
         }
         if len == 1 {
             self.remember(0);
@@ -401,6 +450,9 @@ impl VariantPicker {
         if len == 0 {
             return None;
         }
+        if usize::from(avoid) > self.window {
+            self.set_capacity(usize::from(avoid));
+        }
         if len == 1 {
             self.remember(0);
             return Some(0);
@@ -435,22 +487,20 @@ impl VariantPicker {
     }
 
     fn remember_key(&mut self, key: &str) {
-        let capacity = self.heard.capacity();
-        if capacity == 0 {
+        if self.window == 0 {
             return;
         }
-        if self.heard.len() == capacity {
+        if self.heard.len() >= self.window {
             self.heard.pop_front();
         }
         self.heard.push_back(key.to_owned());
     }
 
     fn remember(&mut self, index: usize) {
-        let capacity = self.history.capacity();
-        if capacity == 0 {
+        if self.window == 0 {
             return;
         }
-        if self.history.len() == capacity {
+        if self.history.len() >= self.window {
             self.history.pop_front();
         }
         self.history.push_back(index);

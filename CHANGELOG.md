@@ -7,6 +7,23 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A cue's `AvoidRepeat` window was frozen at its first play.** `SirenChoices::pick` builds a cue's `VariantPicker` on
+  its first play and reused it for the app's life, while `pick_from` took `avoid` fresh on every call — and `remember`
+  bounded the window by the deque's **allocator** capacity, not by a number anyone chose. Measured: four keys at
+  `avoid: 3` on a picker built at `capacity 1` produced the **byte-identical** 24-pick sequence to `avoid: 1` —
+  `adbcbcabcacabcabcbabcbcb` where `avoid: 3` requires `adbcadbc…`. Sixteen of twenty picks returned within three of
+  themselves. `VariantPicker` now keeps an explicit `window`, **grows to meet the `avoid` passed to `pick_from` and
+  `pick`**, and `Default` remembers one pick instead of none. A table an editor reloads with a larger `avoid` takes
+  effect on the next play. Reachable in the Cauldron, whose audio panel rewrites and re-reads `family/bevy_siren.ron`;
+  `reset_histories` had no caller in the crate, its tests, or the panel, so nothing else cleared it.
+
+### Added
+
+- **`VariantPicker::set_capacity` and `VariantPicker::capacity`** — grow or shrink the remembered window, and read it.
+  Additive, so no consumer breaks.
+- **`examples/render` writes each cue's variant stream** as a `variants <cue>:` line — the rule, the sound count, the
+  twelve picks and the longest run. Variant selection is audible and was otherwise only inferable from a wav.
+
 - **`examples/render`'s `mix.wav` was written past full scale.** It applied `sum_db` of **every** cue's gain — `+18.58 dB`
   — to one 0.5-amplitude tone, so the file was `4.2×` full scale: `ebur128` read **`+0.2 dBFS` true peak, `−4.3 LUFS`**.
   `sum_db` of ten cues is the number if all of them sounded at once through nothing; the file's job is to let the mix be

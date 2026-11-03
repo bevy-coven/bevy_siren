@@ -761,3 +761,44 @@ fn a_despawned_owner_stops_its_sound_and_says_so() {
     assert_eq!(said, 1, "exactly one line naming the sound: {lines:?}");
     assert_eq!(voices(&mut app), 0, "and the voice is gone with its owner");
 }
+
+/// **A cue whose `avoid` is raised after its first play gets the wider window on the next play.**
+///
+/// The picker for a cue is created on its **first** play and lives for the app's life. It used to keep that first
+/// play's capacity, so a table the Cauldron reloads with a larger `Repeat::AvoidRepeat { avoid }` was silently inert:
+/// four variants at `avoid: 3` with a picker built at `1` gave the byte-identical sequence to `avoid: 1`.
+///
+/// This is the end-to-end shape of that reload — one app, a cue whose `repeat` grows between two runs of plays.
+#[test]
+fn a_cue_whose_avoid_grows_gets_the_wider_window() {
+    let cue = |avoid: u8| Cue {
+        sounds: vec![SoundSlot::new("a"), SoundSlot::new("b"), SoundSlot::new("c"), SoundSlot::new("d")],
+        repeat: bevy_siren::Repeat::AvoidRepeat { avoid },
+        ..Cue::new("step")
+    };
+    // One app, `avoid: 1` for its first plays, then the wider rule.
+    let mut app =
+        app(CueTable::new(vec![cue(1)]), SirenSettings::default(), sounds(&["a", "b", "c", "d"]), false);
+    let play = |app: &mut App| {
+        app.world_mut().write_message(Play::cue("step"));
+        app.update();
+        played(app).into_iter().next().map(|p| p.sound)
+    };
+    let mut narrow = Vec::new();
+    for _ in 0..8 {
+        narrow.push(play(&mut app));
+    }
+    // The table now asks for a three-deep window; the picker was sized on the first play.
+    *app.world_mut().resource_mut::<CueTable>() = CueTable::new(vec![cue(3)]);
+    let mut wide = Vec::new();
+    for _ in 0..12 {
+        wide.push(play(&mut app));
+    }
+    // A three-deep window over four keys cannot put a key within three of itself: `adbcadbc`.
+    for w in wide.windows(4) {
+        assert!(
+            w[0] != w[1] && w[0] != w[2] && w[0] != w[3],
+            "at `avoid: 3` a key must not return within three picks: {wide:?}"
+        );
+    }
+}

@@ -7,6 +7,69 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 51 — 2026-11-03 — a picker's window is what the cue asked for, not what its first play sized
+
+**Baseline.** Green on every step, no open issues. Nothing red — the only red case in `cues.yaml` (31) is still blocked
+on `needs-decision/bad-gain-problem.md`.
+
+**Change.**
+1. **`VariantPicker` keeps an explicit `window`**, not the deque's allocator capacity. `pick_from`/`pick` grow it to the
+   `avoid` they are handed, so a rule read fresh from the cue is the rule enforced.
+2. **`VariantPicker::set_capacity` / `capacity`** — additive public API.
+3. **`Default` is `new(1)`**, not an empty picker that refuses nothing.
+4. **`examples/render` writes each cue's variant stream** as a `variants <cue>:` line.
+
+**Rationale.** Found by probing, not from the backlog. `SirenChoices::pick` built each cue's picker once, on its first
+play (`or_insert_with`), and `remember` bounded the window by `VecDeque::capacity()` — an allocator detail, never the
+authored number. Measured with four keys and seed 11: `capacity 1, avoid 3` produced the **byte-identical** 24-pick
+sequence to `capacity 1, avoid 1`, `adbcbcabcacabcabcbabcbcb`, where `avoid: 3` requires `adbcadbc…`; **16 of 20** picks
+returned within three of themselves. Reachable: the Cauldron rewrites and re-reads `family/bevy_siren.ron`, and
+`reset_histories` has **no caller** anywhere.
+
+| | before | after |
+|---|---|---|
+| picks returning within 3 (avoid 3, 4 keys) | **16 of 20** | **0 of 20**, every gap exactly 4 |
+| `capacity 1, avoid 3` sequence | `adbcbcabcacabcabcbabcbcb` | `adbcadbcadbcadbcadbcadbc` |
+| `VariantPicker::default()` | remembers nothing | remembers one pick |
+| tests | 133 / 141 / 144 + 6 | **134 / 141 / 144 + 6** |
+
+**Two stale list entries corrected.** Iteration 50's item #2 (`Duck::new`'s zero hold/fade) was **already shipped** —
+`problems()` reports it at `src/mix.rs:217` and the test exists at `tests/mix.rs:958`. I wrote a duplicate, found the
+original, deleted mine. Item #1 (case 31) remains blocked.
+
+**Perf, and what it does not prove.** 8 and 64 voices moved +2.4 % and +0.6 %; 256 read +56 %, but `perfcheck` calls
+**no function this iteration changed** (no picker, no cue table — `approach`/`db_to_gain`/`chain_db` only), and one
+binary gave `0.673 1.384 1.337 1.221 1.291 1.193` across six runs. A 2× spread on one binary is the host (load 5.1);
+neither median is distinguishable. No speedup or regression is claimed.
+
+**Not built.** A `CueProblem` for an `avoid` window that cannot be honoured. `pick_from`'s own comment promises
+*"`problems()` is where the table should be named"*, and a two-sound cue at `avoid: 5` probes to `problems: []` — but a
+seventh variant needs the open enum decision. `examples/render`'s `footstep.stone` (**avoid 4, 2 sounds**) is exactly
+that case, and its stream alternates correctly, which is the best two keys allow.
+
+**Evidence.** `runs/2026-11-03-51/`: `research.md` (S1 `AvoidRepeat`'s doc, S2 the picker's window, S3 the unkept
+`problems()` promise, S4 Böttcher on repetition, S5 Gregory on per-play state), `plan.md`, `perf.md`, `eval.md`,
+`review.md` (three passes, GREAT), `evidence/{plots,spectrograms,after}`.
+
+**Three mistakes in this iteration's own work.** (1) A duplicate of an existing test — found by grepping before trusting
+the stale list. (2) My first regression test asserted through `pick_from` alone and still failed after the source fix,
+because growth lived in `SirenChoices::pick`; the right answer was to grow the window inside `pick_from`, so the rule
+travels with the call. (3) Two `cargo test <name> <name>` calls failed on argument parsing — the suite takes one filter.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`AvoidRepeat`'s window that cannot be honoured is unreported** — `pick_from`'s comment promises `problems()` names
+   it; probed `problems: []` for two sounds at `avoid: 5`. Same open enum decision.
+3. **`reset_histories` has no caller** — the Cauldron's table reload should reset pickers; a consumer item for
+   `bevy_grimoire`, its own commit.
+4. **`SirenSettings::master_db` defaults to `0.0`** — no trim, so a project from `default()` has no headroom. The guide
+   says what to turn; whether the default should be lower is a decision file.
+5. No capture shows the panel with a **missing sound** refused (iteration 39 showed `unknown-cue` only).
+
 ## Iteration 50 — 2026-11-03 — the master is the headroom trim, and two demonstration files stop clipping
 
 **Baseline.** Green on every step, no open issues. Nothing red.

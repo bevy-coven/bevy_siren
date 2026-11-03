@@ -127,7 +127,10 @@ no handle and a key whose bytes the decoder refused. ``no handle or undecodable 
 to `audio/step_03.wav`, which is the file to fix.
 
 `Repeat::AvoidRepeat { avoid: n }` refuses the last `n` variants, and the default `avoid: 1` is what stops the
-machine-gun footstep. When every variant is inside the window — two sounds and `avoid: 4` — the pick immediately
+machine-gun footstep. **The window is the number the cue asks for, read on every play** — a table an editor reloads with
+a larger `avoid` takes effect on that cue's next play, with nothing to reset. (Before this fix a cue's picker was sized on
+its first play and kept that window for the app's life, so `avoid: 3` over four sounds produced the byte-identical
+sequence to `avoid: 1`.) When every variant is inside the window — two sounds and `avoid: 4` — the pick immediately
 before is still refused, because repeating it is the one thing the window exists to prevent. `Repeat::Shuffle` is a
 plain draw, repeats included: a burst weapon wants one sample and no variation.
 

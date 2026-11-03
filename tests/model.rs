@@ -452,3 +452,68 @@ fn a_played_gain_is_written_to_two_decimals() {
         _ => unreachable!(),
     }
 }
+
+/// **The window a picker refuses is the number it was asked for, not the one its first play sized.**
+///
+/// `pick_from` takes `avoid` per call and `pick` reads it fresh from the cue, but the picker was built once, on the
+/// cue's first play, and `remember` bounded itself by the deque's **allocator** capacity. So `capacity 1` asked for
+/// `avoid: 3` produced the byte-identical sequence to `avoid: 1` — 24 picks, measured — and a table reload that raised
+/// `avoid` changed nothing for the life of the app.
+#[test]
+fn a_raised_window_is_honoured() {
+    let keys = ["a", "b", "c", "d"];
+    let run = |picker: &mut VariantPicker, avoid: u8| -> String {
+        let mut rng = Rng::new(11);
+        (0..24).map(|_| keys[picker.pick_from(&keys, avoid, &mut rng).expect("a key")]).collect()
+    };
+
+    let mut once = VariantPicker::new(1);
+    let asked_three = run(&mut once, 3);
+
+    let mut built_for_three = VariantPicker::new(3);
+    let expected = run(&mut built_for_three, 3);
+    assert_eq!(
+        asked_three, expected,
+        "a picker asked for `avoid: 3` must refuse three variants; got {asked_three} against {expected}"
+    );
+
+    let mut one = VariantPicker::new(1);
+    assert_ne!(asked_three, run(&mut one, 1), "and that window must not be `avoid: 1`'s");
+}
+
+/// **Growing reserves room and keeps every pick; shrinking keeps the newest.**
+///
+/// The rule refuses what was heard *recently*, so a narrower window must drop the **oldest** memory and not the newest.
+#[test]
+fn set_capacity_keeps_the_newest_picks() {
+    let keys = ["a", "b", "c", "d"];
+    let mut picker = VariantPicker::new(1);
+    let mut rng = Rng::new(3);
+    for _ in 0..8 {
+        picker.pick_from(&keys, 1, &mut rng).expect("a key");
+    }
+    assert_eq!(picker.capacity(), 1);
+    picker.set_capacity(4);
+    assert_eq!(picker.capacity(), 4);
+    picker.set_capacity(0);
+    assert_eq!(picker.capacity(), 0);
+    // A zero window refuses nothing, so a pick still answers.
+    assert!(picker.pick_from(&keys, 0, &mut rng).is_some());
+}
+
+/// **A picker built at `Default` is the crate's default rule, not a picker that remembers nothing.**
+///
+/// `derive(Default)` left every field empty and `remember` returned early on a zero capacity, so a default picker
+/// silently refused nothing at all.
+#[test]
+fn a_default_picker_remembers_one_pick() {
+    assert_eq!(VariantPicker::default().capacity(), 1);
+    let keys = ["a", "b"];
+    let mut picker = VariantPicker::default();
+    let mut rng = Rng::new(5);
+    let seq: Vec<&str> =
+        (0..12).map(|_| keys[picker.pick_from(&keys, 1, &mut rng).expect("a key")]).collect();
+    for pair in seq.windows(2) {
+        assert_ne!(pair[0], pair[1], "a default picker must never repeat: {seq:?}");
+    }
+}

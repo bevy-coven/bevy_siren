@@ -287,6 +287,9 @@ impl SirenChoices {
         let capacity = usize::from(avoid).max(1);
         let keys: Vec<&str> = cue.sounds.iter().map(|slot| slot.sound.as_str()).collect();
         let picker = self.pickers.entry(cue.name.clone()).or_insert_with(|| VariantPicker::new(capacity));
+        // **`pick_from` grows the window to `avoid`, so a raised rule takes effect on the next play.** The picker is
+        // created on the cue's *first* play, and it used to keep that capacity for the life of the app: built at
+        // `1`, asked for `avoid: 3`, it produced the **byte-identical** sequence to `avoid: 1`.
         picker.pick_from(&keys, avoid, &mut self.rng)
     }
 

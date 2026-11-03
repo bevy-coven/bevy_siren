@@ -58,6 +58,36 @@ fn main() {
     let table = table();
     let mut report = Vec::new();
 
+    // 0. **The variant stream each cue's `repeat` rule produces.** Variant selection is audible — a window that
+    //    collapses silently turns a footstep into a machine gun for a reason nobody can hear — and the rule is a
+    //    number, so it is written down as one. A cue of two sounds at `avoid: 4` has no window left to honour; its
+    //    stream shows that, and `problems()` is where the crate says so (case 31's sibling).
+    let mut rng = bevy_siren::model::Rng::new(settings.seed);
+    for cue in &table.cues {
+        let mut picker = bevy_siren::model::VariantPicker::new(cue.sounds.len().max(1));
+        let keys: Vec<&str> = cue.sounds.iter().map(|slot| slot.sound.as_str()).collect();
+        let stream: Vec<String> = (0..12)
+            .filter_map(|_| picker.pick_from(&keys, cue.repeat.avoid(), &mut rng).map(|i| keys[i].to_owned()))
+            .collect();
+        let mut longest = 1;
+        let mut run = 1;
+        for w in stream.windows(2) {
+            if w[0] == w[1] {
+                run += 1;
+                longest = longest.max(run);
+            } else {
+                run = 1;
+            }
+        }
+        report.push(format!(
+            "variants {}: avoid {}, {} sounds -> {} (longest run {longest})",
+            key(&cue.name),
+            cue.repeat.avoid(),
+            cue.sounds.len(),
+            stream.join(" ")
+        ));
+    }
+
     // 1. One file per cue and variant, at the gain and speed a play gives it.
     for cue in &table.cues {
         for (i, slot) in cue.sounds.iter().enumerate() {
