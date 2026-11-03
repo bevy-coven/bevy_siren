@@ -7,6 +7,67 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 38 — 2026-11-03 — the header counts what the panel shows
+
+**Change.**
+
+- **`examples/mixer.rs` — the header names the split**: `{cues} cues, {layers} layers, {buses} buses, {voices} voices`, with
+  `cues = table.cues.len().saturating_sub(layers)` and `layers` from `music.score`.
+- `docs/media/mixer.{png,gif}` regenerated; `docs/media/README.md` and a CHANGELOG line.
+
+**Why.** Iteration 37's lead was the two images' table difference; **looking** at the still shipped by iteration 36 found
+something closer. The header said `9 cues` and the cue list beneath it showed **seven** — iteration 36 moved the score's two
+layers into a `Music` block and left the header counting `table.cues.len()`. The panel already had both numbers; it printed
+one.
+
+**Evidence.** `runs/2026-11-03-38/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/panel/{header-1280,header-faults,zoom-header-faults}.png`.
+
+**Measured.**
+
+| row | before | after |
+|---|---|---|
+| the clean table's header | **`9 cues`** over 7 rows | **`7 cues, 2 layers`** over 7 rows and a 2-layer block |
+| the fault table's header | `9 cues` — by coincidence | `9 cues, 2 layers` over **9** rows |
+| a table with fewer cues than layers | would underflow | `(0, 2)`, no panic (probed) |
+| every test, both feature sets | — | unchanged (119 / 126 / 128 + 5) |
+| every rendered cue | — | **byte-identical** (21/21) |
+| the still's margin | 11 px | **11 px** — the header gained words, not a line |
+| frame cost, 8 / 64 / 256 | — | 0.018 / 0.114 / 0.424 µs, load 5.7–4.5; **no `src/` line moved** |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The **fault-table capture is what proves the number is computed**:
+a hard-coded `7` would pass the clean still and fail `9 cues` over nine fault rows.
+
+**Traps for the command.** (1) A panel with **two containers of the same noun** (cues in a list, layers in a block) needs the
+header to name the **split** — one number cannot describe both. (2) When a change moves rows from one block to another, the
+**counts above them** are part of the change, and nothing tests a header. (3) `saturating_sub` where the subtrahend is
+caller data: a layer may name a cue the table lacks, and that case is reported elsewhere, not a panic. (4) A second capture
+with a **different correct answer** is how to prove a number is computed rather than typed. (5) `hs distill` GPU-blocked
+(thirty-seventh iteration).
+
+**Commit.** `2a94b2a`; CI on `main`.
+
+**Next 5.**
+
+1. **A `Stopped` line for a parent's despawn** — neither backend writes one; the log keeps `played` and nothing else.
+2. **Answer or route around the `CueProblem` question** — **seven** items wait on it.
+3. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+5. A gain above 0 dB — `needs-decision/above-unity-gain.md`, recommendation to **not** add it.
+
+**The hunt, twenty-seventh pass.** The panel's five blocks now each have a header number that matches them. What the panel
+has **never** shown is a **refusal on screen**: the `Log` block draws `Entry::line()` for every entry, so a `refused` line
+appears only if one happens to be in the last seven — and the scripted run never refuses anything. The panel's own claim is
+*"the log of what played and why"*; a `Refused` is the "why" that matters most, and it is never demonstrated. The next run
+should stage a refusal in the capture (a cue not in the table) and check that the log tail shows it.
+
+**Baseline note.** Nothing was red; the suite had 119 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 37 — 2026-11-03 — the GIF samples a fade by the second, not by the update
 
 **Change.**
