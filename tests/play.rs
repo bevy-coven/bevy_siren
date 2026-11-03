@@ -1011,10 +1011,16 @@ fn a_second_table_leaves_the_first_tables_keys_held() {
         sounds.insert(format!("first_{i}"), Handle::<AudioSource>::default());
     }
     let second = table_of("second");
+    // The second table names ten keys the map has never seen.
+    assert_eq!(sounds.missing(&second).len(), 10);
     assert_eq!(sounds.len(), 10);
     // `load_table` would merge here: the ten `first_` keys stay and ten `second_` keys join them.
     for i in 0..10 {
         sounds.insert(format!("second_{i}"), Handle::<AudioSource>::default());
     }
     assert_eq!(sounds.len(), 20, "a merge leaves twenty keys for two ten-key tables");
+    // And after a retain the map is exactly the second table's keys.
+    sounds.retain_keys(&second);
+    assert_eq!(sounds.len(), 10, "the first table's ten are gone");
+    assert_eq!(sounds.missing(&second).len(), 0, "and every key the second table names resolves");
 }
