@@ -5,6 +5,28 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Incremental indexing: embed only what changed.** `semantic::incremental::update(root, index, embed)` takes the
+  index a previous run wrote, scans the folder, and embeds **only the adds** — dropping only the removals and reporting
+  `added` / `removed` / `unchanged` / `failed` as separate numbers. Measured: adding one file to a **100-file** library
+  makes **one** call to the embedder, asserted on the call count so re-embedding everything and discarding the extras
+  cannot pass.
+
+  **Path is not identity, and the index proves it.** `Index::records` is `hash → vector` and stores no paths, so a
+  rename is indistinguishable from a file that did not move: it costs nothing **by construction**, with no case that can
+  be implemented wrong. A re-encode is a **new asset** — the bytes changed, so the hash did — and that is asserted
+  rather than assumed, because the crate cannot tell "re-encoded" from "a different take" and the opposite guess would
+  leave the index describing audio that is gone.
+
+  **A file that will not embed is a named failure, never silence.** The first draft iterated `library.assets` and
+  ignored `library.skipped`, so a corrupt file that *is* audio by extension appeared in no count at all —
+  `an_undecodable_file_is_failed_not_counted` caught it. `indexer::build` already split those skips by meaning; the
+  incremental path now does too.
+
+  `update` is a pure function and never becomes a second writer: `indexer::write` owns the file, so a caller composes
+  them and puts its own lock around the write. Refs #16.
+
 ### Documented
 
 - **ADR 0003: acoustic features, and which crate computes them** — `docs/adr/0003-acoustic-features.md` decides the

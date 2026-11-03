@@ -7,6 +7,76 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 81 — 2026-11-03 — incremental indexing, and the file the scan refused
+
+**Baseline.** Green, and complete: 198 / 207 serde / 208 mixer / 6 doc / 25 semantic / 6 incremental; clippy 0, fmt,
+rustdoc, examples. Two disk interruptions, both handled with the fix the skill now carries — `cargo clean -p bevy_siren`
+freed **4.3 GB** twice — and the `--features mixer` doctest **link** failures at 229 MB free re-ran to **208 passed**
+after cleaning, confirming they were the disk and not the code.
+
+**The first feature in seven iterations.** #16 was p0, unblocked, and every part already existed: a scan keyed by
+content hash, an index keyed by content hash, and `stale`/`vanished` answering each side of the set difference. Nothing
+composed them. `semantic::incremental::update` is the composition.
+
+**The identity rule falls out of a property, not a case.** `Index::records` is `hash → vector` and stores **no paths**,
+so a rename is *indistinguishable from a file that did not move* and costs nothing **by construction**. That is stronger
+than a rule correctly implemented: there is nowhere for it to be wrong. A **re-encode is a new asset** — the bytes
+changed, so the hash did — and that is asserted, because the crate cannot tell "re-encoded" from "a different take" and
+the opposite guess would leave the index describing audio that is gone.
+
+**Each acceptance criterion is one test, and each would fail a wrong implementation.** The add asserts the **embedder's
+call count is 1**, so re-embedding everything and discarding extras cannot pass. The delete asserts the **hash is
+absent**, not that the length fell — which would pass for dropping the wrong vector. The rename asserts `calls == 0` and
+that every vector is **identical**, not merely close.
+
+**The iteration's own test found a real defect in its first draft.** `an_undecodable_file_is_failed_not_counted` failed:
+a corrupt `broken.wav` appeared in **no count at all**. `update` iterated `library.assets` and ignored `library.skipped`,
+so a file that *is* audio by extension and would not read vanished silently — **the exact silence this crate refuses at
+every other layer**, reproduced in the newest code. `indexer::build` already split those skips by meaning; the
+incremental path now does too. The test caught it because it asserts a **count**, not that something sensible happened.
+
+**Measured.** Adding one file to a 100-file library: **1 embedder call**, `1 added, 0 removed, 100 unchanged`. A rename:
+**0 calls**, every vector identical, `is_noop()` true so nothing is written. A deletion: **0 calls**, the vector gone by
+hash. A re-encode: **1 add and 1 removal**, never "unchanged".
+
+| voices | µs/frame | vs iteration 80 |
+|---|---|---|
+| 8 | **0.064** | 0.084 |
+| 64 | **0.355** | 0.472 |
+| 256 | **1.341** | 1.576 |
+
+Faster, and **not because of this change** — nothing in the audio path moved. Two measurements of identical code now read
+0.064–0.084 / 0.355–0.472 / 1.341–1.576 µs, so the honest reading is **no regression**, not an improvement.
+
+**Visual gate unchanged:** 32 render files, **14 of 14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to
+iterations 67, 71, 74, 75 and 80. `bang-spectrum.png` read again: broadband onset, dense harmonic comb across 0–10 kHz,
+no click line at t=0, no clipping shelf, no gap; the tail window shows the same harmonics decaying smoothly.
+
+**Verdicts.** Pass 1 **GREAT** (four criteria, four tests, each non-vacuous), pass 2 **GREAT** (the draft's silent-drop
+found and fixed inside the iteration), pass 3 **GREAT** (`update` + `write` is the whole workflow, and the doc explains
+why there is no `moved` field instead of leaving a reader to wonder).
+
+**Docs.** The guide gains a fifth step — *re-indexing embeds only what changed* — with the composition in four lines, and
+its heading corrected from "four steps" to "five". The README line gains the measurement. `CHANGELOG.md` gains the entry.
+
+**Evidence.** `runs/2026-11-03-81/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,spectrograms}/`.
+
+**Commits.** `dfb8b9c`.
+
+**Top 5 remaining**
+
+1. **`#14` per-asset licence and source metadata** — the last unblocked p0, unblocked by ADR 0005 and ADR 0004's key
+   policy. `Asset` already carries `paths`, `hash` and `bytes`; provenance is the next field.
+2. **`#21`'s index round trip** — `needs-decision/loudness-in-the-index.md` recommends an optional `loudness` section,
+   and ADR 0004 has since settled the store it lives in, so the decision can be made against a known format.
+3. **The binary index writer** ADR 0004 specifies — `to_text` is **31.88 MB** at 5 000 clips against **10.30 MB** binary,
+   a 3× overhead no test asserts today.
+4. **`#22` spectral centroid, rolloff and noise floor** — unblocked by ADR 0003, and the cheapest of the three
+   hand-rolled features because they share one FFT pass over a spectrum `mel.rs` already computes.
+5. **`#28` the MCP tool host**, then `#29`/`#44` — the largest user-facing win, and now consuming an index that can be
+   kept up to date incrementally.
+
 ## Iteration 80 — 2026-11-03 — the second ratchet, and the disk actually solved
 
 **Baseline, and the first thing worth saying: it now runs.** `cargo test` had not run for **five consecutive

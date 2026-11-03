@@ -20,7 +20,7 @@ bevy_siren = { version = "0.1", features = ["semantic"] }
 Enabling it downloads ONNX Runtime at build time. A crate that does not enable it is unchanged: `cargo tree --edges
 normal` reads the same **413 lines** with and without the feature, measured.
 
-## The four steps, and what each one is
+## The five steps, and what each one is
 
 ```text
   a folder of audio            a description
@@ -98,6 +98,31 @@ The comparison is a test, and its filterbank is the model's own 32 832 weights c
 without complaint and rank noise, so a mismatch is refused with both versions and the word *re-index*.
 
 The file carries a record count and a checksum, so an interrupted write is detected rather than read as partial data.
+
+### 5. Re-indexing embeds only what changed
+
+A library of a thousand sounds gains one file a week, and re-embedding all of them to add one is a minute of GPU for a
+second of work. `incremental::update` takes the index a previous run wrote and embeds **only the adds**:
+
+```rust
+use bevy_siren::semantic::incremental;
+
+let (index, report) = incremental::update(root, old_index, embed)?;
+if !report.is_noop() {
+    indexer::write(root, &index)?;      // the only writer; take your lock around this
+}
+println!("{}", report.describe());      // "1 added, 0 removed, 100 unchanged"
+```
+
+Measured: adding one file to a **100-file** library makes **one** call to the embedder.
+
+**Path is not identity, and the type proves it.** `Index::records` is `hash → vector` and holds no paths, so a rename is
+indistinguishable from a file that did not move — it costs nothing *by construction*, not by a rule that could be
+applied wrongly. A re-encode **is** a new asset, because the bytes changed; the crate cannot tell "re-encoded" from "a
+different take", and the other guess would leave the index describing audio that is gone.
+
+`update` never writes. That is deliberate: `indexer::write` owns the file, so a caller composes the two and puts its own
+lock around the write — and a caller that only wants to preview a run writes nothing at all.
 
 ## Ask: one call from a description to a ranked answer
 

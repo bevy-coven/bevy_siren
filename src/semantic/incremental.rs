@@ -173,8 +173,8 @@ pub fn update(
 mod tests {
     use super::*;
     use crate::semantic::EMBEDDING_DIM;
-    use std::path::PathBuf;
     use crate::semantic::index::ModelStamp;
+    use std::path::PathBuf;
 
     fn stamp() -> ModelStamp {
         ModelStamp::measured_clap()
