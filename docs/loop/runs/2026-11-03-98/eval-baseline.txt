@@ -1,0 +1,7 @@
+# #45's eval baseline. Regenerate with `cargo run --release --features semantic --example evalbench -- --bless`.
+# The corpus and the stamp are recorded because a metric compared against a baseline from a different
+# corpus is a number about nothing (#45's own pitfall).
+corpus: 4x25, k=3
+stamp: bench 1, 512 dims
+recall: 1.000000
+agreement: 0.500000

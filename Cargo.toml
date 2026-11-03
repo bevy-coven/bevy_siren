@@ -38,6 +38,11 @@ required-features = ["semantic"]
 name = "querybench"
 required-features = ["semantic"]
 
+# #45's regression harness: recall@k and anchor agreement in one command, with deltas against a recorded baseline.
+[[example]]
+name = "evalbench"
+required-features = ["semantic"]
+
 [features]
 default = []
 # `serde` on the cue table, the mix table and the music score, plus `from_ron`/`to_ron`: a project saves

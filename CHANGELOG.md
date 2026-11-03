@@ -7,6 +7,11 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **A regression harness** — `#45`. `cargo run --release --features semantic --example evalbench` prints **recall@3** and
+  **anchor agreement**, their deltas against `docs/loop/runs/2026-11-03-98/eval-baseline.txt`, and **the failing queries
+  by name**; `--bless` records a baseline. It exits non-zero on a regression, and it proves it *can* fail by running a
+  deliberately degraded corpus and checking the metric drops. The corpus is deterministic and synthetic because `#35`'s
+  golden set does not exist yet: `corpus()` is the one function a labelled set replaces.
 - **A stamp override that reports itself.** `Index::load_allowing` and `Index::from_bytes_allowing` take an
   `allow_override`; `load` and `from_bytes` keep refusing, unchanged. An overridden index carries the mismatch on
   `Index::overridden`, so every search built from it can say *"loaded with a stamp override"* rather than the fact
