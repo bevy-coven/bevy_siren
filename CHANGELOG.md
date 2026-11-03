@@ -7,6 +7,10 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`tools::search_music`** — `#29`'s library half, and `tools::DEFAULT_K = 3` (*describe, see three, pick one*). Each
+  result carries its identity, score, breakdown, `explain()` sentence and provenance, so an agent chooses **without a
+  second call**; identity is the content hash and never a path, which would be absolute to the machine that indexed it. An
+  empty library is an empty list with a reason rather than an error, and `k` is bounded by `MAX_K`.
 - **`tools::audition`** — `#30`'s library half. Given an indexed asset, a library and a bus, it returns an `Audition { cue,
   play }`: a cue named `audition.<hash>` (so the same asset always auditions under the same name) with **one** sound slot,
   and **exactly one** `Play` for the caller to send. It never plays anything itself, so `play_requests` remains the only

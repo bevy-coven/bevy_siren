@@ -370,3 +370,109 @@ fn an_audition_names_what_is_missing() {
     assert!(AuditionProblem::NotIndexed { asset: 1 }.to_string().contains("not in this index"));
     assert!(AuditionProblem::NoPath { asset: 1 }.to_string().contains("rebuild it"));
 }
+
+/// **`#29`: `search_music` returns at most k, ordered, with everything an agent needs to choose.**
+#[test]
+fn search_music_returns_a_decision_without_another_call() {
+    use bevy_siren::semantic::query::Query;
+    use bevy_siren::semantic::rank::Floor;
+    use bevy_siren::semantic::tools::search_music;
+    use bevy_siren::semantic::weights::Weights;
+
+    let index = index();
+    let stamp = index.stamp.clone();
+    let query = Query::new("a tense sparse ambience").expect("a query");
+    let embedding = vec![1.0f32, 0.0, 0.0];
+    let features = std::collections::BTreeMap::new();
+    let weights = Weights::default();
+
+    let request = bevy_siren::semantic::search::Ranked {
+        embedding: &embedding,
+        anchor: 0,
+        features: &features,
+        k: 2,
+        floor: Floor::default(),
+        weights: &weights,
+    };
+    let answer = search_music(&index, &stamp, &query, &request).expect("a search");
+
+    // **At most k, and ordered**: descending score, so the first is the one to choose.
+    assert!(answer.results.len() <= 2, "at most k");
+    assert!(answer.results.windows(2).all(|w| w[0].score >= w[1].score), "ordered by score");
+    // **Enough to choose without another round trip**: identity, score, reason and provenance on every result.
+    for r in &answer.results {
+        assert_ne!(r.hash, 0, "the identity is the content hash, never a path");
+        assert!(r.score.is_finite());
+        assert_eq!(r.breakdown.parts.len(), 4, "the breakdown is present");
+        assert!(!r.explain().is_empty(), "and it explains itself");
+        // **Provenance is carried, not looked up later** — the field exists on every result even when nothing was
+        // recorded, so an agent never needs a second call to learn that an asset is unlicensed.
+        let _ = r.provenance.permits_commercial_use();
+    }
+    // The weights are echoed, so a result can be reproduced.
+    assert_eq!(answer.weights, weights);
+}
+
+/// **`#29`: an empty library is an empty list with a reason, not an error.**
+#[test]
+fn search_music_on_an_empty_library_says_so() {
+    use bevy_siren::semantic::index::{Index, ModelStamp};
+    use bevy_siren::semantic::query::Query;
+    use bevy_siren::semantic::rank::Floor;
+    use bevy_siren::semantic::tools::search_music;
+    use bevy_siren::semantic::weights::Weights;
+
+    let stamp = ModelStamp { model: "test".into(), version: "1".into(), sample_rate: 48_000, dimension: 3 };
+    let index = Index::new(stamp.clone());
+    let query = Query::new("anything").expect("a query");
+    let features = std::collections::BTreeMap::new();
+
+    let weights = Weights::default();
+    let request = bevy_siren::semantic::search::Ranked {
+        embedding: &[1.0, 0.0, 0.0],
+        anchor: 0,
+        features: &features,
+        k: 3,
+        floor: Floor::default(),
+        weights: &weights,
+    };
+    let answer =
+        search_music(&index, &stamp, &query, &request).expect("an empty library is a state, not an error");
+    assert!(answer.results.is_empty());
+    let said = answer.describe();
+    assert!(said.contains("nothing fit") || said.contains("0 returned"), "the reason is a sentence: {said}");
+}
+
+/// **`#29`: k is a bound with a default and a refusal** — the default is 3, and 0 is refused naming the range.
+#[test]
+fn search_music_bounds_k() {
+    use bevy_siren::semantic::query::Query;
+    use bevy_siren::semantic::rank::Floor;
+    use bevy_siren::semantic::tools::{DEFAULT_K, ToolProblem, search_music};
+    use bevy_siren::semantic::weights::Weights;
+
+    assert_eq!(DEFAULT_K, 3, "#29 says the workflow's default is three");
+
+    let index = index();
+    let stamp = index.stamp.clone();
+    let query = Query::new("x").expect("a query");
+    let features = std::collections::BTreeMap::new();
+    let weights = Weights::default();
+    let request = bevy_siren::semantic::search::Ranked {
+        embedding: &[1.0, 0.0, 0.0],
+        anchor: 0,
+        features: &features,
+        k: 0,
+        floor: Floor::default(),
+        weights: &weights,
+    };
+    let refused = search_music(&index, &stamp, &query, &request).expect_err("k=0 is refused");
+    match refused {
+        ToolProblem::BadK { k, max } => {
+            assert_eq!(k, 0);
+            assert!(refused.to_string().contains("between 1 and"), "the range is named");
+            assert!(max >= DEFAULT_K);
+        }
+        other => panic!("expected BadK, got {other:?}"),
+    }
+}

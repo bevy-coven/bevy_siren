@@ -190,6 +190,9 @@ impl Answer {
 /// hostile or confused `k` cannot ask for a library dump.
 pub const MAX_K: usize = 100;
 
+/// **The default `k` for a description search**, which is `#29`'s stated workflow: *describe, see three, pick one*.
+pub const DEFAULT_K: usize = 3;
+
 /// **Check a `k` before doing any work**, so a bad one is `bad_argument` rather than an expensive call that then fails.
 pub fn check_k(k: usize) -> Result<usize, ToolProblem> {
     if k == 0 {
@@ -532,4 +535,58 @@ pub fn audition(
     let cue = audition_cue(asset, sound, bus);
     let play = crate::play::Play::cue(cue.name.clone());
     Ok(Audition { cue, play })
+}
+
+/// **`search_music(description, k)`** — `#29`'s library half: the thinnest wrapper over the ranking, shaped for an agent.
+///
+/// `#29` says its *"only design work is the result shape — enough for an agent to choose without another round trip"*.
+/// So each [`Found`] already carries everything a decision needs: the asset's identity, its score, **why** it scored
+/// (the breakdown and its sentence), and its provenance — a second call to fetch any of that would be the round trip the
+/// issue exists to avoid.
+///
+/// The identity is the **content hash**, never a path: a path is absolute to the machine that indexed it, which makes a
+/// result unusable by a panel or another tool. That is `#29`'s own technical note.
+///
+/// An empty library is an **empty list with a reason**, not an error — `Answer::describe` gives the sentence — because a
+/// library with nothing in it is a state rather than a mistake.
+pub fn search_music(
+    index: &Index,
+    stamp: &ModelStamp,
+    query: &super::query::Query,
+    request: &super::search::Ranked<'_>,
+) -> Result<Answer, ToolProblem> {
+    let k = request.k;
+    check_k(k)?;
+    if index.is_empty() {
+        return Ok(Answer {
+            results: Vec::new(),
+            tally: Tally::default(),
+            weights: request.weights.to_owned(),
+        });
+    }
+    // **The search itself is `search::search_ranked`**, so there is one ranking implementation rather than two that can
+    // disagree. `#29` is a wrapper; the work is `#26`'s and `#40`'s. The `Ranked` request is the caller's, so the two
+    // entry points cannot drift apart in what they accept.
+    let answer = super::search::search_ranked(index, stamp, query, request)
+        .map_err(|e| ToolProblem::Search(e.to_string()))?;
+
+    let results: Vec<Found> = answer
+        .matches
+        .into_iter()
+        .map(|m| Found {
+            hash: m.hash,
+            score: m.score,
+            similarity: m.similarity,
+            breakdown: m.breakdown,
+            provenance: m.provenance,
+        })
+        .collect();
+    let tally = Tally {
+        returned: results.len(),
+        excluded: answer.excluded,
+        below_floor: answer.dropped,
+        variants: Vec::new(),
+        wrong_category: 0,
+    };
+    Ok(Answer { results, tally, weights: request.weights.to_owned() })
 }
