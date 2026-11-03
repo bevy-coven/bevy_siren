@@ -42,6 +42,7 @@ pub mod resample;
 pub mod search;
 pub mod session;
 pub mod spectral;
+pub mod tempo;
 pub mod tokenizer;
 pub mod weights;
 

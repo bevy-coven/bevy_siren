@@ -1,0 +1,42 @@
+variants footstep-grass: avoid 1, 3 sounds -> step_03 step_01 step_02 step_03 step_02 step_03 step_01 step_02 step_03 step_02 step_01 step_03 (longest run 1)
+variants footstep-stone: avoid 4, 2 sounds -> stone_02 stone_01 stone_02 stone_01 stone_02 stone_01 stone_02 stone_01 stone_02 stone_01 stone_02 stone_01 (longest run 1)
+variants gun-burst: avoid 0, 1 sounds -> burst_01 burst_01 burst_01 burst_01 burst_01 burst_01 burst_01 burst_01 burst_01 burst_01 burst_01 burst_01 (longest run 12)
+variants ui-cancel: avoid 1, 1 sounds -> click click click click click click click click click click click click (longest run 12)
+variants dialogue-greeting: avoid 1, 2 sounds -> line_02 line_01 line_02 line_01 line_02 line_01 line_02 line_01 line_02 line_01 line_02 line_01 (longest run 1)
+variants engine-idle: avoid 1, 1 sounds -> engine_loop engine_loop engine_loop engine_loop engine_loop engine_loop engine_loop engine_loop engine_loop engine_loop engine_loop engine_loop (longest run 12)
+variants bang: avoid 1, 1 sounds -> bang_01 bang_01 bang_01 bang_01 bang_01 bang_01 bang_01 bang_01 bang_01 bang_01 bang_01 bang_01 (longest run 12)
+variants music-calm: avoid 1, 1 sounds -> music_calm music_calm music_calm music_calm music_calm music_calm music_calm music_calm music_calm music_calm music_calm music_calm (longest run 12)
+variants music-combat: avoid 1, 1 sounds -> music_combat music_combat music_combat music_combat music_combat music_combat music_combat music_combat music_combat music_combat music_combat music_combat (longest run 12)
+variants music-stinger: avoid 1, 1 sounds -> stinger stinger stinger stinger stinger stinger stinger stinger stinger stinger stinger stinger (longest run 12)
+cue-footstep-grass-0: 0.00 dB, speed 0.9439, peak 0.480, rms 0.075
+cue-footstep-grass-1: 0.00 dB, speed 0.9439, peak 0.455, rms 0.075
+cue-footstep-grass-2: 0.00 dB, speed 0.9439, peak 0.415, rms 0.075
+cue-footstep-stone-0: 0.00 dB, speed 0.9439, peak 0.429, rms 0.065
+cue-footstep-stone-1: 0.00 dB, speed 0.9439, peak 0.431, rms 0.065
+cue-gun-burst-0: -2.00 dB, speed 0.9439, peak 0.492, rms 0.069
+cue-ui-cancel-0: -6.00 dB, speed 0.9439, peak 0.396, rms 0.085
+cue-dialogue-greeting-0: 0.00 dB, speed 0.9439, peak 0.490, rms 0.074
+cue-dialogue-greeting-1: 0.00 dB, speed 0.9439, peak 0.477, rms 0.074
+cue-engine-idle-0: -14.00 dB, speed 0.9439, peak 0.486, rms 0.160
+cue-bang-0: 0.00 dB, speed 0.9439, peak 0.516, rms 0.090
+cue-music-calm-0: 0.00 dB, speed 0.9439, peak 0.486, rms 0.146
+cue-music-combat-0: 0.00 dB, speed 0.9439, peak 0.487, rms 0.164
+cue-music-stinger-0: 0.00 dB, speed 0.9439, peak 0.484, rms 0.104
+refusal-footstep-snow-no-cue-of-that-name: no cue of that name
+refusal-footstep-grass-no-handle-or-undecodable-bytes-for-sound--step_09-: no handle or undecodable bytes for sound `step_09`
+refusal-bang-bus--Reverb--is-not-in-the-mix-table: bus `Reverb` is not in the mix table
+refusal-bang-no-SpatialListener-to-place-a-sound-at--3--0--4-: no SpatialListener to place a sound at [3, 0, 4]
+refusal-dialogue-greeting-no-voice-free-on-bus--Dialogue-: no voice free on bus `Dialogue`
+refusal-music-does-not-exist-no-cue-of-that-name: no cue of that name
+refusal-footstep-grass-no-voice-free: no voice free
+refusal-engine-idle-no-voice-free: no voice free
+bus-Music: duck -8.0 dB, deepest -7.96 dB, recovered by 1.97 s (fired at 1.00 s, hold 0.25 + fade 0.60)
+bus-Effects: ducked -4.0 dB, hold 0.25 s, fade 0.40 s (from Dialogue)
+bus-Music-stinger: duck -9.0 dB; duck_s as the hold (0.60 s) + release 0.12 s reads -8.99 dB halfway, duck_s as the fade reads -5.01 dB halfway
+layer-fade: from -80 to -9 dB; 0.3 s in, the authored 0.8 s fade reads -13.6 dB and the default easing reads -9.1 dB
+panner: its own law at 8 m on-axis is 0.0117 linear, -38.7 dB; a spatial cue divides it out, a non-spatial cue is never placed
+buses: `bus_names()` gives [Music, Effects, Ambience, Dialogue]; a table listing no buses gives [Music, Effects, Ambience, Dialogue]
+spatial: 1.000 at 4 m, 0.500 at 8 m, 0.250 at 16 m
+music: a bar at 160 bpm from 0.3 s is 1.50 s
+mix: 10 cues, 18.583311 dB summed (all ten at once through nothing; this file is written at `master_db` +0 dB)
+voices-8: peak 2.959, rms 0.287, 162 samples past full scale — the budget is a sample cost, not headroom: `SirenMix::worst_peak_db` is how a game asks
