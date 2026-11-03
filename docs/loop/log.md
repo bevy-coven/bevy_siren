@@ -7,6 +7,72 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 77 — 2026-11-03 — the acoustic-features ADR, and loudness with the short clip as a state
+
+**Baseline.** `cargo build` and `cargo test --lib --features semantic` (20 tests) green; `cargo fmt` green. Everything
+else **blocked by disk**: the volume sat at **100 %, 122–230 MB free** and `cargo test`, clippy, rustdoc and the
+examples all died in `ld: write() failed, errno=28` or `rustc-LLVM ERROR: IO failure`. `cargo clean -p` on the heavy
+deps bought ~1.3–1.7 GB per attempt, which the next link consumed. **Third iteration in a row the disk has cost** —
+recorded as its own blocker below.
+
+**Two items, in dependency order.** [#4](https://github.com/bevy-coven/bevy_siren/issues/4) is p0, blocks #21–#25, and
+is a document the disk cannot block — so it went first. Then the issue it unblocked.
+
+**#4 closed: ADR 0003, `docs/adr/0003-acoustic-features.md`.** All six features are Rust; no sidecar is built. The
+load-bearing fact is that **`ebur128` 0.1.11 is pure Rust** despite its name — nine `src/*.rs`, C confined to
+`capi-test/` and `tests/c/`, `build.rs` gated on `c-tests` which is off by default. **Verified, not assumed:** a clean
+`default-features = false` build takes **1.66 s**, invokes no `cc`, produces no C object. Tempo ships with a **±2 BPM**
+floor (**design default**) that is a test and removes the feature if unmet; **key is out of scope** rather than shipped
+at an accuracy no source reports.
+
+**The measurement changed the decision, which is the point of measuring.** On two long clips `ebur128` agrees with
+`ffmpeg`'s reference to **0.01 LU** (−23.01 vs −23.0; −8.92 vs −8.9). On a **0.2 s** clip they disagree entirely and
+**neither number is a measurement**: `ffmpeg` reports **−70.0 LUFS**, the standard's floor presented as a level, and
+`ebur128` returns **`-inf`**. `relative_threshold()` returns exactly −70.0 with no blocks — the same value a genuine
+−70 LUFS passage gives. That is now a **requirement on #21** rather than a discovery inside it.
+
+**`semantic::loudness`.** Integrated loudness is `Option<f32>` because a clip too short for a 400 ms block has no
+loudness, and the module's doc opens with the three-way table above. Measured against the reference: **−23.0 LUFS**
+±0.1 on a 3 s tone, **−20.00 dBFS** true peak, **13.98 dB** between 0.5 and 0.1 amplitude (`20·log10(5)`), and 0.2 s →
+`None` with its peak still measured at −6.02 dBFS.
+
+**The defect it found in its own first draft, worth keeping.** One `blocks` field cannot distinguish *"too short"* from
+*"silent"*: `ebur128`'s count is blocks **above the gate**, so 3 s of digital silence and a 0.2 s footstep both returned
+0. The module was reproducing the exact conflation it existed to prevent, one level down. Its own silence test caught
+it. Now `blocks` and `blocks_possible` are separate, with `too_short()` and `silent()` as separate predicates asserted in
+opposite directions on the two clips.
+
+**Carved off with a decision file, not silently.** #21's last criterion — the index round trip — changes the versioned
+`bevy_siren index 1` text format, so it is `needs-decision/loudness-in-the-index.md`: three options, a cost table, and a
+recommendation for an optional `loudness` section because **absence must be encoded as absence, not as a sentinel
+number in a numeric column**.
+
+**Verdicts.** Pass 1 **GREAT** (the ADR meets all four criteria), pass 2 **GREAT** (the measurement is read closely and
+its own defect is named), pass 3 **GREAT** (a developer can see why the type is an `Option` in the first twenty lines),
+with the baseline gap stated in `eval.md` rather than claimed green.
+
+**Gate.** 20 semantic tests, fmt, `cargo build` — green. Default suite, serde, mixer, doc, clippy, rustdoc, examples,
+`perfcheck`, `render` — **unrun, disk**.
+
+**Evidence.** `runs/2026-11-03-77/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md` (three passes),
+`evidence/loudness-vs-reference.txt`, `evidence/ebur128-probe.rs`.
+
+**Commits.** `f584097` (ADR, closes #4), `63ba157` (loudness).
+
+**Top 5 remaining**
+
+1. **Clear the disk, then run the full baseline.** Three iterations have now lost steps to `errno=28`, this one losing
+   clippy, rustdoc, the examples and both measuring gates. Nothing else on this list is worth as much as a machine that
+   can build.
+2. **`#21`'s index round trip**, once `needs-decision/loudness-in-the-index.md` has an answer. The measurement it stores
+   is built and tested.
+3. **`#14` per-asset licence and source metadata** and **`#16` incremental indexing by content hash** — the two
+   remaining p0s that are neither blocked nor need a decision. `library.rs`'s `fnv1a` is already #16's seed.
+4. **`#22` spectral centroid, rolloff and noise floor**, unblocked by ADR 0003 and cheapest of the three hand-rolled
+   features because they share one FFT pass.
+5. **`#28` the MCP tool host**, then `#29`/`#44`. Still the largest user-facing win, and still consuming an index whose
+   feature layer is only now resolved.
+
 ## Iteration 76 — 2026-11-03 — the audio tower, verified to cosine 0.999999995
 
 **Baseline.** Green on every step once disk was reclaimed: 198 / 207 serde / 208 mixer / 6 doc / 12 semantic, clippy 0,
