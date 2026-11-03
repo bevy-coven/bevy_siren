@@ -219,7 +219,7 @@ pub fn input_features(buffer: &[f32], filterbank: &Filterbank) -> Result<Vec<Vec
 }
 
 /// A periodic Hann window, which is what `window_function(n, "hann")` returns.
-fn hann(n: usize) -> Vec<f32> {
+pub(crate) fn hann(n: usize) -> Vec<f32> {
     (0..n).map(|i| 0.5 - 0.5 * (std::f32::consts::TAU * i as f32 / n as f32).cos()).collect()
 }
 
@@ -242,7 +242,7 @@ fn reflect_pad_asymmetric(buffer: &[f32], left: usize, right: usize) -> Vec<f32>
 }
 
 /// **A radix-2 FFT, in place.** `len` must be a power of two, which [`WINDOW`] is.
-fn fft_in_place(re: &mut [f64], im: &mut [f64]) {
+pub(crate) fn fft_in_place(re: &mut [f64], im: &mut [f64]) {
     let n = re.len();
     debug_assert!(n.is_power_of_two(), "the radix-2 FFT needs a power of two");
 

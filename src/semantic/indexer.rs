@@ -238,17 +238,21 @@ pub fn build(
         let Some(relative) = asset.paths.first() else { continue };
         let path = root.join(relative);
         match embed_measured(&path, &mut embed) {
-            Ok((vector, loudness)) => {
+            Ok(Analysed { vector, loudness, spectral }) => {
                 // The index refuses a vector of the wrong width, and that refusal is a real failure here: the
                 // embedder and the stamp disagree about the model.
                 if let Err(e) = index.insert(asset.hash, vector) {
                     failed.push(Failure { path: relative.clone(), why: e.to_string() });
-                } else if let Some(l) = loudness {
-                    index.loudness.insert(asset.hash, l);
-                }
-                // A file that embedded but could not be measured is **not** a failure — the index's reason to exist is
-                // the vector. It is counted, so a run that measures nothing says so instead of looking complete.
-                else {
+                } else if loudness.is_some() || spectral.is_some() {
+                    if let Some(l) = loudness {
+                        index.loudness.insert(asset.hash, l);
+                    }
+                    if let Some(sp) = spectral {
+                        index.spectral.insert(asset.hash, sp);
+                    }
+                } else {
+                    // A file that embedded but could not be measured is **not** a failure — the index's reason to exist
+                    // is the vector. It is counted, so a run that measures nothing says so instead of looking complete.
                     unmeasured += 1;
                 }
             }
@@ -280,7 +284,7 @@ pub(super) fn embed_one(
     path: &Path,
     embed: &mut impl FnMut(&[f32]) -> Result<Vec<f32>, String>,
 ) -> Result<Vec<f32>, String> {
-    embed_measured(path, embed).map(|(vector, _)| vector)
+    embed_measured(path, embed).map(|a| a.vector)
 }
 
 /// **Decode, convert, measure and embed one file**, sharing the decode between the measurement and the embedding.
@@ -289,13 +293,33 @@ pub(super) fn embed_one(
 /// needs, so measuring in a second pass would decode every file twice — the cost the whole feature exists to avoid on a
 /// thousand-file library. The buffer is handed to `measure` and to `embed` in turn, and neither keeps it.
 ///
+/// **What one file yielded**: its vector, and whatever the measurement passes could say about it.
+///
+/// A struct rather than a three-tuple, because the tuple needed a `type` alias to pass clippy and a caller reading
+/// `.spectral` is clearer than `.2`. Both measured fields are `Option` because a measurement can fail without the file
+/// failing — the vector is the index's reason to exist.
+pub(super) struct Analysed {
+    /// The embedding.
+    pub vector: Vec<f32>,
+    /// Its loudness, when the measurement succeeded.
+    pub loudness: Option<super::loudness::Loudness>,
+    /// Its spectral shape, when the analysis succeeded.
+    pub spectral: Option<super::spectral::Spectral>,
+}
+
+/// **Decode, convert, measure and embed one file**, sharing the decode between the measurement and the embedding.
+///
+/// The two are deliberately one function. Loudness needs the same mono buffer at the model's rate that the embedder
+/// needs, so measuring in a second pass would decode every file twice — the cost the whole feature exists to avoid on a
+/// thousand-file library. The buffer is handed to `measure`, to `analyse` and to `embed` in turn, and none keeps it.
+///
 /// A measurement that fails does **not** fail the file: the embedding is the index's reason to exist and a loudness
-/// number is an addition to it. The failure is reported in the returned `Option` so a caller can count it, rather than
-/// silently dropping the asset's loudness with no record that anything went wrong.
+/// number or a centroid is an addition to it. The failure is reported in the returned `Option` so a caller can count
+/// it, rather than silently dropping the asset's loudness with no record that anything went wrong.
 pub(super) fn embed_measured(
     path: &Path,
     embed: &mut impl FnMut(&[f32]) -> Result<Vec<f32>, String>,
-) -> Result<(Vec<f32>, Option<super::loudness::Loudness>), String> {
+) -> Result<Analysed, String> {
     let decoded = decode(path).map_err(|e: DecodeProblem| e.to_string())?;
     let mono = match (decoded.sample_rate, decoded.channels) {
         (0, _) => return Err(BufferProblem::ZeroSampleRate.to_string()),
@@ -314,8 +338,11 @@ pub(super) fn embed_measured(
     // **Measured first, from the same buffer.** `measure` takes the mono signal at the model's rate, which is exactly
     // what the embedder is about to take, so this costs one IIR pass and no second decode.
     let loudness = super::loudness::measure(&mono, super::MODEL_SAMPLE_RATE).ok();
+    // **The spectral features come from the same buffer**, for the same reason loudness does: a second decode would
+    // double the cost of every file to add three statistics.
+    let spectral = super::spectral::analyse(&mono).ok();
     let vector = embed(&mono)?;
-    Ok((vector, loudness))
+    Ok(Analysed { vector, loudness, spectral })
 }
 
 /// The file a built index lives in. One name for both formats, because the bytes say which one it is.

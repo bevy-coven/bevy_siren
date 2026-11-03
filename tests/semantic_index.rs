@@ -505,3 +505,67 @@ fn a_file_says_which_format_it_is() {
     assert!(index.to_text().starts_with("bevy_siren index 1"));
     assert_ne!(&index.to_bytes()[..4], &index.to_text().as_bytes()[..4]);
 }
+
+/// **`#22` criterion 4: all three spectral features survive an index round trip**, in **both** formats.
+///
+/// The absent centroid is the load-bearing part: a silent clip has no brightness, and `0 Hz` is a *real* reading for a
+/// DC offset. A sentinel would make the two indistinguishable on disk, which is the same mistake the loudness section
+/// avoids.
+#[test]
+fn spectral_features_round_trip_in_both_formats() {
+    use bevy_siren::semantic::spectral::Spectral;
+
+    let mut index = index_with(3);
+    index.spectral.insert(
+        0x1000,
+        Spectral { centroid_hz: Some(1234.5), rolloff_hz: Some(4321.0), noise_floor_db: -42.5 },
+    );
+    // A silent clip: no centroid, no rolloff, and the crate's floor — never `0 Hz` and never NaN.
+    index.spectral.insert(0x1001, Spectral::absent());
+    // A DC offset: a real but very dark reading, distinguishable from silence.
+    index.spectral.insert(
+        0x1002,
+        Spectral { centroid_hz: Some(9.375), rolloff_hz: Some(46.875), noise_floor_db: -6.0 },
+    );
+
+    let via_text = Index::load(&index.to_text(), &stamp()).expect("text loads");
+    assert_eq!(via_text.spectral, index.spectral, "every field survives the text form");
+
+    let via_bytes = Index::from_bytes(&index.to_bytes(), &stamp()).expect("bytes load");
+    assert_eq!(via_bytes.spectral, index.spectral, "and the binary form");
+
+    let silent = via_bytes.spectral[&0x1001];
+    assert_eq!(silent.centroid_hz, None, "silence keeps NO centroid through a round trip");
+    assert_eq!(silent.rolloff_hz, None);
+    assert_eq!(silent.noise_floor_db, bevy_siren::model::SILENT_DB);
+
+    let dc = via_bytes.spectral[&0x1002];
+    assert_eq!(dc.centroid_hz, Some(9.375), "and a DC offset keeps its real, dark reading");
+    assert_ne!(dc.centroid_hz, silent.centroid_hz, "which must never be confused with silence");
+}
+
+/// **An index with no spectral section writes none**, so every file written before this feature still loads.
+#[test]
+fn an_index_with_no_spectral_writes_no_section() {
+    let plain = index_with(2).to_text();
+    assert!(!plain.contains("spectral "), "no section when there is nothing to write");
+    assert!(Index::load(&plain, &stamp()).expect("loads").spectral.is_empty());
+    assert!(Index::from_bytes(&index_with(2).to_bytes(), &stamp()).expect("loads").spectral.is_empty());
+}
+
+/// **A truncated spectral section is refused**, by the same count rule as every other section.
+#[test]
+fn a_spectral_section_promising_more_records_than_it_holds_is_refused() {
+    use bevy_siren::semantic::spectral::Spectral;
+    let mut index = index_with(1);
+    index.spectral.insert(
+        0x1000,
+        Spectral { centroid_hz: Some(100.0), rolloff_hz: Some(200.0), noise_floor_db: -30.0 },
+    );
+    let text = index.to_text();
+    assert!(text.contains("spectral 1"));
+    // The binary reader checks a trailing-byte count too, so a truncated section cannot slip through there either.
+    let bytes = index.to_bytes();
+    let cut = &bytes[..bytes.len() - 20];
+    assert!(Index::from_bytes(cut, &stamp()).is_err(), "a cut binary file is refused");
+}

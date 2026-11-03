@@ -26,6 +26,7 @@ use std::collections::BTreeMap;
 
 use super::loudness::Loudness;
 use super::provenance::Provenance;
+use super::spectral::Spectral;
 use std::fmt::Write as _;
 
 /// The identity of the model that made an index's vectors.
@@ -162,6 +163,8 @@ pub struct Index {
     /// Each asset's loudness, by content hash — the same optional-section shape as `provenance`, per
     /// `needs-decision/loudness-in-the-index.md`.
     pub loudness: BTreeMap<u64, Loudness>,
+    /// Each asset's spectral shape, by content hash — a third optional section, same rules.
+    pub spectral: BTreeMap<u64, Spectral>,
 }
 
 const MAGIC: &str = "bevy_siren index 1";
@@ -237,6 +240,25 @@ fn db_field(value: f32) -> String {
     if value.is_finite() { format!("{value:?}") } else { String::from("-") }
 }
 
+/// A frequency field, or `-` when silence had no centroid to report.
+fn hertz_field(value: Option<f32>) -> String {
+    match value {
+        Some(v) if v.is_finite() => format!("{v:?}"),
+        _ => String::from("-"),
+    }
+}
+
+/// One spectral record: `<16 hex hash> <centroid|-> <rolloff|-> <noise floor dB>`.
+fn parse_spectral_line(line: &str) -> Option<(u64, Spectral)> {
+    let mut fields = line.split(' ');
+    let hash = u64::from_str_radix(fields.next()?, 16).ok()?;
+    let hertz = |f: &str| if f == "-" { Some(None) } else { f.parse::<f32>().ok().map(Some) };
+    let centroid_hz = hertz(fields.next()?)?;
+    let rolloff_hz = hertz(fields.next()?)?;
+    let noise_floor_db = fields.next()?.parse::<f32>().ok()?;
+    Some((hash, Spectral { centroid_hz, rolloff_hz, noise_floor_db }))
+}
+
 /// One loudness record: `<16 hex hash> <lufs|-> <dbtp> <sample peak> <blocks> <blocks_possible>`.
 fn parse_loudness_line(line: &str) -> Option<(u64, Loudness)> {
     let mut fields = line.split(' ');
@@ -295,7 +317,13 @@ pub struct Mismatch {
 impl Index {
     /// A new, empty index for `stamp`.
     pub fn new(stamp: ModelStamp) -> Self {
-        Index { stamp, records: BTreeMap::new(), provenance: BTreeMap::new(), loudness: BTreeMap::new() }
+        Index {
+            stamp,
+            records: BTreeMap::new(),
+            provenance: BTreeMap::new(),
+            loudness: BTreeMap::new(),
+            spectral: BTreeMap::new(),
+        }
     }
 
     /// How many assets are indexed.
@@ -368,6 +396,16 @@ impl Index {
                 let _ = write!(body, " {}", db_field(l.true_peak));
                 let _ = write!(body, " {}", db_field(l.sample_peak));
                 let _ = writeln!(body, " {} {}", l.blocks, l.blocks_possible);
+            }
+        }
+        // **A third optional section, same rules.** `-` for an absent centroid or rolloff: silence has no brightness,
+        // and writing `0` there would make it indistinguishable from a DC offset.
+        if !self.spectral.is_empty() {
+            let _ = writeln!(body, "spectral {}", self.spectral.len());
+            for (hash, s) in &self.spectral {
+                let _ = write!(body, "{hash:016x} {}", hertz_field(s.centroid_hz));
+                let _ = write!(body, " {}", hertz_field(s.rolloff_hz));
+                let _ = writeln!(body, " {}", db_field(s.noise_floor_db));
             }
         }
         let checksum = crate::library::fnv1a(body.as_bytes());
@@ -447,6 +485,8 @@ impl Index {
         let mut loudness: BTreeMap<u64, Loudness> = BTreeMap::new();
         let mut expected_provenance: Option<usize> = None;
         let mut expected_loudness: Option<usize> = None;
+        let mut spectral: BTreeMap<u64, Spectral> = BTreeMap::new();
+        let mut expected_spectral: Option<usize> = None;
         // **A section marker is the only line that can start with `provenance ` or `loudness `**, because every record
         // line begins with a 16-hex-character hash. Each section runs until the next marker or the end of the body, so
         // several can coexist and their order does not matter — except for their own records, which must follow them.
@@ -455,6 +495,7 @@ impl Index {
             Vectors,
             Provenance,
             Loudness,
+            Spectral,
         }
         let mut section = Section::Vectors;
         for (n, line) in body.lines().enumerate() {
@@ -489,6 +530,27 @@ impl Index {
                     return Err(IndexProblem::Record {
                         line: line_no,
                         what: String::from("a provenance record names no hash"),
+                    });
+                }
+                continue;
+            }
+            if let Some(count) = line.strip_prefix("spectral ") {
+                expected_spectral = Some(count.parse().map_err(|_| IndexProblem::Record {
+                    line: line_no,
+                    what: format!("`{count}` is not a spectral record count"),
+                })?);
+                section = Section::Spectral;
+                continue;
+            }
+            if section == Section::Spectral {
+                if let Some((hash, record)) = parse_spectral_line(line) {
+                    spectral.insert(hash, record);
+                } else {
+                    return Err(IndexProblem::Record {
+                        line: line_no,
+                        what: String::from(
+                            "a spectral record is not `<hash> <centroid|-> <rolloff|-> <floor dB>`",
+                        ),
                     });
                 }
                 continue;
@@ -546,8 +608,13 @@ impl Index {
         {
             return Err(IndexProblem::Truncated { expected, found: loudness.len() });
         }
+        if let Some(expected) = expected_spectral
+            && spectral.len() != expected
+        {
+            return Err(IndexProblem::Truncated { expected, found: spectral.len() });
+        }
 
-        Ok(Index { stamp, records, provenance, loudness })
+        Ok(Index { stamp, records, provenance, loudness, spectral })
     }
 }
 
@@ -629,6 +696,33 @@ impl Index {
             out.extend_from_slice(&l.sample_peak.to_le_bytes());
             out.extend_from_slice(&l.blocks.to_le_bytes());
             out.extend_from_slice(&l.blocks_possible.to_le_bytes());
+        }
+        out.extend_from_slice(&(self.spectral.len() as u64).to_le_bytes());
+        for (hash, s) in &self.spectral {
+            out.extend_from_slice(&hash.to_le_bytes());
+            // A presence byte per optional frequency, for the same reason loudness has one: `0` Hz is a real reading
+            // for a DC offset, so a sentinel would conflate it with silence.
+            match s.centroid_hz {
+                Some(v) => {
+                    out.push(1);
+                    out.extend_from_slice(&v.to_le_bytes());
+                }
+                None => {
+                    out.push(0);
+                    out.extend_from_slice(&0.0f32.to_le_bytes());
+                }
+            }
+            match s.rolloff_hz {
+                Some(v) => {
+                    out.push(1);
+                    out.extend_from_slice(&v.to_le_bytes());
+                }
+                None => {
+                    out.push(0);
+                    out.extend_from_slice(&0.0f32.to_le_bytes());
+                }
+            }
+            out.extend_from_slice(&s.noise_floor_db.to_le_bytes());
         }
         let checksum = crate::library::fnv1a(&out);
         out.extend_from_slice(&checksum.to_le_bytes());
@@ -724,10 +818,32 @@ impl Index {
             );
         }
 
+        let mut spectral: BTreeMap<u64, super::spectral::Spectral> = BTreeMap::new();
+        for _ in 0..read_u64(body, &mut at).map_err(|e| bad(&e))? {
+            let hash = read_u64(body, &mut at).map_err(|e| bad(&e))?;
+            let option_f32 = |body: &[u8], at: &mut usize| -> Result<Option<f32>, String> {
+                let has = *body.get(*at).ok_or_else(|| String::from("a spectral record ends early"))?;
+                *at += 1;
+                let v = read_f32(body, at)?;
+                match has {
+                    1 if v.is_finite() => Ok(Some(v)),
+                    1 => Err(String::from(
+                        "a spectral record says it has a value and carries a non-finite one",
+                    )),
+                    0 => Ok(None),
+                    _ => Err(String::from("a spectral presence byte is neither 0 nor 1")),
+                }
+            };
+            let centroid_hz = option_f32(body, &mut at).map_err(|e| bad(&e))?;
+            let rolloff_hz = option_f32(body, &mut at).map_err(|e| bad(&e))?;
+            let noise_floor_db = read_f32(body, &mut at).map_err(|e| bad(&e))?;
+            spectral.insert(hash, super::spectral::Spectral { centroid_hz, rolloff_hz, noise_floor_db });
+        }
+
         if at != body.len() {
             return Err(bad(&format!("{} trailing bytes after the last section", body.len() - at)));
         }
-        Ok(Index { stamp, records, provenance, loudness })
+        Ok(Index { stamp, records, provenance, loudness, spectral })
     }
 }
 
