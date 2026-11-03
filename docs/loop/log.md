@@ -7,6 +7,70 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 32 — 2026-11-03 — the panel's log shows the eight lines the crate documents
+
+**Change.**
+
+- **`examples/mixer.rs` — `SirenLog::recent(8)`**, the budget `CAPACITY`'s own doc names: *"a panel shows eight"*. The panel
+  asked for ten in a fixed column that fits ~8.5, so the **last log line was clipped mid-glyph** in every capture.
+- `docs/media/mixer.{png,gif}` regenerated; `docs/media/README.md` says why eight; a CHANGELOG line.
+
+**Why.** Iteration 31's lead was a Music block. Probing the **height budget** first — iteration 30's lesson is that the
+column is fixed — found the panel already over: **lowest ink at `y = 719` of 720**, one pixel of margin and a sliced glyph,
+in the README's own still. The crate had documented the budget and the example used a different number.
+
+**Evidence.** `runs/2026-11-03-32/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/panel/{eight-log-1280,readme-before}.png`.
+
+**Measured.**
+
+| row | before | after |
+|---|---|---|
+| lowest ink in the capture | **y = 719** of 720 — 1 px margin, **clipped glyph** | **y = 708** — 12 px margin |
+| log lines shown | 10 | **8** — the documented budget |
+| free height for the next item | — | **12 px**, against ~134 for a four-line Music block |
+| every test, both feature sets | — | unchanged (113 / 120 / 122 + 5) |
+| every rendered cue | — | **byte-identical** (21/21) |
+| frame cost, 8 / 64 / 256 | — | 0.065 / 0.353 / 1.056 µs, load 3.3–4.6; the panel formats two **fewer** lines |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. **Scope was cut deliberately and recorded:** the **Music
+block** — the example ships a two-layer score whose `Layer` step really crossfades `calm → combat` on the bar, and
+`MusicState`'s five panel-facing accessors are drawn by nothing — needs ~134 px against 12 free. Shipping a clipped log
+*and* a block that pushes it off screen would be two defects for one; the budget is in `eval.md` so the next run starts from
+a measurement.
+
+**Traps for the command.** (1) A **column that is full clips silently**: `recent(10)` returns ten entries whether the window
+shows them, so only a **pixel scan of the capture** can see a sliced glyph. (2) Before adding a section, measure the free
+height from the picture; my content arithmetic (~892 px in 720) was right in direction and wrong in magnitude. (3) A crate
+that documents a budget (`"a panel shows eight"`) and an example that uses another number is a defect waiting for a capture.
+(4) Regenerating an image does not prove it is right — iterations 29–31 each regenerated this one **with** the clip.
+(5) `hs distill` GPU-blocked (thirty-first iteration).
+
+**Commit.** `9967090`; CI on `main`.
+
+**Next 5.**
+
+1. **A Music block** — `MusicState`'s `layer_db`/`target_db`/`names`/`moving`/`next_change_s` drawn by nothing, and the
+   script performs a crossfade the picture cannot show. Needs a layout decision: ~134 px against 12 free, so the cue list
+   or another block must give rows. **The budget is measured.**
+2. A `Stopped` line for a parent's despawn — neither backend writes one.
+3. **Answer or route around the `CueProblem` question** — **seven** items wait on it.
+4. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+5. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+
+**The hunt, twenty-first pass.** The panel class has paid five times (26, 29, 30, 31, 32), and the last four were found by
+reading the picture against the code. The **next** defect is already measured rather than guessed: the column has 12 px
+free and the music has no view. The run after this one should **choose the rows to give up** — nine cue rows include three
+music cues a Music block would show better, which is the natural trade — and prove the result by capture at 1280 **and**
+1920, where the extra height means the trade may not be needed at all.
+
+**Baseline note.** Nothing was red; the suite had 113 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 31 — 2026-11-03 — the bus row names the cue that ducked it
 
 **Change.**
