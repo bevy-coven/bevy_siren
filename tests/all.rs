@@ -15,6 +15,8 @@ mod model;
 mod music;
 mod play;
 mod readme;
+#[cfg(feature = "semantic")]
+mod semantic_buffer;
 #[cfg(feature = "serde")]
 mod table;
 

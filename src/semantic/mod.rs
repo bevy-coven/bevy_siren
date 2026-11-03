@@ -23,6 +23,8 @@
 //! threshold this feature adds is a named field on a serde type, with its default either citing the measurement or the
 //! standard it comes from, or saying plainly that it is this crate's own choice.
 
+pub mod buffer;
+
 /// The sample rate CLAP's feature extractor resamples to before it builds a mel spectrogram.
 ///
 /// 48 kHz is the model's own input rate, read from its feature extractor rather than assumed: the processor produced
