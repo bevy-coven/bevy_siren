@@ -7,6 +7,70 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 52 — 2026-11-03 — a duck that lowers nothing now says so
+
+**Baseline.** Green on every step, no open issues. Nothing red. **Disk was at 100 % (3.8 GB)** on arrival;
+`/tmp/probe-target` (1.2 GB) was this loop's own scratch from iteration 51 and was removed, leaving 4.9 GB. `target/`
+(38 GB) is not mine and was not touched.
+
+**Change.** One sentence in `SirenSettings::problems()` for a duck whose `by_db` is exactly `0.0`, placed **before** the
+envelope check. Plus `SIREN_MIX=zero` in `examples/mixer`, its capture, and the guide's sentence list.
+
+**Rationale.** The two items above this on the backlog both need a **seventh `CueProblem`**, gated by the open
+`bad-gain-problem.md`. Probing found a fault of the same character that needs no enum change: `SirenSettings::problems()`
+returns **`Vec<String>`**, so a mix-table sentence is additive — the shape of iteration 48's bus-cap sentence.
+
+`active_duck_db` returns `0.0` for any `by_db >= 0.0` (`src/model.rs:187`) and `duck_db` keeps a reduction only
+`if db < deepest` with `deepest` starting at `0.0` (`src/mix.rs:489`). So such a rule fires, reaches the log, holds for
+its whole `hold_s`, and the bus never moves.
+
+**Measured, one duck each:**
+
+| duck | before | after |
+|---|---|---|
+| `by_db: 0.0`, hold 0.25, fade 0.6 | **`[]`** | 1 sentence, names `by_db` not `hold_s` |
+| `by_db: -0.0`, hold 0.25, fade 0.6 | `[]` | 1 sentence |
+| the crate's `default_ducks()` (Gregory's −8 dB) | `[]` | **`[]`** — a real duck stays silent |
+| `by_db: +6.0` | 1 sentence | unchanged |
+| `by_db: nan` written as RON | **refused by the parser** (`Expected float`) | — not authorable, needs no sentence |
+
+| | before | after |
+|---|---|---|
+| tests | 136 / 144 / 147 + 6 | **137 / 144 / 147 + 6** |
+| `bus-Music` duck (render) | −8.0 dB, recovered 1.97 s | unchanged — the audio path is untouched |
+| `mix.wav` | −18.6 LUFS, −6.1 dBFS | unchanged |
+
+**Two things not built, and why.** `by_db: NaN` needs no sentence: RON refuses it at parse, and a non-finite number is
+already neutralised by `active_duck_db`'s guard. `DuckClock::manual` can be handed `0.0` at runtime, but that is a
+*computed* depth, not an authored one — reporting it would need a log entry, which is a public-enum change, and the
+decision on those is open.
+
+**A test I wrote wrongly.** `zero_depth_is_one_sentence_however_it_is_written` first asserted a zero-depth rule with no
+envelope produces **two** sentences. It produces one: the no-hold sentence is guarded on `by_db < 0.0`, so a zero rule
+can never reach it. The code was right; my expectation was not.
+
+**The capture that would not have proved it.** `SIREN_MIX=broken` already fills the three-sentence cap with
+`master_db is not a number`, the no-hold sentence, the self-duck and `and 1 more` — so a fourth fault there would be the
+invisible one. `SIREN_MIX=zero` gives it its own table, following `overbudget`'s precedent.
+
+**Evidence.** `runs/2026-11-03-52/`: `research.md` (S1 Gregory §14.6.3's duck, S2 grouping, S3–S4 the two guards, S5 the
+report's existing vocabulary), `plan.md`, `perf.md`, `eval.md`, `review.md` (three passes, GREAT),
+`evidence/{panel,spectrograms,after}`, and `docs/media/mixer-zero-depth.png`.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`AvoidRepeat`'s window that cannot be honoured is unreported** — `pick_from`'s comment promises `problems()` names
+   it; probed `problems: []` for two sounds at `avoid: 5`. Same open enum decision.
+3. **`reset_histories` has no caller** — the Cauldron's table reload should reset pickers; a consumer item for
+   `bevy_grimoire`, its own commit.
+4. **`SirenSettings::master_db` defaults to `0.0`** — no trim, so a project from `default()` has no headroom. The guide
+   says what to turn; whether the default should be lower is a decision file.
+5. No capture shows the panel with a **missing sound** refused (iteration 39 showed `unknown-cue` only).
+
 ## Iteration 51 — 2026-11-03 — a picker's window is what the cue asked for, not what its first play sized
 
 **Baseline.** Green on every step, no open issues. Nothing red — the only red case in `cues.yaml` (31) is still blocked

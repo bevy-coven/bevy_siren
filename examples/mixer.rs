@@ -190,6 +190,10 @@ fn settings() -> SirenSettings {
     // cap, so a fourth fault would be the invisible `and 1 more` — a capture that cannot show a sentence does not prove
     // it. This one has a single fault, so the whole block is that sentence.
     let overbudget = std::env::var("SIREN_MIX").is_ok_and(|v| v == "overbudget");
+    // **`SIREN_MIX=zero` gives the zero-depth duck its own table**, for the same reason `overbudget` has one: `broken`
+    // fills the three-sentence cap, so a fault added to it would be the invisible `and 1 more`. One rule at `by_db: 0.0`
+    // with a real hold and fade — a duck that fires, is logged, and lowers the bus by nothing at all.
+    let zero = std::env::var("SIREN_MIX").is_ok_and(|v| v == "zero");
     SirenSettings {
         master_db: if broken { f32::NAN } else { 0.0 },
         max_voices: if overbudget { 4 } else { 12 },
@@ -205,7 +209,9 @@ fn settings() -> SirenSettings {
             BusLevel::new("Ambience").gain_db(-6.0),
             BusLevel::new("Dialogue"),
         ],
-        ducks: if broken {
+        ducks: if zero {
+            vec![Duck::new("Dialogue", "Music").by_db(0.0).hold_s(0.25).fade_s(0.6)]
+        } else if broken {
             // **Three faults, chosen so the block's three-sentence cap shows the two this loop just added.** A fourth
             // (a negative hold) pushed the self-duck off the bottom, and a capture that cannot see the sentence does not
             // prove it.

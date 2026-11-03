@@ -1201,3 +1201,91 @@ fn the_master_is_inside_the_worst_peak() {
         );
     }
 }
+
+/// **A duck at `by_db: 0.0` says it lowers nothing.**
+///
+/// `active_duck_db` returns `0.0` for any `by_db >= 0.0` and `duck_db` keeps a reduction only `if db < deepest` with
+/// `deepest` starting at `0.0`, so a rule at exactly zero fires, is logged, holds for its whole `hold_s`, and the bus
+/// never moves. A `by_db > 0.0` is reported as a raise and a non-finite one cannot be written in RON at all, so zero is
+/// the depth that is both authorable and silent. Measured before the fix: `problems()` was `[]`.
+#[test]
+fn a_duck_of_zero_db_says_it_lowers_nothing() {
+    let settings = SirenSettings {
+        max_voices: 32,
+        ducks: vec![Duck::new("Dialogue", "Music").by_db(0.0).hold_s(0.25).fade_s(0.6)],
+        ..SirenSettings::default()
+    };
+    let problems = settings.problems();
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].contains("`Music`") && problems[0].contains("0 dB"), "{problems:?}");
+    // And it names the depth, not the envelope: a `0.0` with a real hold and fade must not be told to set hold_s.
+    assert!(!problems[0].contains("hold_s"), "{problems:?}");
+}
+
+/// **The crate's own ducks report nothing.** The report must not fire on a real reduction — Gregory §14.6.3's dialogue
+/// duck (−8 dB music, −4 dB effects, 0.25 s hold, 0.6 / 0.4 s fade) is the one pair every game wants.
+#[test]
+fn the_default_ducks_report_nothing() {
+    let problems = SirenSettings { max_voices: 32, ..SirenSettings::default() }.problems();
+    assert_eq!(problems, Vec::<String>::new(), "a real duck must be silent: {problems:?}");
+}
+
+/// **One fault, one sentence.** A `by_db: -0.0` and a zero-depth rule with no envelope are each one fault, and the zero
+/// sentence must not appear twice or shadow the envelope one.
+#[test]
+fn zero_depth_is_one_sentence_however_it_is_written() {
+    let negative_zero = SirenSettings {
+        max_voices: 32,
+        ducks: vec![Duck::new("Dialogue", "Music").by_db(-0.0).hold_s(0.25).fade_s(0.6)],
+        ..SirenSettings::default()
+    };
+    assert_eq!(negative_zero.problems().len(), 1, "`-0.0` is zero: {:?}", negative_zero.problems());
+
+    // A zero depth with **no** envelope is still one fault, not two: the no-hold sentence is guarded on
+    // `by_db < 0.0`, so the depth is the only thing wrong and it is named once.
+    let both = SirenSettings {
+        max_voices: 32,
+        ducks: vec![Duck::new("Dialogue", "Music").by_db(0.0)],
+        ..SirenSettings::default()
+    };
+    let problems = both.problems();
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].contains("0 dB"), "{problems:?}");
+    assert!(
+        !problems[0].contains("no hold and no fade"),
+        "the depth is the fault, not the envelope: {problems:?}"
+    );
+}
+
+/// **The report changed; the behaviour did not.** A zero-depth rule still fires, is still logged, and still leaves the
+/// bus exactly where it was — this test is the "must not happen" half, so a fix that quietly started refusing or
+/// altering the rule would be caught.
+#[test]
+fn a_zero_depth_duck_still_fires_and_still_moves_nothing() {
+    let mut app = app(
+        CueTable::new(vec![cue("line", "Dialogue", 180, 1), cue("music", "Music", 100, 1)]),
+        SirenSettings {
+            max_voices: 32,
+            ducks: vec![Duck::new("Dialogue", "Music").by_db(0.0).hold_s(0.25).fade_s(0.6)],
+            ..SirenSettings::default()
+        },
+        sounds(&["line", "music"]),
+        false,
+    );
+    app.world_mut().write_message(Play::cue("music"));
+    app.update();
+    let before = app.world().resource::<SirenMix>().bus_db("Music");
+
+    app.world_mut().write_message(Play::cue("line"));
+    app.update();
+    let after = app.world().resource::<SirenMix>().bus_db("Music");
+    assert!((after - before).abs() < 1e-3, "a 0 dB duck moved the bus: {before} -> {after}");
+
+    // It still fired and still says so: the rule is inert, not absent.
+    let log = app.world().resource::<SirenLog>();
+    assert!(
+        log.iter().any(|e| matches!(e, Entry::Ducked { bus, .. } if bus == "Music")),
+        "{:?}",
+        log.iter().collect::<Vec<_>>()
+    );
+}

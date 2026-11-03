@@ -177,11 +177,17 @@ bus `Effects` has a gain that is not a number
 a duck starts on bus `Nope`, which the table does not have
 a duck lowers bus `Nope`, which the table does not have
 the duck on `Effects` raises it by 3 dB; a duck lowers, so by_db should be negative
+the duck on `Music` lowers it by 0 dB, which is nothing at all; set by_db to the reduction you want
 the duck on `Effects` has a hold or fade that is negative or not a number
 the duck on `Music` has no hold and no fade, so it lowers the bus for no time at all; set hold_s or fade_s
 the duck on `Effects` starts on the bus it lowers, so every voice on it quietens itself
 bus `Effects` asks for 16 voices but the table's max_voices is 4, so it mixes 4
 ```
+
+**A duck at `by_db: 0.0` lowers nothing, whatever its hold and fade.** `active_duck_db` returns `0.0` for any
+`by_db >= 0.0`, and the mix keeps a reduction only `if db < deepest` where `deepest` starts at zero — so such a rule
+fires, reaches the log, holds for its whole envelope, and the bus never moves. It is the depth that is wrong, not the
+envelope, so the sentence names `by_db` and not `hold_s`.
 
 **A duck whose `source` and `target` are the same bus is a compressor, and the report says so once.** Nothing stops
 you: a voice on `Effects` lowering `Effects` is how a bus pulls itself back under a loud hit. But the voice that fired

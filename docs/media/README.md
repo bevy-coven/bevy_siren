@@ -48,6 +48,14 @@ is inaudible), and a duck that **starts on the bus it lowers** — the capture's
 `SIREN_MIX=broken` already fills the block's three-sentence cap, and a fourth fault would be the invisible `and 1 more` —
 a capture that cannot show a sentence does not prove it.
 
+![the panel with a duck that lowers the bus by nothing](mixer-zero-depth.png)
+
+`mixer-zero-depth.png` is `SIREN_MIX=zero`: one duck at `by_db: 0.0` with a real 0.25 s hold and 0.6 s fade. The rule
+fires, is written to the log, holds for its whole envelope — and `active_duck_db` returns `0.0` for any `by_db >= 0.0`,
+so the bus never moves. The `Problems` block is that one sentence. It has its own table for the same reason
+`overbudget` does: `SIREN_MIX=broken` already fills the three-sentence cap, and a fourth fault there would be the
+invisible `and 1 more` — a capture that cannot show a sentence does not prove it.
+
 `mixer-waiting.png` is the same panel under `SIREN_TIGHT=1`, which gives the `Music` bus **one** voice: the score's second
 layer's `Play` is refused, so it becomes a **virtual voice** — Gregory §14.5.8's *"sound the game believes is playing but
 that has no hardware voice"* — and the block says `combat -80.0 dB waiting`. Without it the block drew `-80.0 dB` for a

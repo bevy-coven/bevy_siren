@@ -216,6 +216,21 @@ impl SirenSettings {
                     duck.target
                 ));
             }
+            // **A rule that lowers by zero lowers nothing, whatever its hold and fade.** `active_duck_db` returns
+            // `0.0` for any `by_db >= 0.0` (`src/model.rs:187`), and `duck_db` keeps a reduction only `if db < deepest`
+            // with `deepest` starting at `0.0` — so a rule at exactly `0.0` fires, is recorded in the log, holds for
+            // its whole `hold_s`, and the bus never moves. A `by_db > 0.0` is already reported as a raise, and a
+            // non-finite one cannot be written in RON at all (`by_db: nan` answers `Expected float`), so zero is the
+            // one depth that is both authorable and silent. Reported **before** the envelope check: a `0.0` with a
+            // hold and a fade has a real envelope and the wrong depth, and an author told "set hold_s or fade_s" for
+            // it would fix the wrong field. Measured: `SirenSettings { ducks: [Duck::new("Dialogue","Music")
+            // .by_db(0.0).hold_s(0.25).fade_s(0.6)] }.problems()` was `[]`.
+            if duck.by_db == 0.0 {
+                out.push(format!(
+                    "the duck on `{}` lowers it by 0 dB, which is nothing at all; set by_db to the reduction you want",
+                    duck.target
+                ));
+            }
             // **A rule with neither a hold nor a fade ducks for no time at all.** `Duck::new` leaves both at `0.0`,
             // and `active_duck_db` returns `0.0` once `elapsed >= hold` when `fade <= 0.0` — so the rule fires, is
             // recorded in the log, and is inaudible on the very frame it fires. Measured:

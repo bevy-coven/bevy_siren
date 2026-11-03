@@ -7,6 +7,15 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A duck at `by_db: 0.0` lowered nothing and said nothing.** `active_duck_db` returns `0.0` for any `by_db >= 0.0`
+  and the mix keeps a reduction only `if db < deepest` with `deepest` starting at `0.0`, so such a rule fired, reached
+  the log, held for its whole `hold_s` and left the bus exactly where it was — while `SirenSettings::problems()` answered
+  `[]`. A `by_db` above zero was already reported as a raise, and a non-finite one cannot be written in RON at all
+  (`by_db: nan` answers `Expected float`), so zero was the one depth both authorable and silent. The report now says so,
+  naming `by_db` rather than `hold_s`, because for a zero depth with a real envelope the depth is the wrong field. The
+  rule's behaviour is unchanged: it still fires and is still logged. `SIREN_MIX=zero` captures it.
+
+
 - **A cue's `AvoidRepeat` window was frozen at its first play.** `SirenChoices::pick` builds a cue's `VariantPicker` on
   its first play and reused it for the app's life, while `pick_from` took `avoid` fresh on every call — and `remember`
   bounded the window by the deque's **allocator** capacity, not by a number anyone chose. Measured: four keys at
@@ -21,6 +30,9 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - **`VariantPicker::set_capacity` and `VariantPicker::capacity`** — grow or shrink the remembered window, and read it.
   Additive, so no consumer breaks.
+- **`SIREN_MIX=zero`** in `examples/mixer` — a table whose only duck is `by_db: 0.0` with a real hold and fade, so the
+  panel shows the zero-depth sentence as its whole `Problems` block. `SIREN_MIX=broken` already fills the block's
+  three-sentence cap, and a fault added there would be the invisible `and 1 more`.
 - **`examples/render` writes each cue's variant stream** as a `variants <cue>:` line — the rule, the sound count, the
   twelve picks and the longest run. Variant selection is audible and was otherwise only inferable from a wav.
 
