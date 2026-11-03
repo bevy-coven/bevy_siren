@@ -7,6 +7,82 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 85 — 2026-11-03 — measuring in the build, and the block count that was wrong in three places
+
+**Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **362 semantic** / 36 lib; clippy 0,
+fmt, rustdoc, examples. Volume held **21 GB** free.
+
+**The item was iteration 84's first leftover**, and it was the "built but not wired" shape this loop keeps finding:
+`loudness::measure` had been tested since iteration 77 and **nothing called it**, so the index stored only what a caller
+supplied.
+
+**`embed_measured` shares one decode between the measurement and the embedding.** `embed_one` already decoded,
+downmixed and resampled to the model's rate and handed that buffer to the embedder — which is exactly what `measure`
+needs. A second pass would double the cost of the operation the whole feature exists to make cheap on a thousand-file
+library. One decode, two consumers, neither keeps the buffer.
+
+**A failed measurement is not a failed file**, because the vector is the index's reason to exist — but it is **counted**:
+`Built` gained `unmeasured`, and `describe()` prints it only when non-zero, so a run that measured nothing cannot look
+complete. That is the same rule as a silent refusal: the failure exists to be read.
+
+**The defect is in shipped documentation, and a lower bound was hiding it.** `loudness.rs` claimed a 3 s clip has **7**
+gating blocks; its own test message said the same. Both are wrong — 7 is the *non-overlapping* count. A 75 %-overlapping
+block advances 100 ms, so
+
+    1 + (144000 − 19200) / 4800 = 27
+
+The existing assertion was `blocks >= 7`, **which passes on 27** and therefore never noticed. **A lower bound cannot
+detect a wrong sentence, only a wrong magnitude.** The new test asserted the exact 27 and failed with `left: 27, right:
+7`. Corrected in three places, and the doc table now says **1 s**, where 7 is the right number and the contrast it draws
+(1 s of silence has 7 blocks and 0 above the gate; 0.2 s has 0 possible) still holds.
+
+**Measured.** A 3 s, 0.5-amplitude 1 kHz tone stores ≈ **−9.0 LUFS** with **27** blocks and `unmeasured == 0` — anchored
+on the **−23.0 LUFS** the 0.1-amplitude tone gives (measured in iteration 77; `20·log10(5) = 13.98 dB`). A 0.2 s click
+stores `integrated: None` with a finite peak, through a real build rather than only through `to_text`.
+
+| voices | µs/frame | iteration 84 |
+|---|---|---|
+| 8 | **0.063** | 0.062 |
+| 64 | **0.365** | 0.352 |
+| 256 | **0.963** | 0.501 |
+
+**No regression, and no claim to measure one** — the change is inside `semantic`, which the default build does not
+compile. Across iterations 80–85 the same audio code reads 0.062–0.084 / 0.342–0.472 / **0.501–1.576** µs; the 256-voice
+figure has now ranged over 3× on unchanged code, which is the machine rather than the crate.
+
+**The one real cost is scan-side and unmeasured here:** one IIR pass per file over a buffer already in hand. `#36`
+(indexing throughput) owns that number, and it now has a real build to measure.
+
+**Visual gate unchanged:** 32 render files, **14 of 14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to
+iterations 67, 71, 74, 75, 80–84. `bang-spectrum.png` read: broadband onset, harmonic comb to 10 kHz, no click line, no
+clipping shelf, no gap.
+
+**Verdicts.** Pass 1 **GREAT** (the build produces a reference-anchored number, and `unmeasured` makes a silent failure
+visible), pass 2 **GREAT** (the documentation defect found, explained, and the mechanism that hid it replaced), pass 3
+**GREAT** (nothing required of a caller; `describe()` reads the same when healthy).
+
+**Docs.** The guide says a build produces these numbers and shows `describe()`; the README line says measured during
+the build; `CHANGELOG.md` gains both the addition and the documentation fix.
+
+**Evidence.** `runs/2026-11-03-85/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,spectrograms}/`.
+
+**Commits.** `a6a8731`.
+
+**Top 5 remaining**
+
+1. **Join provenance's file names to content hashes.** `Sidecar::read` is the last unwired reader, for the same reason
+   `measure` was: it needs the scan's path→hash map joined to the sidecar's name→record map. This is the step that makes
+   `build` produce provenance as it now produces loudness.
+2. **The binary index writer** ADR 0004 specifies. The text form is **31.88 MB** at 5 000 clips against **10.30 MB**
+   binary, and with three sections it is larger still; the 3× overhead is still unasserted.
+3. **`#22` spectral centroid, rolloff and noise floor** — unblocked by ADR 0003, and now straightforward because
+   `embed_measured` is the natural place to compute them from the same buffer loudness already uses.
+4. **`#28` the MCP tool host**, then `#29`/`#44`/`#30` — the largest user-facing win, consuming an index that now
+   produces its own loudness, provenance and vectors.
+5. **`#36` indexing throughput** — `build` now measures as well as embeds, so the scan got heavier; the number that says
+   whether that was affordable has never been taken.
+
 ## Iteration 84 — 2026-11-03 — loudness stored, and the last p0 closed
 
 **Baseline.** Green, complete and uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **359 semantic** / 36 lib;

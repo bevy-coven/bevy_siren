@@ -170,6 +170,16 @@ presented as a level *and also a real level*. `-` is the only spelling that keep
 Everything else in a loudness record is real even for a 0.2 s click: a true peak needs no gating, so it is always
 written, along with the two counts that separate *too short* from *silent*.
 
+**A build produces these numbers; you do not supply them.** `build` measures every file it embeds, from the **same
+decode** the embedder uses — a second pass would double the cost on a thousand-file library. A measurement that fails
+does not fail the file, because the vector is the index's reason to exist, but it is counted: `Built::unmeasured` is
+non-zero and `describe()` says so, so a run that measured nothing cannot look complete.
+
+```rust
+let built = build(root, stamp, embed)?;
+println!("{}", built.describe());          // "1000 indexed", or "1000 indexed, 3 unmeasured"
+```
+
 **It is stored, and it travels with the answer.** `Index.provenance` is a trailing section inside the checksummed body,
 so a hand-edited licence is a corrupt file rather than a silent change, and an index with no provenance writes no
 section at all — every file written before this existed still loads. `Match` carries `provenance` and is **no longer

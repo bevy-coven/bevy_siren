@@ -7,6 +7,26 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **A build now measures loudness, from the decode it already has.** `loudness::measure` existed and was tested since
+  iteration 77, and **nothing called it** — the index stored only what a caller supplied. `build` now measures every
+  file it embeds and stores the result, sharing the decode: `embed_measured` decodes, downmixes and resamples **once**,
+  then hands the buffer to `measure` and to the embedder. A second decode would double the cost of the operation the
+  feature exists to make cheap on a thousand-file library.
+
+  A **failed measurement is not a failed file** — the vector is the index's reason to exist — but it is **counted**:
+  `Built` gains `unmeasured`, and `describe()` prints it only when non-zero, so a run that measured nothing cannot look
+  complete.
+
+### Fixed
+
+- **A false block count in the crate's own documentation.** `loudness.rs` claimed a 3 s clip has **7** gating blocks,
+  and its test message repeated it. 7 is the **non-overlapping** count; a 75 %-overlapping block advances 100 ms, so
+  3 s gives `1 + (144000 − 19200) / 4800 = **27**`. The existing assertion was `blocks >= 7`, **which passes on 27** and
+  therefore never noticed — a lower bound cannot detect a wrong sentence, only a wrong magnitude. Corrected in three
+  places, with the arithmetic in the assertion's message and the doc table moved to 1 s, where 7 is the right number.
+
+### Documented
+
 - **Per-asset loudness, stored and round-tripped.** `Index.loudness` is a second optional section, the same shape
   `provenance` uses, and the last of #21's four criteria. Integrated loudness is stored as **`-` when it is absent**,
   and that is the whole design: ADR 0003 measured that for a 0.2 s clip `ffmpeg` reports **−70.0 LUFS** — the standard's
