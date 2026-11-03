@@ -25,6 +25,12 @@ path = "tests/all.rs"
 name = "budget"
 required-features = ["mixer"]
 
+# #36's throughput bench is a separate example from `perfcheck` on purpose: a per-frame cost and a batch job must never
+# be read as the same number.
+[[example]]
+name = "indexbench"
+required-features = ["semantic"]
+
 [features]
 default = []
 # `serde` on the cue table, the mix table and the music score, plus `from_ron`/`to_ron`: a project saves
