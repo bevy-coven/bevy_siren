@@ -49,7 +49,9 @@ the same as the fact it annotates cannot go stale — render it **inside** the g
 pin the **rule** it uses in `tests/`, or a change to `Entry`/`recent` breaks the panel in silence. (5) `hs distill`
 GPU-blocked (thirtieth iteration).
 
-**Commit.** `b4f141b`; CI on `main`.
+**Commit.** `b4f141b`, pushed to `main`; CI run 41596558047 is **success** on `big-s1`. Gate: build, test (113 + 5),
+serde (120 + 5), mixer (122 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
