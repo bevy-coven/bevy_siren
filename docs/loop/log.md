@@ -7,6 +7,72 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 26 — 2026-11-03 — the panel shows the crate's verdict on its own table
+
+**Change.**
+
+- **`examples/mixer.rs` — a `Problems` block and a row marker.** `draw_panel` read `SirenMix`, `CueTable`, `SirenSettings`
+  and `SirenLog` and **not** `problems()`, so a cue on a bus the mix lacks, or with an inverted pitch range, was drawn
+  exactly like a healthy one. The panel now lists `table.problems_in(&settings)` (or `none`) and marks a bad cue's row
+  `<- problem`.
+- **`SIREN_FAULTS=1`** adds two deliberate mistakes to the capture, so the view can be proved; the shipped table stays
+  clean. Documented beside the other knobs.
+- `docs/media/mixer-panel.gif` regenerated; a CHANGELOG line.
+
+**Why.** Iteration 25's log recorded the gap, verified. The panel's job is the editor's — make a fault visible — and it
+could not distinguish a playable cue from an unplayable one. The crate already computes the sentence
+(`CueProblem::Display`) and the Cauldron's panel already chains `problems_in`; the crate's own example did not.
+
+**Evidence.** `runs/2026-11-03-26/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`,
+`evidence/panel/{clean-1280,faults-1280,zoom-problems-clean,zoom-problems-faults}.png`, and `docs/media/mixer-panel.gif`.
+
+**Measured.**
+
+| table | before | after |
+|---|---|---|
+| clean (11 cues, `Ambience` + `Music`) | no `Problems` section | `Problems` / `none`, no row marked |
+| `SIREN_FAULTS=1` | the two bad cues drawn as healthy | both rows `<- problem`; two sentences in the block |
+| `problems()` instead of `problems_in` | — | would print **five false `UnknownBus`** on the clean table |
+| every rendered cue, the mix | — | **byte-identical** (21/21); `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| panel frame time | 8.3–13.6 ms | 8.3–9.7 ms, load 7.4–9.6 — the block is not measurable in the spread |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. A defect in my own first version, caught by **looking** at the
+1280 capture: the row marker was the full `CueProblem` sentence, and it **wrapped onto a second line**, breaking the cue
+column's alignment and repeating the block below. One form per idea — the row says three words, the block says the
+sentence.
+
+**Traps for the command.** (1) A panel is a **view of the crate's own verdicts**, not a second formatter: if the crate
+computes a sentence, the view should show it rather than a re-description that can drift. (2) A marker that repeats a
+sentence already on the same screen is two forms of one idea — and in this case it also **broke the layout**, which only
+looking catches. (3) `problems_in(&settings)`, not `problems()`: an example with custom buses gets five false sentences
+from the default-four wrapper. (4) A capture that proves a view needs a **faulty** input; keep it behind a knob so the
+shipped picture stays clean. (5) `hs distill` GPU-blocked (twenty-fifth iteration).
+
+**Commit.** `4ccd29a`; CI on `main`.
+
+**Next 5.**
+
+1. **Answer the `CueProblem` question, or route around it.** Four variants wait on one decision
+   (`empty-sound-key.md`, `duplicate-sound-problem.md`, `bad-gain-problem.md`, `not-a-loop-refusal.md`); asked in
+   iteration 24, not re-asked since.
+2. `Refusal::NotALoop { layer, cue }` — `needs-decision/not-a-loop-refusal.md` (iteration 16).
+3. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+5. Quantise a **retarget** onto the bar (iteration 14).
+
+**The hunt, fifteenth pass.** The panel now shows the crate's verdict and has been looked at in both states. What it
+still cannot show is a **duck recovering**: the capture's script ends on a duck that is still holding, which the module
+doc says is deliberate, so the picture never contains a released duck. The next probe: does the panel's `duck` column
+return to `0.0` visibly within a capture's 200 frames at the default hold and fade (0.25 s + 0.6 s at 60 fps is 51
+frames), and if not, is the script or the panel wrong?
+
+**Baseline note.** Nothing was red; the suite had 109 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 25 — 2026-11-03 — the capture harness runs with no environment at all
 
 **Change.**
