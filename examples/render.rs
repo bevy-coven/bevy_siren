@@ -357,6 +357,7 @@ fn refusals(_table: &CueTable, settings: &SirenSettings) -> Vec<(String, String)
         ("bang", Refusal::SpatiallyMute(bevy::math::Vec3::new(3.0, 0.0, 4.0))),
         // The three caps, each with the payload the crate now produces for it: only the bus names a bus.
         ("dialogue.greeting", Refusal::VoiceLimit { bus: Some("Dialogue".to_owned()) }),
+        ("music.does-not-exist", Refusal::UnknownCue),
         ("footstep.grass", Refusal::VoiceLimit { bus: None }),
         ("engine.idle", Refusal::VoiceLimit { bus: None }),
     ];

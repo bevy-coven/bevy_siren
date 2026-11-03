@@ -135,6 +135,15 @@ cases:
     green_when: Equal field for field within a seed, and different across seeds.
     evidence: "tests/play.rs::a_projects_seed_reaches_the_stream, changing_the_seed_restarts_the_stream"
 
+  - id: 28
+    cue: music.does-not-exist
+    authored: { stinger: { duck_db: -9.0, duck_s: 1.0 }, in_table: false }
+    behaviour: A stinger that cannot play leaves the music untouched and says so once.
+    observed_by: "`SirenMix::ducked(\"Music\")` on the frame, `Refused`, and `SirenLog`."
+    green_when: "Music reads 0 dB; one `refused` line; no `stinger ducked` line anywhere."
+    source: "Gregory §14.6.3 and crate rule R3 — a duck is driven by a voice that starts; crate rule R6 — two records of one request cannot disagree"
+    evidence: "runs/2026-11-02-09/review.md, tests/music.rs::{a_stinger_whose_cue_is_unknown_ducks_nothing, a_stinger_whose_sound_is_missing_ducks_nothing}"
+
   - id: 27
     cue: ui.click
     authored: { spatial: false, position: [0.0, 0.0, 8.0], listener: true }

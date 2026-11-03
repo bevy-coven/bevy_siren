@@ -7,6 +7,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A stinger that cannot play no longer ducks the music.** `play_stingers` wrote the `Play` and armed its duck in the
+  same breath, but `Play` is answered later in the frame — so a refused stinger left the `Music` bus down for a sound
+  nobody heard, and `SirenLog` stated the duck **and** the refusal on adjacent lines. A new `arm_stinger_ducks` arms
+  the duck when `Played` arrives, after `Play` and before `Mix`, so the dip still lands on the frame the stinger fires.
+  Stinger refusals now write a `Refused` message as well as a log line, and a cue **not in the table** is refused as
+  `UnknownCue` instead of inheriting `Music` through `unwrap_or`. A wrong-bus stinger has no `Refusal` variant that is
+  true, so its sentence stays in the log: `docs/loop/needs-decision/stinger-refusal.md`.
 - **A non-spatial cue given a position is no longer routed through the two-ear panner.** `spawn_voice` decided Bevy's
   `PlaybackSettings.spatial` — and whether to attach a `Transform` — from `request.position.is_some()` alone, so a cue
   authored `spatial: false` and played with `.at(..)` went through `rodio`'s panner, which applies `min(1, 1/d²)` as

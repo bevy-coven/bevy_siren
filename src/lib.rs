@@ -195,6 +195,9 @@ impl Plugin for MusicPlugin {
             (
                 music::start_layers.in_set(SirenSystems::Choose),
                 music::adopt_layers.after(SirenSystems::Play).before(SirenSystems::Mix),
+                // A stinger's duck is armed when its play is answered, and before the mix reads the clock, so the dip
+                // lands on the frame the stinger fires rather than a frame later.
+                music::arm_stinger_ducks.after(SirenSystems::Play).before(SirenSystems::Mix),
                 music::move_layers.in_set(SirenSystems::Mix).before(mix::update_mix),
                 music::play_stingers.in_set(SirenSystems::Choose),
             ),

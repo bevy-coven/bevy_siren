@@ -26,7 +26,7 @@ use crate::cue::CueTable;
 use crate::log::{Entry, SirenLog};
 use crate::mix::DuckClock;
 use crate::model::{DEFAULT_FADE_S, SILENT_DB, approach, next_boundary, tau_for_fade};
-use crate::play::{Play, Played, Voice};
+use crate::play::{Play, Played, Refusal, Voice};
 
 /// A music score: the layers a track is made of, and its tempo.
 ///
@@ -247,6 +247,9 @@ pub struct MusicState {
     /// The score the layers were started from.
     pub score: Option<MusicScore>,
     layers: Vec<LiveLayer>,
+    /// Stingers written this frame whose play has not been answered yet. A duck is a fact about a sound that **plays**,
+    /// so it is armed when `Played` arrives, not when the request is written.
+    pending_stingers: Vec<PendingStinger>,
     /// Cues written this frame whose [`Played`] has not been matched to a layer yet.
     awaiting: Vec<(String, String)>,
     pending: Vec<Pending>,
@@ -262,6 +265,14 @@ struct LiveLayer {
     /// The arrival time this layer was last given, in seconds. `0` is the crate's [`MIX_TAU_S`] easing, which is what
     /// a layer starts at and what a change that names no fade leaves alone.
     fade_s: f32,
+}
+
+/// A stinger whose `Play` has been written this frame and not yet answered.
+#[derive(Clone, Debug, PartialEq)]
+struct PendingStinger {
+    cue: String,
+    duck_db: f32,
+    duck_s: f32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -434,31 +445,86 @@ pub fn move_layers(
 pub fn play_stingers(
     mut requests: MessageReader<Stinger>,
     mut plays: MessageWriter<Play>,
-    mut clock: ResMut<DuckClock>,
+    mut state: ResMut<MusicState>,
     mut log: ResMut<SirenLog>,
+    mut refused: MessageWriter<crate::play::Refused>,
     real: Res<Time<Real>>,
     table: Res<CueTable>,
 ) {
     let now = real.elapsed_secs_f64();
     for request in requests.read() {
-        let bus = table.get(&request.cue).map(crate::cue::Cue::bus_name).unwrap_or("Music");
+        // **A cue that is not in the table has no bus**, and `unwrap_or("Music")` gave it the one bus that passes the
+        // check — so an unknown stinger looked like a Music cue right up to the refusal. Name it here instead.
+        // **A refusal is a message, not only a log line.** A host, the editor's panel and a test all read `Refused`;
+        // the log is the human-readable copy.
+        let Some(cue) = table.get(&request.cue) else {
+            let reason = Refusal::UnknownCue;
+            log.push(Entry::Refused { at_s: now, cue: request.cue.clone(), reason: reason.to_string() });
+            refused.write(crate::play::Refused { cue: request.cue.clone(), reason });
+            continue;
+        };
+        let bus = cue.bus_name();
         if bus != "Music" {
+            // **No `Refusal` variant says this**, and borrowing one would lie: the bus *is* in the mix table, it is the
+            // stinger that must be on `Music`. The sentence is true and the log carries it; a host reading `Refused`
+            // cannot tell this from a play it never got, which is `needs-decision/stinger-refusal.md`.
             let reason = format!("a stinger plays on Music, but `{}` names bus `{bus}`", request.cue);
             log.push(Entry::Refused { at_s: now, cue: request.cue.clone(), reason });
             continue;
         }
         plays.write(Play::cue(request.cue.clone()));
-        // **`duck_s` is the hold, not the fade.** `DuckClock::manual` takes `(target, by_db, now, hold_s, fade_s)`, and
-        // the music must step back *while the stinger sounds*: passing `duck_s` as the fade made the bus start
-        // recovering on the frame the stinger fired, so the music swelled back underneath it. The release after the
-        // hold is the crate's own `DEFAULT_FADE_S` — the 0.12 s every stop and every steal fades over, "short enough to
-        // read as immediate, long enough not to click". A project that wants its own release needs a field on
-        // `Stinger`; `docs/loop/needs-decision/stinger-release.md` carries that question.
-        clock.manual("Music", request.duck_db, now, request.duck_s, DEFAULT_FADE_S);
+        // The duck is armed when the answer says the sound plays — `arm_stinger_ducks`, after `Play`. A duck for a
+        // refused play would dip the music for a sound nobody hears; the probe for iteration 9 had exactly that:
+        // `-9.00 dB` on `Music` beside `refused … no handle …` in the same log.
+        state.pending_stingers.push(PendingStinger {
+            cue: request.cue.clone(),
+            duck_db: request.duck_db,
+            duck_s: request.duck_s,
+        });
+    }
+}
+
+/// **Arms a stinger's duck once its play is answered**, and not before.
+///
+/// `DuckClock::manual` takes `(target, by_db, now, hold_s, fade_s)`, and `duck_s` is the **hold**: the music steps back
+/// while the stinger sounds, then releases over the crate's `DEFAULT_FADE_S`. A project that wants its own release
+/// needs a field on `Stinger`; `docs/loop/needs-decision/stinger-release.md` carries that question.
+///
+/// Runs after [`SirenSystems::Play`](crate::SirenSystems) and **before [`SirenSystems::Mix`](crate::SirenSystems::Mix)**,
+/// so the dip is in the clock before the frame's mix reads it — a duck that landed a frame late would be a visible gap
+/// between the hit and the music stepping back.
+pub fn arm_stinger_ducks(
+    mut played: MessageReader<Played>,
+    mut refused: MessageReader<crate::play::Refused>,
+    mut state: ResMut<MusicState>,
+    mut clock: ResMut<DuckClock>,
+    mut log: ResMut<SirenLog>,
+    real: Res<Time<Real>>,
+) {
+    if state.pending_stingers.is_empty() {
+        // Still drain the answers, so this frame's `Played`/`Refused` are not re-read by a later system that expects a
+        // fresh buffer.
+        played.read().for_each(drop);
+        refused.read().for_each(drop);
+        return;
+    }
+    let now = real.elapsed_secs_f64();
+    let answered: Vec<String> = played.read().map(|answer| answer.cue.clone()).collect();
+    let turned_down: Vec<String> = refused.read().map(|answer| answer.cue.clone()).collect();
+    let pending = std::mem::take(&mut state.pending_stingers);
+    for stinger in pending {
+        if turned_down.contains(&stinger.cue) {
+            // The `Refused` line is the whole story; a `Ducked` line beside it would contradict it.
+            continue;
+        }
+        if !answered.contains(&stinger.cue) {
+            continue;
+        }
+        clock.manual("Music", stinger.duck_db, now, stinger.duck_s, DEFAULT_FADE_S);
         log.push(Entry::Ducked {
             at_s: now,
             bus: "Music".to_owned(),
-            by_db: request.duck_db,
+            by_db: stinger.duck_db,
             by: "stinger".to_owned(),
         });
     }

@@ -62,6 +62,10 @@ silent and still playing, which is what makes bringing it back in the same perfo
 stingers.write(Stinger::new("music.stinger").duck_db(-9.0).duck_s(1.5));
 ```
 
+A stinger that **cannot** play ducks nothing: the music keeps its level, and the refusal is the only thing said about
+it. The duck is armed when the play is answered, not when the message is written, so a missing sound or an unknown cue
+leaves the mix where it was.
+
 A stinger plays once, **now** — a punctuation mark that waited for the bar would miss the moment — and ducks the
 `Music` bus while it runs. It must be a `Music`-bus cue; one that names another bus is refused with a sentence in the
 log rather than played somewhere unexpected.

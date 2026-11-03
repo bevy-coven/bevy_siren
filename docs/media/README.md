@@ -3,6 +3,17 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 9, a duck that waits for a sound
+
+No capture: the change is **when a duck is armed**, and the panel's bus row settles to the same value either way once
+the frame is over — the bug lived for the length of one frame and in the log, where `stinger ducked Music by -9.0 dB`
+sat beside `refused … no handle …`. Every rendered WAV is byte-identical. The evidence is
+`tests/music.rs::{a_stinger_whose_cue_is_unknown_ducks_nothing, a_stinger_whose_sound_is_missing_ducks_nothing}` (both
+fail on the unfixed tree) and `runs/2026-11-02-09/perf.md`'s probe pair.
+
+A capture that *would* show it: the panel's log pane with a stinger whose file is missing — one line, not two. That is
+the same scripted-capture gap the last five iterations have named.
+
 ## No clip: iteration 8, a position a non-spatial cue does not have
 
 No capture: the change is **which backend flag a voice is spawned with**, and every rendered WAV is byte-identical —

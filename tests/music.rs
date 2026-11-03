@@ -9,7 +9,7 @@ use bevy_siren::{
     SoundSlot, Stinger, Voice, When,
 };
 
-use crate::helpers::{advance, app, run_for, sounds, voices};
+use crate::helpers::{advance, app, refused, run_for, sounds, voices};
 
 /// A headless app with a score, the crate's default mix, and the voices the score's layers need.
 fn app_with(score: MusicScore, table: CueTable, keys: &[&str]) -> App {
@@ -287,4 +287,153 @@ fn a_layer_missing_from_a_change_keeps_its_fade() {
     );
     // `MIX_TAU_S` over 0.2 s is ~-10.3 dB, i.e. 1.3 dB short; the point is that it is far ahead of the long fade.
     assert!(combat > -10.5, "the layer given no fade is nearly there already: {combat}");
+}
+
+/// **A stinger whose cue is not in the table ducks nothing.** `play_stingers` wrote the play and armed the duck in the
+/// same breath, but `Play` is answered *later in the frame* — so a refused stinger left the `Music` bus at −9 dB for a
+/// sound nobody heard, and the log said both "stinger ducked Music by -9.0 dB" and "no cue of that name".
+#[test]
+fn a_stinger_whose_cue_is_unknown_ducks_nothing() {
+    use bevy_siren::Refusal;
+
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    app.update();
+    app.update();
+
+    app.world_mut().write_message(Stinger::new("music.does-not-exist").duck_db(-9.0).duck_s(1.0));
+    app.update();
+
+    let mix = app.world().resource::<SirenMix>().clone();
+    assert!(
+        mix.ducked["Music"] > -0.01,
+        "the music stepped back for a stinger that never played: {:?}",
+        mix.ducked
+    );
+    assert!(
+        refused(&mut app).iter().any(|r| matches!(r.reason, Refusal::UnknownCue)),
+        "the request is refused, and that refusal is the whole story"
+    );
+    let log: Vec<String> = app.world().resource::<bevy_siren::SirenLog>().iter().map(|e| e.line()).collect();
+    assert!(
+        !log.iter().any(|line| line.contains("stinger ducked")),
+        "no `Ducked` line may contradict the refusal: {log:?}"
+    );
+}
+
+/// **A stinger whose sound has no handle ducks nothing** — the same bug, reached by a cue that *is* on `Music`.
+#[test]
+fn a_stinger_whose_sound_is_missing_ducks_nothing() {
+    // `music.stinger` is on the Music bus and its key `stinger_01` has no handle in `SirenSounds`.
+    let table = CueTable::new(vec![
+        layer_cue("track.calm"),
+        Cue {
+            sounds: vec![SoundSlot::new("stinger_01")],
+            bus: "Music".to_owned(),
+            priority: 210,
+            ..Cue::new("hit")
+        },
+    ]);
+    let mut app = app_with(
+        MusicScore {
+            layers: vec![MusicLayer::new("calm", "track.calm")],
+            tempo_bpm: 120.0,
+            beats_per_bar: 4.0,
+        },
+        table,
+        &["track.calm"],
+    );
+    app.update();
+    app.update();
+
+    app.world_mut().write_message(Stinger::new("hit").duck_db(-9.0).duck_s(1.0));
+    app.update();
+
+    let mix = app.world().resource::<SirenMix>().clone();
+    assert!(mix.ducked["Music"] > -0.01, "no sound, no duck: {:?}", mix.ducked);
+    let log: Vec<String> = app.world().resource::<bevy_siren::SirenLog>().iter().map(|e| e.line()).collect();
+    assert!(
+        !log.iter().any(|line| line.contains("stinger ducked")),
+        "the log states the refusal, never a duck beside it: {log:?}"
+    );
+    assert!(log.iter().any(|l| l.contains("no handle")), "and the refusal is there: {log:?}");
+}
+
+/// **A stinger that plays ducks on the frame it fires** — the case the rewrite must not delay or drop. Same depth, same
+/// frame, one `Ducked` whose `by` is `"stinger"`.
+#[test]
+fn a_stinger_that_plays_ducks_on_the_frame_it_fires() {
+    let table = CueTable::new(vec![
+        layer_cue("track.calm"),
+        Cue {
+            sounds: vec![SoundSlot::new("hit")],
+            bus: "Music".to_owned(),
+            priority: 210,
+            ..Cue::new("hit")
+        },
+    ]);
+    let mut app = app_with(
+        MusicScore {
+            layers: vec![MusicLayer::new("calm", "track.calm")],
+            tempo_bpm: 120.0,
+            beats_per_bar: 4.0,
+        },
+        table,
+        &["track.calm", "hit"],
+    );
+    app.update();
+    app.update();
+
+    app.world_mut().write_message(Stinger::new("hit").duck_db(-9.0).duck_s(0.6));
+    app.update();
+
+    let mix = app.world().resource::<SirenMix>().clone();
+    assert!(
+        (mix.ducked["Music"] - -9.0).abs() < 1e-4,
+        "the dip is in the clock before this frame's mix: {:?}",
+        mix.ducked
+    );
+    let ducks = app
+        .world()
+        .resource::<bevy_siren::SirenLog>()
+        .iter()
+        .filter(|e| matches!(e, bevy_siren::Entry::Ducked { by, .. } if by == "stinger"))
+        .count();
+    assert_eq!(ducks, 1, "one stinger, one duck line");
+}
+
+/// **A stinger on another bus is still refused, and still ducks nothing** — the existing rule, unchanged by the rewrite.
+#[test]
+fn a_stinger_on_another_bus_is_still_refused() {
+    let table = CueTable::new(vec![
+        layer_cue("track.calm"),
+        Cue {
+            sounds: vec![SoundSlot::new("hit")],
+            bus: "Effects".to_owned(),
+            priority: 210,
+            ..Cue::new("hit")
+        },
+    ]);
+    let mut app = app_with(
+        MusicScore {
+            layers: vec![MusicLayer::new("calm", "track.calm")],
+            tempo_bpm: 120.0,
+            beats_per_bar: 4.0,
+        },
+        table,
+        &["track.calm", "hit"],
+    );
+    app.update();
+    app.update();
+
+    app.world_mut().write_message(Stinger::new("hit").duck_db(-9.0));
+    app.update();
+
+    let mix = app.world().resource::<SirenMix>().clone();
+    assert!(
+        mix.ducked["Music"] > -0.01,
+        "a stinger that cannot be on Music touches nothing: {:?}",
+        mix.ducked
+    );
+    let log: Vec<String> = app.world().resource::<bevy_siren::SirenLog>().iter().map(|e| e.line()).collect();
+    assert!(log.iter().any(|l| l.contains("names bus `Effects`")), "{log:?}");
 }
