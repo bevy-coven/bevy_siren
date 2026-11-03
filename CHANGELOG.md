@@ -7,6 +7,10 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **The device path is reported, and it is the CPU path** — `#19`'s first criterion. `Model::device()` returns a
+  `Device`, and `Device::describe()` says *"CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank
+  differently here"*. `Device::available()` is `Cpu` unconditionally: `ort` 2.0-rc.15 has **no CUDA feature**, so there
+  is no second path to choose, and reporting one would be the same silent lie `#19` forbids in the other direction.
 - **Batched embedding with a visible shrink** — `#18`'s host half. `session::embed_batched` embeds a list in batches up
   to a configured ceiling, **halves** on a refusal and continues, records the sizes used (`Batched::batches`) and the
   number of shrinks, and **recovers toward the ceiling** afterwards so one early refusal does not cap the run. A refusal

@@ -67,6 +67,10 @@ readme-example = []
 # uses. Reusing it means an asset that plays is the same asset that indexes, and it brings no new dependency — only the
 # one the `mixer` feature already enables.
 semantic = ["dep:ort", "dep:rodio", "dep:rubato", "dep:ebur128"]
+# #19's device path, and the honest state of it: `ort` 2.0-rc.15 has **no CUDA feature**, and this crate does not build
+# its own runtime. So there is no CUDA path to enable, and `Device::available()` says so rather than offering a choice it
+# cannot honour.
+cuda = []
 
 [dependencies]
 # The umbrella with defaults off. A game already has the full `bevy`, so these features cost it nothing;

@@ -44,6 +44,7 @@ fn environment() -> Result<&'static ort::environment::Environment, String> {
 /// A loaded ONNX graph.
 pub struct Model {
     session: OrtSession,
+    device: Device,
     loaded: Loaded,
 }
 
@@ -53,8 +54,64 @@ impl core::fmt::Debug for Model {
     }
 }
 
+/// **Which device a graph runs on**, and what the build can actually offer — `#19`.
+///
+/// `#19`'s requirement is that the fallback be **honest**: a CPU embedding is not necessarily the same vector as a CUDA
+/// one, so an index built on one and queried on the other can rank differently. That has to be measured and stated
+/// rather than assumed, which is why this type reports the path taken rather than accepting a preference silently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Device {
+    /// The CPU path. Always available, and **fp32**: `#19`'s own note says fp16 on CPU is slow or unsupported depending
+    /// on the runtime, so the CPU path uses a different precision than a GPU one, which is precisely why the
+    /// cross-device measurement exists.
+    Cpu,
+    /// A CUDA device, by index. Only reachable in a build with `ort`'s CUDA feature, which this crate does **not** enable
+    /// by default — see [`Device::available`].
+    Cuda {
+        /// The device ordinal, as the runtime numbers it.
+        id: i32,
+    },
+    /// A caller asked for CUDA and this build cannot provide it, so the CPU path ran instead.
+    ///
+    /// **Reported rather than silent.** A fallback that is invisible is how a developer ends up measuring CPU
+    /// throughput while believing it is a GPU figure.
+    FellBackFromCuda,
+}
+
+impl Device {
+    /// What this build can offer, so a caller can decide before loading anything.
+    ///
+    /// **`Device::Cpu`, unconditionally, and the `cuda` feature is an empty marker rather than a promise.**
+    ///
+    /// `ort` 2.0-rc.15 — the version this crate pins — has no CUDA feature to enable, and the crate does not build its
+    /// own runtime. So there is no CUDA path here to choose, and reporting one would be the silent fallback `#19`
+    /// forbids in the other direction: a developer would read *"CUDA"* and measure a CPU figure.
+    ///
+    /// A project that needs CUDA builds its own binary against an `ort` with its runtime, and constructs the graph
+    /// itself; what this crate can promise is that the CPU path says it is the CPU path.
+    pub fn available() -> Device {
+        Device::Cpu
+    }
+
+    /// **The path actually taken**, as a sentence a log or a panel shows.
+    pub fn describe(self) -> &'static str {
+        match self {
+            Device::Cpu => {
+                "CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here"
+            }
+            Device::Cuda { .. } => "CUDA",
+            Device::FellBackFromCuda => "CUDA was requested and this build has none, so the CPU path ran",
+        }
+    }
+
+    /// True when the caller asked for CUDA and did not get it.
+    pub fn fell_back(self) -> bool {
+        matches!(self, Device::FellBackFromCuda)
+    }
+}
+
 impl Model {
-    /// **Load a graph from a file**, reporting what the runtime says about its axes.
+    /// **Load a graph from a file**, reporting what the runtime says about its axes, on the device this build offers.
     ///
     /// The `dimension` is read from the output shape's last axis, and `dynamic_batch` from whether the first axis is
     /// symbolic — measured facts about the file, not assumptions about the model.
@@ -86,7 +143,17 @@ impl Model {
             }
         }
 
-        Ok(Model { session, loaded: Loaded { inputs, outputs, dimension, dynamic_batch } })
+        Ok(Model {
+            session,
+            device: Device::available(),
+            loaded: Loaded { inputs, outputs, dimension, dynamic_batch },
+        })
+    }
+
+    /// **Which device this model is running on**, so a caller can report the path rather than assume one — `#19`'s
+    /// criterion 1.
+    pub fn device(&self) -> Device {
+        self.device
     }
 
     /// What the runtime said about the graph.

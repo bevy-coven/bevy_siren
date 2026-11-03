@@ -63,3 +63,26 @@ fn a_file_that_is_not_a_graph_is_refused_rather_than_panicking() {
     let err = Model::load(not_a_graph).expect_err("a README is not a model");
     assert!(matches!(err, LoadProblem::Unreadable { .. }), "got {err:?}");
 }
+
+/// **`#19` criterion 1: with no CUDA device, a load succeeds on CPU and reports the path taken.**
+///
+/// The graph here is the checked-in 16 KB text tower, so this is a real load rather than a mock.
+#[test]
+fn a_load_reports_the_cpu_path_it_took() {
+    use bevy_siren::semantic::model::{Device, Model};
+    let model = Model::load("tests/fixtures/tiny-text.onnx").expect("the fixture loads");
+    assert_eq!(model.device(), Device::Cpu, "this build has one path, and it says so");
+    assert!(!model.device().fell_back(), "nothing was requested and lost");
+    let said = model.device().describe();
+    assert!(said.starts_with("CPU"), "the sentence names the path: {said}");
+    assert!(said.contains("may rank differently"), "and states the cross-device caveat: {said}");
+}
+
+/// `Device::available` is what a caller asks before loading, and it must agree with what a load produces.
+#[test]
+fn the_available_device_is_the_one_a_load_uses() {
+    use bevy_siren::semantic::model::{Device, Model};
+    assert_eq!(Device::available(), Device::Cpu);
+    let model = Model::load("tests/fixtures/tiny-text.onnx").expect("the fixture loads");
+    assert_eq!(model.device(), Device::available());
+}
