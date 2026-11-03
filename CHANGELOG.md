@@ -7,6 +7,25 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Spectral centroid, rolloff and noise floor**, from the same FFT the mel path already uses. `semantic::spectral`
+  answers what a sound designer means by *"the same world"* — brightness and cleanliness — and it survives an embedding
+  where loudness is partly normalised away. Measured: a 1 kHz sine reads a centroid within **5 %**, a low-passed copy is
+  darker than white noise in both centroid and rolloff, and digital silence reads **`SILENT_DB`**.
+
+  **The centroid is an `Option`, and that is the design.** A silent clip divides by zero, so silence is a *state*, not a
+  defaulted `0.0` — `0 Hz` is a real reading, since a DC offset measures **9.375 Hz** through a Hann window. Both index
+  formats write `-` for it, so the two can never be conflated on disk.
+
+  `ROLLOFF_FRACTION` (**0.95**) is exported, because a rolloff without its percentage is not a number. The noise floor
+  is the mean power of the **quietest tenth of frames** against the clip's own loudest — a percentile, so marked
+  **design default**.
+
+  **A cost, stated rather than absorbed:** decode fell from **2 636 to ~1 150 clips/s** at 500 clips, measured three
+  times, because this is a second FFT sweep over the same frames. A build now produces three more statistics per asset,
+  and 5 000 clips still costs **6 s** against the ~3 minutes the audio tower itself would take.
+
+### Documented
+
 - **`examples/indexbench` — indexing throughput, split into decode and inference.** `#36` has been owed for three
   iterations while three costs were added to `build`, and one number cannot say which stage is the slow one. Measured on
   an M4, on a generated corpus so the figure is reproducible:

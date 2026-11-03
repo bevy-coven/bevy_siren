@@ -7,6 +7,79 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 89 — 2026-11-03 — spectral shape, and two assertions that were wrong before the code
+
+**Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **376 semantic** / **46 lib**;
+clippy 0, fmt, rustdoc, examples. Volume held **20 GB** free.
+
+**#22 closed** — centroid, rolloff and noise floor, the last blocker on `#27`'s hard filters. All three come from **one
+pass** over the frames via the same 1024-sample Hann window and radix-2 FFT that `mel.rs` was tested against CLAP's
+extractor to **0.0545 dB**. Power is summed, not magnitude, because the centroid is defined over energy.
+
+**The centroid is an `Option`, and that is the design.** `#22` warns that *"a fully silent clip divides by zero in a
+centroid"*; the answer is a **state**, not a guard-and-default. Silence has no brightness, and `0 Hz` is a *real*
+reading — a DC offset measures **9.375 Hz** — so defaulting to zero would make them indistinguishable in memory and on
+disk. Both formats write `-`, and the round-trip test asserts they stay apart.
+
+**Two assertions were wrong before the code, and running the tests is what found both.**
+
+1. **A DC offset does not read `0 Hz`.** I asserted it and got `Some(9.375001)`. A constant multiplied by a Hann window
+   is a raised cosine, three bins wide, so the energy-weighted mean is one 46.875 Hz bin divided across that spread. The
+   measured value is now the assertion, with the leakage explained — a DC offset is darker than anything audible either
+   way, and pretending it is exactly zero would hide what the window does.
+2. **The "short clip" fixture was five windows long.** 0.1 s at 48 kHz is **4 800 samples** against a **1024-sample**
+   window, so the branch the test named was never entered and its assertion was vacuous. The window is **21.3 ms**; the
+   fixture is now 10 ms. **Third time this loop has had a fixture that does not reach the code path it names** — after
+   iteration 87's constant vector and 88's `seed % 24` collision.
+
+**A cost that is a real regression, reported as the headline rather than a footnote.** Decode fell from **2 636 to
+~1 150 clips/s** at 500 clips, measured three times (996 / 1 145 / 1 224), because the spectral pass is a **second FFT
+sweep** over the same frames and the embedder's preprocessing is CLAP's, so nothing shares it.
+
+This is the case the iteration targeted — a build now produces three more statistics per asset — so it is a trade, not a
+10 %-rule violation. **6 s for 5 000 clips** remains far below the ~3 minutes the audio tower itself would take, and
+`mel::log_mel` computes the same frames, so the two passes could share one sweep if it ever matters. That is named as
+carved-off work rather than quietly deferred.
+
+**Measured.** A 1 kHz sine reads a centroid within **5 %** (220/1000/4000/8000 Hz all pass); a low-passed copy is darker
+than white noise in **both** centroid and rolloff; digital silence reads exactly **`SILENT_DB`** with no centroid, from
+`0.0` and `-0.0` alike; all three survive a round trip in **both** formats.
+
+| voices | µs/frame | iteration 88 |
+|---|---|---|
+| 64 | **0.353** | 0.284 |
+| 256 | **1.265** | 1.051 |
+
+No audio-path change; inside the ranges this code has shown across iterations 80–89.
+
+**Visual gate unchanged:** 32 render files, **14 of 14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to
+iterations 67, 71, 74, 75, 80–88. `bang-spectrum.png` read: broadband onset, harmonic comb to 10 kHz, no click line, no
+clipping shelf, no gap.
+
+**Verdicts.** Pass 1 **GREAT** (four criteria, four non-vacuous tests, and silence as a state rather than a default),
+pass 2 **GREAT** (both wrong assertions found, fixed, and the recurring fixture lesson named), pass 3 **GREAT** (the
+percentage and the percentile are both stated, and the cost is the headline).
+
+**Docs.** The guide says what brightness costs and why the centroid is an `Option`; the README gains the spectral
+claim **and its rate corrected from 2 400 to 1 150 clips/s**, because a stale number in a headline is exactly the kind of
+thing this loop exists to fix. `CHANGELOG.md` gains the feature and the cost.
+
+**Evidence.** `runs/2026-11-03-89/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,spectrograms}/`.
+
+**Commits.** `0f96dec`.
+
+**Top 5 remaining**
+
+1. **`#27` hard filters and penalties** — the consumer of everything since iteration 77: a 12 LU loudness rule (measured
+   in 77), tempo and key rules, and a spectral one from this iteration. Its criteria require that an **unknown feature
+   never excludes an asset**, which every type built so far already models as `None`.
+2. **`#28` the MCP tool host**, then `#29`/`#44`/`#30` — the largest user-facing win.
+3. **Finish `#36` on the GPU** — clone the current commit to `big`, transfer the 116.5 MB graph, build `ort` with CUDA.
+4. **Share the spectral FFT with `mel::log_mel`** — the 55 % decode regression this iteration introduced, and the pass
+   already computes the same frames.
+5. **`f16`, with `V-01`'s labelled set.**
+
 ## Iteration 88 — 2026-11-03 — indexing throughput, and the bench that reported 24 of 200 as success
 
 **Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / 373 semantic / 36 lib; clippy 0,

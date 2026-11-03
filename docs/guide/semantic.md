@@ -198,6 +198,15 @@ let built = build(root, stamp, embed)?;
 println!("{}", built.describe());          // "1000 indexed", or "1000 indexed, 3 unmeasured"
 ```
 
+**Brightness and cleanliness are stored too.** `semantic::spectral` gives each asset a **centroid** (the energy-weighted
+mean frequency), a **rolloff** (the frequency below which `ROLLOFF_FRACTION` = 0.95 of the energy lies) and a **noise
+floor** (the quietest tenth of frames, against the clip's own loudest — a design default). Two recordings of the same
+sound in the same room sit close in these; one made in a treated room does not, which an embedding alone may not show.
+
+The centroid is an `Option` for the same reason loudness is: **silence has no brightness**. `0 Hz` is a real reading —
+a DC offset measures 9.375 Hz — so returning zero would make silence indistinguishable from a constant, in memory and in
+the file.
+
 **It is stored, and it travels with the answer.** `Index.provenance` is a trailing section inside the checksummed body,
 so a hand-edited licence is a corrupt file rather than a silent change, and an index with no provenance writes no
 section at all — every file written before this existed still loads. `Match` carries `provenance` and is **no longer
