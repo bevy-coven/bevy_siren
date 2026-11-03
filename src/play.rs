@@ -238,17 +238,28 @@ pub struct StopCue {
 ///
 /// A [`Resource`] rather than a `Local<..>` because two systems draw from it (a play's variant and its
 /// detune) and a seeded stream must not restart when a system's local does.
+///
+/// **Its seed is the mix table's.** [`SirenSettings::seed`](crate::mix::SirenSettings::seed) is what a project writes,
+/// and [`seed_choices`] replaces the stream when that number changes — so `seed: 7` and `seed: 99` play different
+/// sequences and the same number plays the same one twice.
 #[derive(Resource, Clone, Debug)]
 pub struct SirenChoices {
     /// The stream every draw comes from.
     pub rng: Rng,
+    /// The seed `rng` was built from, so [`seed_choices`] can notice the mix table moving.
+    seeded: u64,
     pickers: HashMap<String, VariantPicker>,
 }
 
 impl SirenChoices {
     /// A stream seeded from `seed`.
     pub fn new(seed: u64) -> Self {
-        Self { rng: Rng::new(seed), pickers: HashMap::new() }
+        Self { rng: Rng::new(seed), seeded: seed, pickers: HashMap::new() }
+    }
+
+    /// The seed this stream was built from.
+    pub fn seed(&self) -> u64 {
+        self.seeded
     }
 
     /// The variant index to play for `cue`.
@@ -271,6 +282,23 @@ impl Default for SirenChoices {
     fn default() -> Self {
         Self::new(SirenSettings::default_seed())
     }
+}
+
+/// **Makes [`SirenSettings::seed`](crate::mix::SirenSettings::seed) the stream the crate draws from.**
+///
+/// The mix table is the project's file; a crate constant is not a seed a project can choose. This runs first in
+/// [`SirenSystems::Choose`](crate::SirenSystems::Choose), before the music starts a layer, so the first play after a
+/// change already draws from the new stream.
+///
+/// A changed seed **replaces** the stream and every variant history rather than continuing from the old position: a
+/// different seed means a different sequence from its first draw, and a history carried across would make the first
+/// play of the new stream depend on the old one. Nothing happens on a frame whose seed did not move, and the seed is
+/// configuration rather than a decision, so nothing is logged — the log is for what happened to a sound.
+pub fn seed_choices(settings: Res<SirenSettings>, mut choices: ResMut<SirenChoices>) {
+    if choices.seeded == settings.seed {
+        return;
+    }
+    *choices = SirenChoices::new(settings.seed);
 }
 
 /// One voice as the budget sees it: what `room_for` needs, owned so a request this frame can add its own voice

@@ -117,6 +117,9 @@ the first 32 footsteps and quietly stole or refused every one after that.
   level, mute and voice cap; `Dialogue` ducks `Music` by 8 dB and `Effects` by 4 dB while a line plays, holding a
   quarter second and recovering over half a second. `SirenMix` is this frame's mix, one number per bus, for your
   own meter or an editor panel: [buses](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/buses.md).
+- **The same seed replays the same sounds** — every variant pick and detune comes from one stream seeded by
+  `SirenSettings::seed`, so a capture, a replay and an A/B of an audio change are reproducible; two seeds are two
+  streams from the first play.
 - **Spend voices on what a player is listening to** — a full budget steals the lowest priority, then the oldest,
   and a cue at `UNSTEALABLE_PRIORITY` (music, a stinger, a line) is never taken; a request that cannot be made room
   in is `Refused { VoiceLimit }` with nothing spawned, so a game that says 32 voices gets 32.

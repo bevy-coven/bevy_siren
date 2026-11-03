@@ -112,3 +112,14 @@ round trip is a test.
 machine-gun footstep. When every variant is inside the window — two sounds and `avoid: 4` — the pick immediately
 before is still refused, because repeating it is the one thing the window exists to prevent. `Repeat::Shuffle` is a
 plain draw, repeats included: a burst weapon wants one sample and no variation.
+
+## The seed
+
+Every variant pick and every detune comes from one stream, and **that stream's seed is `SirenSettings::seed`** — the
+project's file, not a crate constant. Two projects that differ only in `seed` play different variants and different
+detunes from the first play; the same number plays the same sequence twice, field for field, in two processes. That is
+what makes a capture, a replay and an A/B of an audio change reproducible.
+
+Changing the seed while the game runs **replaces** the stream and every variant history rather than continuing from
+the old position: the next play is the new seed's first draw. The seed is configuration, so the change is not written
+to `SirenLog` — the log is for what happened to a sound.

@@ -165,3 +165,50 @@ fn now_moves_at_once_and_next_beat_at_the_beat() {
     assert!((due - 1.0).abs() < 1e-6, "the next beat at 120 bpm from 0.6 s is 1.0 s: {due}");
     let _ = When::NextBeat;
 }
+
+/// **A stinger's duck holds for the stinger, then releases.**
+///
+/// `Stinger::duck_s` is documented as *"how long the duck holds before it starts recovering"*, and the music must step
+/// back for as long as the punctuation mark sounds. The unfixed tree passed `duck_s` as the **fade** with a hold of
+/// zero, so `Music` began climbing on the frame the stinger fired: at the halfway point of a 0.6 s stinger it was back
+/// at half depth. The crate's own `active_duck_db` shape — full for the hold, then a linear recovery — is what this
+/// pins, and `DEFAULT_FADE_S` is the release after the hold.
+#[test]
+fn a_stinger_holds_the_music_back_for_its_whole_length() {
+    use bevy_siren::model::DEFAULT_FADE_S;
+
+    let table = CueTable::new(vec![
+        layer_cue("track.calm"),
+        Cue {
+            sounds: vec![SoundSlot::new("hit")],
+            bus: "Music".to_owned(),
+            priority: 210,
+            ..Cue::new("hit")
+        },
+    ]);
+    let mut app = app_with(
+        MusicScore {
+            layers: vec![MusicLayer::new("calm", "track.calm")],
+            tempo_bpm: 120.0,
+            beats_per_bar: 4.0,
+        },
+        table,
+        &["track.calm", "hit"],
+    );
+    app.update();
+    advance(&mut app, 1.0 / 60.0);
+    app.world_mut().write_message(Stinger::new("hit").duck_db(-9.0).duck_s(0.6));
+    app.update();
+    let fired = app.world().resource::<SirenMix>().ducked["Music"];
+    assert!((fired - -9.0).abs() < 1e-4, "the duck is at full depth on the frame it fires: {fired}");
+
+    // Inside the hold: still the full depth. This is the assertion the unfixed tree fails.
+    run_for(&mut app, 0.5, 1.0 / 60.0);
+    let held = app.world().resource::<SirenMix>().ducked["Music"];
+    assert!((held - -9.0).abs() < 0.15, "halfway through a 0.6 s stinger the music is still held: {held}");
+
+    // After the hold plus the release, the duck is over.
+    run_for(&mut app, 0.4, 1.0 / 60.0);
+    let released = app.world().resource::<SirenMix>().ducked["Music"];
+    assert!(released > -0.01, "the music is back to 0 dB by hold + release ({DEFAULT_FADE_S} s): {released}");
+}

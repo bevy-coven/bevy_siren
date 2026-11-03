@@ -203,3 +203,83 @@ fn a_cue_can_be_stopped() {
         log.iter().collect::<Vec<_>>()
     );
 }
+
+/// **A project's `seed` is the stream.** Two apps that differ only in `SirenSettings::seed` draw different variants
+/// and different detunes; the same seed replays itself. This is `cues.yaml` case 17's own observation, and the
+/// unfixed tree fails the `assert_ne!` — `SirenChoices` was built from a crate constant and never saw the settings.
+#[test]
+fn a_projects_seed_reaches_the_stream() {
+    let table = || {
+        CueTable::new(vec![Cue {
+            sounds: vec![SoundSlot::new("a"), SoundSlot::new("b"), SoundSlot::new("c")],
+            repeat: bevy_siren::Repeat::Shuffle,
+            ..Cue::new("hit")
+        }])
+    };
+    let run = |seed: u64| {
+        let mut app =
+            app(table(), SirenSettings { seed, ..SirenSettings::default() }, sounds(&["a", "b", "c"]), false);
+        let mut out = Vec::new();
+        for _ in 0..8 {
+            app.world_mut().write_message(Play::cue("hit"));
+            app.update();
+            out.extend(played(&mut app).into_iter().map(|p| (p.sound, p.gain_db, p.pitch)));
+        }
+        out
+    };
+
+    let seven = run(7);
+    let again = run(7);
+    let ninetynine = run(99);
+
+    assert_eq!(seven.len(), 8);
+    assert_eq!(seven, again, "the same seed replays the same stream field for field");
+    assert_ne!(seven, ninetynine, "two seeds are two streams, or the seed is not a seed");
+}
+
+/// **A seed change restarts the stream** rather than continuing from the old position: after the change, the next
+/// four plays are a fresh seed-99 stream, not the old one carried on.
+#[test]
+fn changing_the_seed_restarts_the_stream() {
+    use bevy_siren::SirenChoices;
+
+    let table = || {
+        CueTable::new(vec![Cue {
+            sounds: vec![SoundSlot::new("a"), SoundSlot::new("b"), SoundSlot::new("c")],
+            repeat: bevy_siren::Repeat::Shuffle,
+            ..Cue::new("hit")
+        }])
+    };
+    let play_four = |app: &mut App| {
+        let mut out = Vec::new();
+        for _ in 0..4 {
+            app.world_mut().write_message(Play::cue("hit"));
+            app.update();
+            out.extend(played(app).into_iter().map(|p| (p.sound, p.pitch)));
+        }
+        out
+    };
+
+    let mut app = app_with(table(), sounds(&["a", "b", "c"]));
+    let before = play_four(&mut app);
+    assert_eq!(app.world().resource::<SirenChoices>().seed(), SirenSettings::default_seed());
+
+    app.world_mut().resource_mut::<SirenSettings>().seed = 99;
+    app.update();
+    assert_eq!(app.world().resource::<SirenChoices>().seed(), 99, "the mix table's seed is the stream's");
+    let after = play_four(&mut app);
+
+    // A fresh app at seed 99, asked the same four times from its first play, is what "restarted" means.
+    let mut fresh = crate::helpers::app(
+        table(),
+        SirenSettings { seed: 99, ..SirenSettings::default() },
+        sounds(&["a", "b", "c"]),
+        false,
+    );
+    let expected = play_four(&mut fresh);
+    assert_eq!(
+        after, expected,
+        "after the change, the stream is a fresh seed-99 stream, not the old one continued"
+    );
+    assert_ne!(before, after, "the change is heard");
+}

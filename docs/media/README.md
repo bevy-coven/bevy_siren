@@ -3,6 +3,20 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 3, the seed and the stinger's hold
+
+Also no capture, and for a different reason than iteration 2. The stinger's fix is a **bus gain envelope**, and
+`examples/mixer`'s panel draws `SirenMix::ducked` as a live number, not as a plot — a still would show "−9.0 dB" at
+one instant, which the old code also showed on the frame the stinger fired. The shape is the evidence, and it is
+`docs/loop/runs/2026-11-02-03/evidence/plots/stinger-envelope-zoom.svg`: the hold is the flat floor from 1.2 s to
+1.6 s, and the before curve is already climbing there. The seed fix produces no image at all — it is two `Played`
+streams — and its evidence is
+`tests/play.rs::{a_projects_seed_reaches_the_stream, changing_the_seed_restarts_the_stream}`.
+
+A capture that *would* show the stinger: add a **gain-history strip** to `examples/mixer` — a small line plot of
+`SirenMix::bus_db("Music")` over the last two seconds — beside the bus rows. That is an example change with its own
+drawing work, and it is the first thing to add when the panel next grows.
+
 ## No clip: iteration 2, a voice that ends frees its slot
 
 There is no capture for the `mixer` backend's voice retirement, and the reason is the machine: the `mixer` example

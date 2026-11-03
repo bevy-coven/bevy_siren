@@ -55,6 +55,11 @@ A stinger plays once, **now** — a punctuation mark that waited for the bar wou
 `Music` bus while it runs. It must be a `Music`-bus cue; one that names another bus is refused with a sentence in the
 log rather than played somewhere unexpected.
 
+`duck_s` is a **hold**, not a fade: the music stays at `duck_db` for as long as the stinger sounds, then releases over
+`DEFAULT_FADE_S` (0.12 s, the same release every stop and every steal uses). The difference is audible — before
+iteration 3 the bus began climbing on the frame the stinger fired, so a −9 dB stinger read −5 dB at its midpoint and
+the music swelled back underneath it.
+
 ## As data
 
 ```ron

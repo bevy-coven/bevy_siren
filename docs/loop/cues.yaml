@@ -129,10 +129,20 @@ cases:
 
   - id: 17
     cue: any two cues
-    authored: { seed: fixed, order: fixed, runs: 2 }
-    behaviour: The same seed replays the same sounds, gains and pitches.
-    observed_by: "Two `Played` streams."
-    green_when: Equal field for field.
+    authored: { seed: [7, 99], order: fixed, runs: 2 }
+    behaviour: The same seed replays the same sounds, gains and pitches; two seeds are two streams.
+    observed_by: "Two `Played` streams per seed, and the streams across seeds."
+    green_when: Equal field for field within a seed, and different across seeds.
+    evidence: "tests/play.rs::a_projects_seed_reaches_the_stream, changing_the_seed_restarts_the_stream"
+
+  - id: 22
+    cue: music.stinger
+    authored: { stinger: { duck_db: -9.0, duck_s: 0.6 } }
+    behaviour: A stinger's duck holds for `duck_s` and then releases; the music does not swell back underneath it.
+    observed_by: "`SirenMix::ducked(\"Music\")` at the frame it fires, halfway through the hold, and after hold + release."
+    green_when: -9 dB on the fire frame, still -9 dB halfway, 0 dB by duck_s + DEFAULT_FADE_S + one frame.
+    source: the crate's own `active_duck_db` shape (Gregory §14.6.3); 0.12 s release is `DEFAULT_FADE_S` (design default)
+    evidence: "runs/2026-11-02-03/evidence/plots/stinger-envelope-zoom.svg, tests/music.rs::a_stinger_holds_the_music_back_for_its_whole_length"
 
   - id: 18
     cue: a broken table

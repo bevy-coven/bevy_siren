@@ -7,6 +7,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`SirenSettings::seed` is now the stream the crate draws from.** `SirenChoices` was `init_resource`d from a crate
+  constant and never rebuilt, so a project's `seed:` was read by nothing: `seed: 7` and `seed: 99` produced
+  byte-identical `Played` streams. `play::seed_choices` replaces the stream (and every variant history) when the mix
+  table's seed changes, so two seeds are two streams and one seed replays itself — `cues.yaml` case 17, which could
+  not pass before. No field moved: the setting existed and now works.
+- **A stinger's `duck_s` is a hold, not a fade.** `play_stingers` passed it as `DuckClock::manual`'s *fade* argument
+  with a hold of zero, so the `Music` bus began recovering on the frame the stinger fired: a −9 dB stinger read
+  **−5.01 dB** at its midpoint and the music swelled back underneath it. It now holds for `duck_s` and releases over
+  `DEFAULT_FADE_S` (0.12 s), reading **−8.99 dB** at the same point. A project-chosen release is
+  `docs/loop/needs-decision/stinger-release.md`.
 - **A voice that ended now frees its slot on the crate's own mixer.** With the `mixer` feature, a `Mode::Once`
   voice was never retired — the crate asked Bevy's `AudioSink`, which that backend does not create, and nothing ever
   set `Completes` — so it kept its place in the voice budget forever. After `max_voices` (32 by default) one-shots,

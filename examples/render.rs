@@ -135,6 +135,47 @@ fn main() {
         ));
     }
 
+    // 3b. **A stinger's duck**, in both readings of `duck_s`. `DuckClock::manual` takes `(…, hold_s, fade_s)`, and
+    // iteration 3 found the call passing `duck_s` as the *fade* with a hold of zero, so the music began climbing on the
+    // frame the stinger fired. Both envelopes are written and both numbers printed: the fix is judged by the pair, and
+    // a later change that reintroduces the old one is visible as the two columns converging.
+    let stinger_db = -9.0f32;
+    let stinger_hold = 0.6f32;
+    let stinger_release = bevy_siren::model::DEFAULT_FADE_S;
+    let envelope = |hold_s: f32, fade_s: f32| {
+        let mut gain = 0.0f32;
+        let mut env = Vec::new();
+        for frame in 0..(2.0 * 30.0) as usize {
+            let t = f64::from(frame as u32) / 30.0;
+            let target =
+                if t < starts_at { 0.0 } else { active_duck_db(stinger_db, t - starts_at, hold_s, fade_s) };
+            gain = approach(gain, target, 0.05, 1.0 / 30.0);
+            env.push(gain);
+        }
+        env
+    };
+    let held = envelope(stinger_hold, stinger_release);
+    let faded = envelope(0.0, stinger_hold);
+    let bus_from = |env: &[f32]| -> Vec<f32> {
+        env.iter().flat_map(|d| std::iter::repeat_n(db_to_gain(music + d), per_frame)).collect()
+    };
+    write_samples(&out, "bus-Music-stinger.wav", &bus_from(&held), 1.0);
+    write_gain_plot(
+        &out.join("bus-Music-stinger.svg"),
+        "Music under a stinger: duck_s as the hold (the fix) and as the fade (before)",
+        &[("hold then release", &held, "--c1"), ("fade from the first frame", &faded, "--c4")],
+        starts_at,
+    );
+    write_samples(&out, "bus-Music-stinger-before.wav", &bus_from(&faded), 1.0);
+    let at = |env: &[f32]| {
+        env.get(((starts_at + f64::from(stinger_hold) / 2.0) * 30.0) as usize).copied().unwrap_or(0.0)
+    };
+    report.push(format!(
+        "bus-Music-stinger: duck {stinger_db:.1} dB; duck_s as the hold ({stinger_hold:.2} s) + release {stinger_release:.2} s reads {:.2} dB halfway, duck_s as the fade reads {:.2} dB halfway",
+        at(&held),
+        at(&faded)
+    ));
+
     // 4. A spatial cue's gain at the distances a player notices.
     let inverse = Attenuation::Inverse { near_m: 4.0, rolloff: 1.0 };
     report.push(format!(
@@ -294,6 +335,96 @@ fn sum_voices(voices: &[Vec<f32>]) -> Vec<f32> {
 fn write_gain(out: &Path, name: &str, samples: &[f32], speed: f32, gain_db: f32) {
     let _ = speed;
     write_samples(out, name, samples, db_to_gain(gain_db));
+}
+
+/// **A bus's gain over time as a line**, the form a gain curve can be read in. `showwavespic` draws audio and turns
+/// an envelope into a blob, and a CSV of 60 rows is not a picture; this is the plot the review pass looks at.
+///
+/// Colours are the reader's own (`var(--c1)`, `var(--c4)`), so the same file reads on a light or a dark theme. The
+/// dashed line marks the frame the duck fired.
+fn write_gain_plot(path: &Path, name: &str, envelopes: &[(&str, &[f32], &str)], mark_s: f64) {
+    const W: f64 = 900.0;
+    const H: f64 = 320.0;
+    const LEFT: f64 = 64.0;
+    const RIGHT: f64 = 24.0;
+    const TOP: f64 = 64.0;
+    const BOTTOM: f64 = 52.0;
+    let n = envelopes.iter().map(|(_, e, _)| e.len()).max().unwrap_or(2).max(2);
+    let lo = envelopes.iter().flat_map(|(_, e, _)| e.iter().copied()).fold(0.0f32, f32::min).min(-1.0);
+    let x = |i: usize| LEFT + (i as f64 / (n - 1) as f64) * (W - LEFT - RIGHT);
+    let y =
+        |v: f32| H - BOTTOM - ((f64::from(v) - f64::from(lo)) / (0.0 - f64::from(lo))) * (H - TOP - BOTTOM);
+    let axis_y = H - BOTTOM;
+
+    let mut out = String::new();
+    out.push_str(&format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {W} {H}\" width=\"{W}\" height=\"{H}\">"
+    ));
+    out.push_str(&format!("<text x=\"{LEFT}\" y=\"22\" font-size=\"14\" fill=\"var(--fg)\">{name}</text>"));
+    out.push_str(&format!(
+        "<text x=\"{LEFT}\" y=\"42\" font-size=\"11\" fill=\"var(--muted)\">{lo:.1} dB to 0 dB, 30 fps</text>"
+    ));
+
+    // Legend: a swatch then its label, laid out left to right so nothing can fall outside the viewBox.
+    let mut legend_x = LEFT;
+    for (label, _, colour) in envelopes {
+        out.push_str(&format!(
+            "<rect x=\"{legend_x:.1}\" y=\"{:.1}\" width=\"10\" height=\"10\" fill=\"var({colour})\"/>",
+            TOP - 26.0
+        ));
+        out.push_str(&format!(
+            "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--fg)\">{label}</text>",
+            legend_x + 14.0,
+            TOP - 17.0
+        ));
+        legend_x += 24.0 + label.len() as f64 * 6.2;
+    }
+
+    for (_, env, colour) in envelopes {
+        let points: Vec<String> =
+            env.iter().enumerate().map(|(i, v)| format!("{:.1},{:.1}", x(i), y(*v))).collect();
+        out.push_str(&format!(
+            "<polyline fill=\"none\" stroke=\"var({colour})\" stroke-width=\"2\" points=\"{}\"/>",
+            points.join(" ")
+        ));
+    }
+
+    out.push_str(&format!(
+        "<line x1=\"{LEFT}\" y1=\"{TOP}\" x2=\"{LEFT}\" y2=\"{axis_y:.1}\" stroke=\"var(--border)\"/>"
+    ));
+    out.push_str(&format!(
+        "<line x1=\"{LEFT}\" y1=\"{axis_y:.1}\" x2=\"{:.1}\" y2=\"{axis_y:.1}\" stroke=\"var(--border)\"/>",
+        W - RIGHT
+    ));
+    let mark_x = x(((mark_s * 30.0) as usize).min(n - 1));
+    out.push_str(&format!(
+        "<line x1=\"{mark_x:.1}\" y1=\"{TOP}\" x2=\"{mark_x:.1}\" y2=\"{axis_y:.1}\" stroke=\"var(--border)\" stroke-dasharray=\"4 4\"/>"
+    ));
+    out.push_str(&format!(
+        "<text x=\"{:.1}\" y=\"{axis_y:.1}\" font-size=\"11\" fill=\"var(--muted)\">0 dB</text>",
+        LEFT - 6.0
+    ));
+    out.push_str(&format!(
+        "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--muted)\">{lo:.0} dB</text>",
+        LEFT - 6.0,
+        TOP + 4.0
+    ));
+    out.push_str(&format!(
+        "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--muted)\" text-anchor=\"middle\">time (s)</text>",
+        (LEFT + W - RIGHT) / 2.0,
+        H - 16.0
+    ));
+    // Above the plot's top edge, where no curve can be: a label on the axis or in the well sits on top of the line it
+    // is describing.
+    out.push_str(&format!(
+        "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--muted)\">duck fires</text>",
+        mark_x + 5.0,
+        TOP - 5.0
+    ));
+    out.push_str("</svg>\n");
+    if let Err(e) = std::fs::write(path, out) {
+        eprintln!("cannot write {}: {e}", path.display());
+    }
 }
 
 fn write_samples(out: &Path, name: &str, samples: &[f32], gain: f32) {

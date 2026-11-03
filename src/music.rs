@@ -25,7 +25,7 @@ use bevy::prelude::*;
 use crate::cue::CueTable;
 use crate::log::{Entry, SirenLog};
 use crate::mix::DuckClock;
-use crate::model::{MIX_TAU_S, SILENT_DB, approach, next_boundary};
+use crate::model::{DEFAULT_FADE_S, MIX_TAU_S, SILENT_DB, approach, next_boundary};
 use crate::play::{Play, Played, Voice};
 
 /// A music score: the layers a track is made of, and its tempo.
@@ -430,7 +430,13 @@ pub fn play_stingers(
             continue;
         }
         plays.write(Play::cue(request.cue.clone()));
-        clock.manual("Music", request.duck_db, now, 0.0, request.duck_s);
+        // **`duck_s` is the hold, not the fade.** `DuckClock::manual` takes `(target, by_db, now, hold_s, fade_s)`, and
+        // the music must step back *while the stinger sounds*: passing `duck_s` as the fade made the bus start
+        // recovering on the frame the stinger fired, so the music swelled back underneath it. The release after the
+        // hold is the crate's own `DEFAULT_FADE_S` — the 0.12 s every stop and every steal fades over, "short enough to
+        // read as immediate, long enough not to click". A project that wants its own release needs a field on
+        // `Stinger`; `docs/loop/needs-decision/stinger-release.md` carries that question.
+        clock.manual("Music", request.duck_db, now, request.duck_s, DEFAULT_FADE_S);
         log.push(Entry::Ducked {
             at_s: now,
             bus: "Music".to_owned(),
