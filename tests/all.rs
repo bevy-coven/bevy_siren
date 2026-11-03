@@ -16,6 +16,8 @@ mod music;
 mod play;
 mod readme;
 #[cfg(feature = "semantic")]
+mod semantic_budget;
+#[cfg(feature = "semantic")]
 mod semantic_buffer;
 #[cfg(feature = "semantic")]
 mod semantic_index;
