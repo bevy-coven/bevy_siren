@@ -7,6 +7,70 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 33 — 2026-11-03 — a queued change follows the score's tempo
+
+**Change.**
+
+- **`src/music.rs` — `Pending` remembers which boundary it was quantised to (`When`) and the tempo it used**, and
+  `move_layers` re-quantises a change whose tempo is stale, before the due filter: `at.max(now)` so a faster tempo cannot
+  pull it into the past, and a `tempo` guard so an unchanged score does no work.
+- Three tests (one failing on the base commit, two guards); a CHANGELOG line.
+
+**Why.** Iteration 32's lead was a Music block, deferred for height. Probing the **music behaviour the block would have
+shown** found something larger: `When::NextBar` promises *"on the next bar, quantised with `next_boundary`"*, and
+`move_layers` computed that instant **once** from the tempo at request time. A `MusicScore` is a resource *"the Cauldron
+edits"*, so a tempo change while a change waits is the ordinary path — and the crossfade landed **off the beat**, in both
+directions.
+
+**Evidence.** `runs/2026-11-03-33/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/tempo{,-before}.txt`.
+
+**Measured** — walking the clock until `target_db` moves, so the number is when the crossfade **happens**:
+
+| case | before | after |
+|---|---|---|
+| 160 bpm, unchanged | 1.44 s | 1.44 s (a bar is 1.5) |
+| 80 bpm, unchanged | 2.944 s | 2.944 s (a bar is 3.0) |
+| **160 → 80** before the bar | **1.44 s — mid-bar** | **2.944 s — on the bar** |
+| **160 → 240** before the bar | **1.44 s — a bar late** | **0.944 s — on the bar** |
+| `When::Now` (guard) | own frame | own frame |
+| every test, both feature sets | 113 / 120 / 122 + 5 | 116 / 123 / 125 + 5 |
+| every rendered cue | — | **byte-identical** (21/21); `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| frame cost, 8 / 64 / 256 | — | median 0.543 µs at 256, load 5.7–4.5; the loop runs over **queued changes** (0 or 1), not voices |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The **direction of the error was measured both ways** — a
+slowdown made the change early, a speed-up made it late — because one direction alone leaves the sign error untested.
+
+**Traps for the command.** (1) An instant **computed once from a resource** is stale the moment that resource changes; a
+queue must keep the input it quantised against, not only the answer. (2) Iteration 14 fixed this for **layers** and missed
+the **pending queue** in the same module — when fixing a reconcile, list every structure that cached the old value.
+(3) A re-quantise needs a guard on *the input's change*, or it moves a queued item forward every frame; the guard test is
+what stops that. (4) Measure *when the effect happens* (walk the clock to the observable), not what the accessor reports —
+they agreed here, and that agreement is worth knowing. (5) `hs distill` GPU-blocked (thirty-second iteration).
+
+**Commit.** `397b123`; CI on `main`.
+
+**Next 5.**
+
+1. **A Music block in the panel** — `MusicState`'s seven accessors drawn by nothing; needs a layout trade (12 px free
+   against ~134). Deferred twice now, with the budget measured both times.
+2. A `Stopped` line for a parent's despawn — neither backend writes one.
+3. **Answer or route around the `CueProblem` question** — **seven** items wait on it.
+4. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+5. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+
+**The hunt, twenty-second pass.** The **music** module has now paid four times (14, 15, 19, 33), each found by probing a
+**resource edited at runtime**. What has never been probed there is `MusicScore::problems` against a score that parses and
+is wrong in a way the plugin then acts on: a layer naming a cue on a **non-`Music` bus** (`problems` says a layer *"should
+name the Music bus"* — does the plugin refuse, or mix it on `Effects` while the score says music?). That is the next probe.
+
+**Baseline note.** Nothing was red; the suite had 113 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 32 — 2026-11-03 — the panel's log shows the eight lines the crate documents
 
 **Change.**
