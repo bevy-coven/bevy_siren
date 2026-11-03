@@ -54,7 +54,7 @@ integrates −18.6 LUFS at −6.1 dBFS.
 rule fix, S5 `arm_stinger_ducks`' own "not before the play is answered" reasoning), `plan.md`, `perf.md`, `eval.md`,
 `review.md` (three passes, GREAT), `evidence/{spectrograms,panel,after}`.
 
-**Commit.** (see `git log`).
+**Commit.** `cc86578` — *music: a stinger that cannot dip does not claim it did*.
 
 **Top 5 remaining**
 
