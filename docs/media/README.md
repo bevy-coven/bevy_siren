@@ -3,6 +3,18 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 5, a refusal that names the cap that refused
+
+No capture: the change is **text**, and the panel's log tail is the same rectangle before and after unless a project
+happens to be refusing at that instant. The evidence is
+`docs/loop/runs/2026-11-02-05/evidence/{before,after}/refusals.txt` — three lines, two shapes where there was one —
+and `tests/mix.rs::{a_full_table_budget_names_no_bus, a_cue_at_its_own_polyphony_names_no_bus,
+a_full_bus_names_that_bus}`, two of which fail on the unfixed tree.
+
+A capture that *would* show it: the panel's log pane while `budget --probe` forces each cap, with the three lines
+readable at 1280×720. That needs the panel to render `Refused` sentences from a live refusal, which it does — the gap
+is a scripted capture, not the code.
+
 ## No clip: iteration 4, a crossfade that takes the time it was given
 
 No capture, for the same reason as iteration 3: the change is a **gain envelope over time**, and `examples/mixer` draws

@@ -183,8 +183,151 @@ fn main() {
     std::fs::write(out.join("budget.txt"), &summary).expect("budget.txt is writable");
     print!("{summary}");
 
+    // **Each of the three hard caps, forced, so the sentence a panel prints is the evidence.** They are three different
+    // things a project tunes (Gregory §14.5.8.4 sets a group's limit and the engine's separately), and a refusal must
+    // keep them apart: the bus is named only when the bus is what refused.
+    let mut probe = String::new();
+    for (label, settings, table, first, second) in cap_probes() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()))
+            .init_asset::<AudioSource>()
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+                std::time::Duration::from_millis(16),
+            ))
+            .add_plugins(bevy_siren::SirenPlugin)
+            .insert_resource(settings)
+            .insert_resource(table);
+        let mut sounds = SirenSounds::new();
+        // A **real** WAV: the crate's own mixer decodes the bytes, and four zero bytes are not a WAV, so a dummy asset
+        // would be refused by `start_pending` (as `MissingSound { sound: <cue> }`) before the budget is ever consulted.
+        for key in ["line", "bed"] {
+            let handle = app
+                .world_mut()
+                .resource_mut::<Assets<AudioSource>>()
+                .add(AudioSource { bytes: Arc::from(wav_bytes(440.0, 40, 0.0)) });
+            sounds.insert(key, handle);
+        }
+        app.insert_resource(sounds);
+        app.world_mut().write_message(Play::cue(first));
+        app.update();
+        // The first play must not be refused; only the second is the cap's answer.
+        let first_said: Vec<String> = app
+            .world_mut()
+            .resource_mut::<Messages<bevy_siren::Refused>>()
+            .drain()
+            .map(|r| r.reason.to_string())
+            .collect();
+        let _ = &first_said;
+        app.world_mut().write_message(Play::cue(second));
+        app.update();
+        let said = app
+            .world_mut()
+            .resource_mut::<Messages<bevy_siren::Refused>>()
+            .drain()
+            .next()
+            .map(|r| format!("{:?} -> {}", r.reason, r.reason))
+            .unwrap_or_else(|| "not refused".to_owned());
+        probe.push_str(&format!("{label}: {said}\n"));
+    }
+    std::fs::write(out.join("refusals.txt"), &probe).expect("refusals.txt is writable");
     std::fs::write(out.join("budget.svg"), svg(&rows, cap)).expect("budget.svg is writable");
-    println!("budget: {} files in {}", 3, out.display());
+    print!("{probe}");
+    println!("budget: {} files in {}", 4, out.display());
+}
+
+/// A real 16-bit mono WAV, so the crate's own mixer can decode it: `start_pending` refuses a sample it cannot decode
+/// (`MissingSound`), and a probe with dummy bytes would measure that instead of the budget.
+fn wav_bytes(hz: f32, ms: u32, decay: f32) -> Vec<u8> {
+    const RATE: u32 = 22_050;
+    let count = (RATE as f32 * (ms as f32 / 1000.0)) as usize;
+    let mut out = Vec::with_capacity(44 + count * 2);
+    let data_len = (count * 2) as u32;
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&(36 + data_len).to_le_bytes());
+    out.extend_from_slice(b"WAVEfmt ");
+    out.extend_from_slice(&16u32.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&RATE.to_le_bytes());
+    out.extend_from_slice(&(RATE * 2).to_le_bytes());
+    out.extend_from_slice(&2u16.to_le_bytes());
+    out.extend_from_slice(&16u16.to_le_bytes());
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&data_len.to_le_bytes());
+    for i in 0..count {
+        let t = i as f32 / RATE as f32;
+        let envelope = (-t * decay).exp().min(1.0);
+        let sample = (t * hz * std::f32::consts::TAU).sin() * envelope * 0.35;
+        out.extend_from_slice(&((sample * f32::from(i16::MAX)) as i16).to_le_bytes());
+    }
+    out
+}
+
+/// The three caps, each forced with the smallest table that reaches it.
+fn cap_probes() -> Vec<(&'static str, SirenSettings, CueTable, &'static str, &'static str)> {
+    let unstealable = 200;
+    vec![
+        (
+            "table budget",
+            SirenSettings {
+                max_voices: 1,
+                buses: vec![BusLevel::new("Effects"), BusLevel::new("Ambience")],
+                ducks: Vec::new(),
+                ..SirenSettings::default()
+            },
+            CueTable::new(vec![
+                Cue {
+                    sounds: vec![SoundSlot::new("line")],
+                    priority: unstealable,
+                    max_instances: 0,
+                    ..Cue::new("line")
+                },
+                Cue {
+                    sounds: vec![SoundSlot::new("bed")],
+                    bus: "Ambience".to_owned(),
+                    priority: unstealable,
+                    max_instances: 0,
+                    ..Cue::new("bed")
+                },
+            ]),
+            "line",
+            "bed",
+        ),
+        (
+            "cue polyphony",
+            SirenSettings {
+                max_voices: 8,
+                buses: vec![BusLevel::new("Effects")],
+                ducks: Vec::new(),
+                ..SirenSettings::default()
+            },
+            CueTable::new(vec![Cue {
+                sounds: vec![SoundSlot::new("line")],
+                priority: unstealable,
+                max_instances: 1,
+                ..Cue::new("line")
+            }]),
+            "line",
+            "line",
+        ),
+        (
+            "bus voices",
+            SirenSettings {
+                max_voices: 8,
+                buses: vec![BusLevel::new("Effects").max_voices(1)],
+                ducks: Vec::new(),
+                ..SirenSettings::default()
+            },
+            CueTable::new(vec![Cue {
+                sounds: vec![SoundSlot::new("line")],
+                priority: unstealable,
+                max_instances: 0,
+                ..Cue::new("line")
+            }]),
+            "line",
+            "line",
+        ),
+    ]
 }
 
 /// The live count and the refusal count as two lines over the run, with a legend and axis labels, so a reader can

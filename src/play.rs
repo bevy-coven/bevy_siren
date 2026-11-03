@@ -456,8 +456,15 @@ fn answer(
     }
 
     // The budget comes before the ear: a request that cannot play has no place to play at.
-    let Some(stolen) = room_for(live, cue, settings) else {
-        return Err(Refusal::VoiceLimit { bus: Some(bus) });
+    //
+    // **The bus is named only when the bus is what refused.** `VoiceLimit::bus` is documented as "the bus that had no
+    // room, **when one did**", and a full table or a cue at its own `max_instances` leaves every bus with room: naming
+    // one sends a person to a bus row they will find empty. Gregory §14.5.8.4 has a designer set a group's limit and
+    // the engine's limit separately; a refusal has to keep them apart the same way.
+    let stolen = match room_for(live, cue, settings) {
+        Ok(stolen) => stolen,
+        Err(Cap::Bus) => return Err(Refusal::VoiceLimit { bus: Some(bus) }),
+        Err(Cap::Cue | Cap::Table) => return Err(Refusal::VoiceLimit { bus: None }),
     };
 
     let mut pitch = cue.pitch.at(choices.rng.next_f32());
@@ -497,11 +504,25 @@ fn answer(
     })
 }
 
-/// The voices to stop so one more fits, or `None` when the budget cannot be made room in.
+/// Which of the three hard caps could not be made room in.
+///
+/// Kept apart because they are three different things a project tunes, and a person reading a refusal needs to know
+/// which one to go and edit: a cue's own polyphony, its bus's voices, or the table's whole budget.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Cap {
+    /// The cue's own `max_instances`.
+    Cue,
+    /// The bus's own `max_voices`.
+    Bus,
+    /// The table's `max_voices`.
+    Table,
+}
+
+/// The voices to stop so one more fits, or the cap that could not be made room in.
 ///
 /// Three caps, in the order a project thinks of them: the cue's own polyphony, its bus's voices, and the
 /// table's whole budget. Each is hard: a voice that cannot be freed is a refusal, never a 33rd voice.
-fn room_for(live: &[Live], cue: &Cue, settings: &SirenSettings) -> Option<Vec<Entity>> {
+fn room_for(live: &[Live], cue: &Cue, settings: &SirenSettings) -> Result<Vec<Entity>, Cap> {
     let bus = cue.bus_name();
     let total = usize::from(settings.max_voices);
     let bus_limit = settings.bus_voice_limit(bus);
@@ -513,7 +534,7 @@ fn room_for(live: &[Live], cue: &Cue, settings: &SirenSettings) -> Option<Vec<En
         let excess = (same.len() + 1).saturating_sub(usize::from(cue.max_instances));
         for voice in same.iter().take(excess) {
             if voice.unstealable {
-                return None;
+                return Err(Cap::Cue);
             }
             stop.push(voice.entity);
         }
@@ -531,7 +552,7 @@ fn room_for(live: &[Live], cue: &Cue, settings: &SirenSettings) -> Option<Vec<En
         let need = after + 1 - bus_limit;
         let chosen = steal(&candidates_of(live, &on_bus), need, bus_limit);
         if chosen.len() < need {
-            return None;
+            return Err(Cap::Bus);
         }
         stop.extend(chosen.into_iter().map(|index| live[index].entity));
     }
@@ -544,11 +565,11 @@ fn room_for(live: &[Live], cue: &Cue, settings: &SirenSettings) -> Option<Vec<En
             live.iter().enumerate().filter(|(_, v)| !stop.contains(&v.entity)).map(|(i, _)| i).collect();
         let chosen = steal(&candidates_of(live, &all), need, total);
         if chosen.len() < need {
-            return None;
+            return Err(Cap::Table);
         }
         stop.extend(chosen.into_iter().map(|index| live[index].entity));
     }
-    Some(stop)
+    Ok(stop)
 }
 
 fn candidates_of(live: &[Live], indices: &[usize]) -> Vec<Candidate> {

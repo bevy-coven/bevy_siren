@@ -135,6 +135,15 @@ cases:
     green_when: Equal field for field within a seed, and different across seeds.
     evidence: "tests/play.rs::a_projects_seed_reaches_the_stream, changing_the_seed_restarts_the_stream"
 
+  - id: 24
+    cue: any
+    authored: { caps: [table, cue, bus] }
+    behaviour: A refusal names a bus only when that bus's own `max_voices` refused.
+    observed_by: "`Refusal::VoiceLimit`'s payload and its sentence, for each of the three caps forced in turn."
+    green_when: "Table or cue cap -> `bus: None` (\"no voice free\"); bus cap -> `bus: Some(name)`."
+    source: "`VoiceLimit::bus`'s doc, \"the bus that had no room, when one did\"; Gregory §14.5.8.4 keeps a group's limit and the engine's apart"
+    evidence: "runs/2026-11-02-05/evidence/{before,after}/refusals.txt, tests/mix.rs::{a_full_table_budget_names_no_bus, a_cue_at_its_own_polyphony_names_no_bus, a_full_bus_names_that_bus}"
+
   - id: 23
     cue: music.calm + music.combat
     authored: { score_layers: 2, tempo_bpm: 120.0, fade_s: 0.8, target_db: -9.0 }

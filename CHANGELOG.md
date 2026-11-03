@@ -7,6 +7,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A `VoiceLimit` refusal names the bus only when the bus refused.** `room_for` has three hard caps — the cue's
+  `max_instances`, its bus's `max_voices`, the table's `max_voices` — and returned one uninformative `None` from all
+  of them, so every refusal reported the cue's bus. A probe proved the table case blamed **`Ambience`** for a cue
+  playing on `Effects`. It now returns the cap (private `Cap::{Cue, Bus, Table}`): `bus: Some(name)` only for the
+  bus's own cap, `bus: None` otherwise, which is what the field's own doc says (*"the bus that had no room, when one
+  did"*). **A host that matched `VoiceLimit { bus: Some(_) }` to mean "the limit refused at all" now sees it only for
+  the bus case**; `VoiceLimit { .. }` still matches every one. A payload that also names the cap is
+  `docs/loop/needs-decision/refusal-names-its-cap.md`.
 - **`MusicLayers::fade_s` is the crossfade it says it is.** The field was accepted, stored in `Pending`, and read by
   nothing: `move_layers` eased every layer at `MIX_TAU_S`, so an authored 800 ms crossfade arrived in ~150 ms and
   nothing said so. `model::tau_for_fade` derives the time constant from `approach`'s own definition

@@ -62,6 +62,9 @@ stops voices to make room in this order: the cue's own polyphony, its bus's cap,
 - A voice at `UNSTEALABLE_PRIORITY` (180: music, stingers, dialogue) is never taken.
 - A request that cannot be made room in is `Refused { VoiceLimit { bus } }` and **nothing plays**, so a game that
   says 32 voices gets 32 rather than 33 with a warning.
+- **The bus is named only when the bus refused.** `bus: Some(name)` means that bus's own `max_voices` was full;
+  `bus: None` means the table's budget or the cue's own `max_instances` was, and every bus may have room. The two
+  sentences are ``no voice free on bus `Effects` `` and `no voice free`.
 
 A stolen voice fades over `DEFAULT_FADE_S` (120 ms) rather than stopping dead — a cut is a click — but it stops
 counting against the budget the moment the steal is decided, so the new sound starts in the same frame.

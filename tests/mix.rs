@@ -238,3 +238,115 @@ fn three_requests_in_one_frame_fill_a_cap_of_two_with_no_third() {
         .count();
     assert_eq!(stole, 1, "the third request took a voice back rather than sounding a third: {answers:?}");
 }
+
+/// **A full table budget names no bus.** `VoiceLimit::bus` is documented "the bus that had no room, *when one did*";
+/// with `max_voices: 1` the whole table is full and every bus has room, so naming the cue's bus sends a person to a
+/// bus row they will find empty. The unfixed tree said `Some("Effects")` here.
+#[test]
+fn a_full_table_budget_names_no_bus() {
+    // The bus's own effective limit is the table's (`max_voices: 0` means "the table's"), so the bus cap is tested
+    // *first* and the table's cap can never be reached through one bus alone. Two buses, each with room, and a table
+    // budget of one: the second play fills the table, and no bus is the subject.
+    let settings = SirenSettings {
+        max_voices: 1,
+        buses: vec![BusLevel::new("Effects"), BusLevel::new("Ambience")],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    let table = CueTable::new(vec![
+        Cue { sounds: vec![SoundSlot::new("line")], priority: 200, max_instances: 0, ..Cue::new("line") },
+        Cue {
+            sounds: vec![SoundSlot::new("bed")],
+            bus: "Ambience".to_owned(),
+            priority: 200,
+            max_instances: 0,
+            ..Cue::new("bed")
+        },
+    ]);
+    let mut app = app(table, settings, sounds(&["line", "bed"]), false);
+
+    app.world_mut().write_message(Play::cue("line"));
+    app.update();
+    app.world_mut().write_message(Play::cue("bed"));
+    app.update();
+
+    let refusals = refused(&mut app);
+    let voice = refusals
+        .iter()
+        .find(|r| matches!(r.reason, Refusal::VoiceLimit { .. }))
+        .expect("the second is refused");
+    assert_eq!(voice.reason, Refusal::VoiceLimit { bus: None }, "the table's budget refused, not the bus's");
+    assert_eq!(voice.reason.to_string(), "no voice free");
+}
+
+/// **A cue at its own polyphony names no bus.** Its `max_instances` refused, and its bus has room.
+#[test]
+fn a_cue_at_its_own_polyphony_names_no_bus() {
+    let settings = SirenSettings {
+        max_voices: 8,
+        buses: vec![BusLevel::new("Effects")],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    // Unstealable, so the cue's own cap cannot be made room in by taking its oldest voice.
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("line")],
+        priority: 200,
+        max_instances: 1,
+        ..Cue::new("line")
+    }]);
+    let mut app = app(table, settings, sounds(&["line"]), false);
+
+    app.world_mut().write_message(Play::cue("line"));
+    app.update();
+    app.world_mut().write_message(Play::cue("line"));
+    app.update();
+
+    let voice = refused(&mut app)
+        .into_iter()
+        .find(|r| matches!(r.reason, Refusal::VoiceLimit { .. }))
+        .expect("the second is refused");
+    assert_eq!(voice.reason, Refusal::VoiceLimit { bus: None }, "the cue's polyphony refused, not the bus's");
+    assert_eq!(voice.reason.to_string(), "no voice free");
+}
+
+/// **A full bus names that bus** — the one case where the bus *is* the subject. Pairs with the two above: a build that
+/// stopped naming the bus altogether is red here.
+#[test]
+fn a_full_bus_names_that_bus() {
+    let settings = SirenSettings {
+        max_voices: 8,
+        buses: vec![BusLevel::new("Effects").max_voices(1)],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("line")],
+        priority: 200,
+        max_instances: 0,
+        ..Cue::new("line")
+    }]);
+    let mut app = app(table, settings, sounds(&["line"]), false);
+
+    app.world_mut().write_message(Play::cue("line"));
+    app.update();
+    app.world_mut().write_message(Play::cue("line"));
+    app.update();
+
+    let voice = refused(&mut app)
+        .into_iter()
+        .find(|r| matches!(r.reason, Refusal::VoiceLimit { .. }))
+        .expect("the second is refused");
+    assert_eq!(voice.reason, Refusal::VoiceLimit { bus: Some("Effects".to_owned()) });
+    assert_eq!(voice.reason.to_string(), "no voice free on bus `Effects`");
+}
+
+/// The sentence a panel prints and the payload it matches on cannot drift: each `VoiceLimit` shape has one line.
+#[test]
+fn every_voice_limit_sentence_matches_its_payload() {
+    assert_eq!(Refusal::VoiceLimit { bus: None }.to_string(), "no voice free");
+    assert_eq!(
+        Refusal::VoiceLimit { bus: Some("Effects".to_owned()) }.to_string(),
+        "no voice free on bus `Effects`"
+    );
+}
