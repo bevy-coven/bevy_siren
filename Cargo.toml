@@ -36,11 +36,15 @@ mixer = ["dep:rodio"]
 # Nothing enables this in normal use. `tests/readme.rs` checks the README's quick start against the
 # crate-root doctest, so the two cannot drift.
 readme-example = []
-# Semantic selection: describe a sound in words, get candidates back, and find the sounds that fit a chosen
-# one. Off by default and deliberately empty of new dependencies for now — the crate's dependency list is
-# closed by `tests/leaf.rs`, and each dependency this feature needs is argued for in `S-09` before it lands.
-# A user who does not enable it sees no change at all, in the graph or in the binary.
-semantic = []
+# Semantic selection: describe a sound in words, get candidates back, and find the sounds that fit a chosen one.
+# Off by default; a user who does not enable it sees no change at all, in the dependency graph or in the binary
+# (`tests/library.rs::the_semantic_feature_declares_no_dependency_of_its_own` used to pin the empty case and now
+# pins that the only entry is the inference runtime).
+#
+# `ort` is the inference runtime ADR 0002 chose, and it needs **two** features: `download-binaries` fetches ONNX
+# Runtime 1.31 at build time, and `tls-rustls` is what lets the build script make that request. With only the first,
+# `ort-sys` fails with "a TLS feature must be configured"; with neither, the crate builds and fails to link.
+semantic = ["dep:ort"]
 
 [dependencies]
 # The umbrella with defaults off. A game already has the full `bevy`, so these features cost it nothing;
@@ -55,6 +59,15 @@ bevy = { version = "0.20.0", default-features = false, features = [
     "bevy_log",   # warn! for a cue table that fails its own checks
     "std",
 ] }
+# The inference runtime ADR 0002 chose, measured in `runs/2026-11-03-63/evidence/ort-probe.txt`: it builds in 8 s on
+# macOS arm64, loads the 501 MB CLAP text graph, reports its dynamic axes, and returns a unit-norm embedding. It is
+# behind `semantic` and off by default, so `cargo build` still compiles the four dependencies it always did.
+ort = { version = "=2.0.0-rc.15", default-features = false, features = [
+    "std",
+    "ndarray",
+    "download-binaries", # fetches ONNX Runtime 1.31; without it the crate builds and fails to link
+    "tls-rustls",        # what lets the build script fetch it; without it ort-sys cannot compile
+], optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 ron = { version = "0.12", optional = true }
 # The `mixer` backend only. Same version as `bevy_audio`'s own, so the graph has one rodio.

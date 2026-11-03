@@ -62,6 +62,32 @@ A Python sidecar is built **only if** one of these is measured, not predicted:
 **Not a trigger:** latency. 34.9 ms on a CPU with no optimisation is already fast enough to query with, and a sidecar
 adds a transport hop rather than removing one.
 
+## What the build actually needs, measured
+
+`runs/2026-11-03-63/evidence/ort-probe.txt` ran `ort 2.0.0-rc.15` against the exported CLAP text graph:
+
+| | |
+|---|---|
+| build, macOS arm64 | **3.2 s** with `["std", "ndarray"]` |
+| then linking | **fails** — undefined ONNX Runtime symbols |
+| adding `download-binaries` alone | **fails** — *"a TLS feature must be configured"* |
+| `["std", "ndarray", "download-binaries", "tls-rustls"]` | **8 s**, and ONNX Runtime 1.31 is fetched |
+| loads the 501 MB text graph | **yes** |
+| reports dynamic axes | **yes** — `input_ids: [-1, -1]`, symbols `["batch", "tokens"]` |
+| returns an embedding | **yes**, L2 norm **1.000000** |
+
+**Two features, not one.** This is recorded because it is the kind of thing a consumer adds one of, gets a build error
+from, and gives up on. `download-binaries` fetches the runtime; `tls-rustls` is what lets the build script make the
+request.
+
+**API churn is a real cost.** Between the published docs and this release, the constructor moved to
+`ort::environment::init().build()`, `Session::builder` began requiring an `&Environment`, and the tensor extractor
+returns a `(shape, data)` pair. Every one of these was found by the compiler, not the changelog. Pinning the exact
+version — `=2.0.0-rc.15` — rather than a caret range is deliberate for a release candidate.
+
+**The default build is unaffected:** `cargo tree --edges normal` is **413 lines** with no features and **424** with
+`--features semantic`, and `ort` appears in exactly one of them.
+
 ## Cost to a consumer
 
 | | |

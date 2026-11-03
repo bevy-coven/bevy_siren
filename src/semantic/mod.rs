@@ -28,6 +28,7 @@ pub mod buffer;
 pub mod index;
 pub mod query;
 pub mod rank;
+pub mod session;
 
 /// The sample rate CLAP's feature extractor resamples to before it builds a mel spectrogram.
 ///

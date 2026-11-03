@@ -11,9 +11,21 @@
 
 use std::path::{Path, PathBuf};
 
-/// Everything this crate may depend on. `rodio` is behind the `mixer` feature and is the version `bevy_audio`
-/// itself resolves, so the graph has one.
-const ALLOWED_DEPS: &[&str] = &["bevy", "serde", "ron", "rodio"];
+/// Everything this crate may depend on.
+///
+/// - `bevy` — the engine, trimmed to four features.
+/// - `serde`, `ron` — the tables as data, and the file format a project edits.
+/// - `rodio` — the crate's own mixer, behind `mixer`, and the version `bevy_audio` itself resolves so the graph has
+///   one.
+/// - `ort` — the inference runtime, behind `semantic` and off by default. It earns its place by measurement rather
+///   than by convenience: `docs/adr/0002-inference-runtime.md` chose it over `candle` because CLAP's graph is 39
+///   standard operators and `ort` runs them exactly, and `runs/2026-11-03-63/evidence/ort-probe.txt` records it
+///   loading the 501 MB text graph and returning a unit-norm embedding on this machine. A user who does not enable
+///   `semantic` never compiles it.
+///
+/// Adding a name here is a design decision, not a convenience: the sentence above is the argument, and it belongs in
+/// the same commit as the entry.
+const ALLOWED_DEPS: &[&str] = &["bevy", "serde", "ron", "rodio", "ort"];
 
 /// Crate and type names that would mean the boundary has been crossed: a physics engine, the editor, a particular
 /// game, or a particular game's camera.

@@ -1,0 +1,53 @@
+# `ort` proving out — run 2026-11-03 on bmb (Apple M4, rustc 1.94.0)
+
+## 1. Does ort build?
+
+    ort = "=2.0.0-rc.15", default-features = false, features = ["std", "ndarray"]
+
+    Compiling ort-sys v2.0.0-rc.15
+    Compiling ort v2.0.0-rc.15
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.21s
+
+Without `download-binaries` it builds but **fails to link** (undefined ONNX Runtime symbols), so the feature is not
+optional for a working binary.
+
+## 2. What the runtime needs
+
+    "download-binaries" alone -> error: a TLS feature must be configured.
+                              -> Enable exactly one of: tls-rustls, tls-rustls-no-provider, tls-native, tls-native-vendored
+
+    features = ["std", "ndarray", "download-binaries", "tls-rustls"]
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.95s
+    ort version: ORT Build Info: git-branch=rel-1.31.0, git-commit-id=402979a, build type=Release
+
+**Two features, not one.** `download-binaries` pulls ONNX Runtime 1.31; `tls-rustls` is what lets the build script
+fetch it. A consumer that adds only the first gets a build error that names the fix.
+
+## 3. Does it load and run the CLAP text tower?
+
+    [ok] loaded /tmp/siren-spike/clap-text.onnx
+      in : input_ids      Tensor { ty: Int64,   shape: [-1, -1], symbols: ["batch", "tokens"] }
+      in : attention_mask Tensor { ty: Int64,   shape: [-1, -1], symbols: ["batch", "tokens"] }
+      out: text_embed     Tensor { ty: Float32, shape: [-1, 512] }
+    [ok] output shape [1, 512], 512 values
+    [ok] L2 norm of the embedding: 1.000000
+    [ok] first 8: [0.017628815, -0.0062302058, -0.08202341, -0.016705705,
+                   -0.047574416, 0.018244117, -0.059838742, -0.0016242954]
+
+The symbolic dimensions confirm what the Python spike measured: **the token axis is dynamic** (`[-1, -1]`), which the
+audio tower is not. And the output is unit-norm from the graph itself, matching `get_text_features`'s L2 normalisation.
+
+## What this settles for #10
+
+| Claim | Verdict |
+|---|---|
+| `ort` builds on macOS arm64 | **yes**, 8 s with both features |
+| `ort` needs a downloaded runtime | **yes** — `download-binaries` + a TLS feature |
+| it loads a 501 MB graph | **yes** |
+| it reports dynamic axes | **yes**, `["batch", "tokens"]` |
+| it runs and returns a unit vector | **yes**, norm 1.000000 |
+
+## What it does not settle
+
+CUDA. The 3090's execution provider needs a build with `cuda` and an ONNX Runtime built against it, which is a
+different artefact from the default downloaded one. That is #17's remaining risk and it needs `big`, not `bmb`.

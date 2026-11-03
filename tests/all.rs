@@ -25,6 +25,8 @@ mod semantic_index;
 mod semantic_query;
 #[cfg(feature = "semantic")]
 mod semantic_rank;
+#[cfg(feature = "semantic")]
+mod semantic_session;
 #[cfg(feature = "serde")]
 mod table;
 

@@ -228,10 +228,13 @@ fn the_semantic_feature_declares_no_dependency_of_its_own() {
         .find(|l| l.trim_start().starts_with("semantic ="))
         .expect("the semantic feature is declared");
     let rhs = line.split('=').nth(1).expect("a feature has a value").trim();
-    assert!(
-        !rhs.contains("dep:") && !rhs.contains('-'),
-        "the semantic feature must not pull a dependency or another feature yet: `{line}`.\n\
-         When it does, the dependency is argued for in `tests/leaf.rs`'s ALLOWED_DEPS in the same commit."
+    // The feature may name exactly one dependency — the inference runtime — and nothing else. Every additional one is
+    // a new name in `tests/leaf.rs`'s ALLOWED_DEPS and its own argument in that comment.
+    assert_eq!(
+        rhs, "[\"dep:ort\"]",
+        "the semantic feature pulls exactly one dependency, the inference runtime: `{line}`.\n\
+         Anything else is a design decision: add it to ALLOWED_DEPS in tests/leaf.rs with the sentence that argues \
+         for it, in the same commit."
     );
 }
 
