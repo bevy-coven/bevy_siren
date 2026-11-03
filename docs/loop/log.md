@@ -53,7 +53,9 @@ not truthiness: `live()` counted the dead. (4) A retry condition must count the 
 that asks for it. (5) The Cauldron panel test needs ~14 GB; disk hit 99 % and it failed with `ld: errno=28` — the skill's
 own warning. `hs distill` is GPU-blocked (fourteenth iteration).
 
-**Commit.** see `git log` below; CI on `main`.
+**Commit.** `fd85856`, pushed to `main`; CI run 41566251355 is **success** on `big-s1`. The Cauldron's
+`audio_panel_reads_the_crates_file` passes (4 tests). Gate: build, test (80 + 4), serde (87 + 4), mixer (87 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green.
 
 **Next 5.**
 
