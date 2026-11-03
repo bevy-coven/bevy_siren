@@ -7,6 +7,61 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 106 — 2026-11-03 — a guarantee the test did not provide
+
+**Change.** `SirenSettings::problems()`'s doc said *"**Twelve checks**, and `tests/mix.rs::problems_names_every_mistake`
+walks all twelve so this list and the code cannot drift apart"*. Measured by counting:
+
+| | count |
+|---|---|
+| checks the code performs | **13** |
+| needles the test asserts | **11** |
+| checks the prose claims | **12** |
+
+The check missing from **every** list is the `by_db == 0.0` one — whose own comment records that it was written for a
+**measured** bug. So the doc's central claim, *"this list and the code cannot drift apart"*, was false in the direction
+that matters: a maintainer adding a check would have read it, added a sentence, and believed something enforced the
+pairing.
+
+**Rationale.** Ousterhout, *A Philosophy of Software Design*, Summary of Red Flags: **Information Leakage** — *"a design
+decision is reflected in multiple modules"*. One decision (how many checks there are) was written in three places, and the
+third copy **asserted the other two agreed**.
+
+**The fix.** `mix::SETTINGS_CHECKS` — thirteen names, the only list. The doc **points at it** rather than restating it, so
+the prose cannot be wrong. `problems_names_every_mistake` asserts `needles.len() + ASSERTED_ELSEWHERE.len() ==
+SETTINGS_CHECKS.len()` and names any check with a fixture elsewhere — because one check (a bus asking for more voices than
+the table allows) is *hidden* by `max_voices: 0` in that fixture, as its own comment says. `ASSERTED_ELSEWHERE` is itself
+asserted to contain real checks, so a deleted check cannot leave a stale exemption.
+
+**Proved the guard fails.** Appended a fourteenth name: the test failed naming the whole list. Reverted; green.
+
+**A second find on the way.** The fixture had **no duck at `by_db: 0.0`**, so the check the drift hid was not exercised by
+the test the doc pointed at at all. Adding `Duck::new("Music","Effects").by_db(0.0).hold_s(0.25)` closed that.
+
+**Before/after.** No audio changed — **all 21 rendered wavs byte-identical**, master **−21.5 LUFS, −7.5 dBFS true peak**.
+Per-frame cost unchanged and inside the recorded band; the change adds a `const` and a test comparison, and nothing on the
+mix path.
+
+**Verdicts.** Function **GREAT**, zoom **GREAT**, fresh eyes **GREAT**. Recorded rather than fixed: `MusicScore::problems`
+claims the same shape (*"Nine checks, and this list is the whole of it"*) and is one inspection from the same drift —
+mechanical, carved off so the finding stays legible. Also recorded: one gate image (`bus-music-wave.png`) is **blank and
+useless**, because `bus-*.wav` is a *gain over time* — a constant — and `showwavespic` draws nothing for it. Kept and named
+rather than deleted, because a blank image that looks like a finding is worse than no image.
+
+**Evidence.** [`runs/2026-11-03-106/`](runs/2026-11-03-106/) — `research.md`, `plan.md`, `eval.md`, `perf.md`,
+`review.md`, `evidence/after/` (32 files), `evidence/spectrograms/`.
+
+**Baseline:** nothing red — 199 / 6 / **436 semantic** / **460 all-features** / 109 lib / 6 doc, clippy, fmt and docs
+clean.
+
+**Top 5 remaining — all blocked outside this repository.**
+
+1. **`#28` the MCP server** — one line of `Cargo.toml` and one `leaf.rs` row. Everything it wraps exists and is tested.
+2. **`#35` golden set** — labelled real recordings; also what `#23`'s reverb measure and `evalbench`'s `corpus()` wait on.
+3. **`MusicScore::problems` gets the same treatment** — this iteration's recorded criticism.
+4. **`#32`–`#34` the editor panel** — everything it needs is built, in `bevy_grimoire`.
+5. **`#[non_exhaustive]` on the print-only diagnostic enums** — iteration 105's decision file.
+
 ## Iteration 105 — 2026-11-03 — a repeat rule that refuses nothing
 
 **Change.** `Repeat::AvoidRepeat { avoid: 0 }` refused **nothing**. `Repeat::avoid()` returns the field verbatim and
