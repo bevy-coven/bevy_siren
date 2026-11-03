@@ -1,0 +1,24 @@
+# Index size and query latency, measured 2026-11-03
+
+## Per-record text cost, from the crate's own to_text format
+
+    {:?} on f32 is Rust's shortest round-trip form; to_text writes: "{hash:016x}" then " {v:?}" per float.
+    2000 synthetic 512-d unit vectors --> mean 6376.8 bytes per record.
+
+## File size, computed
+
+    clips    text        bin f32     bin f16
+      500   3.19 MB      1.03 MB     0.52 MB
+     5000  31.88 MB     10.30 MB     5.20 MB
+    50000 318.84 MB    102.99 MB    52.01 MB
+
+## Query latency, measured in memory (BLAS f32, 5000 x 512)
+
+    first call   1.87 ms
+    steady       0.05-0.16 ms
+    f16          4.90 ms   (top-10 identical to f32 on this query)
+    scalar f32   ~2-4 ms   (one core, no SIMD)
+
+The issue proposed 'a 5 MB index ... or a 40 MB SQLite file'. The crate's existing
+text format is 31.88 MB at 5000 clips — the 40 MB figure is the format it already
+has. 5 MB is only reachable in f16.
