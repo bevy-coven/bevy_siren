@@ -50,7 +50,9 @@ moves it forward. (3) Count "what a player hears" with the **same predicate** th
 duck and the fader disagree. (4) A fix that leaves a method nothing calls is a vestige; clippy caught `duck_db_with`.
 (5) `hs distill` GPU-blocked (twenty-sixth iteration).
 
-**Commit.** `9bf836a`; CI on `main`.
+**Commit.** `9bf836a`, pushed to `main`; CI run 41594075870 is **success** on `big-s1`. Gate: build, test (112 + 5),
+serde (119 + 5), mixer (120 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
