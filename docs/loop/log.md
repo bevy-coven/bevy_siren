@@ -44,7 +44,7 @@ what is missing. Folding a removal into it would silently change what an existin
 citation, S2 `AudioSource`'s `Arc<[u8]>`, S3 `load_table`'s contract, S4 the two retains before this one), `plan.md`,
 `perf.md`, `eval.md`, `review.md` (three passes, GREAT), `evidence/{spectrograms,after}`.
 
-**Commit.** (see `git log`).
+**Commit.** `7955e82` — *siren: a sound key the table dropped stops holding its handle*.
 
 **Top 5 remaining**
 
