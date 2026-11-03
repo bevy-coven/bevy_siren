@@ -48,7 +48,9 @@ difference is whether a fix needs a decision file. (3) A **finite** sentinel is 
 survive any normalisation, and that is a test, not a comment. (4) Before claiming "permanent", probe recovery: the
 crate's `approach` already guards a non-finite current value. (5) `hs distill` GPU-blocked (eighteenth iteration).
 
-**Commit.** `see git log`; CI on `main`.
+**Commit.** `17eb4a5`, pushed to `main`; CI run 41579423077 is **success** on `big-s1`. The Cauldron's
+`audio_panel_reads_the_crates_file` passes (4 tests). Gate: build, test (92 + 4), serde (99 + 4), mixer (100 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green.
 
 **Next 5.**
 
