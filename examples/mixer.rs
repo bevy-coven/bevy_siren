@@ -568,15 +568,19 @@ fn draw_panel(
                 // the mix. `worst_peak_db` is an upper bound — each voice at full scale, summed in linear, times the bus's
                 // gain (`docs/research/siren.md` R6: *"several sounds sum in linear"*). Nothing in `max_voices` prevents
                 // it: that budget is a sample cost, and the example's own `Effects` reaches +6.0 dBFS with two voices.
+                // **`peak_db` answers `None` for a bus with nothing on it**, so this no longer needs its own
+                // `n > 0` filter: `worst_peak_db`'s `SILENT_DB` sentinel read the same for an empty bus and one mixed
+                // into the floor, and the filter was the workaround for that. The panel is the caller that found the
+                // collision, so it is the first to use the method that removes it.
                 let hot: Vec<String> = mix
                     .voices
                     .iter()
-                    .filter(|(_, n)| **n > 0)
                     .filter_map(|(bus, n)| {
-                        let peak = mix.worst_peak_db(bus);
                         // **`>= 0.0`, not `> 0.0`**: a bus at exactly full scale has no headroom at all, and one voice at
                         // unity is exactly 0 dBFS — the case the shipped table is in most frames.
-                        (peak >= 0.0).then(|| format!("{bus} {peak:+.1} dBFS / {n}"))
+                        mix.peak_db(bus)
+                            .filter(|peak| *peak >= 0.0)
+                            .map(|peak| format!("{bus} {peak:+.1} dBFS / {n}"))
                     })
                     .collect();
                 let headroom =

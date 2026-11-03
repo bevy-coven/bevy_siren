@@ -5,7 +5,18 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **`SirenMix::peak_db(bus) -> Option<f32>`** — the worst-case peak, or `None` when nothing is on the bus.
+  `worst_peak_db` answers `SILENT_DB` for a bus with **no voices**, which is the same number it answers for a bus **mixed
+  to the floor** — while its own doc says *"nothing playing is not `SILENT_DB` — it is no peak at all"*. Measured:
+  `assert_ne!` between the two fails at `−80.0`. A meter could not tell them apart, and `examples/mixer` filtered
+  `voices_on(bus) > 0` before asking — the workaround a collision forces on every caller. `peak_db` removes it, and the
+  example now uses it. `worst_peak_db` is unchanged: its one-number form is what a caller wanting a value for every bus
+  already has, and changing its signature would break consumers of 0.1.0.
+
 ### Fixed
+
 
 - **A `MusicLayers` change naming a layer the score does not have was silently dropped.** `move_layers` applied each target
   with `if let Some(layer) = state.layers.iter_mut().find(|l| l.name == name)`, so a name that matched nothing vanished:

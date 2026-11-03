@@ -1228,3 +1228,32 @@ fn a_typo_says_which_layer_and_a_real_one_still_moves() {
     assert!(said.contains("no layer"), "and says what is wrong: {said}");
     assert!(!lines.iter().any(|l| l.contains("no layer `combat`")), "the real layer is not refused");
 }
+/// **A play on a muted bus still plays and says so** — muting is a mix decision, not a refusal, so `Played` must carry
+/// the cue's own gain and the bus must read silent.
+#[test]
+fn a_muted_bus_plays_the_cue_at_its_own_gain() {
+    let mut app = app(
+        CueTable::new(vec![Cue { sounds: vec![SoundSlot::new("hit")], gain_db: -3.0, ..Cue::new("hit") }]),
+        SirenSettings {
+            max_voices: 32,
+            buses: vec![
+                bevy_siren::BusLevel::new("Effects").muted(),
+                bevy_siren::BusLevel::new("Music"),
+                bevy_siren::BusLevel::new("Ambience"),
+                bevy_siren::BusLevel::new("Dialogue"),
+            ],
+            ..SirenSettings::default()
+        },
+        sounds(&["hit"]),
+        false,
+    );
+    app.update();
+    app.world_mut().write_message(Play::cue("hit"));
+    app.update();
+    let answers = played(&mut app);
+    assert_eq!(answers.len(), 1, "muting is not a refusal");
+    assert!((answers[0].gain_db - -3.0).abs() < 1e-4, "the cue's own gain: {}", answers[0].gain_db);
+    run_for(&mut app, 0.5, 0.016);
+    let bus = app.world().resource::<SirenMix>().bus_db("Effects");
+    assert!(bus <= -70.0, "the bus is silent: {bus}");
+}

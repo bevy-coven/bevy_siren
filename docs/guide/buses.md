@@ -218,14 +218,20 @@ and the code cannot drift apart — the rule `MusicScore::problems` has been hel
 so eight sources at 0 dB are **+18.06 dB** — and a bus at 0 dB with two voices is already **+6.02 dBFS**, past the rail.
 Nothing in the table prevents it, and nothing should: a limiter is a mixing decision with its own parameters.
 
-`SirenMix::worst_peak_db(bus)` is the arithmetic, for a game's own meter or a panel:
+`SirenMix::peak_db(bus)` is the arithmetic, for a game's own meter or a panel:
 
 ```rust
-let peak = mix.worst_peak_db("Effects");   // e.g. +6.0, from two live voices on a 0 dB bus
-if peak > -1.0 {
-    // Little or no headroom: lower the bus, or the cue, by `peak + 1.0` dB to keep a decibel in hand.
+if let Some(peak) = mix.peak_db("Effects") {   // e.g. Some(+6.0), from two live voices on a 0 dB bus
+    if peak > -1.0 {
+        // Little or no headroom: lower the bus, or the cue, by `peak + 1.0` dB to keep a decibel in hand.
+    }
 }
 ```
+
+**`peak_db` is `None` when nothing is on the bus**, which is a different fact from a bus mixed into the floor. A meter
+draws no bar for `None` and a bar for `Some`, including one at the floor — a real level. `SirenMix::worst_peak_db(bus)` is
+the one-number form and answers `SILENT_DB` for both cases, so a caller that needs to tell them apart wants `peak_db`;
+the example's own panel used to filter `voices_on(bus) > 0` before asking, which is the workaround `peak_db` removes.
 
 It is an **upper bound** — every live voice counted at full scale, because the crate mixes samples and never reads their
 amplitude — so a bus reading below 0 dBFS cannot clip and one reading above it may.

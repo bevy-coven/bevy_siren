@@ -1424,3 +1424,38 @@ fn a_bus_level_changed_mid_voice_reaches_it() {
     let after = app.world().resource::<SirenMix>().bus_db("Music");
     assert!((after - (before - 12.0)).abs() < 0.05, "Music must land 12 dB down: {before} -> {after}");
 }
+
+/// **`worst_peak_db` tells "nothing playing" apart from "mixed into the floor"** — the doc says those are different
+/// answers, and `SILENT_DB` for both makes them one number.
+#[test]
+fn an_empty_bus_is_not_the_same_peak_as_a_silent_one() {
+    let mut mix = SirenMix::default();
+    // A bus mixed at the floor, with voices on it: its worst case really is the floor.
+    mix.db.insert("Effects".to_owned(), bevy_siren::model::SILENT_DB);
+    mix.voices.insert("Effects".to_owned(), 2);
+    let silent_with_voices = mix.worst_peak_db("Effects");
+
+    // A bus with nothing on it: the doc says this is *no peak at all*, not the floor.
+    mix.db.insert("Music".to_owned(), -6.0);
+    mix.voices.insert("Music".to_owned(), 0);
+    let empty = mix.worst_peak_db("Music");
+
+    // A bus at -70 dB with two voices sums to about -64 dB: audibly near-silent, but a real number.
+    mix.db.insert("Ambience".to_owned(), -70.0);
+    mix.voices.insert("Ambience".to_owned(), 2);
+    // It is above the floor, so it does not collide with the empty case at all.
+    assert!(mix.worst_peak_db("Ambience") > bevy_siren::model::SILENT_DB);
+
+    // A bus with voices mixed at the floor, and a bus with nothing on it, both answer `SILENT_DB` — two different
+    // facts, one number. The doc says they are different: "nothing playing is not `SILENT_DB` — it is *no peak at all*".
+    assert_eq!(silent_with_voices, bevy_siren::model::SILENT_DB);
+    // `worst_peak_db` keeps its sentinel — one number for every bus — and the two facts are one value there.
+    assert_eq!(empty, bevy_siren::model::SILENT_DB, "the sentinel, kept for callers that want one number");
+    // `peak_db` tells them apart, which is what the doc always promised.
+    assert_eq!(mix.peak_db("Music"), None, "nothing on the bus is no peak at all");
+    assert_eq!(
+        mix.peak_db("Effects"),
+        Some(bevy_siren::model::SILENT_DB),
+        "a bus mixed to the floor has a bound"
+    );
+}

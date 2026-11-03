@@ -430,6 +430,20 @@ impl SirenMix {
         crate::model::sum_db(&vec![per_voice; voices])
     }
 
+    /// **The bus's worst-case peak, or `None` when nothing is on it.**
+    ///
+    /// [`worst_peak_db`](Self::worst_peak_db) answers [`SILENT_DB`] for a bus with no voices, and that is **the same
+    /// number** a bus mixed into the floor answers with voices on it — two different facts, one value, while that
+    /// method's own doc says *"nothing playing is not `SILENT_DB` — it is no peak at all"*. A meter deciding whether to
+    /// draw a bar cannot tell them apart, and a game comparing `worst_peak_db(bus) > -1.0` is right by luck: an empty
+    /// bus reads −80, which passes for "safe" exactly as a silent mix does.
+    ///
+    /// This method says it: `None` is no voice, `Some(db)` is a real bound, including one at or below the floor. The
+    /// sentinel stays on `worst_peak_db` because a caller that wants one number for every bus already has it.
+    pub fn peak_db(&self, bus: &str) -> Option<f32> {
+        (self.voices_on(bus) > 0).then(|| self.worst_peak_db(bus))
+    }
+
     /// How many voices `bus` has live this frame.
     pub fn voices_on(&self, bus: &str) -> usize {
         self.voices.get(bus).copied().unwrap_or(0)

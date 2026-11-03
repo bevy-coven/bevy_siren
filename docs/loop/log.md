@@ -7,6 +7,63 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 59 — 2026-11-03 — an empty bus is not a bus mixed to the floor
+
+**Baseline.** Green on every step, no open issues. Nothing red.
+
+**Change.** `SirenMix::peak_db(bus) -> Option<f32>` — **additive**. The example uses it and its `voices_on > 0` filter
+is gone; the guide's meter snippet now matches.
+
+**Rationale.** `worst_peak_db` answers `SILENT_DB` for a bus with **no voices**, which is the same number it answers for a
+bus **mixed to the floor** — while its own doc says *"nothing playing is not `SILENT_DB` — it is no peak at all"*. The
+API's own sentence, contradicted by its own body.
+
+| | `worst_peak_db` | `peak_db` |
+|---|---|---|
+| no voices | `SILENT_DB` (−80.0) | **`None`** |
+| 2 voices, bus at the floor | `SILENT_DB` (−80.0) | `Some(−80.0)` |
+| 2 voices, bus at −70 dB | −64.0 | `Some(−64.0)` |
+
+**Ranked honestly as rank 3, not rank 1.** Every caller here filters `voices_on > 0` first, so no output is wrong today
+— it is a latent trap. But the workaround is in the crate's **own example**, which is how a consumer would meet it.
+
+**`worst_peak_db` was not changed.** A signature change to `Option<f32>` would break every `> x` comparison on a
+**published** crate (0.1.0, nine downloads) for a naming nit; the one-number form is what some callers want.
+
+**Two probes that were correct and deleted**: `load_table` treats an asked key as not-missing and asks nothing the
+second time; a muted bus still plays with `Played` carrying the cue's own gain.
+
+**A probe that found the behaviour is protective, not buggy.** `answer` picks before it validates, so a `MissingSound`
+refusal does spend a draw and advance the window. But with one file missing and `avoid: 1`, **4 of 8 requests still
+sound** — without advancing the picker it would re-pick the missing file for ever. And the two cannot be separated:
+`pick_from` draws and advances in one call. Recorded in **`needs-decision/pick-before-validate.md`** with both
+measurements, so a later iteration does not "fix" it into a livelock.
+
+**A third probe confirmed a real gap that stays blocked**: a wrong-bus stinger is invisible to a program (`refused` is
+empty), and closing it needs a new `Refusal` variant — the public-enum break `needs-decision/stinger-refusal.md` awaits.
+
+**Nothing audible moved**: `bus-Music` still `duck -8.0 dB, deepest -7.96 dB, recovered by 1.97 s`; `mix.wav` still
+−18.6 LUFS at −6.1 dBFS. The panel capture is **unchanged** from before, which is the claim: a caller's picture does not
+move when a sentinel is replaced by a type that cannot collide.
+
+**Evidence.** `runs/2026-11-03-59/`: `research.md` (S1 the doc's own sentence, S2 `SILENT_DB` as a level borrowed for
+absence plus the crate's `Option` precedent, S3 Gregory on buses as levels, S4 iteration 49's bound), `plan.md`,
+`perf.md`, `eval.md`, `review.md` (three passes, GREAT), `evidence/{panel,spectrograms,after}`.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`AvoidRepeat`'s window that cannot be honoured is unreported** — `pick_from`'s comment promises `problems()` names
+   it; probed `problems: []` for two sounds at `avoid: 5`. Same open enum decision.
+3. **A stinger on the wrong bus writes only a log line, not a `Refused`** — confirmed by probe this iteration
+   (`refused` is empty). `needs-decision/stinger-refusal.md`; same decision.
+4. `needs-decision/pick-before-validate.md` — a refused play spends a draw and advances the window. **Protective** and
+   measured; a strict version needs a rule `pick_from` cannot express.
+5. `load_table` does not call `retain_keys` itself — changes a documented contract; wants a decision file.
+
 ## Iteration 58 — 2026-11-03 — a layer change that names nothing says so
 
 **Baseline.** Green on every step, no open issues. Nothing red.
