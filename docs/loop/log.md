@@ -50,7 +50,7 @@ move when a sentinel is replaced by a type that cannot collide.
 absence plus the crate's `Option` precedent, S3 Gregory on buses as levels, S4 iteration 49's bound), `plan.md`,
 `perf.md`, `eval.md`, `review.md` (three passes, GREAT), `evidence/{panel,spectrograms,after}`.
 
-**Commit.** (see `git log`).
+**Commit.** `85f4975` — *mix: an empty bus is not a bus mixed to the floor*.
 
 **Top 5 remaining**
 
