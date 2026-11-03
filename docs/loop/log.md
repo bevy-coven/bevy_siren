@@ -42,7 +42,7 @@ passes, GREAT), `evidence/{panel,spectrograms,plots,after}`.
 | every test | 119 / 126 / 128 + 5 | **120 / 127 / 129 + 5** (one new) |
 | perf | 0.025 / 0.148 / 0.490 µs | 0.056–0.064 / 0.276–0.377 / **0.416–1.392** — noise: `perfcheck` runs neither the example nor `line()`, and 256 voices swung 3.3× on one binary |
 
-**Commit.** (see `git log`).
+**Commit.** `4f34525` — *examples: the panel shows a placed sound, and a gain it can be checked against*.
 
 **Top 5 remaining**
 
