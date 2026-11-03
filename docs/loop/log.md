@@ -48,7 +48,7 @@ four-sentence test), `plan.md`, `perf.md`, `eval.md`, `review.md` (three passes,
 cost two lines the log did not give up), and `SIREN_FAULTS=many` still clipped at 0 px because the **cue list** — twelve
 rows — pushed the log off the screen entirely. Both fixed; three tables now measure 9–10 px.
 
-**Commit.** (see `git log`).
+**Commit.** `aa46bc7` — *mix: the report is held to the standard its sibling meets, and the panel draws all of it*.
 
 **Top 5 remaining**
 
