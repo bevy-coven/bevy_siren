@@ -1257,3 +1257,78 @@ fn a_muted_bus_plays_the_cue_at_its_own_gain() {
     let bus = app.world().resource::<SirenMix>().bus_db("Effects");
     assert!(bus <= -70.0, "the bus is silent: {bus}");
 }
+/// **The music never exceeds the table's voice budget.**
+///
+/// `max_voices` is the whole table's budget and `bus_voice_limit` takes `min(bus cap, total)`. Two layers at
+/// `max_voices: 1` must therefore leave one layer a virtual voice, not two live ones.
+#[test]
+fn music_layers_respect_the_tables_budget() {
+    use bevy_siren::{MusicLayer, MusicScore, MusicState};
+    let table = CueTable::new(vec![
+        Cue {
+            sounds: vec![SoundSlot::new("calm")],
+            bus: "Music".to_owned(),
+            mode: Mode::Loop,
+            ..Cue::new("track.calm")
+        },
+        Cue {
+            sounds: vec![SoundSlot::new("combat")],
+            bus: "Music".to_owned(),
+            mode: Mode::Loop,
+            ..Cue::new("track.combat")
+        },
+    ]);
+    let settings = SirenSettings { max_voices: 1, ..SirenSettings::default() };
+    assert_eq!(settings.bus_voice_limit("Music"), 1, "the premise: one voice for this bus");
+    let mut app = app(table, settings, sounds(&["calm", "combat"]), true);
+    app.insert_resource(MusicScore {
+        layers: vec![MusicLayer::new("calm", "track.calm"), MusicLayer::new("combat", "track.combat")],
+        tempo_bpm: 120.0,
+        ..MusicScore::default()
+    });
+    for _ in 0..4 {
+        app.update();
+    }
+    let state = app.world().resource::<MusicState>();
+    assert!(state.live() <= 1, "the budget is one voice, {} are live", state.live());
+    let voices = app.world().resource::<SirenMix>().voices_on("Music");
+    assert!(voices <= 1, "the mix counts {voices} voices on Music");
+}
+/// **A play draws for its detune even when its pitch range is exact**, so adding a fixed-pitch cue to a scene moves what
+/// every other cue plays. This is `needs-decision/exact-pitch-draw.md`'s measurement, kept so the decision has a number
+/// and a later fix can be seen to change it.
+#[test]
+fn an_exact_pitch_range_still_draws_from_the_stream() {
+    let cue = |name: &str, pitch: bevy_siren::PitchRange| Cue {
+        sounds: vec![SoundSlot::new("a"), SoundSlot::new("b")],
+        pitch,
+        repeat: bevy_siren::Repeat::Shuffle,
+        ..Cue::new(name)
+    };
+    let table = CueTable::new(vec![
+        cue("exact", bevy_siren::PitchRange::exact(0.0)),
+        cue("wide", bevy_siren::PitchRange { low: -2.0, high: 2.0 }),
+    ]);
+    let run = |before: usize| {
+        let mut app = app(table.clone(), SirenSettings::default(), sounds(&["a", "b"]), false);
+        for _ in 0..before {
+            app.world_mut().write_message(Play::cue("exact"));
+            app.update();
+            let _ = played(&mut app);
+        }
+        let mut out = Vec::new();
+        for _ in 0..6 {
+            app.world_mut().write_message(Play::cue("wide"));
+            app.update();
+            out.extend(played(&mut app).into_iter().map(|p| p.sound));
+        }
+        out
+    };
+    let alone = run(0);
+    let after_exact = run(4);
+    assert_ne!(
+        alone, after_exact,
+        "an exact-pitch play currently spends a draw; when `needs-decision/exact-pitch-draw.md` is decided as B, \
+         these become equal and this test flips"
+    );
+}

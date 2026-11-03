@@ -7,6 +7,58 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 60 — 2026-11-03 — a draw that cannot change its answer
+
+**Baseline.** Green on every step, no open issues. Nothing red.
+
+**Change.** Documentation and a test, no `src/` behaviour change: the guide's `## The seed` section gains the fact that a
+play draws for its detune **even when the cue's `pitch` range is exact**; `needs-decision/exact-pitch-draw.md` carries the
+options; and `tests/play.rs::an_exact_pitch_range_still_draws_from_the_stream` pins the coupling.
+
+**Rationale.** `answer` computes `cue.pitch.at(choices.rng.next_f32())` before it can know the range cannot use the
+number. `PitchRange::at` is `low + (high - low) * unit`, so with `low == high` — what `PitchRange::exact(n)` builds — the
+draw **cannot** change the answer, and it is spent from the one stream every cue shares.
+
+**Measured**: an app that plays an exact-pitch cue four times before a `Shuffle` cue produces a **different** six-play
+sequence than one that never played it. Same seed, same table. So a project's soundscape is a function of its seed **and
+its play order**, not its seed alone — which `docs/guide/cues.md` had promised was not the case.
+
+**Why not patched.** The fix is three words, and it **re-rolls every project's soundscape** in the build that ships it,
+with no authoring change to explain it. That is a release note, not a patch: option B in the decision file, recommended for
+the next minor. The test is written to **flip** — `assert_ne!` with the decision file named in its message — so the day B
+ships, the test says why.
+
+**Six hypotheses probed, all correct, all deleted** rather than kept (a test asserting untouched behaviour is noise):
+`SirenLog`'s chronology through out-of-order eviction; `semitones_to_ratio`'s clamp against the mixer's `set_speed`;
+pitch composition with a `Play` override; `load_table`'s ask-then-not-missing semantics; a muted bus still playing; and
+two music layers settling on a one-voice bus.
+
+**One probe failed first and the code was right.** I asserted `blocked("combat")` on a one-voice Music bus; the log showed
+`played calm → stopped calm: stolen by combat (bus) → played combat → refused calm: no voice free`. The **stolen** layer
+is the one refused and recorded — the documented virtual-voice path working. Deleted rather than inverted, because
+`tests/music.rs` already covers it as case 33.
+
+**Nothing audible moved**: `bus-Music` still `duck -8.0 dB, deepest -7.96 dB, recovered by 1.97 s`; `mix.wav` still
+−18.6 LUFS at −6.1 dBFS.
+
+**Evidence.** `runs/2026-11-03-60/`: `research.md` (S1 `PitchRange::at`'s arithmetic, S2 the seed's promise, S3 iteration
+51's precedent, S4 who writes an exact range and why), `plan.md`, `perf.md`, `eval.md`, `review.md` (three passes, GREAT),
+`evidence/{spectrograms,after}`, and `docs/loop/needs-decision/exact-pitch-draw.md`.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`AvoidRepeat`'s window that cannot be honoured is unreported** — `pick_from`'s comment promises `problems()` names
+   it; probed `problems: []` for two sounds at `avoid: 5`. Same open enum decision.
+3. **A stinger on the wrong bus writes only a log line, not a `Refused`** — confirmed by probe in iteration 59.
+   `needs-decision/stinger-refusal.md`; same decision.
+4. **`needs-decision/exact-pitch-draw.md`** — option B (skip a draw that cannot change its answer) is the next minor's
+   change, with its release note.
+5. `load_table` does not call `retain_keys` itself — changes a documented contract; wants a decision file.
+
 ## Iteration 59 — 2026-11-03 — an empty bus is not a bus mixed to the floor
 
 **Baseline.** Green on every step, no open issues. Nothing red.

@@ -5,6 +5,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Documented
+
+- **The shared stream is spent by a play whose pitch range is exact.** `answer` computes
+  `cue.pitch.at(choices.rng.next_f32())` before it knows the range cannot use the number, so a `PitchRange::exact(n)`
+  cue draws anyway — and every later pick for every *other* cue moves. A project's soundscape is therefore a function of
+  its seed and its **play order**, not its seed alone. Measured in
+  `tests/play.rs::an_exact_pitch_range_still_draws_from_the_stream`, which pins the current coupling so a fix is
+  detectable. Skipping the draw would re-roll every project's soundscape in the build that shipped it, so it is
+  `docs/loop/needs-decision/exact-pitch-draw.md`, not a patch.
+
 ### Added
 
 - **`SirenMix::peak_db(bus) -> Option<f32>`** — the worst-case peak, or `None` when nothing is on the bus.

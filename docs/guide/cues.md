@@ -173,6 +173,15 @@ Changing the seed while the game runs **replaces** the stream and every variant 
 the old position: the next play is the new seed's first draw. The seed is configuration, so the change is not written
 to `SirenLog` — the log is for what happened to a sound.
 
+**The stream is shared, so a play's draws move every later play's.** A play draws once for its variant and once for its
+detune — the detune **even when the cue's `pitch` range is exact**, because `answer` computes
+`cue.pitch.at(choices.rng.next_f32())` before it knows the range cannot use the number. So adding a fixed-pitch cue to a
+scene shifts every later pick for every other cue that shares the stream: a project's soundscape is a function of its
+seed and its **play order**, not its seed alone. Measured in
+`tests/play.rs::an_exact_pitch_range_still_draws_from_the_stream`. Skipping that draw is
+`docs/loop/needs-decision/exact-pitch-draw.md`, and it is not a patch because it would re-roll every project's
+soundscape in the build that shipped it.
+
 ## A cue's history, and what the table owns
 
 Each cue name gets one `VariantPicker`, created on that cue's first play, and it holds the window of recent sounds that

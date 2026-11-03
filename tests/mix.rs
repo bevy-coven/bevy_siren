@@ -1459,3 +1459,44 @@ fn an_empty_bus_is_not_the_same_peak_as_a_silent_one() {
         "a bus mixed to the floor has a bound"
     );
 }
+/// **The `and N more` count is right when routine entries were evicted out of order.**
+///
+/// `SirenLog::push` drops the **oldest routine** entry when full, so the deque's order is not chronological once a
+/// refusal has been inserted behind a routine one. `recent(n)` takes from the back, and a panel that prints `and N
+/// more` from `len() - shown` must not be off by the entries that were reordered.
+#[test]
+fn the_log_stays_chronological_through_eviction() {
+    use bevy_siren::{Entry, SirenLog};
+    let mut log = SirenLog::new();
+    // Fill with routine plays, then a refusal, then more plays to force evictions.
+    for i in 0..SirenLog::CAPACITY {
+        log.push(Entry::Played {
+            at_s: i as f64,
+            cue: "c".to_owned(),
+            sound: "s".to_owned(),
+            bus: "Effects".to_owned(),
+            gain_db: 0.0,
+        });
+    }
+    log.push(Entry::Refused { at_s: 1000.0, cue: "r".to_owned(), reason: "x".to_owned() });
+    for i in 0..10 {
+        log.push(Entry::Played {
+            at_s: 2000.0 + i as f64,
+            cue: "c".to_owned(),
+            sound: "s".to_owned(),
+            bus: "Effects".to_owned(),
+            gain_db: 0.0,
+        });
+    }
+    // Every entry's time must be non-decreasing from oldest to newest.
+    let times: Vec<f64> = log
+        .iter()
+        .map(|e| match e {
+            Entry::Played { at_s, .. }
+            | Entry::Refused { at_s, .. }
+            | Entry::Stopped { at_s, .. }
+            | Entry::Ducked { at_s, .. } => *at_s,
+        })
+        .collect();
+    assert!(times.windows(2).all(|w| w[0] <= w[1]), "the log must read oldest to newest: {times:?}");
+}
