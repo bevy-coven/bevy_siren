@@ -135,9 +135,9 @@ the first 32 footsteps and quietly stole or refused every one after that.
   that explains it. The spectrogram is **CLAP's, to 0.0545 dB**, and the audio tower's embedding matches
   `laion/clap-htsat-fused` at **cosine 0.999999995** — both measured against the reference, not assumed. **Re-indexing
   embeds only what changed**: adding one file to a hundred costs one embedding, not a hundred, and a renamed file costs
-  none. **Every asset carries its licence and source**, read from a pack's own sidecar, with an explicit unknown that
-  never reads as permission. Off by default, and a crate that does not enable it sees no change: `cargo tree` reads the
-  same 413 lines either way:
+  none. **Every asset carries its licence and source**, read from a pack's own sidecar, stored in the index as an
+  optional section and reported on every result, with an explicit unknown that never reads as permission. Off by
+  default, and a crate that does not enable it sees no change: `cargo tree` reads the same 413 lines either way:
   [semantic](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md).
 - **Ship the sound as data, and edit it in the Cauldron** — with `serde`, the cue table, the mix table and the score
   are RON files; `bevy_grimoire`'s audio panel edits this crate's own types in

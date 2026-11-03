@@ -161,6 +161,18 @@ kenney,step.wav,CC0-1.0,
 Two rows for one file is a **conflict** rather than last-write-wins: a licence that is a guess is worse than one that is
 unknown.
 
+**It is stored, and it travels with the answer.** `Index.provenance` is a trailing section inside the checksummed body,
+so a hand-edited licence is a corrupt file rather than a silent change, and an index with no provenance writes no
+section at all — every file written before this existed still loads. `Match` carries `provenance` and is **no longer
+`Copy`**, which is the trade for making "forgot to ask" a compile error instead of an unlicensed asset presented as
+unencumbered:
+
+```rust
+for hit in answer.matches {           // was `Copy`
+    println!("{}  {}", hit.provenance, hit.score);
+}
+```
+
 ## Ask: one call from a description to a ranked answer
 
 ```rust

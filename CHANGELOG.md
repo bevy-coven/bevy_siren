@@ -27,9 +27,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Sidecar CSV columns are matched **by name** (`file`/`path`, `licence`/`license`, `source`, `author`/`creator`), so a
   pack that orders them differently still reads. Two rows for one file is a **conflict**, not last-write-wins.
 
-  Storage in the index and exposure on `rank::Match` are schema changes — `Index::records` is `hash → vector` under a
-  pinned `MAGIC`, and `Match` is `Copy` — so they are
-  `docs/loop/needs-decision/provenance-in-the-index.md`. Refs #14.
+  **Stored as a trailing optional section, and carried on every result.** `Index.provenance` is written inside the
+  **checksummed** body, so a hand-edited licence is a corrupt file rather than a silent change to which assets may
+  ship. An index with no provenance writes **no section at all**, making the format a strict superset — `MAGIC` does not
+  move and every existing file is a valid new one. Fields are escaped, because a pack called `kenney sounds` would
+  otherwise split into two fields and a licence of `-` would read as *nothing recorded*: the same conflation the type
+  refuses in memory, reintroduced by the file format.
+
+  `rank::Match` gains `provenance` and loses `Copy`, so a result **cannot** be built without one — forgetting to ask is
+  a compile error rather than an unlicensed asset presented as unencumbered. Measured blast radius: one `Match` literal
+  in the crate and no consumer iterating by value.
 
 ### Documented
 

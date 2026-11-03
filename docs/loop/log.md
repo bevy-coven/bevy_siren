@@ -7,6 +7,78 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 83 — 2026-11-03 — provenance stored and reported, and the fixture that tested the wrong thing
+
+**Baseline.** Green, complete: 198 / 207 serde / 208 mixer / 6 doc / 355 semantic / 36 lib; clippy 0, fmt, rustdoc,
+examples. Two disk interruptions handled with the documented fix — `cargo clean -p bevy_siren` freed **5.1 GB** then
+**6.1 GB** — after which the volume read **27 GB free**, far more than either clean returned, so something else on the
+machine released space too.
+
+**#14 closed, all four criteria.** The two that were blocked last iteration needed only their own decision file's
+recommendation, which was additive — and this repo's log has said three times that such a recommendation *"need not
+wait."* Acting on it rather than waiting is what closed the issue.
+
+**The format, and why each part is forced.**
+- The section is a trailing block **inside the checksummed body**, so a hand-edited licence is a corrupt file rather
+  than a silent change to which assets may ship.
+- An index with **no provenance writes no section at all**, so the new format is a strict superset: `MAGIC` does not
+  move and every old file is valid.
+- Fields are **escaped**, because a pack called `kenney sounds` would split into two fields, and a licence of `-` would
+  read as *nothing recorded* — the conflation the type refuses in memory, reintroduced by the file format. `?unknown`
+  likewise keeps a recorded-unknown source distinct from an absent one, all the way to disk.
+
+**`Match` gained `provenance` and lost `Copy`**, so a result cannot be built without one: forgetting to ask is a compile
+error rather than an unlicensed asset presented as unencumbered. The decision file predicted a blast radius of one
+literal and no by-value iteration; **the prediction held exactly.**
+
+**Two defects found inside the iteration.** `a_search_result_carries_its_provenance` inserted hashes `1` and `2` on top
+of `index_with(2)`'s existing `0x1000` pair, so four vectors ranked and the assertion read **`left: 4097, right: 2`** —
+**the test was wrong, not the code**, and it now builds a fresh index. A fixture that silently adds to a fixture is how a
+test starts passing for the wrong reason. And `clippy::bool_comparison` caught `is_recorded() == false`.
+
+**Measured.** Provenance round-trips field for field including a pack name with a **space**; a recorded-empty licence
+comes back `Some("")` and an absent one `None`, after a write **and** a read; a truncated section is refused by the same
+count rule as a truncated vector body (re-checksummed in the test so the count is the only thing wrong).
+
+| voices | µs/frame | iteration 82 |
+|---|---|---|
+| 8 | **0.065** | 0.062 |
+| 64 | **0.358** | 0.342 |
+| 256 | **1.038** | 1.227 |
+
+**No regression.** Across iterations 80–83 identical audio code reads 0.062–0.084 / 0.342–0.472 / 1.038–1.576 µs — a
+spread on a shared machine, reported as a spread. The one new cost is a type, not a loop: `Match` lost `Copy`, and
+`top_k` was already cloning into a `Vec`.
+
+**Visual gate unchanged:** 32 render files, **14 of 14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to
+iterations 67, 71, 74, 75, 80, 81 and 82. `bang-spectrum.png` read: broadband onset, harmonic comb to 10 kHz, no click
+line, no clipping shelf, no gap.
+
+**Verdicts.** Pass 1 **GREAT** (three criteria met; the fourth now has both halves except the filename→hash join), pass 2
+**GREAT** (the fixture defect found and named as the test's fault), pass 3 **GREAT** (one `&` for a consumer to add, and
+it is a compiler error rather than a surprise).
+
+**Docs.** The guide's sixth step gains the storage story, the `Copy` trade and a one-line example of iterating the new
+`Match`; the README line says stored and reported; `CHANGELOG.md` gains the format description.
+
+**Evidence.** `runs/2026-11-03-83/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,spectrograms}/`.
+
+**Commits.** `8a323a1`.
+
+**Top 5 remaining**
+
+1. **Join a sidecar's file names to content hashes** — the last half of #14's criterion 2, and it belongs where the scan
+   and the sidecar meet: `indexer::build`. The type, the reader and the store are all done.
+2. **`#21`'s index round trip** — `loudness-in-the-index.md` recommends the *same* optional-section shape this iteration
+   just implemented and proved, so the decision is now nearly free and the implementation is a sibling of this one.
+3. **The binary index writer** ADR 0004 specifies — `to_text` is **31.88 MB** at 5 000 clips against **10.30 MB** binary,
+   and with a provenance section added the text form is larger still. The 3× overhead is unasserted.
+4. **`#22` spectral centroid, rolloff and noise floor** — unblocked by ADR 0003, sharing one FFT pass over a spectrum
+   `mel.rs` already computes.
+5. **`#28` the MCP tool host**, then `#29`/`#44` — the largest user-facing win, consuming an index that is now correct,
+   incrementally updatable and provenance-carrying.
+
 ## Iteration 82 — 2026-11-03 — provenance, and the licence check that would have granted permission
 
 **Baseline.** Green: 198 / 207 serde / 208 mixer / 6 doc / 36 semantic; clippy 0, fmt, rustdoc, examples. One disk
