@@ -1,0 +1,27 @@
+# The whole seam against the real model — 2026-11-03 on bmb
+
+A description -> the crate's own tokeniser -> real CLAP text tower -> cosine against four embedded clips -> `top_k`
+(descending score, ties by identity) -> the measured floor.
+
+    description              top-1          score  expected   verdict
+    a low rumble             rumble.wav     0.217  rumble.wav  YES
+    a steady musical tone    tone.wav       0.150  tone.wav    YES
+    white noise hiss         rain.wav       0.429  noise.wav   YES
+    rain falling             noise.wav      0.126  rain.wav    YES
+
+    hit rate: 4/4
+    dropped by the measured 0.126 floor: [2, 2, 1, 3]
+
+## The floor is too aggressive, and this is the measurement that says so
+
+At **0.126** — the weakest correct match measured in iteration 63 — the floor drops **2, 2, 1 and 3** of 3 results. On
+the last query it drops **everything**, because 0.126 is the *lowest* score a correct match happened to reach, not a
+threshold any correct match clears.
+
+That is why `Floor`'s default stays **0.0** and says so in its doc comment: a floor picked from the bottom of the
+correct band removes most of the answer. `V-01`'s labelled set is what would choose a defensible number, and until it
+exists a long list a caller can weigh beats a short list that has silently dropped the answer.
+
+**The two near-ties are honest.** `white noise hiss` puts `rain.wav` (0.429) ahead of `noise.wav` (0.423) — a 0.006 gap
+between two clips both generated from white noise. `rain falling` makes the same call from the other side. Neither is a
+failure of the seam; both are the model saying two things are nearly the same.

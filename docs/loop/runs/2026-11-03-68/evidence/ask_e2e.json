@@ -1,0 +1,26 @@
+[
+ {
+  "q": "a low rumble",
+  "top": "rumble.wav",
+  "score": 0.217,
+  "dropped": 2
+ },
+ {
+  "q": "a steady musical tone",
+  "top": "tone.wav",
+  "score": 0.15,
+  "dropped": 2
+ },
+ {
+  "q": "white noise hiss",
+  "top": "rain.wav",
+  "score": 0.429,
+  "dropped": 1
+ },
+ {
+  "q": "rain falling",
+  "top": "noise.wav",
+  "score": 0.126,
+  "dropped": 3
+ }
+]
