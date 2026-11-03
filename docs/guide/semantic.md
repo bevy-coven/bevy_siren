@@ -161,6 +161,15 @@ kenney,step.wav,CC0-1.0,
 Two rows for one file is a **conflict** rather than last-write-wins: a licence that is a guess is worse than one that is
 unknown.
 
+**Loudness is stored the same way, and its absence is a state.** `Index.loudness` keeps each asset's integrated
+loudness, true peak and block counts. A clip too short for one 400 ms gating block has **no** integrated loudness, and
+the file writes `-` rather than a number — measured, `ffmpeg` reports `-70.0 LUFS` there, which is the standard's floor
+presented as a level *and also a real level*. `-` is the only spelling that keeps "too short to measure" distinct from
+"measured at −70".
+
+Everything else in a loudness record is real even for a 0.2 s click: a true peak needs no gating, so it is always
+written, along with the two counts that separate *too short* from *silent*.
+
 **It is stored, and it travels with the answer.** `Index.provenance` is a trailing section inside the checksummed body,
 so a hand-edited licence is a corrupt file rather than a silent change, and an index with no provenance writes no
 section at all — every file written before this existed still loads. `Match` carries `provenance` and is **no longer

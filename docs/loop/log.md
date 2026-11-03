@@ -7,6 +7,82 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 84 — 2026-11-03 — loudness stored, and the last p0 closed
+
+**Baseline.** Green, complete and uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **359 semantic** / 36 lib;
+clippy 0, fmt, rustdoc, examples. The volume held **24 GB** free throughout — iteration 83's cleans ended the six-iteration
+disk siege.
+
+**#21 closed — the last open p0 in the repository.** Its fourth criterion, and the previous three were already measured
+in iteration 77.
+
+| Criterion | State |
+|---|---|
+| integrated within **0.1 LU** of the reference | green since 77 — −23.0 ±0.1 against `ffmpeg`'s −23.0 |
+| a short clip handled **explicitly** | green — `None` in memory, `-` on disk |
+| true peak within **0.1 dB** | green since 77 — −20.00 dBFS against −20.0 |
+| both survive a round trip | **green — this iteration** |
+
+**Why a dash and not a number.** ADR 0003 measured that for a 0.2 s clip `ffmpeg` reports **−70.0 LUFS** — the standard's
+floor presented as a level, *and also a real level* — while `ebur128` reports **`-inf`**. A storage format that writes a
+number there destroys the distinction the in-memory type was carefully built to keep. So the lufs column writes `-`, and
+everything else in the record is a real measurement even when the clip is too short to gate: a 0.2 s click has a true
+peak, so it is always written, along with the two block counts that separate *too short* from *silent*. Both still
+disagree after a write and a read.
+
+**Two defects the new tests caught, neither by reading the code.**
+
+1. **The section marker was parsed as a record.** With provenance written first, `provenance_and_loudness_sections_coexist`
+   failed with `Record { line: 11, what: "a provenance record names no hash" }` — the `loudness 1` line arrived while
+   the provenance section was open and was consumed as one of its records. Markers are now recognised **before** any
+   record parsing, so sections may appear in any order.
+2. **My own test asserted behaviour the format does not have.** It expected `INFINITY` to round-trip through `-`. The
+   parser requires a number in that column and **refuses the whole file by name** — substituting `0.0` would look like
+   a measured silence, which is the class of lie the section exists to prevent. The test now asserts the refusal.
+
+| voices | µs/frame | iteration 83 |
+|---|---|---|
+| 8 | **0.062** | 0.065 |
+| 64 | **0.352** | 0.358 |
+| 256 | **0.501** | 1.038 |
+
+**No regression.** Across iterations 80–84 identical audio code reads 0.062–0.084 / 0.342–0.472 / **0.501–1.576** µs;
+the 256-voice low end moved by 2× this time, which is the clearest evidence yet that this machine's variance exceeds
+anything these iterations could cause — so the table shows a range rather than a trend.
+
+**Visual gate unchanged:** 32 render files, **14 of 14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to
+iterations 67, 71, 74, 75, 80, 81, 82 and 83. `bang-spectrum.png` read: broadband onset, harmonic comb to 10 kHz, no
+click line, no clipping shelf, no gap.
+
+**Verdicts.** Pass 1 **GREAT** (all four criteria met, three against a reference), pass 2 **GREAT** (both defects named,
+and the second is the test's fault rather than the code's), pass 3 **GREAT** (nothing required of a consumer; no public
+type changed this iteration).
+
+**Docs.** The guide's sixth step gains the loudness story and why the dash exists; the README line says loudness is
+carried with absence preserved; `CHANGELOG.md` gains the entry.
+
+**Evidence.** `runs/2026-11-03-84/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,spectrograms}/`.
+
+**Commits.** `31b731b`.
+
+**No open p0 remains.** What is left is p1 and below, and the two p0-shaped remainders are both scan-side wiring rather
+than decisions.
+
+**Top 5 remaining**
+
+1. **Measure loudness and join provenance during indexing.** `loudness::measure` and `Sidecar::read` both exist and are
+   tested; neither is called by `indexer::build` yet. This is the step that makes both features produce their data
+   instead of only storing it — and it is where a sidecar's *file name* becomes a *content hash*.
+2. **The binary index writer** ADR 0004 specifies. The text form is **31.88 MB** at 5 000 clips against **10.30 MB**
+   binary, and with two new sections it is larger still; the 3× overhead is still unasserted.
+3. **`#22` spectral centroid, rolloff and noise floor** — unblocked by ADR 0003, and the cheapest of the three
+   hand-rolled features because they share one FFT pass over a spectrum `mel.rs` already computes.
+4. **`#28` the MCP tool host**, then `#29`/`#44`/`#30` — the largest user-facing win, consuming an index that is now
+   correct, incrementally updatable, provenance-carrying and loudness-carrying.
+5. **`#16`'s follow-up: `#36` indexing throughput**, which now has a real index to measure — and a real reason to, since
+   the scan-side work above will make `build` do more per file.
+
 ## Iteration 83 — 2026-11-03 — provenance stored and reported, and the fixture that tested the wrong thing
 
 **Baseline.** Green, complete: 198 / 207 serde / 208 mixer / 6 doc / 355 semantic / 36 lib; clippy 0, fmt, rustdoc,

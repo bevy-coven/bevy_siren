@@ -7,6 +7,22 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Per-asset loudness, stored and round-tripped.** `Index.loudness` is a second optional section, the same shape
+  `provenance` uses, and the last of #21's four criteria. Integrated loudness is stored as **`-` when it is absent**,
+  and that is the whole design: ADR 0003 measured that for a 0.2 s clip `ffmpeg` reports **−70.0 LUFS** — the standard's
+  floor presented as a level, and *also a real level* — while `ebur128` reports **`-inf`**. A format that writes a
+  number there destroys a distinction the in-memory type was built to keep.
+
+  Everything else in a record **is** a real measurement even for a clip too short to gate, so the true peak, the sample
+  peak and both block counts are always written — and `too_short()` and `silent()` still disagree after a write and a
+  read. An index with no loudness writes no section at all, so every previously written file is byte-identical and
+  still loads.
+
+  A record carrying a level that cannot be written back is **refused by name** at parse rather than repaired:
+  substituting `0.0` would look like a measured silence. Refs #21.
+
+### Documented
+
 - **Per-asset provenance: where a sound came from and what its terms are.** `semantic::provenance` carries `licence`,
   `source` and `author` as `Option`s and reads the CSV and JSON sidecars a purchased pack ships. It is `p0` because it
   is cheap now and impossible later: an index built without provenance can only be recovered by rescanning files that
