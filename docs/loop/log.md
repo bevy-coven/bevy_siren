@@ -7,6 +7,72 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 65 — 2026-11-03 — **the critical path closes**: a 44.1 kHz library converts
+
+**Baseline.** Started at **1.6 GB free** (100 %), `target` 23 GB — the same obstacle as iteration 64 and for the same
+reason. `cargo clean` freed 21.9 GiB in 2.5 s under the standing approval for this repo's own build cache. Then every
+step was green: 174 / 183 / 184 + 6. Case 31 is still the only red case and still blocked on the `CueProblem` enum
+decision, which is not on this path.
+
+**The item — and it is the last one.** `#12`'s conversion closes the semantic critical path. **All nine issues
+#2 → #3 → #7 → #9 → #10 → #11 → #12 → #15 → #17 → #26 are now closed.**
+
+**`rubato` lands, and the first implementation was wrong twice.** Both defects are worth recording because both
+produce a result that looks right:
+
+1. **The resampler's latency was not skipped.** `FftFixedInOut` cannot emit its first sample until its window is full;
+   `rubato` reports the cost as **560 samples** at 44.1 → 48 kHz. Without the skip the tone is displaced by most of a
+   cycle — and **energy at 1 kHz is still 0.494**, so a test asking "is there a 1 kHz tone" passes on a broken
+   conversion. Max error against a pure reference: **1.765444 raw, 0.071178** after the skip.
+2. **The loop stopped when the input was spent.** With the delay to pay and a padded final chunk, a 1.000 s file gave
+   **47600** samples of real audio instead of 48000, and the tone read as **991 Hz** instead of 1000. The loop now runs
+   until `expected + delay` samples exist.
+
+**Both numbers are asserted now**: exactly **48000** samples from 1.000 s, and a tone that keeps its frequency
+(998–1002 crossings), its energy (within the measured 0.9763 band) and its place (15 kHz survives, 9.1 kHz does not
+appear). Awkward lengths — 1, 7, 1000, 1023, 1025, 4411 samples — all keep their duration.
+
+**The refusal stopped firing on the common case.** `decode_for_model` downmixes and converts, so a 44.1 kHz library
+indexes. `buffer::model_buffer` still refuses a rate it cannot convert, and a test proves that low-level contract
+survives for a caller that skips the conversion.
+
+**Two ratchets fired, which is what they are for.** `leaf::the_dependency_list_stays_closed` and
+`library::the_semantic_feature_declares_no_dependency_of_its_own` both rejected `rubato` the moment it appeared; both
+were widened with the sentence that argues for it, in the same commit. The feature now names three dependencies and
+each has its argument: `ort` (inference), `rodio` (decoding, **no new crate** — `bevy_audio` resolves it), `rubato`
+(resampling, pure Rust).
+
+**The default build is still untouched**: `cargo tree --edges normal` is **413 lines** with no features, before and
+after.
+
+**Judged by measurement and by looking.** `examples/render` wrote 32 files; `render.txt` reports the same variant
+sequences and gains as before. The bang's spectrogram shows broadband attack decaying to a low tail with **no click
+line, no clipping shelf, no gap**; the mix waveform shows a clean attack, the regular cycles a duck produces, and a
+smooth decay with **no step**. Loudness: **−18.6 LUFS** integrated, **−6.1 dBFS** true peak — a game mix comfortably
+under −14 LUFS with 6.1 dB of headroom.
+
+**Verdicts.** Pass 1 **GREAT**, pass 2 **GREAT**, pass 3 **GREAT**.
+
+**Gate.** 174 default / 183 serde / 184 mixer / **282 all-features**, clippy 0, fmt, rustdoc, examples — green.
+
+**Perf.** Not re-measured and `perf.md` says why: no audio-path code changed, and the 413-line graph proves it. Iteration
+64's baseline stands: **0.024 / 0.284 / 0.667 µs** per frame at 8 / 64 / 256 voices.
+
+**Evidence.** `runs/2026-11-03-65/`: `research.md` (the two defects and the numbers), `plan.md`, `perf.md`, `eval.md`,
+`review.md` (three passes), `evidence/after/` (32 render files).
+
+**Commits.** `dec90b6`.
+
+**The path is closed. Top 5 remaining, none of them on it**
+
+1. **A tokeniser** — the one thing between `Query::text()` and `Model::embed_text`. Its own dependency argument, and
+   the last piece of the semantic pipeline that is not built.
+2. **`#41`** — tunable weights as a serde type, which is where the rank floor stops being a design default.
+3. **CUDA on `big`** — every measurement so far ran `CPUExecutionProvider`; `P-01`'s throughput target needs the 3090.
+4. **`V-01`** — the labelled set, which turns the measured 0.126–0.429 / −0.104–+0.150 overlap into a chosen threshold.
+5. `cues.yaml` case 31 — the only red case in the crate, blocked on the same public-enum decision as four other
+   `needs-decision/` files.
+
 ## Iteration 64 — 2026-11-03 — decoding, and the first measured perf baseline
 
 **Baseline.** Started at **642 MB free** — the first obstacle, and not a code problem. `cargo clean` in `bevy_siren`
