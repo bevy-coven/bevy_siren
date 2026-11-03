@@ -61,6 +61,18 @@ pub struct Built {
     /// Carried through so a caller can say *"1,204 indexed, 12 not audio, 3 failed"* in one line, which is the
     /// difference between a build a person trusts and one they have to re-run to understand.
     pub not_audio: Vec<PathBuf>,
+    /// Sidecar records that name a file the scan did not find.
+    ///
+    /// The commonest cause is a typo or a path spelling that does not match the folder, and it is exactly the case a
+    /// silent skip would hide: the licence looks recorded from the sidecar author's point of view and is absent from
+    /// every asset's point of view.
+    pub unattributed: usize,
+    /// A sidecar that exists and could not be read, carrying the reader's own words.
+    ///
+    /// A run that finds **no** sidecar is normal and leaves this `None`. A sidecar that is present and unreadable is
+    /// not: it means every licence in it is missing, and the crate's rule is that such a thing is said rather than
+    /// skipped.
+    pub sidecar: Option<String>,
     /// How many files embedded but produced no loudness measurement.
     ///
     /// A measurement that fails does not fail the file — the vector is the index's reason to exist — so without this
@@ -87,6 +99,12 @@ impl Built {
         let mut s = format!("{} indexed", self.indexed());
         if self.unmeasured > 0 {
             s.push_str(&format!(", {} unmeasured", self.unmeasured));
+        }
+        if self.unattributed > 0 {
+            s.push_str(&format!(", {} licence records matched no file", self.unattributed));
+        }
+        if let Some(why) = &self.sidecar {
+            s.push_str(&format!(". Licence record unreadable: {why}"));
         }
         if !self.not_audio.is_empty() {
             s.push_str(&format!(", {} not audio", self.not_audio.len()));
@@ -161,6 +179,43 @@ pub fn build(
     }
 
     let mut index = Index::new(stamp);
+
+    // **Read the sidecar before anything is embedded**, so a licence is attached to every asset the build produces and
+    // an unreadable sidecar is reported even for a folder whose files all embed fine. The first sidecar name that
+    // exists wins; a second is a conflict the caller resolves rather than a merge this crate invents.
+    let mut unattributed = 0usize;
+    let mut sidecar_report: Option<String> = None;
+    match read_sidecar(root) {
+        Ok(Some(sidecar)) => {
+            // A sidecar names **files**; the index is keyed by **content hash**. This is the join, and it is the only
+            // place the two identities meet. An asset whose content appears at several paths matches if *any* of them
+            // is named, which is why this loops the paths rather than taking the first.
+            for asset in library.assets.values() {
+                let found = asset.paths.iter().find_map(|relative| {
+                    let key = relative.to_string_lossy().replace('\\', "/");
+                    sidecar.records.get(&key).or_else(|| sidecar.records.get(&*relative.to_string_lossy()))
+                });
+                if let Some(provenance) = found {
+                    index.provenance.insert(asset.hash, provenance.clone());
+                }
+            }
+            // **Every unused record is counted.** A sidecar with more rows than files is normal for a pack that ships
+            // sounds the project did not take — but a row that names a file the folder does not have is the commonest
+            // kind of typo, and silently ignoring it makes a licence look recorded that is attached to nothing.
+            let named: std::collections::BTreeSet<&str> =
+                library.assets.values().flat_map(|a| a.paths.iter()).filter_map(|p| p.to_str()).collect();
+            unattributed = sidecar
+                .records
+                .keys()
+                .filter(|key| {
+                    !named.contains(key.as_str()) && !named.contains(key.replace('\\', "/").as_str())
+                })
+                .count();
+        }
+        Ok(None) => {}
+        Err(e) => sidecar_report = Some(e.to_string()),
+    }
+
     // **The scan's skips are split by what they mean to a caller.** A file that is not audio at all is a fact about
     // the folder; a file that *is* audio by extension but would not read is a failure, and must appear in `failed`
     // beside the ones that decoded and would not embed. The first version dropped the second kind on the floor —
@@ -201,10 +256,26 @@ pub fn build(
         }
     }
 
-    Ok(Built { index, failed, not_audio, unmeasured, longer: false })
+    Ok(Built { index, failed, not_audio, unattributed, sidecar: sidecar_report, unmeasured, longer: false })
 }
 
 /// Decode, convert and embed one file, with every step's failure turned into a sentence.
+/// **The sidecar this folder ships, if it ships one**, by [`super::provenance::SIDECAR_NAMES`]' order.
+///
+/// `Ok(None)` means *no sidecar here*, which is normal. `Err` means one exists and could not be read — a different
+/// fact, and the caller reports it rather than treating both as "no licences".
+fn read_sidecar(
+    root: &Path,
+) -> Result<Option<super::provenance::Sidecar>, super::provenance::ProvenanceProblem> {
+    for name in super::provenance::SIDECAR_NAMES {
+        let path = root.join(name);
+        if path.is_file() {
+            return super::provenance::Sidecar::read(&path).map(Some);
+        }
+    }
+    Ok(None)
+}
+
 pub(super) fn embed_one(
     path: &Path,
     embed: &mut impl FnMut(&[f32]) -> Result<Vec<f32>, String>,

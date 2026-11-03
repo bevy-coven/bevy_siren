@@ -356,6 +356,8 @@ fn the_summary_names_unmeasured_files() {
         index: Index::new(stamp()),
         failed: Vec::new(),
         not_audio: Vec::new(),
+        unattributed: 0,
+        sidecar: None,
         unmeasured: 3,
         longer: false,
     };
@@ -365,8 +367,97 @@ fn the_summary_names_unmeasured_files() {
         index: Index::new(stamp()),
         failed: Vec::new(),
         not_audio: Vec::new(),
+        unattributed: 0,
+        sidecar: None,
         unmeasured: 0,
         longer: false,
     };
     assert_eq!(clean.describe(), "0 indexed", "a clean run says nothing extra");
+}
+
+/// **A sidecar's licence reaches the asset it names**, which is the join `#14` asked for: a sidecar keys by **file**,
+/// the index keys by **content hash**, and this is the only place the two meet.
+#[test]
+fn a_sidecar_licence_reaches_the_asset_it_names() {
+    let scratch = Scratch::new("sidecar");
+    scratch.file("step.wav", &wav(48_000, 1000.0, 48_000));
+    scratch.file("other.wav", &wav(48_000, 440.0, 48_000));
+    scratch.file("licences.csv", b"file,licence,source,author\nstep.wav,CC0-1.0,kenney,Kenney\n");
+
+    let built = build(scratch.path(), stamp(), |_| Ok(vec![0.5; EMBEDDING_DIM])).expect("build");
+    assert_eq!(built.indexed(), 2);
+    assert_eq!(built.index.provenance.len(), 1, "only the named file has a record");
+
+    let named = built.index.provenance.values().next().expect("one record");
+    assert_eq!(named.licence.as_deref(), Some("CC0-1.0"));
+    assert_eq!(named.author.as_deref(), Some("Kenney"));
+    assert_eq!(named.permits_commercial_use(), Some(true));
+
+    // **And the unnamed file is absent, not defaulted.** Its result carries `unknown`, which answers `None`.
+    let unnamed =
+        built.index.records.keys().find(|h| !built.index.provenance.contains_key(h)).expect("the other file");
+    assert!(!built.index.provenance.contains_key(unnamed));
+    assert_eq!(built.unattributed, 0, "no record went unused");
+    assert!(built.sidecar.is_none(), "the sidecar read fine");
+}
+
+/// **A sidecar row naming a file the folder does not have is counted**, because that is the commonest typo and silently
+/// ignoring it makes a licence look recorded that is attached to nothing.
+#[test]
+fn a_record_naming_an_absent_file_is_counted() {
+    let scratch = Scratch::new("typo");
+    scratch.file("step.wav", &wav(48_000, 1000.0, 48_000));
+    scratch.file("licences.csv", b"file,licence\nstep.wav,CC0-1.0\nstpe.wav,CC0-1.0\n");
+
+    let built = build(scratch.path(), stamp(), |_| Ok(vec![0.5; EMBEDDING_DIM])).expect("build");
+    assert_eq!(built.index.provenance.len(), 1, "the real file got its licence");
+    assert_eq!(built.unattributed, 1, "and the typo is counted, not ignored");
+    assert!(built.describe().contains("1 licence records matched no file"), "{}", built.describe());
+}
+
+/// **An unreadable sidecar does not silently mean "no licences"** — the two are different facts and the build says
+/// which one it found.
+#[test]
+fn an_unreadable_sidecar_is_reported_while_the_build_still_works() {
+    let scratch = Scratch::new("badsidecar");
+    scratch.file("step.wav", &wav(48_000, 1000.0, 48_000));
+    // A header with no `file` column: the reader refuses it rather than returning an empty map.
+    scratch.file("licences.csv", b"licence,source\nCC0-1.0,kenney\n");
+
+    let built = build(scratch.path(), stamp(), |_| Ok(vec![0.5; EMBEDDING_DIM])).expect("build");
+    assert_eq!(built.indexed(), 1, "the audio still indexed");
+    assert!(built.index.provenance.is_empty());
+    assert!(built.sidecar.is_some(), "and the sidecar failure is carried");
+    assert!(built.describe().contains("Licence record unreadable"), "{}", built.describe());
+}
+
+/// **A folder with no sidecar is normal**, and says nothing — the distinction the report above depends on.
+#[test]
+fn no_sidecar_is_normal_and_says_nothing() {
+    let scratch = Scratch::new("nosidecar");
+    scratch.file("step.wav", &wav(48_000, 1000.0, 48_000));
+    let built = build(scratch.path(), stamp(), |_| Ok(vec![0.5; EMBEDDING_DIM])).expect("build");
+    assert!(built.sidecar.is_none());
+    assert_eq!(built.unattributed, 0);
+    assert_eq!(built.describe(), "1 indexed", "a clean run says nothing extra");
+}
+
+/// **A licence with a name containing a space survives the join**, end to end — the pack name is the field most likely
+/// to contain one, and the format escapes it.
+#[test]
+fn a_pack_name_with_a_space_survives_a_build() {
+    let scratch = Scratch::new("space");
+    scratch.file("step.wav", &wav(48_000, 1000.0, 48_000));
+    scratch.file("licences.csv", b"file,licence,source\nstep.wav,CC0-1.0,kenney sounds\n");
+
+    let built = build(scratch.path(), stamp(), |_| Ok(vec![0.5; EMBEDDING_DIM])).expect("build");
+    let record = built.index.provenance.values().next().expect("one record");
+    assert_eq!(
+        record.source,
+        Some(bevy_siren::semantic::provenance::Source::Pack(String::from("kenney sounds")))
+    );
+
+    // And through the file format too, which is where an unescaped space would split into two fields.
+    let back = Index::load(&built.index.to_text(), &stamp()).expect("loads");
+    assert_eq!(back.provenance, built.index.provenance);
 }
