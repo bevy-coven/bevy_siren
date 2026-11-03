@@ -7,6 +7,56 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 40 — 2026-11-03 — the panel names the duck whose depth it shows, and plays a stinger
+
+**Change.**
+Two things in `examples/mixer`, one commit, because the second was **found by** the first.
+
+1. **`Stinger` was never written.** `music.stinger` has been in the example's table since it was written and no step ever
+   fired one — no import, no step — so the crate's second music feature, and the one duck whose cause is a mechanism
+   (`Entry::Ducked { by: "stinger" }`), had never appeared on screen. A `stinger` step now sits in the default script
+   before `refuse`, and the shipped still is captured on its frame.
+2. **The bus row named the wrong duck.** It printed `SirenMix::ducked` — the **minimum** over every active rule — beside
+   the **newest** `Ducked` entry's `by`. One duck hid it; a stinger over a dialogue line puts two on one bus and the row
+   read `duck -8.0 dB by stinger` where −8.0 belonged to `dialogue.greeting`. Now the newest entry is named with **its
+   own** `by_db` when the depths differ (`duck -8.0 dB (newest: stinger at -6.0)`), and plainly when one rule explains the
+   number — including a rule that is **recovering**, which is not a second cause.
+
+`src/` is untouched: no public type, no schema, no message.
+
+**Rationale.** This loop has fixed "two numbers from different sources presented as one fact" at iterations 19, 31, 36
+and 38; iteration 31 *introduced* this one by choosing the newest entry, and it stayed invisible because no bus ever had
+two ducks at once. The stinger was the item that made it visible — and it was itself a feature a consumer could not see.
+
+**Evidence.** `runs/2026-11-03-40/` — `research.md` (S1 `Stinger`'s −6 dB default, S2 `Ducked.by` naming a mechanism, S3
+`ducked` as the minimum, S4 "everything a play decides is readable"), `plan.md`, `perf.md`, `eval.md` (case 13 red before,
+green in all three shapes after), `review.md` (three passes, GREAT), `evidence/panel/`.
+
+| | before | after |
+|---|---|---|
+| `music.stinger` ever played | never — `Stinger` never written | `0.89s stinger ducked Music by -6.0 dB` |
+| the `Music` row, two ducks | `duck -8.0 dB **by stinger**` (wrong cause) | `duck -8.0 dB **(newest: stinger at -6.0)**` |
+| the `Effects` row, one duck | `duck -4.0 dB by dialogue.greeting` | unchanged |
+| one duck, recovering (fresh eyes) | invented a second cause | `duck -2.2 dB by dialogue.greeting` |
+| row wrap at 1280 | n/a | none — 4 evenly spaced bands, right edge x=817 |
+| the still's margin | 11 px | 11 px |
+| the GIF's first frame | 0.66 s, before the stinger | **0.94 s, on it** |
+
+Full gate green: build, 119+5, 126+5 (serde), 128+5 (mixer), 5 doctests, clippy `-D warnings`, fmt, rustdoc, examples,
+`readme::`. Perf unchanged in the crate (example only): 0.025 / 0.148 / 0.490 µs per frame at 8 / 64 / 256, load 4.0.
+`check_media.py`: 0 problems. **A defect in this iteration's own review, found on the fresh-eyes frame**: the long form
+invented a second duck for a rule that was merely recovering; fixed before shipping and re-reviewed.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. A `Stopped` line for a parent's despawn — **blocked** on `needs-decision/remove-completes.md` (7 items wait on it).
+2. The cue list has no `max_instances` column; the table's per-cue budget is invisible.
+3. The `Music` header row shows `calm`/`combat` targets but not how many layers are **live**.
+4. `docs/media/mixer.gif` captures at ~8 fps from a 30 fps window; a fade shorter than 120 ms still falls between frames.
+5. No capture shows the panel with a **missing sound** refused (iteration 39 showed `unknown-cue` only).
+
 ## Iteration 39 — 2026-11-03 — the panel shows a refusal
 
 **Change.**

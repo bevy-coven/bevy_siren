@@ -38,7 +38,7 @@ use bevy::ui::widget::Text;
 use bevy::window::WindowResolution;
 use bevy_siren::{
     BusLevel, Cue, CueTable, Entry, Mode, MusicLayer, MusicLayers, MusicPlugin, MusicScore, MusicState, Play,
-    SirenLog, SirenMix, SirenPlugin, SirenSettings, SirenSounds, SoundSlot,
+    SirenLog, SirenMix, SirenPlugin, SirenSettings, SirenSounds, SoundSlot, Stinger,
 };
 
 /// The capture, present only when `SIREN_FRAMES` is set.
@@ -70,6 +70,10 @@ enum Step {
     /// game to find. Nothing else in this script refuses: `steal` steals, `duck` ducks, `layer` moves, and every one of
     /// them plays something. So the panel had never shown the one line a person opens it for.
     Refuse,
+    /// **A stinger: one hit on the `Music` bus that ducks what it plays over.** The table has had `music.stinger` since
+    /// the example was written and nothing ever played it, so the panel had never shown the one duck whose cause is not a
+    /// cue — the `Music` row's `duck -6.0 dB by stinger`, where `by` names the mechanism rather than a cue.
+    Stinger,
 }
 
 /// The frame staged steps start on: after the layout and the first mix have settled.
@@ -408,22 +412,44 @@ fn draw_panel(
             Kind::Bus(bus) => {
                 let db = mix.bus_db(bus);
                 let duck = mix.ducked.get(bus).copied().unwrap_or(0.0);
-                // **A duck says how far *and by what*.** The row used to read `duck -8.0 dB` and nothing else, so a
-                // person had to find the log line that matched — while `Entry::Ducked` exists precisely to say which
-                // cue lowered the bus. The newest entry naming this bus, shown while the bus is still ducked, is the
-                // one a player is hearing.
+                // **A duck says how far *and* by what — from the same entry.** The row printed the **deepest** duck's
+                // depth (`SirenMix::ducked`, the minimum over every active rule) beside the **newest** `Ducked` entry's
+                // cause. When two ducks overlap — a stinger firing over a dialogue line, the ordinary case — it read
+                // `duck -8.0 dB by stinger` where -8.0 belonged to `dialogue.greeting`: two numbers from different
+                // sources presented as one fact. Iteration 31 chose the newest; this is the first iteration to put two
+                // ducks on one bus and see it. Now the newest entry names the cause and **its own** depth, and when the
+                // minimum comes from a different rule the row says which.
                 let duck = if duck < -0.05 {
-                    let by = log
-                        .recent(SirenLog::CAPACITY)
-                        .find_map(|entry| match entry {
-                            Entry::Ducked { bus: b, by, .. } if b == bus => Some(by.as_str()),
-                            _ => None,
-                        })
-                        .unwrap_or("");
-                    if by.is_empty() {
-                        format!("   duck {duck:+.1} dB")
-                    } else {
-                        format!("   duck {duck:+.1} dB by {by}")
+                    // **The newest entry names the cause; say why the depths differ, when they do.** Three cases:
+                    //   1. one rule at its full depth — `duck -4.0 dB by <cue>`;
+                    //   2. one rule **recovering**, so its `by_db` is deeper than the live depth — that is still the
+                    //      cause and no second rule exists, so name it plainly;
+                    //   3. two rules overlapping — the deepest need not be the newest, so both numbers need a label.
+                    // Cases 1 and 2 are told apart from 3 by asking whether a *different* cause also names this bus,
+                    // and whether the live depth's value appears among the recent entries at all.
+                    let mut newest: Option<(&str, f32)> = None;
+                    let mut other_cause = false;
+                    for entry in log.recent(SirenLog::CAPACITY) {
+                        if let Entry::Ducked { bus: b, by, by_db, .. } = entry
+                            && b == bus
+                        {
+                            match newest {
+                                None => newest = Some((by.as_str(), *by_db)),
+                                Some((seen, _)) => other_cause |= seen != by.as_str(),
+                            }
+                        }
+                    }
+                    match newest {
+                        // One live cause — whether at full depth or recovering — or several where the newest **is**
+                        // still the deepest: either way one rule explains the number, so name it and stop.
+                        Some((by, by_db)) if !other_cause || (by_db - duck).abs() < 0.05 => {
+                            format!("   duck {duck:+.1} dB by {by}")
+                        }
+                        // Two causes: the deepest need not be the newest, so name the newest and its own depth.
+                        Some((by, by_db)) => {
+                            format!("   duck {duck:+.1} dB (newest: {by} at {by_db:+.1})")
+                        }
+                        None => format!("   duck {duck:+.1} dB"),
                     }
                 } else {
                     String::new()
@@ -542,6 +568,7 @@ fn stage(
     capture: Option<Res<Capture>>,
     mut plays: MessageWriter<Play>,
     mut layers: MessageWriter<MusicLayers>,
+    mut stingers: MessageWriter<Stinger>,
 ) {
     let Some(c) = capture else {
         return;
@@ -568,6 +595,11 @@ fn stage(
             plays.write(Play::cue("engine.idle"));
             plays.write(Play::cue("engine.idle"));
             plays.write(Play::cue("sword.hit"));
+        }
+        Step::Stinger => {
+            // `Stinger::new` defaults to -6 dB for a second, which is the crate's documented default and what the
+            // `Music` row will show as `duck -6.0 dB by stinger`.
+            stingers.write(Stinger::new("music.stinger"));
         }
         Step::Refuse => {
             // A cue the table does not have: `Refusal::UnknownCue`, named in the log and in `Refused`. The clearest
@@ -596,13 +628,14 @@ fn capture_config() -> Capture {
         // **The default script includes `refuse`**, so the showcase shows the panel doing the thing it exists for. The
         // order ends on `refuse` before the still: a refusal is a line, not a sound, and it is the last thing a person
         // reading the log wants to have missed.
-        .unwrap_or_else(|_| "steal,layer,duck,refuse".to_owned())
+        .unwrap_or_else(|_| "steal,layer,duck,stinger,refuse".to_owned())
         .split(',')
         .filter_map(|token| match token.trim() {
             "duck" => Some(Step::Duck),
             "steal" => Some(Step::Steal),
             "layer" => Some(Step::Layer),
             "refuse" => Some(Step::Refuse),
+            "stinger" => Some(Step::Stinger),
             _ => None,
         })
         .collect();
@@ -611,10 +644,10 @@ fn capture_config() -> Capture {
         // something else would put the wrong picture in the evidence folder.
         if std::env::var("SIREN_KEYS").is_ok_and(|v| !v.trim().is_empty()) {
             eprintln!(
-                "siren: SIREN_KEYS has no step this example knows; staging the default steal,layer,duck,refuse"
+                "siren: SIREN_KEYS has no step this example knows; staging the default steal,layer,duck,stinger,refuse"
             );
         }
-        vec![Step::Steal, Step::Layer, Step::Duck, Step::Refuse]
+        vec![Step::Steal, Step::Layer, Step::Duck, Step::Stinger, Step::Refuse]
     } else {
         keys
     };

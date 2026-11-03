@@ -34,6 +34,13 @@ recover over
 conversation — and two ducks do not stack: the deeper one wins, because a bus already at −8 dB is not lowered another
 4 dB by a second voice asking for −4.
 
+**A depth and its cause come from the same rule.** Two ducks on one bus mean the depth — the winner — is often *not* the
+newest rule. `SirenMix::ducked` is the minimum over every active rule, while `SirenLog`'s `Ducked` entries are newest
+first, so a panel that prints one beside the other misnames the cause: a −8 dB dialogue duck under a newer −6 dB
+stinger reads as *−8 dB by the stinger*. `examples/mixer` names the newest entry's `by`, gives **its own** `by_db` when
+that differs from the depth (`duck -8.0 dB (newest: stinger at -6.0)`), and uses the plain `by <cue>` when one rule
+explains the number — a rule that is **recovering** from its full depth is still that one rule, not a second cause.
+
 The default pair is the one every game wants, per Gregory *Game Engine Architecture* §14.6.3: dialogue steps the music
 back 8 dB and the effects 4 dB, holding a quarter second and recovering over a fraction of a second.
 

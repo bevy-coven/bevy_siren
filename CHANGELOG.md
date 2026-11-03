@@ -5,6 +5,22 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **The audio panel names the duck whose depth it shows.** A bus row printed `SirenMix::ducked`'s depth — the **minimum**
+  over every active rule — beside the **newest** `Ducked` entry's `by`. With one duck those are the same rule; a stinger
+  firing over a line of dialogue puts two on one bus, and the row read `duck -8.0 dB by stinger` when −8.0 belonged to
+  `dialogue.greeting`. Two numbers from different sources, presented as one fact. The row now names the newest entry with
+  **its own** `by_db` when the two differ, and the plain `by <cue>` when one rule explains the number — including a rule
+  that is recovering, which is not a second cause. Example only; no `src/` file changed.
+
+### Added
+
+- **The panel plays the stinger.** `music.stinger` had been in `examples/mixer`'s table since it was written and **no
+  step ever wrote a `Stinger`**, so the crate's second music feature and the one duck whose cause is a mechanism
+  (`by: "stinger"`) had never appeared on screen. `SIREN_KEYS=…,stinger,…` (in the default script before `refuse`) fires
+  it, and `docs/media/mixer.png` is now captured on that frame. No `src/` file changed.
+
 ### Changed
 
 - **`max_instances` is documented as a budget on plays, not a standing count.** The field read *"how many of this cue
