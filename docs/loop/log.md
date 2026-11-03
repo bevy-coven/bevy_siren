@@ -7,6 +7,70 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 34 — 2026-11-03 — a layer is a stem of the `Music` bus
+
+**Change.**
+
+- **`src/music.rs` — `start_missing` refuses a layer whose cue's bus is not `Music`**, through iteration 16's one-notice
+  machinery. `MusicScore::problems` gains the same sentence word for word, so the report and the log cannot disagree.
+- **The `bad` list carries `(name, cue, sentence)`** rather than re-deriving the wording at the print, so both faults share
+  one loop and the reason is the thing carried.
+- Two tests (one failing on the base commit, one guard); a CHANGELOG line.
+
+**Why.** `MusicLayer::cue`'s doc says the cue *"should name the `Music` bus"* — advice, and nothing checked. A layer naming a
+loop on `Effects` **started there**: `MusicState` reported two layers live while one was mixed on the effects bus,
+`MusicLayers` could not move it, and `problems()` said nothing. `play_stingers` already refuses exactly this; the layer path
+had neither the check nor the line.
+
+**Evidence.** `runs/2026-11-03-34/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/wrong-bus{,-before}.txt`.
+
+**Measured.**
+
+| row | before | after |
+|---|---|---|
+| `problems()` | **nothing** | one sentence naming layer, cue and **bus** |
+| live voices | `wrong.bus@Effects`, `track.ok@Music` | `track.ok@Music` |
+| `MusicState::live()` | **2** | **1** |
+| `SirenMix` voices | Effects **1**, Music 1 | Effects **0**, Music 1 |
+| a score of two `Music` layers (guard) | starts | **unchanged** |
+| every test, both feature sets | 116 / 123 / 125 + 5 | 118 / 125 / 127 + 5 |
+| every rendered cue | — | **byte-identical** (21/21) |
+| frame cost, 8 / 64 / 256 | — | median 1.095 µs at 256, load 8.5–5.3; one bus comparison per **voiceless** layer |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. A test defect caught in review: my first version built the good
+layer with `layer_cue("track.ok")` — whose sound key is `"track.ok"` — against a sounds list of `["a", "b"]`, so **neither**
+layer played and the assertion read `left: []`. The test's table was wrong; the code was right.
+
+**Traps for the command.** (1) A doc that says **"should"** is an invariant nobody wrote: grep the `should`s and check each
+has a mechanism or a report. (2) When one path already refuses a fault (the stinger), the sibling path that merely *starts*
+is the bug — the quieter mechanism is the harder one to see. (3) A notice list that carries `(name, cue)` and re-derives
+the sentence at the print cannot grow a second fault; carry the **sentence**. (4) A test's own table is code: a wrong sound
+key made a correct fix look broken. (5) `hs distill` GPU-blocked (thirty-third iteration).
+
+**Commit.** `d7b5bb3`; CI on `main`.
+
+**Next 5.**
+
+1. **A Music block in the panel** — `MusicState`'s seven accessors drawn by nothing; deferred **three times** for height
+   (12 px free against ~134). It needs a layout decision, and every iteration that routes around it should say so.
+2. A `Stopped` line for a parent's despawn — neither backend writes one.
+3. **Answer or route around the `CueProblem` question** — **seven** items wait on it.
+4. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+5. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+
+**The hunt, twenty-third pass.** The **"should"** sweep is the new lead and it is cheap: `grep -rn 'should\|ought' src/` and check
+each sentence has a mechanism. Two found so far this iteration (the layer's bus, now enforced, and `MusicLayer::cue`'s
+remaining wording). The next run should finish that sweep across `cue.rs`, `mix.rs` and `play.rs` — a doc that says *"should"*
+where the code says nothing is a defect that has shipped in silence.
+
+**Baseline note.** Nothing was red; the suite had 116 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 33 — 2026-11-03 — a queued change follows the score's tempo
 
 **Change.**
