@@ -7,6 +7,9 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`tools::MAX_K` and `tools::check_k`** — ADR 0007's bound: every list-returning tool returns at most `k`, `k` is
+  capped at **100** (**design default**), and a bad `k` is refused *before* any work happens. `ToolProblem::BadK` names
+  the valid range. A `k` with no ceiling is an unbounded list with a friendlier name.
 - **The human listening check** — `#46`. `docs/guide/listening.md` is the procedure: the commands, the **order** of the
   five questions, what counts as a failure and what the follow-up is, and the shape the outcome is recorded in.
   `examples/audition` writes an anchor's neighbours as `01-first.wav … 0k-last.wav` — **rank order, not alphabetical**,

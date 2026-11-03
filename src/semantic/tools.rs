@@ -56,6 +56,13 @@ impl Default for Variants {
 /// **What a tool could not do**, each naming what to do about it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ToolProblem {
+    /// `k` was zero or above [`MAX_K`].
+    BadK {
+        /// What was asked for.
+        k: usize,
+        /// The largest accepted.
+        max: usize,
+    },
     /// No anchor was given and none was set.
     NoAnchor,
     /// The anchor's hash is not in the index, carrying the hash so the message points at it.
@@ -70,6 +77,9 @@ pub enum ToolProblem {
 impl core::fmt::Display for ToolProblem {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            ToolProblem::BadK { k, max } => {
+                write!(f, "k must be between 1 and {max}, and {k} is not. A k of 0 asks for nothing")
+            }
             ToolProblem::NoAnchor => {
                 f.write_str("no anchor is set. Call `set_anchor(asset_id)` first, or pass one explicitly")
             }
@@ -170,6 +180,25 @@ impl Answer {
         }
         self.tally.describe()
     }
+}
+
+/// **The largest `k` the tool surface accepts.**
+///
+/// A tool's `k` is a **bound, not a page**: every list-returning tool returns at most `k` results, so no call can return
+/// an unbounded list and a cursor is unnecessary (ADR 0007). A ceiling is what makes that true, and it is **design
+/// default `100`** — larger than any workflow needs (the default is 3 for music, 6 for effects) and small enough that a
+/// hostile or confused `k` cannot ask for a library dump.
+pub const MAX_K: usize = 100;
+
+/// **Check a `k` before doing any work**, so a bad one is `bad_argument` rather than an expensive call that then fails.
+pub fn check_k(k: usize) -> Result<usize, ToolProblem> {
+    if k == 0 {
+        return Err(ToolProblem::BadK { k, max: MAX_K });
+    }
+    if k > MAX_K {
+        return Err(ToolProblem::BadK { k, max: MAX_K });
+    }
+    Ok(k)
 }
 
 /// **A tool session: one anchor, held by the caller.**
@@ -281,6 +310,7 @@ impl Toolset {
         k: usize,
         weights: Weights,
     ) -> Result<Answer, ToolProblem> {
+        check_k(k)?;
         let anchor_hash = session.resolve_anchor(anchor)?;
         let anchor_embedding =
             index.records.get(&anchor_hash).ok_or(ToolProblem::AnchorNotIndexed { anchor: anchor_hash })?;

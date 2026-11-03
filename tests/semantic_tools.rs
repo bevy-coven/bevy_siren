@@ -273,3 +273,36 @@ fn the_two_weightings_are_separate_and_usable() {
 }
 
 use bevy_siren::semantic::weights::Weights;
+
+/// **`k` is a bound, not a page** — ADR 0007: every list-returning tool returns at most `k`, `k` has a ceiling, and a
+/// bad one is refused **before** any work happens.
+#[test]
+fn a_bad_k_is_refused() {
+    use bevy_siren::semantic::tools::{MAX_K, check_k};
+
+    assert_eq!(check_k(1), Ok(1));
+    assert_eq!(check_k(MAX_K), Ok(MAX_K));
+    for bad in [0, MAX_K + 1] {
+        match check_k(bad) {
+            Err(bevy_siren::semantic::tools::ToolProblem::BadK { k, max }) => {
+                assert_eq!(k, bad);
+                assert_eq!(max, MAX_K);
+            }
+            other => panic!("expected BadK for {bad}, got {other:?}"),
+        }
+    }
+
+    // And the tools enforce it rather than only the helper.
+    let index = index();
+    let tools = Toolset::default();
+    let mut session = Session::new();
+    session.set_anchor(&index, 1).expect("an anchor");
+    assert!(matches!(
+        tools.compatible_music(&index, &session, None, 0),
+        Err(bevy_siren::semantic::tools::ToolProblem::BadK { .. })
+    ));
+    assert!(matches!(
+        tools.compatible_sfx(&index, &session, None, None, MAX_K + 1),
+        Err(bevy_siren::semantic::tools::ToolProblem::BadK { .. })
+    ));
+}
