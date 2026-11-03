@@ -48,7 +48,7 @@ table had bare `Duck::new` rules, so the **new** sentence fired from a rule whos
 assertion would have passed for the wrong reason — caught by removing the accidental triggers and seeing nine
 sentences, not ten. Every rule in that table now carries `hold_s`, with a dedicated row for the tenth.
 
-**Commit.** (see `git log`).
+**Commit.** `a327457` — *mix: a duck with neither a hold nor a fade is reported*.
 
 **Top 5 remaining**
 
