@@ -28,13 +28,19 @@ let settings = SirenSettings {
 
 ## Ducking
 
-A duck is a rule: a voice starting on `source` lowers `target` by `by_db` for `hold_s`, then lets it recover over
+A duck is a rule about a **voice**: a voice starting on `source` lowers `target` by `by_db` for `hold_s`, then lets it
+recover over
 `fade_s`. The envelope is read every frame from real time, so a fade keeps running while the game is paused behind a
 conversation — and two ducks do not stack: the deeper one wins, because a bus already at −8 dB is not lowered another
 4 dB by a second voice asking for −4.
 
 The default pair is the one every game wants, per Gregory *Game Engine Architecture* §14.6.3: dialogue steps the music
 back 8 dB and the effects 4 dB, holding a quarter second and recovering over a fraction of a second.
+
+**The hold ends when the voice does.** If every voice on the source bus stops — `StopCue`, a steal, anything that takes
+the sound a player could still hear — the hold is over and the recovery begins from that frame, rather than running its
+remaining quarter second and *then* fading. A voice that is still playing keeps the full hold; a second one restarts it.
+A voice that is merely fading out does not count, which is the same rule `SirenMix::voices_on` uses: what a player hears.
 
 `SirenMix` holds **this frame's** buses: one entry per bus in the table's list, and nothing for a bus that has left it.
 A table that lists no buses means the crate's four (`DEFAULT_BUSES`) everywhere — for a play's bus check, for the panel,

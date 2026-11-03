@@ -398,6 +398,8 @@ impl DuckClock {
             let Some(start) = self.started.get(&(rule.source.clone(), rule.target.clone())) else {
                 continue;
             };
+            // A rule whose source bus has gone quiet was rewound by [`source_went_quiet`](Self::source_went_quiet) before
+            // this read, so its fade is already underway; one whose source is still playing holds for its `hold_s`.
             let db = active_duck_db(rule.by_db, now_s - start, rule.hold_s, rule.fade_s);
             if db < deepest {
                 deepest = db;
@@ -410,6 +412,39 @@ impl DuckClock {
             }
         }
         deepest
+    }
+
+    /// **Ends the hold of every rule whose source bus has gone quiet.**
+    ///
+    /// A duck is a rule about a **voice** — [`Duck`]'s own doc: *"a voice starting on `source` lowers `target` by
+    /// `by_db` for `hold_s`, then lets it recover"* — so a duck whose source bus has **no live voice** has nothing left
+    /// to hold. Measured before this: a line stopped on frame 0 left `Music` at −8 dB for another 15 frames and then
+    /// spent 0.6 s recovering, ducking the music for 0.85 s after the voice was gone.
+    ///
+    /// The rewind is **once per duck**: `started` is moved back by the hold that had not yet elapsed, so the fade is
+    /// already underway and keeps advancing. A duck that fired this frame and whose source is already quiet begins its
+    /// fade now.
+    pub fn source_went_quiet(
+        &mut self,
+        live: &BTreeMap<String, usize>,
+        settings: &SirenSettings,
+        now_s: f64,
+    ) {
+        for rule in &settings.ducks {
+            if live.get(&rule.source).copied().unwrap_or(0) > 0 {
+                continue;
+            }
+            let Some(start) = self.started.get_mut(&(rule.source.clone(), rule.target.clone())) else {
+                continue;
+            };
+            let hold = f64::from(rule.hold_s.max(0.0));
+            let elapsed = now_s - *start;
+            // Only rewind when the hold has not finished: once `elapsed >= hold` the fade is running and must be left
+            // alone. Rewinding again would restart it for ever, which is the bug the clamp had.
+            if elapsed < hold {
+                *start -= hold - elapsed;
+            }
+        }
     }
 
     /// Drops manual envelopes that have finished recovering: they are over, and keeping them would grow
@@ -525,6 +560,20 @@ pub fn update_mix(
     } else {
         settings.buses.clone()
     };
+    // **How many voices each bus still has, this frame, before any gain is written.** A duck is a rule about a *voice*
+    // — `docs/guide/buses.md`: "a voice starting on `source` lowers `target` by `by_db` for `hold_s`" — so a duck whose
+    // source bus has no live voice has nothing left to hold it. Measured before this: a line stopped on frame 0 left
+    // `Music` at −8 dB for another 15 frames and then spent 0.6 s recovering, ducking the music for 0.85 s after the
+    // voice was gone. The count is read here because the bus loop needs it; the write loop below recounts to decide
+    // what to skip.
+    let mut live: BTreeMap<String, usize> = BTreeMap::new();
+    for (_, voice, _, stopping, _, _, _) in &voices {
+        if stopping.is_none() {
+            *live.entry(voice.bus.clone()).or_default() += 1;
+        }
+    }
+
+    clock.source_went_quiet(&live, &settings, now);
     let mut targets: Vec<(String, f32)> = Vec::with_capacity(levels.len());
     for bus in &levels {
         let base = chain_db(&[master, bus.gain_db]);

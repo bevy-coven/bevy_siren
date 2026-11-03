@@ -20,6 +20,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A duck ends its hold when the voice that justified it stops.** `Duck`'s own doc says a duck holds for `hold_s`
+  *"because a voice starting on `source`"* is playing; `DuckClock` ran the full hold whatever happened to the source, so a
+  line stopped on frame 0 kept `Music` at −8 dB for another 15 frames and then spent 0.6 s recovering — **0.85 s of duck
+  for a sound that had already stopped**. `DuckClock::source_went_quiet` now rewinds a rule's clock *once* when its source
+  bus has no live voice, so the fade is already underway and keeps advancing. A loop that keeps playing holds for its
+  full `hold_s`, a second line extends it, and a one-shot that ends by itself keeps its hold — measured, one row of four
+  moves. No public type changed: `duck_db` keeps its signature.
+
 - **`examples/mixer`'s panel shows the crate's own verdict on its cue table.** It drew each cue's name, bus, mode, gain
   and priority and **not** `problems()`, so a cue on a bus the mix did not have, or one whose `pitch.low` was past
   `pitch.high`, looked exactly like a healthy one — the picture said a broken cue was fine. The panel now has a
@@ -66,6 +74,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
 
 ### Fixed
+
+- **A duck ends its hold when the voice that justified it stops.** `Duck`'s own doc says a duck holds for `hold_s`
+  *"because a voice starting on `source`"* is playing; `DuckClock` ran the full hold whatever happened to the source, so a
+  line stopped on frame 0 kept `Music` at −8 dB for another 15 frames and then spent 0.6 s recovering — **0.85 s of duck
+  for a sound that had already stopped**. `DuckClock::source_went_quiet` now rewinds a rule's clock *once* when its source
+  bus has no live voice, so the fade is already underway and keeps advancing. A loop that keeps playing holds for its
+  full `hold_s`, a second line extends it, and a one-shot that ends by itself keeps its hold — measured, one row of four
+  moves. No public type changed: `duck_db` keeps its signature.
 
 - **`examples/mixer`'s panel shows the crate's own verdict on its cue table.** It drew each cue's name, bus, mode, gain
   and priority and **not** `problems()`, so a cue on a bus the mix did not have, or one whose `pitch.low` was past
@@ -239,6 +255,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A duck ends its hold when the voice that justified it stops.** `Duck`'s own doc says a duck holds for `hold_s`
+  *"because a voice starting on `source`"* is playing; `DuckClock` ran the full hold whatever happened to the source, so a
+  line stopped on frame 0 kept `Music` at −8 dB for another 15 frames and then spent 0.6 s recovering — **0.85 s of duck
+  for a sound that had already stopped**. `DuckClock::source_went_quiet` now rewinds a rule's clock *once* when its source
+  bus has no live voice, so the fade is already underway and keeps advancing. A loop that keeps playing holds for its
+  full `hold_s`, a second line extends it, and a one-shot that ends by itself keeps its hold — measured, one row of four
+  moves. No public type changed: `duck_db` keeps its signature.
+
 - **`examples/mixer`'s panel shows the crate's own verdict on its cue table.** It drew each cue's name, bus, mode, gain
   and priority and **not** `problems()`, so a cue on a bus the mix did not have, or one whose `pitch.low` was past
   `pitch.high`, looked exactly like a healthy one — the picture said a broken cue was fine. The panel now has a
@@ -300,6 +324,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 The first release: sound for Bevy 0.20 as data, mixed in buses.
 
 ### Fixed
+
+- **A duck ends its hold when the voice that justified it stops.** `Duck`'s own doc says a duck holds for `hold_s`
+  *"because a voice starting on `source`"* is playing; `DuckClock` ran the full hold whatever happened to the source, so a
+  line stopped on frame 0 kept `Music` at −8 dB for another 15 frames and then spent 0.6 s recovering — **0.85 s of duck
+  for a sound that had already stopped**. `DuckClock::source_went_quiet` now rewinds a rule's clock *once* when its source
+  bus has no live voice, so the fade is already underway and keeps advancing. A loop that keeps playing holds for its
+  full `hold_s`, a second line extends it, and a one-shot that ends by itself keeps its hold — measured, one row of four
+  moves. No public type changed: `duck_db` keeps its signature.
 
 - **`examples/mixer`'s panel shows the crate's own verdict on its cue table.** It drew each cue's name, bus, mode, gain
   and priority and **not** `problems()`, so a cue on a bus the mix did not have, or one whose `pitch.low` was past

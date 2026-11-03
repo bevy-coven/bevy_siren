@@ -3,6 +3,15 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 27, a duck ends its hold when its voice does
+
+No clip: the change is **when a duck's hold releases**, and every rendered cue is byte-identical (21 of 21) because the
+harness's scripted duck still has a live voice while it plays. The evidence is
+`runs/2026-11-03-27/evidence/duck-hold{,-before}.txt`, four cases over 70 frames: a **stopped** source goes to `+0.0` at
+frame **40** (was 60), while a looping source, a second line mid-hold, and a one-shot that ends by itself are **unchanged**
+— one row of four. Tests: `tests/mix.rs::{a_duck_ends_its_hold_when_its_source_is_stopped,
+a_duck_whose_source_keeps_playing_holds, a_second_line_extends_the_duck}`.
+
 ## `mixer-panel.gif` — the audio panel, as a program
 
 ![the audio panel](mixer-panel.gif)

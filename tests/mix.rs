@@ -2,7 +2,8 @@
 
 use bevy::prelude::*;
 use bevy_siren::{
-    BusLevel, Cue, CueTable, Duck, Entry, Play, Refusal, SirenLog, SirenMix, SirenSettings, SoundSlot, Voice,
+    BusLevel, Cue, CueTable, Duck, Entry, Mode, Play, Refusal, SirenLog, SirenMix, SirenSettings, SoundSlot,
+    StopCue, Voice,
 };
 
 use crate::helpers::{advance, app, live_voices, played, refused, run_for, sounds, voices};
@@ -667,4 +668,86 @@ fn problems_in_reads_the_tables_own_buses() {
     }]);
     assert!(effects.problems_in(&plain).is_empty(), "{:?}", effects.problems_in(&plain));
     assert_eq!(effects.problems_in(&plain), effects.problems(), "both agree on the default four");
+}
+
+/// **A duck ends its hold when the voice that justified it is gone.**
+///
+/// `Duck`'s own doc: *"a voice starting on `source` lowers `target` by `by_db` for `hold_s`, then lets it recover over
+/// `fade_s`"* — the duck is a rule about a **voice**. Stopped on frame 0, the measured envelope used to hold `Music` at
+/// −8 dB for another 15 frames (the full 0.25 s hold) and then spend 0.6 s recovering: **0.85 s of duck for a sound that
+/// had already stopped**. That is the "duck that does not recover" the mix exists to avoid, arriving late instead of
+/// never.
+#[test]
+fn a_duck_ends_its_hold_when_its_source_is_stopped() {
+    let mut app = app(
+        CueTable::new(vec![cue("line", "Dialogue", 200, 1)]),
+        SirenSettings::default(),
+        sounds(&["line"]),
+        false,
+    );
+    app.world_mut().write_message(Play::cue("line"));
+    app.update();
+    app.update();
+
+    // The line is stopped: its voice is gone from what a player hears.
+    app.world_mut().write_message(StopCue { cue: "line".into() });
+    run_for(&mut app, 0.10, 1.0 / 60.0);
+
+    let ducked = app.world().resource::<SirenMix>().ducked.get("Music").copied().unwrap_or(0.0);
+    assert!(
+        ducked > -7.5,
+        "ten frames after the stop the duck is already recovering, not still holding: {ducked}"
+    );
+    assert!(ducked < -0.05, "and it has not jumped to zero in one frame: {ducked}");
+}
+
+/// **A duck whose source keeps playing holds for its whole `hold_s`.** The guard: the fix must not cut a hold that is
+/// still justified by a voice a player can hear. `Mode::Loop` keeps the voice alive, so the hold is the authored 0.25 s.
+#[test]
+fn a_duck_whose_source_keeps_playing_holds() {
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("line")],
+        bus: "Dialogue".to_owned(),
+        priority: 200,
+        mode: Mode::Loop,
+        ..Cue::new("line")
+    }]);
+    let mut app = app(table, SirenSettings::default(), sounds(&["line"]), false);
+    app.world_mut().write_message(Play::cue("line"));
+    run_for(&mut app, 0.20, 1.0 / 60.0);
+
+    let ducked = app.world().resource::<SirenMix>().ducked.get("Music").copied().unwrap_or(0.0);
+    assert!(
+        (ducked - -8.0).abs() < 1e-5,
+        "at 0.20 s the hold (0.25 s) has not elapsed, so the duck is still full: {ducked}"
+    );
+}
+
+/// **A second line mid-hold extends it.** `DuckClock::fire_all` re-arms on each play, and the rewind must not undo that:
+/// two voices on the source bus mean the hold restarts.
+#[test]
+fn a_second_line_extends_the_duck() {
+    let mut app = app(
+        CueTable::new(vec![Cue {
+            sounds: vec![SoundSlot::new("line")],
+            bus: "Dialogue".to_owned(),
+            priority: 200,
+            max_instances: 3,
+            mode: Mode::Loop,
+            ..Cue::new("line")
+        }]),
+        SirenSettings::default(),
+        sounds(&["line"]),
+        false,
+    );
+    app.world_mut().write_message(Play::cue("line"));
+    run_for(&mut app, 0.20, 1.0 / 60.0);
+    app.world_mut().write_message(Play::cue("line"));
+    run_for(&mut app, 0.20, 1.0 / 60.0);
+
+    let ducked = app.world().resource::<SirenMix>().ducked.get("Music").copied().unwrap_or(0.0);
+    assert!(
+        (ducked - -8.0).abs() < 1e-5,
+        "the second line restarted the hold, so 0.20 s later it is still full: {ducked}"
+    );
 }
