@@ -8,6 +8,7 @@
 //! tokens and a 12-word one 15, both through the same exported graph.
 
 use super::MAX_TEXT_TOKENS;
+use super::tokenizer::{TokenProblem, Vocabulary};
 
 /// Why a description cannot be sent to the model.
 ///
@@ -80,5 +81,20 @@ impl Query {
     /// The description as it will be sent: trimmed.
     pub fn text(&self) -> &str {
         &self.text
+    }
+
+    /// **Tokenise the description with CLAP's own vocabulary**, checking the limit at the one place the count is known.
+    ///
+    /// This is the seam that was missing: [`Query`] validated the text, [`crate::semantic::model::Model::embed_text`]
+    /// takes ids, and nothing turned one into the other. A query longer than [`MAX_TEXT_TOKENS`] is refused with both
+    /// counts rather than silently truncated, because a truncated description is a different description.
+    pub fn tokenize(&self, vocabulary: &Vocabulary) -> Result<Vec<u32>, QueryProblem> {
+        let ids = vocabulary.encode_for_model(&self.text).map_err(|e| match e {
+            TokenProblem::UnknownToken { .. } | TokenProblem::Vocabulary { .. } => QueryProblem::NoWords,
+        })?;
+        // The specials are not part of the model's text budget, so they are counted out.
+        let body = ids.len().saturating_sub(2);
+        self.check_tokens(body)?;
+        Ok(ids)
     }
 }

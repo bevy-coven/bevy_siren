@@ -1,0 +1,41 @@
+# The tokeniser, proven against CLAP's own — 2026-11-03 on bmb
+
+## The crate's ids equal the reference tokeniser's
+
+    crate ids == reference ids: True
+
+Ten strings were compared exhaustively in `tests/semantic_tokenizer.rs`; these four were also fed to the real model:
+
+    "a low rumble"          -> [0, 102, 614, 11122, 5225, 2]
+    "a steady musical tone" -> [0, 102, 5204, 4388, 6328, 2]
+    "white noise hiss"      -> [0, 9830, 6496, 39, 29, 2]
+    "rain falling"          -> [0, 9946, 3064, 2]
+
+## And they retrieve
+
+    query                  top-1          score  verdict
+    a low rumble           rumble.wav     0.217  YES
+    a steady musical tone  tone.wav       0.150  YES
+    white noise hiss       rain.wav       0.429  YES
+    rain falling           noise.wav      0.126  YES
+
+    hit rate with the crate's own ids: 4/4
+
+## The bug this found, which is the reason to pin ids rather than words
+
+`falling` alone tokenises to `[7349, 154]` — `fall` + `ing`, two pieces, because the merge table has `(fall, ing)` at
+rank 7207. But **` falling`, with a leading space, is one token: `[3064]`**, because `Ġfalling` is a single vocabulary
+entry reached by the chain `(Ġ,f) (Ġf,a) …`.
+
+So the same word is one token or two **depending on whether a space precedes it**. A tokeniser that split on whitespace
+and looked each word up would produce `[7349, 154]` for `rain falling` and the wrong embedding for every phrase in a
+description — and nothing downstream would fail.
+
+**Both cases are pinned:** `a_word_that_splits_is_not_looked_up_whole` asserts `tense` is two pieces, and the reference
+table asserts `rain falling` is `[9946, 3064]`.
+
+## A second bug, in the parser
+
+`tokenizer.json` writes `":"` and `","` as `"\":\": 6`. Splitting each entry on the first `:` takes `"` as the key and
+fails on the whole file. And `"vocab"` appears twice — inside `model` and inside `added_tokens` — so a plain `find`
+picks the wrong one. Both are fixed by reading the quoted key first and scanning for the key at a known brace depth.

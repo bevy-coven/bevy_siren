@@ -35,6 +35,8 @@ mod semantic_resample;
 mod semantic_search;
 #[cfg(feature = "semantic")]
 mod semantic_session;
+#[cfg(feature = "semantic")]
+mod semantic_tokenizer;
 #[cfg(feature = "serde")]
 mod table;
 
