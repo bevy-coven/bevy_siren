@@ -382,7 +382,26 @@ fn draw_panel(
             Kind::Bus(bus) => {
                 let db = mix.bus_db(bus);
                 let duck = mix.ducked.get(bus).copied().unwrap_or(0.0);
-                let duck = if duck < -0.05 { format!("   duck {duck:+.1} dB") } else { String::new() };
+                // **A duck says how far *and by what*.** The row used to read `duck -8.0 dB` and nothing else, so a
+                // person had to find the log line that matched — while `Entry::Ducked` exists precisely to say which
+                // cue lowered the bus. The newest entry naming this bus, shown while the bus is still ducked, is the
+                // one a player is hearing.
+                let duck = if duck < -0.05 {
+                    let by = log
+                        .recent(SirenLog::CAPACITY)
+                        .find_map(|entry| match entry {
+                            Entry::Ducked { bus: b, by, .. } if b == bus => Some(by.as_str()),
+                            _ => None,
+                        })
+                        .unwrap_or("");
+                    if by.is_empty() {
+                        format!("   duck {duck:+.1} dB")
+                    } else {
+                        format!("   duck {duck:+.1} dB by {by}")
+                    }
+                } else {
+                    String::new()
+                };
                 let cap = settings.bus_voice_limit(bus);
                 format!("{bus:<10} {db:+7.1} dB{duck}   {} / {cap} voices", mix.voices_on(bus))
             }

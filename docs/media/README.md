@@ -34,6 +34,9 @@ The GIF is captured with `SIREN_FAULTS=1`, which adds two deliberate mistakes to
 the row markers have something to show through the whole animation. The **still** is the clean panel, which reads
 `Problems / none` — that is the state a project ships, and it is what `README.md` shows at rest.
 
+A bus row reads `duck -8.0 dB by dialogue.greeting` while a duck holds — how far *and* by what, from the `Entry::Ducked`
+the log already carries (iteration 31) — and drops the clause the frame the duck releases.
+
 The panel's `Problems` block is **bounded at three sentences** (iteration 30): with more it prints
 `and N more; the log below is what played`, because the column has no scroll and the log — the section that says what played
 and why — sits below it. `SIREN_FAULTS=many` adds six faults, so the bound can be seen firing.

@@ -20,6 +20,12 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A bus row says which cue ducked it.** `examples/mixer`'s bus row read `duck -8.0 dB` and never said *by what*, so a
+  person had to find the matching log line to learn which cue lowered the bus — while `Entry::Ducked` records it and
+  `SirenMix::deepest_duck`'s own doc says it exists *"for a panel that says what a line of dialogue did"*. The row now reads
+  `duck -8.0 dB by dialogue.greeting` while the duck holds, and drops the clause the frame it releases. No public field
+  added: `SirenMix` knows *how far*, `SirenLog` knows *by what*, and the panel already holds both. Example only.
+
 - **The panel's `Problems` block no longer hides the log.** It was unbounded, in a fixed column with no scroll, and sat
   above the log — so a table with six faults pushed the `Log` heading and its ten lines off the bottom of a 1280×720
   capture: the panel lost the section that answers *"why is the music quiet"*, exactly when there was most to read. The
@@ -95,6 +101,12 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
 
 ### Fixed
+
+- **A bus row says which cue ducked it.** `examples/mixer`'s bus row read `duck -8.0 dB` and never said *by what*, so a
+  person had to find the matching log line to learn which cue lowered the bus — while `Entry::Ducked` records it and
+  `SirenMix::deepest_duck`'s own doc says it exists *"for a panel that says what a line of dialogue did"*. The row now reads
+  `duck -8.0 dB by dialogue.greeting` while the duck holds, and drops the clause the frame it releases. No public field
+  added: `SirenMix` knows *how far*, `SirenLog` knows *by what*, and the panel already holds both. Example only.
 
 - **The panel's `Problems` block no longer hides the log.** It was unbounded, in a fixed column with no scroll, and sat
   above the log — so a table with six faults pushed the `Log` heading and its ten lines off the bottom of a 1280×720
@@ -297,6 +309,12 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A bus row says which cue ducked it.** `examples/mixer`'s bus row read `duck -8.0 dB` and never said *by what*, so a
+  person had to find the matching log line to learn which cue lowered the bus — while `Entry::Ducked` records it and
+  `SirenMix::deepest_duck`'s own doc says it exists *"for a panel that says what a line of dialogue did"*. The row now reads
+  `duck -8.0 dB by dialogue.greeting` while the duck holds, and drops the clause the frame it releases. No public field
+  added: `SirenMix` knows *how far*, `SirenLog` knows *by what*, and the panel already holds both. Example only.
+
 - **The panel's `Problems` block no longer hides the log.** It was unbounded, in a fixed column with no scroll, and sat
   above the log — so a table with six faults pushed the `Log` heading and its ten lines off the bottom of a 1280×720
   capture: the panel lost the section that answers *"why is the music quiet"*, exactly when there was most to read. The
@@ -387,6 +405,12 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 The first release: sound for Bevy 0.20 as data, mixed in buses.
 
 ### Fixed
+
+- **A bus row says which cue ducked it.** `examples/mixer`'s bus row read `duck -8.0 dB` and never said *by what*, so a
+  person had to find the matching log line to learn which cue lowered the bus — while `Entry::Ducked` records it and
+  `SirenMix::deepest_duck`'s own doc says it exists *"for a panel that says what a line of dialogue did"*. The row now reads
+  `duck -8.0 dB by dialogue.greeting` while the duck holds, and drops the clause the frame it releases. No public field
+  added: `SirenMix` knows *how far*, `SirenLog` knows *by what*, and the panel already holds both. Example only.
 
 - **The panel's `Problems` block no longer hides the log.** It was unbounded, in a fixed column with no scroll, and sat
   above the log — so a table with six faults pushed the `Log` heading and its ten lines off the bottom of a 1280×720

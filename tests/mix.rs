@@ -751,3 +751,52 @@ fn a_second_line_extends_the_duck() {
         "the second line restarted the hold, so 0.20 s later it is still full: {ducked}"
     );
 }
+
+/// **The newest `Ducked` entry naming a bus is the one a panel should show**, and a later duck for another bus must not
+/// be mistaken for it.
+///
+/// `examples/mixer`'s bus row reads `duck -8.0 dB by dialogue.greeting` — it used to read only `duck -8.0 dB`, so a person
+/// had to find the matching log line to learn *which* cue lowered the bus, while `Entry::Ducked` exists to say exactly
+/// that. The panel finds it with `SirenLog::recent(..)` and a match on `bus`; this pins the rule, because the example sits
+/// outside the suite and a change to `Entry` or `recent` could break the panel silently.
+#[test]
+fn the_newest_duck_naming_a_bus_is_the_one_a_panel_shows() {
+    let mut log = SirenLog::new();
+    log.push(Entry::Ducked {
+        at_s: 0.1,
+        bus: "Music".to_owned(),
+        by_db: -8.0,
+        by: "dialogue.greeting".to_owned(),
+    });
+    log.push(Entry::Played {
+        at_s: 0.2,
+        cue: "footstep.grass".to_owned(),
+        sound: "step_01".to_owned(),
+        bus: "Effects".to_owned(),
+        gain_db: 0.0,
+    });
+    log.push(Entry::Ducked {
+        at_s: 0.3,
+        bus: "Effects".to_owned(),
+        by_db: -4.0,
+        by: "other.line".to_owned(),
+    });
+
+    fn by(log: &SirenLog, bus: &str) -> Option<String> {
+        log.recent(SirenLog::CAPACITY).find_map(|entry| match entry {
+            Entry::Ducked { bus: b, by, .. } if b == bus => Some(by.clone()),
+            _ => None,
+        })
+    }
+    assert_eq!(
+        by(&log, "Music").as_deref(),
+        Some("dialogue.greeting"),
+        "a non-duck entry between them does not confuse it"
+    );
+    assert_eq!(by(&log, "Effects").as_deref(), Some("other.line"));
+    assert_eq!(by(&log, "Ambience"), None, "a bus nothing ducked has no name to show");
+
+    // A second duck on the same bus wins: the row must say what is lowering it *now*.
+    log.push(Entry::Ducked { at_s: 0.4, bus: "Music".to_owned(), by_db: -9.5, by: "stinger".to_owned() });
+    assert_eq!(by(&log, "Music").as_deref(), Some("stinger"), "the newest one wins");
+}
