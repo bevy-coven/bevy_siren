@@ -51,6 +51,7 @@ mod semantic_session;
 mod semantic_tokenizer;
 #[cfg(feature = "semantic")]
 mod semantic_tools;
+mod semantic_wait;
 mod semantic_weights;
 #[cfg(feature = "serde")]
 mod table;

@@ -177,6 +177,132 @@ impl Budget {
     }
 }
 
+/// **What to do when the device is busy** — `#37`'s policy, as numbers rather than a paragraph.
+///
+/// An indexing run beside a rendering editor meets a card that has no room *right now* and will have room again. The
+/// crate's own precedent for a scarce resource is Gregory §14.5.8's **virtual voice**: refuse politely, keep the intent,
+/// and retry when room frees — which is what `docs/loop/cues.yaml` case 33 already tests for the mixer.
+///
+/// The three candidates `#37` names were settled against the sources:
+///
+/// - **Shrinking the batch** is already [`Budget::batch_capacity`] and `session::embed_batched`'s shrink, and it cannot
+///   answer this: a batch of one still cannot load a 116 MB model into a card with 60 MB free.
+/// - **Queueing without a bound** contradicts the source: *"the applications cannot wait for the batch collection
+///   indefinitely"* (Choi et al., `10.48550/arXiv.2109.01611`). A caller with no answer is worse than one with a refusal.
+/// - **Deferring with a bounded wait and an observable state** is the one that satisfies every criterion, including
+///   *"a query that needs no GPU still works while indexing is deferred"* — deferral leaves the process alive and the
+///   index readable.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(default, deny_unknown_fields))]
+pub struct Deferral {
+    /// How long to wait for room before giving up, in seconds.
+    ///
+    /// **Design default: `30.0`.** Long enough for a render frame's transient allocation to clear, short enough that a
+    /// person is not left staring at a panel with no news. Bounded at all because the source's whole argument is that
+    /// latency must be bounded; an unbounded wait is an admission that the caller will never be told.
+    pub wait_s: f32,
+    /// How often to re-measure while waiting, in seconds.
+    ///
+    /// **Design default: `0.5`.** It bounds the latency a deferral *adds* to half a second past the moment room appears,
+    /// and it is frequent enough that a one-second render gap is not missed.
+    pub poll_s: f32,
+}
+
+impl Default for Deferral {
+    fn default() -> Self {
+        Deferral { wait_s: 30.0, poll_s: 0.5 }
+    }
+}
+
+impl Deferral {
+    /// **How many times to measure before giving up**, derived from the two fields so they cannot disagree.
+    ///
+    /// At least one: a deferral that never looks is a refusal with extra steps.
+    pub fn attempts(&self) -> u32 {
+        if !self.wait_s.is_finite() || !self.poll_s.is_finite() || self.poll_s <= 0.0 {
+            return 1;
+        }
+        ((self.wait_s / self.poll_s).floor() as u32).max(1)
+    }
+}
+
+/// **What a caller shows while it waits** — the state `#37` asks a panel to render.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WaitState {
+    /// The device had room on the first measurement.
+    Ready,
+    /// Waiting, with the attempt number and the total, so a panel can say *"waiting for the GPU (2 of 60)"*.
+    Waiting {
+        /// Which measurement is about to be taken, counting from 1.
+        attempt: u32,
+        /// How many will be taken in total.
+        of: u32,
+    },
+    /// The wait expired, and the caller was told why rather than left holding a half-built index.
+    GaveUp,
+}
+
+impl WaitState {
+    /// A sentence a panel or a log shows, or `None` when there is nothing to say.
+    pub fn describe(self) -> Option<String> {
+        match self {
+            WaitState::Ready => None,
+            WaitState::Waiting { attempt, of } => Some(format!("waiting for the GPU ({attempt} of {of})")),
+            WaitState::GaveUp => Some(String::from("the GPU stayed busy, so this was not loaded")),
+        }
+    }
+
+    /// True while a caller should still show a spinner.
+    pub fn is_waiting(self) -> bool {
+        matches!(self, WaitState::Waiting { .. })
+    }
+}
+
+/// **Wait for room on a busy device, up to a bound, reporting the wait** — `#37`'s policy.
+///
+/// `measure` is the caller's one call that reads the driver and returns what is available, so this function decides and
+/// never performs I/O; `sleep` is separate for the same reason, and because a test must not sleep for thirty seconds to
+/// prove a thirty-second bound.
+///
+/// Returns the **attempt that succeeded**, starting at 1. On expiry it returns the last [`BudgetProblem`], which already
+/// carries both numbers — so an expired deferral is a **named refusal**, never an empty success. That distinction is the
+/// failure this policy must not have: a wait that quietly becomes a discard leaves a half-built index and nothing saying
+/// so.
+pub fn defer(
+    cost: ModelCost,
+    deferral: Deferral,
+    mut measure: impl FnMut() -> Budget,
+    mut sleep: impl FnMut(f32),
+    mut report: impl FnMut(WaitState),
+) -> Result<u64, BudgetProblem> {
+    let of = deferral.attempts();
+    for attempt in 1..=of {
+        // A fresh measurement every attempt: the whole point is that another process may have released memory.
+        let budget = measure();
+        match budget.fits(cost) {
+            Ok(()) => {
+                if attempt > 1 {
+                    report(WaitState::Ready);
+                }
+                return Ok(u64::from(attempt));
+            }
+            Err(problem) => {
+                if attempt == of {
+                    report(WaitState::GaveUp);
+                    return Err(problem);
+                }
+                report(WaitState::Waiting { attempt: attempt + 1, of });
+                sleep(deferral.poll_s);
+            }
+        }
+    }
+    // Unreachable: the loop returns on every path. Kept explicit rather than a panic, because a library that panics on
+    // an arithmetic invariant is one a caller cannot recover from.
+    report(WaitState::GaveUp);
+    Err(BudgetProblem::DoesNotFit { need_bytes: cost.total_bytes(), available_bytes: 0 })
+}
+
 // **`std::error::Error` as well as `Display`.** Without it a caller writing `?` in a function returning
 // `Box<dyn Error>` cannot use any of this crate's failures — measured: a probe on the GPU host failed to compile with
 // *"`BudgetProblem`: `std::error::Error` is not satisfied"* on three lines in a row. An error a caller has to unwrap by hand is

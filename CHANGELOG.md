@@ -7,6 +7,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **A busy GPU is waited out, bounded and visible** — `#37`. `budget::Deferral { wait_s: 30.0, poll_s: 0.5 }` (both
+  **design defaults**, and bounded because the source requires bounded latency), `budget::WaitState` (the value a panel
+  renders as *"waiting for the GPU (2 of 60)"*), and `budget::defer`, which measures, waits and either returns the attempt
+  that succeeded or a **named refusal** carrying both numbers. `Session::admit_deferring` wires it to a real session. The
+  policy is **defer** rather than queue or shrink, argued against the other two: shrinking cannot load 623 MB into 60 MB,
+  and an unbounded queue leaves the caller with no answer. `measure`, `sleep` and `report` are the caller's, so the
+  function decides and performs no I/O — which is how a test proves a thirty-second bound without taking thirty seconds,
+  and how `a_query_still_answers_while_the_build_waits` runs a real `top_k` between two polls.
 - **The tool surface's error shape and idempotency table** — `#31`'s library half. `tools::Code`
   (`bad_argument`/`refused`/`unavailable`/`internal`) with `Code::retryable()`, and `ToolProblem::code()` mapping every
   failure onto it: **only a bad argument is retryable**, because a refusal is a fact about the state and a retry with the

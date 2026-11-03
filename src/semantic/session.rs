@@ -80,6 +80,9 @@ impl Session {
     /// `loaded` is what the runtime reported about the graph, which the caller reads. This is the seam that keeps the
     /// crate testable with no `ort` in the build: the budget decision and the shape rules are here, and reading a
     /// graph is the caller's one call into the runtime.
+    ///
+    /// **This refuses at once.** A device that is busy *right now* and free again in a second is
+    /// [`Session::admit_deferring`]'s case, not this one.
     pub fn admit(
         budget: &Budget,
         cost: ModelCost,
@@ -87,6 +90,40 @@ impl Session {
         expected_dimension: usize,
     ) -> Result<Session, LoadProblem> {
         budget.fits(cost).map_err(LoadProblem::Budget)?;
+        Session::check_dimension(loaded, expected_dimension, cost)
+    }
+
+    /// **Admit a model, waiting a bounded time for a busy device** — `#37`.
+    ///
+    /// The editor and this crate share one card. A render in progress leaves no room for a 623 MB model, and a second
+    /// later there is room again; refusing outright would make the feature unusable *during* the work it exists to serve.
+    /// So the wait is bounded by [`Deferral`](super::budget::Deferral) and reported through [`WaitState`](super::budget::WaitState), and an expiry
+    /// is a **named refusal**, never an empty success.
+    ///
+    /// `measure` reads the driver, `sleep` waits, `report` is where a panel shows *"waiting for the GPU (2 of 60)"*.
+    /// All three are the caller's, so this function decides and performs no I/O — which is also what lets a test prove a
+    /// thirty-second bound without taking thirty seconds.
+    pub fn admit_deferring(
+        cost: ModelCost,
+        deferral: super::budget::Deferral,
+        measure: impl FnMut() -> Budget,
+        sleep: impl FnMut(f32),
+        report: impl FnMut(super::budget::WaitState),
+        loaded: Loaded,
+        expected_dimension: usize,
+    ) -> Result<Session, LoadProblem> {
+        super::budget::defer(cost, deferral, measure, sleep, report).map_err(LoadProblem::Budget)?;
+        // **The dimension check happens after the wait**, so a wrong graph is reported against the graph rather than
+        // reported as a budget problem it has nothing to do with.
+        Session::check_dimension(loaded, expected_dimension, cost)
+    }
+
+    /// The one place a graph's width is compared with what the caller expects.
+    fn check_dimension(
+        loaded: Loaded,
+        expected_dimension: usize,
+        cost: ModelCost,
+    ) -> Result<Session, LoadProblem> {
         if loaded.dimension != expected_dimension {
             return Err(LoadProblem::DimensionMismatch {
                 graph: loaded.dimension,
