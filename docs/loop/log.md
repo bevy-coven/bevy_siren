@@ -7,6 +7,73 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 69 — 2026-11-03 — the evaluation metric: what a floor does to recall
+
+**Baseline.** Green on every step: 181 / 309 + 6, clippy, fmt, rustdoc, examples. Working tree clean at `593e6b8`.
+
+**The item.** Every threshold on the semantic path is a **design default** because there is no labelled set: `Floor`
+at **0.0**, `MEASURED_MATCH_FLOOR` at 0.126, `MEASURED_MISS_CEILING` at 0.150. `V-01` produces the data and `#45` runs
+against it, but **neither can exist usefully without a metric** — a labelled set with no metric is a data file. The
+metric is decidable now while the data is not, so it was built first.
+
+**What shipped.** `src/semantic/eval.rs`: `Labelled` (a description and its right answer), `Judged` (an anchor and the
+neighbours a person **affirmed** fit it), `Ranking`, `recall_at_k`, `agreement`, `score` → a `Report` that **names its
+failures**, and `at_floor`.
+
+**Two decisions in it worth stating.**
+
+- **Recall, not precision**, because a wrong result in a list of three costs a glance and a missing one costs a
+  developer their afternoon — the same asymmetry that makes this crate refuse with a reason rather than play something
+  wrong.
+- **Agreement is positive-only.** A pair a person was shown and rejected is **not** evidence that it is wrong: given
+  twenty candidates a person rejects most of them for reasons the ranking cannot see. Asserting only what was affirmed
+  makes the metric weaker and honest.
+
+**`at_floor` is `V-01`'s whole purpose in one function**, and its first real use is the measurement below.
+
+**Measured on iteration 68's real cosines** (real CLAP, four clips, four descriptions):
+
+| floor | recall@1 | note |
+|---|---|---|
+| **0.000** | **100 %** | the default |
+| 0.126 | **100 %** | `MEASURED_MATCH_FLOOR` |
+| 0.150 | **75 %** | `MEASURED_MISS_CEILING` |
+| **0.500** | **0 %** | the number intuition reaches for |
+
+That table is a test, not a comment: `a_floor_inside_the_overlap_deletes_right_answers_measured_on_the_real_model`. It
+is the argument for `Floor::default() == 0.0` in four rows.
+
+**A report reads as a sentence, not a scoreboard.** *"recall@k 50% over 2 descriptions, agreement 100% over 0 anchors.
+Missed: `white noise hiss` (rank 2)."* A count alone tells a person nothing they can act on.
+
+**Verdicts.** Pass 1 **GREAT**, pass 2 **GREAT**, pass 3 **GREAT**.
+
+**Gate.** 181 default / **324 all-features**, clippy 0, fmt, rustdoc, examples — green.
+
+**A destructive command, recorded.** Freeing disk I ran `git checkout -- .`, which **reverted the two tracked edits this
+iteration had made** (`src/semantic/mod.rs`, `tests/all.rs`); the new files survived because they were untracked. Both
+were restored and verified with `grep`. The narrower `git checkout -- examples/evalprobe.rs` is what was wanted — the
+repository's rule covers `git restore` over my own changes as much as over anyone else's.
+
+**Also recorded:** a `--release --example` build failed at **495 MB free** with
+`rustc-LLVM ERROR: IO failure on output stream: No space left on device`. The probe was moved into the test suite, where
+the same measurement costs nothing. Third disk failure in this project.
+
+**Evidence.** `runs/2026-11-03-69/`: `research.md`, `plan.md`, `eval.md`, `review.md` (three passes).
+
+**Commits.** the eval commit below.
+
+**Top 5 remaining**
+
+1. **`V-01`** — the labelled assets and human judgements. It is now the single largest lever left, and the metric that
+   consumes it exists.
+2. **`#45`'s runner** — the small harness that feeds real rankings into `score`. It needs `V-01`'s data to be worth
+   writing; the metric half is done.
+3. **`#41`** — tunable weights as a serde type, which `at_floor` can now evaluate rather than assume.
+4. **`#28`** — the MCP tool host, then `#29` `search_music`, exposing `Embedder::ask` to an agent.
+5. `cues.yaml` case 31 — still the only red case in the crate. **One public-enum decision unblocks it and four other
+   `needs-decision/` files at once**, which remains the cheapest large win.
+
 ## Iteration 68 — 2026-11-03 — the description-to-answer seam, in one call
 
 **Baseline.** Green on every step: 181 / 300 + 6, clippy, fmt, rustdoc, examples. Working tree clean at `c74c84d`.

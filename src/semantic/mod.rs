@@ -27,6 +27,7 @@ pub mod ask;
 pub mod budget;
 pub mod buffer;
 pub mod decode;
+pub mod eval;
 pub mod index;
 pub mod model;
 pub mod query;
