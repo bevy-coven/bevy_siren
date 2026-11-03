@@ -52,7 +52,9 @@ any cue that ends became a frame-rate retrigger. A retry must know what "ended" 
 (4) Clippy's 7-argument limit on a Bevy system is Bevy's, not the design's: `play_requests`, `answer` and
 `start_pending` already carry the allow. (5) `hs distill` still GPU-blocked (fifteenth iteration).
 
-**Commit.** `see git log`; CI on `main`.
+**Commit.** `ad55c66`, pushed to `main`; CI run 41569616373 is **success** on `big-s1`. The Cauldron's
+`audio_panel_reads_the_crates_file` passes (4 tests). Gate: build, test (83 + 4), serde (90 + 4), mixer (90 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green.
 
 **Next 5.**
 
