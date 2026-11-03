@@ -1,0 +1,6 @@
+cue gain_db: NaN         -> 0 sentence(s)
+slot gain_db: NaN        -> 0 sentence(s)
+pitch low > high         -> 1 sentence(s): cue `bad_pitch` has pitch.low past pitch.high, so no detune can be drawn
+attenuation near_m: -1   -> 1 sentence(s): cue `bad_att` has an attenuation constant that is negative or not a number
+
+The same struct reports an inverted pitch range and a bad attenuation constant, and not a gain.

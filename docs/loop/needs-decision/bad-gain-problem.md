@@ -42,6 +42,28 @@ A `Play` override the crate cannot honour is refused, not neutralised.
 - **Cost:** no API change, but the information is in a log a `match`-based host does not read.
 - **Benefit:** zero breakage; a person sees it in the panel.
 
+## New evidence (iteration 21): two of three numbers are covered
+
+The question is not only about a play's override. In **one struct**, `Cue`:
+
+```
+cue `pitch: PitchRange { low: 2.0, high: 1.0 }`   -> 1 sentence: "has pitch.low past pitch.high, ..."
+cue `attenuation: Inverse { near_m: -1.0, .. }`   -> 1 sentence: "has an attenuation constant that is negative or not a number"
+cue `gain_db: NaN`                                 -> 0 sentences
+sound slot `gain_db: NaN`                          -> 0 sentences
+```
+
+`BadAttenuation`'s own sentence already names *"negative **or not a number**"*, so the enum's vocabulary covers a
+non-finite number; a gain is the one field of the three that is silent. `docs/loop/cues.yaml` now carries this as
+**case 31, `state: red`**, so the loop cannot forget it, and `docs/guide/cues.md` states the gap rather than implying
+the list is complete.
+
+**What this adds to the recommendation:** the option to *not* add a variant is now weaker than it looked. A consumer
+matching `CueProblem` exhaustively is broken by a seventh variant, but the alternative is an enum that is **internally
+inconsistent** — the same struct, the same kind of mistake, reported for two fields and not the third. The recommendation
+stands (**C now, A at the next minor**), with the added note that A is not a nicety: it is what makes the enum's own
+contract true.
+
 ## Recommendation
 
 **C now, A at the next minor, B only with an explicit decision to change the play's outcome.** Normalising is the

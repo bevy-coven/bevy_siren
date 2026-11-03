@@ -18,6 +18,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   voice is refused with nothing stolen, and a stealable voice still plays beside one so neither can pass vacuously. No
   `src/` file changed; the mutation check (`steal` ignoring `unstealable`) reddens both new tests **and** the old one.
 
+### Added
+
+- **`CueTable::problems_in(&SirenSettings)`** — the report against **the buses the mix actually has**. `problems()` is a
+  wrapper over `problems_with(&DEFAULT_BUSES)`, so a project that lists its own buses — fully supported, and the answer
+  `answer`'s `UnknownBus` check, `update_mix` and `SirenSettings::problems()` all read — had every cue on a custom bus
+  reported as `UnknownBus` while the crate accepted and mixed it. `problems_in` reads `settings.bus_names()`, the same
+  answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
+
 ### Fixed
 
 - **`SirenSettings::problems()` agrees with the mix about what a bus is, and names each fault once.** The report built

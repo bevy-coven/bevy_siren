@@ -403,8 +403,35 @@ impl CueTable {
 
     /// Everything wrong with the table against the crate's own four buses
     /// ([`DEFAULT_BUSES`]).
+    ///
+    /// **This assumes the crate's default bus names.** A project that lists its own buses in
+    /// [`SirenSettings::buses`](crate::SirenSettings::buses) — which the crate fully supports, and which the mixer, the
+    /// play path and `SirenSettings::problems()` all honour — will have every cue on a custom bus reported as
+    /// `UnknownBus` here. Prefer [`problems_in`](Self::problems_in), which takes the table the play path reads.
     pub fn problems(&self) -> Vec<CueProblem> {
         self.problems_with(&DEFAULT_BUSES)
+    }
+
+    /// Everything wrong with the table against **the buses the mix actually has**.
+    ///
+    /// This is the call a host and an editor want: `settings.bus_names()` is the one answer `answer`'s `UnknownBus`
+    /// check, `update_mix` and `SirenSettings::problems()` all read, so the report cannot disagree with the mix. It is
+    /// also the answer for a table that lists **no** buses, which means the crate's four.
+    ///
+    /// ```
+    /// # use bevy_siren::{Cue, CueTable, SoundSlot, SirenSettings, BusLevel};
+    /// let table = CueTable::new(vec![Cue {
+    ///     sounds: vec![SoundSlot::new("shot")],
+    ///     bus: "Sfx".to_owned(),
+    ///     ..Cue::new("gunshot")
+    /// }]);
+    /// let settings = SirenSettings { buses: vec![BusLevel::new("Sfx")], ..SirenSettings::default() };
+    ///
+    /// assert!(table.problems_in(&settings).is_empty(), "`Sfx` is a bus the mix has");
+    /// assert!(!table.problems().is_empty(), "but the default-four wrapper cannot see it");
+    /// ```
+    pub fn problems_in(&self, settings: &crate::mix::SirenSettings) -> Vec<CueProblem> {
+        self.problems_with(&settings.bus_names())
     }
 
     /// Everything wrong with the table against `buses`, the mix table's own list.

@@ -83,11 +83,25 @@ duplicate name, a bus the mix table does not have, an inverted pitch range, an a
 produce a gain, and `max_instances: 0` (no per-cue limit, which is almost never meant). Call it once at load, and
 print what it says.
 
+**A gain that is not a number is not in that list.** `gain_db` on a cue or on a sound slot is neutralised at play time —
+`model::finite_or` reads it as **no gain**, so the cue sounds at the level it would have had and `Played.gain_db` reports
+that number (iteration 18). The play is right and the *report* is silent, which is the one place these two kinds of
+authoring mistake differ: an inverted pitch range and a bad attenuation constant in the same struct **are** reported,
+and a non-finite gain is not. A seventh `CueProblem` would fix it, and `CueProblem` is a public enum without
+`#[non_exhaustive]`, so adding it breaks every consumer's `match` — `docs/loop/needs-decision/bad-gain-problem.md` holds
+the question. Until then: a `gain_db` you computed is worth checking for `is_finite` before it reaches the table.
+
 ```rust
-for problem in table.problems() {
+for problem in table.problems_in(&settings) {
     eprintln!("siren: {problem}");
 }
 ```
+
+**Call `problems_in`, not `problems`, when the project lists its own buses.** `problems()` is a wrapper over
+`problems_with(&DEFAULT_BUSES)`: it checks against the crate's default four names, so in a project with a `Sfx` or
+`Voices` bus every cue on one is reported as `UnknownBus` — while the crate accepts and mixes it, because `answer`'s
+`UnknownBus` check reads `settings.bus_names()`. `problems_in(&settings)` asks that same question. A host with no settings
+at hand (a test, a data check) can still call `problems()` for the default-four answer.
 
 ## As data
 

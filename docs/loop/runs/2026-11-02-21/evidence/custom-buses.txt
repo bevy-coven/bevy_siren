@@ -1,0 +1,6 @@
+settings.bus_names()          ["Sfx", "Voices"]
+table.problems()              ["cue `gunshot` plays on bus `Sfx`, which the mix table does not have"]
+table.problems_in(&settings)  []
+
+The crate ACCEPTS the cue on `Sfx`: `answer`'s UnknownBus check reads `bus_names()`.
+So `problems()` is the one reader that cannot see it.

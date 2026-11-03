@@ -3,6 +3,15 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 21, the wrapper that cannot see a project's own buses
+
+No clip: the change is **which call the panel makes**, and every rendered cue is byte-identical (21 of 21) — a report, not
+a sound. The evidence is `runs/2026-11-02-21/evidence/custom-buses.txt`: with a `Sfx` bus,
+`table.problems()` prints *"cue `gunshot` plays on bus `Sfx`, which the mix table does not have"* for a cue the crate
+**accepts**, and `table.problems_in(&settings)` prints nothing. Test:
+`tests/mix.rs::problems_in_reads_the_tables_own_buses`, plus the compiled doctest on `problems_in`. The Cauldron's audio
+panel now calls `problems_in(&read)`; its own commit is in `bevy_grimoire`.
+
 ## No clip: iteration 20, the report agrees with the mix about buses
 
 No clip: the change is **which sentences `problems()` produces**, and every rendered cue is byte-identical (21 of 21) —

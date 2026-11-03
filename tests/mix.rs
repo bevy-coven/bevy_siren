@@ -629,3 +629,42 @@ fn a_duck_naming_a_missing_bus_is_still_reported() {
 fn a_default_table_reports_nothing() {
     assert!(SirenSettings::default().problems().is_empty(), "{:?}", SirenSettings::default().problems());
 }
+
+/// **`problems_in` agrees with the mix; `problems` assumes the crate's four.**
+///
+/// A project that lists its own buses in `SirenSettings::buses` is fully supported — `answer`'s `UnknownBus` check,
+/// `update_mix` and `SirenSettings::problems()` all read `bus_names()`. `CueTable::problems()` is a convenience wrapper
+/// over `problems_with(&DEFAULT_BUSES)`, so it reports every cue on a custom bus as `UnknownBus`; an editor that draws
+/// `problems()` (the Cauldron's audio panel does) showed a false fault for every cue in such a project.
+#[test]
+fn problems_in_reads_the_tables_own_buses() {
+    use bevy_siren::BusLevel;
+    use bevy_siren::mix::SirenSettings;
+
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("a")],
+        bus: "Sfx".to_owned(),
+        ..Cue::new("shot")
+    }]);
+    let settings = SirenSettings {
+        buses: vec![BusLevel::new("Sfx"), BusLevel::new("Voices")],
+        ..SirenSettings::default()
+    };
+
+    assert!(
+        table.problems().iter().any(|p| matches!(p, bevy_siren::CueProblem::UnknownBus { .. })),
+        "the wrapper assumes the crate's four, so it cannot see `Sfx`: {:?}",
+        table.problems()
+    );
+    assert!(table.problems_in(&settings).is_empty(), "{:?}", table.problems_in(&settings));
+
+    // And a table with no buses listed means the crate's four, so `problems_in` must agree with the wrapper there.
+    let plain = SirenSettings { buses: vec![], ..SirenSettings::default() };
+    let effects = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("a")],
+        bus: "Effects".to_owned(),
+        ..Cue::new("shot")
+    }]);
+    assert!(effects.problems_in(&plain).is_empty(), "{:?}", effects.problems_in(&plain));
+    assert_eq!(effects.problems_in(&plain), effects.problems(), "both agree on the default four");
+}

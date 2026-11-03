@@ -249,6 +249,17 @@ cases:
     source: Gregory §14.5.8.4 — the case where the leak cannot be hidden by a steal.
     evidence: "runs/2026-11-02-02/evidence/{before,after}/lockout/"
 
+  - id: 31
+    cue: any
+    authored: { cue_gain: NaN, slot_gain: NaN, pitch: inverted, attenuation: negative }
+    behaviour: Every number a cue author writes that the crate cannot honour is named by `problems()`.
+    observed_by: "`CueTable::problems()` for a cue whose `gain_db` is `NaN`, whose slot's `gain_db` is `NaN`, whose pitch range is inverted, and whose attenuation constant is negative."
+    green_when: "Four sentences. Today: two — `pitch` and `attenuation` are reported, `gain_db` on the cue and on the slot are not."
+    source: "`CueProblem`'s own vocabulary: `InvertedPitch` and `BadAttenuation` are the same kind of authoring mistake in the same struct. `src/model.rs::finite_or` (iteration 18) neutralises a non-finite gain at play time, so the cue sounds at 0 dB and the report says nothing."
+    state: red
+    blocked_on: "docs/loop/needs-decision/bad-gain-problem.md — `CueProblem` is a public enum without `#[non_exhaustive]`, so a seventh variant breaks every consumer's `match`."
+    evidence: "runs/2026-11-02-21/evidence/gain-report.txt"
+
 # Two notes on judging.
 #
 # - A refusal is green when it is the *right* refusal. Cases 10-13 would pass vacuously if the crate refused
