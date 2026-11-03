@@ -7,6 +7,69 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 37 — 2026-11-03 — the GIF samples a fade by the second, not by the update
+
+**Change.**
+
+- **`examples/mixer.rs` — `SIREN_SHOT_EVERY` is hundredths of a second** (4 = 40 ms), and `capture` keeps a frame when that
+  much real time has elapsed. `Capture` gains `kept_at_s: f64`.
+- The knob's doc says why: a fade is a duration, and an update is not a time.
+- `docs/media/mixer.gif` regenerated (46 frames at 10 fps); `docs/media/README.md` and a CHANGELOG line.
+
+**Why.** Iteration 36's block shows `-> target` only while a layer moves — a fade of `MIX_TAU_S` = **50 ms**, about **6
+updates** at the example's ~8.3 ms. The GIF sampled every **12 updates**: **0.5 samples per fade**. The feature appeared by
+luck of the phase, and the shipped GIF **was** right by accident (20 frames, the music line changing only across 12–16).
+
+**Evidence.** `runs/2026-11-03-37/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/panel/{fade-frame-31,zoom-fade-31}.png`.
+
+**Measured.**
+
+| row | before | after |
+|---|---|---|
+| `SIREN_SHOT_EVERY` means | updates | **hundredths of a second** |
+| samples per 50 ms fade | **0.5** | **1.25** at 40 ms |
+| frames carrying the arrow | 1, by luck | **11 consecutive** (`f_0028`–`f_0038`) |
+| GIF frames | 20 at 6 fps | **46 at 10 fps** |
+| the crop, read | — | `calm -76.2 -> -80.0   combat -6.9 -> -3.0` |
+| every test, both feature sets | — | unchanged (119 / 126 / 128 + 5) |
+| every rendered cue | — | **byte-identical** (21/21) |
+| frame cost, 8 / 64 / 256 | — | 0.059 / 0.322 / 1.219 µs, load 2.8–4.8; no `src/` line moved |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. **A magic constant in my own first fix:** I converted updates to
+milliseconds with a literal `8.333`; the crate's rule forbids it, and the knob is a duration instead, so the conversion
+disappears. Two probes came back clean on the way: a move to the gain a layer already has is a no-op (`moving 0`), and a
+2.4 s fade arrives in 161 frames against the 144 a 60 fps clock predicts.
+
+**Traps for the command.** (1) **A frame count is not a time** — a capture knob measured in updates depends on the machine's
+speed, and a GIF is a temporal artefact. (2) When the thing being captured is a **fade**, the sampling period must be shorter
+than the fade or the capture is a coin flip; compute the ratio before trusting the result. (3) A screenshot directory is
+**evidence**: a showcase that is right by luck is one refactor from being wrong, and a **per-frame ink scan** is how to tell
+"the arrow rendered" from "the arrow happened to be in the one frame I looked at". (4) A conversion factor in a system is a
+magic constant; change the **unit** instead. (5) `hs distill` GPU-blocked (thirty-sixth iteration).
+
+**Commit.** `10491d1`; CI on `main`.
+
+**Next 5.**
+
+1. **A `Stopped` line for a parent's despawn** — neither backend writes one; the log keeps `played` and nothing else.
+2. **Answer or route around the `CueProblem` question** — **seven** items wait on it.
+3. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+5. A gain above 0 dB — `needs-decision/above-unity-gain.md`, recommendation to **not** add it.
+
+**The hunt, twenty-sixth pass.** The capture class is now correct in **time**. What it has never checked is **content**: the
+GIF's 46 frames and the still are captured from one scripted run, and nothing asserts that the still's `Problems / none` and
+the GIF's `<- problem` rows describe the *same* table. The next run should diff the two images programmatically — the still
+is the clean table, the GIF is `SIREN_FAULTS=1`, and a reader is told so only in prose.
+
+**Baseline note.** Nothing was red; the suite had 119 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 36 — 2026-11-03 — the panel shows the music score
 
 **Change.**
