@@ -20,6 +20,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A `Refused` entry outlives a burst of `Played` ones.** `SirenLog` evicted the oldest entry whatever it was, so one
+  refusal was pushed out by exactly `CAPACITY` (256) plays — at a 32-voice scene writing 640 entries a second, about
+  **0.4 s**, which is the silent-failure class the log exists to prevent: the line explaining why nothing played,
+  discarded by lines saying something did. When the buffer is full, `push` now drops the **oldest routine** entry
+  (`Played`, `Stopped` or `Ducked`) first, because those happen at frame rate while a healthy game produces no refusals
+  at all; if every entry is a refusal the oldest still goes. The buffer stays 256 entries — same memory, same
+  `recent`/`iter`/`len` — and only *which* entry leaves changes.
+
 - **`SirenChoices::seed()` reports the seed the stream was built from, not the one asked for.** `Rng::new(0)` maps a zero
   state to `ZERO_SEED` (`0x5EED_51AE_0000_0001`), which is also `SirenSettings::default_seed()` — so `seed: 0` and the
   default are **one stream** — but `SirenChoices` recorded the argument, and `seed()` — documented as *"the seed this
@@ -44,6 +52,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
 
 ### Fixed
+
+- **A `Refused` entry outlives a burst of `Played` ones.** `SirenLog` evicted the oldest entry whatever it was, so one
+  refusal was pushed out by exactly `CAPACITY` (256) plays — at a 32-voice scene writing 640 entries a second, about
+  **0.4 s**, which is the silent-failure class the log exists to prevent: the line explaining why nothing played,
+  discarded by lines saying something did. When the buffer is full, `push` now drops the **oldest routine** entry
+  (`Played`, `Stopped` or `Ducked`) first, because those happen at frame rate while a healthy game produces no refusals
+  at all; if every entry is a refusal the oldest still goes. The buffer stays 256 entries — same memory, same
+  `recent`/`iter`/`len` — and only *which* entry leaves changes.
 
 - **`SirenChoices::seed()` reports the seed the stream was built from, not the one asked for.** `Rng::new(0)` maps a zero
   state to `ZERO_SEED` (`0x5EED_51AE_0000_0001`), which is also `SirenSettings::default_seed()` — so `seed: 0` and the
@@ -195,6 +211,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A `Refused` entry outlives a burst of `Played` ones.** `SirenLog` evicted the oldest entry whatever it was, so one
+  refusal was pushed out by exactly `CAPACITY` (256) plays — at a 32-voice scene writing 640 entries a second, about
+  **0.4 s**, which is the silent-failure class the log exists to prevent: the line explaining why nothing played,
+  discarded by lines saying something did. When the buffer is full, `push` now drops the **oldest routine** entry
+  (`Played`, `Stopped` or `Ducked`) first, because those happen at frame rate while a healthy game produces no refusals
+  at all; if every entry is a refusal the oldest still goes. The buffer stays 256 entries — same memory, same
+  `recent`/`iter`/`len` — and only *which* entry leaves changes.
+
 - **`SirenChoices::seed()` reports the seed the stream was built from, not the one asked for.** `Rng::new(0)` maps a zero
   state to `ZERO_SEED` (`0x5EED_51AE_0000_0001`), which is also `SirenSettings::default_seed()` — so `seed: 0` and the
   default are **one stream** — but `SirenChoices` recorded the argument, and `seed()` — documented as *"the seed this
@@ -234,6 +258,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 The first release: sound for Bevy 0.20 as data, mixed in buses.
 
 ### Fixed
+
+- **A `Refused` entry outlives a burst of `Played` ones.** `SirenLog` evicted the oldest entry whatever it was, so one
+  refusal was pushed out by exactly `CAPACITY` (256) plays — at a 32-voice scene writing 640 entries a second, about
+  **0.4 s**, which is the silent-failure class the log exists to prevent: the line explaining why nothing played,
+  discarded by lines saying something did. When the buffer is full, `push` now drops the **oldest routine** entry
+  (`Played`, `Stopped` or `Ducked`) first, because those happen at frame rate while a healthy game produces no refusals
+  at all; if every entry is a refusal the oldest still goes. The buffer stays 256 entries — same memory, same
+  `recent`/`iter`/`len` — and only *which* entry leaves changes.
 
 - **`SirenChoices::seed()` reports the seed the stream was built from, not the one asked for.** `Rng::new(0)` maps a zero
   state to `ZERO_SEED` (`0x5EED_51AE_0000_0001`), which is also `SirenSettings::default_seed()` — so `seed: 0` and the

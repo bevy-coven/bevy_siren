@@ -3,6 +3,15 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 24, a refusal outlives a burst of plays
+
+No clip: the change is **which entry leaves a full `SirenLog`**, and every rendered cue is byte-identical (21 of 21) —
+the log is not the mix. The evidence is `runs/2026-11-03-24/evidence/refusal-lifetime{,-before}.txt`: before, one refusal
+was evicted after **256 plays** (0.40 s at 640 entries/s); after, it survives **2000** and leaves only when 256 *routine*
+entries have accumulated, with the 600-refusals and 1000-mixed-pushes rows unchanged. Tests:
+`tests/model.rs::{a_refusal_outlives_a_burst_of_plays, the_buffer_never_exceeds_its_capacity,
+a_log_of_only_refusals_still_evicts, entries_stay_in_order_after_an_eviction}`.
+
 ## No clip: iteration 23, the seed the stream was built from
 
 No clip: the change is **what `seed()` answers**, and every rendered cue is byte-identical (21 of 21) because no sound

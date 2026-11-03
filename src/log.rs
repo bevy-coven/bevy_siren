@@ -105,10 +105,27 @@ impl SirenLog {
         Self { entries: VecDeque::with_capacity(Self::CAPACITY) }
     }
 
-    /// Adds `entry`, dropping the oldest once the buffer is full.
+    /// Adds `entry`, dropping one once the buffer is full.
+    ///
+    /// **A refusal outlives a play.** When the buffer is full, the entry dropped is the **oldest routine** one —
+    /// [`Entry::Played`], [`Entry::Stopped`] or [`Entry::Ducked`] — because those happen at frame rate in a busy scene
+    /// while a [`Entry::Refused`] is exceptional: a healthy game produces none. Treating them alike evicted one refusal
+    /// after **256 plays** (measured), which at a 32-voice scene is about **0.4 s** — the line that explains why nothing
+    /// played, thrown away by lines saying something did. If every entry is a refusal, there is nothing routine to drop
+    /// and the oldest goes, because 256 refusals is a game already failing loudly.
+    ///
+    /// The buffer stays [`CAPACITY`](Self::CAPACITY) entries: same memory, same accessors. Only *which* entry leaves
+    /// changes.
     pub fn push(&mut self, entry: Entry) {
         if self.entries.len() == Self::CAPACITY {
-            self.entries.pop_front();
+            match self.entries.iter().position(|e| !matches!(e, Entry::Refused { .. })) {
+                Some(routine) => {
+                    self.entries.remove(routine);
+                }
+                None => {
+                    self.entries.pop_front();
+                }
+            }
         }
         self.entries.push_back(entry);
     }

@@ -1,0 +1,4 @@
+one refusal is evicted after 256 PLAYS (CAPACITY 256)
+  a 32-voice scene at 20 plays/s writes 640 entries/s, so that is 0.40 s
+  the buffer still holds 256 entries
+600 refusals -> len 256 (still CAPACITY), oldest 344.00s refused `c344`: r

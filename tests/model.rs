@@ -330,3 +330,97 @@ fn a_zero_seed_and_the_default_seed_are_one_stream() {
     let mut zero = Rng::new(0);
     assert_ne!(zero.next_u32(), one.next_u32(), "while seed 1 is a different stream");
 }
+
+/// **A refusal outlives a burst of plays.** `SirenLog` evicted the oldest entry whatever it was, so one refusal was
+/// pushed out by exactly `CAPACITY` plays — and a 32-voice scene at 20 footsteps a second writes 640 entries a second,
+/// so the line explaining why nothing played survived about **0.4 s**. R6: *"a play is never silent: `Played` or
+/// `Refused`, both with the reason"* — a refusal written and then thrown away is the silent failure with an extra step.
+#[test]
+fn a_refusal_outlives_a_burst_of_plays() {
+    use bevy_siren::{Entry, SirenLog};
+
+    let mut log = SirenLog::new();
+    log.push(Entry::Refused { at_s: 0.0, cue: "typo".to_owned(), reason: "no cue of that name".to_owned() });
+    for i in 0..SirenLog::CAPACITY {
+        log.push(Entry::Played {
+            at_s: i as f64,
+            cue: format!("c{i}"),
+            sound: "s".to_owned(),
+            bus: "Effects".to_owned(),
+            gain_db: 0.0,
+        });
+    }
+
+    assert_eq!(log.len(), SirenLog::CAPACITY, "the buffer is still the panel's budget");
+    let kept: Vec<&Entry> = log.iter().filter(|e| matches!(e, Entry::Refused { .. })).collect();
+    assert_eq!(
+        kept.len(),
+        1,
+        "and the refusal is still there: {:?}",
+        log.iter().map(|e| e.line()).collect::<Vec<_>>()
+    );
+}
+
+/// **The buffer never exceeds its capacity.** The guard: a new eviction rule must not grow the ring.
+#[test]
+fn the_buffer_never_exceeds_its_capacity() {
+    use bevy_siren::{Entry, SirenLog};
+
+    let mut log = SirenLog::new();
+    for i in 0..1000u32 {
+        if i % 7 == 0 {
+            log.push(Entry::Refused { at_s: i as f64, cue: "c".to_owned(), reason: "r".to_owned() });
+        } else {
+            log.push(Entry::Stopped { at_s: i as f64, cue: "c".to_owned(), why: "ended".to_owned() });
+        }
+        assert!(log.len() <= SirenLog::CAPACITY, "at push {i}");
+    }
+    assert_eq!(log.len(), SirenLog::CAPACITY);
+}
+
+/// **A log of only refusals still evicts.** The degenerate case: if all 256 entries are refusals there is nothing routine
+/// to drop, and keeping them all is impossible — so the oldest goes. 256 refusals is a game already failing loudly.
+#[test]
+fn a_log_of_only_refusals_still_evicts() {
+    use bevy_siren::{Entry, SirenLog};
+
+    let mut log = SirenLog::new();
+    for i in 0..300u32 {
+        log.push(Entry::Refused { at_s: i as f64, cue: format!("c{i}"), reason: "r".to_owned() });
+    }
+    assert_eq!(log.len(), SirenLog::CAPACITY, "300 refusals leave 256");
+    let oldest = log.iter().next().expect("one entry");
+    assert!(
+        matches!(oldest, Entry::Refused { cue, .. } if cue == "c44"),
+        "and the oldest kept is the 45th: {}",
+        oldest.line()
+    );
+}
+
+/// **Entries stay oldest-first.** A panel draws the column in `iter()` order, and the eviction rule removes from the
+/// middle of the routine class, so the order of what remains is what this pins.
+#[test]
+fn entries_stay_in_order_after_an_eviction() {
+    use bevy_siren::{Entry, SirenLog};
+
+    let mut log = SirenLog::new();
+    log.push(Entry::Refused { at_s: 0.0, cue: "first".to_owned(), reason: "r".to_owned() });
+    for i in 1..=SirenLog::CAPACITY {
+        log.push(Entry::Played {
+            at_s: i as f64,
+            cue: format!("c{i}"),
+            sound: "s".to_owned(),
+            bus: "Effects".to_owned(),
+            gain_db: 0.0,
+        });
+    }
+    let times: Vec<f64> = log
+        .iter()
+        .filter_map(|e| match e {
+            Entry::Played { at_s, .. } => Some(*at_s),
+            _ => None,
+        })
+        .collect();
+    assert!(times.windows(2).all(|w| w[0] < w[1]), "oldest first: {times:?}");
+    assert_eq!(times.first().copied(), Some(2.0), "and the first play (`c1`, at 1.0) is the one dropped");
+}

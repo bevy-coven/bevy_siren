@@ -1,0 +1,5 @@
+one refusal SURVIVES 2000 plays (CAPACITY 256)
+  it leaves when 256 ROUTINE entries have accumulated — not 256 total
+  at 640 entries/s that is >= 0.40 s, and longer in a quiet scene
+  the buffer still holds 256 entries
+600 refusals -> len 256 (still CAPACITY), oldest 344.00s refused `c344`: r
