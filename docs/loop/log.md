@@ -7,6 +7,81 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 21 — 2026-11-02 — `problems_in`, and the report's blind spot recorded
+
+**Change.**
+
+- **`src/cue.rs` — `CueTable::problems_in(&SirenSettings)`**, the report against **the buses the mix actually has**. It
+  asks `settings.bus_names()`, the one answer `answer`'s `UnknownBus` check, `update_mix` and `SirenSettings::problems()`
+  all read. `problems()` keeps its documented default-four meaning, and its doc now says what it assumes.
+- **`bevy_grimoire` (its own commit)** — the Cauldron's audio panel calls `problems_in(&read)`; it was calling
+  `table_read.problems()` while its own bus list, two lines below, was built from the settings.
+- `cues.yaml` gains **case 31, `state: red`**, `blocked_on:` the gain decision; `docs/guide/cues.md` stops implying the
+  check list is complete; `bad-gain-problem.md` gains the evidence; CHANGELOG and a media note.
+
+**Why.** Iteration 20's lead (`serde`) came back **clean** — `to_ron` writes `NaN`, `from_ron` returns `NaN`, an unknown
+field is refused by name. The probe found the report's five readers, of which four ask `bus_names()` and the fifth — the
+one **the editor calls** — assumed the defaults. In a project with a `Sfx` bus, `problems()` printed
+*"cue \`gunshot\` plays on bus \`Sfx\`, which the mix table does not have"* for a cue the crate **accepts and mixes**.
+
+**Evidence.** `runs/2026-11-02-21/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/{custom-buses,gain-report}.txt`.
+
+**Measured.**
+
+| row | before | after |
+|---|---|---|
+| a cue on a custom `Sfx` bus | `problems()` → **false `UnknownBus`**; the panel drew it | `problems_in(&settings)` → **empty**; the panel calls it |
+| the same table with no buses listed | both agree — the crate's four | **unchanged** (the guard) |
+| `Cue::gain_db: NaN` / slot `NaN` | 0 sentences | **unchanged — blocked** (case 31, red) |
+| `Cue::pitch` inverted / `attenuation` negative | 1 sentence each | unchanged — the asymmetry the red case records |
+| every rendered cue, the mix | — | **byte-identical** (21/21); `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| frame cost, 8 / 64 / 256 | 0.046 / 0.327 / 0.991 µs | 0.055 / 0.334 / 1.021 µs, load 7.9–16.3 — within noise; `problems_in` is a **host** call |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. One correction in my own work: the new test first went into
+`tests/table.rs`, which is behind `#[cfg(feature = "serde")]`, so the filter ran **zero** tests and reported success.
+Moved to `tests/mix.rs`, it now fails to **compile** on the unfixed tree — the strongest "fails before".
+
+**Traps for the command.** (1) A **convenience wrapper** that assumes a default is a trap the moment the crate supports
+the non-default: name it for its assumption (`problems_with`), not for the general verb (`problems`). (2) A report is not
+fixed when the *function* is right — check **every caller**, and an editor is a caller. (3) A test file behind a feature
+gate silently runs zero tests under a filter that misses: confirm the count, not the word "ok". (4) A lead that comes back
+**clean** is a result, not a wasted pass — write down what was probed so the next iteration does not repeat it.
+(5) `hs distill` GPU-blocked (twentieth iteration).
+
+**Commit.** `82d227e` (library; CI green). **The consumer fix is committed in `bevy_grimoire` as `799fad2` but NOT
+pushed**, because `origin/main` there does not compile with `bevy_siren` — proved from a clean worktree of `e00d1f1`:
+
+```
+error[E0428]: the name `audio_panel` is defined multiple times   (lib.rs:53 and lib.rs:109)
+error[E0425]: cannot find value `AudioPanelPlugin` in module `crate::audio_panel`
+```
+
+Another worker's merge (`e7ba838`) **duplicated** the `pub mod audio_panel;` declaration and replaced `audio_panel.rs`
+with a version that has no `AudioPanelPlugin`, while `editor.rs` still calls it. That break predates my commit — my diff
+touches three files and `lib.rs` is not one of them — and it means `cargo test -p bevy_cauldron --features bevy_siren`
+fails on `main` for everyone. I did not repair it: it is another worker's merge and one line of someone else's history,
+and the crate's rules say a consumer breakage is fixed as its own commit only when it is **my** change's breakage. The
+library half is shipped and green; the consumer half waits on that fix. `799fad2` sits on local `main`, ahead by one,
+rebase-clean, and will fast-forward the moment `main` compiles again.
+
+**Next 5.**
+
+1. **`CueProblem::BadGain`** — `needs-decision/bad-gain-problem.md`; `cues.yaml` case 31 is red until it lands.
+2. **`Refusal::NotALoop { layer, cue }`** — `needs-decision/not-a-loop-refusal.md` (iteration 16).
+3. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+5. Quantise a **retarget** onto the bar (iteration 14).
+
+**The hunt, tenth pass.** The **report** class is now closed on every reader: the cue table (this iteration), the mix
+table (20), the score (19), and the log (16). What has never been probed is **`SirenSounds`** — the key → handle map a
+game loads — against a table whose slot keys collide (`SoundSlot::sound` naming the same file twice in one cue, or the
+same key in two cues with different files). That is the next probe.
+
+**Baseline note.** Nothing was red; the suite had 96 tests.
+
+---
+
 ## Iteration 20 — 2026-11-02 — the report agrees with the mix about buses
 
 **Change.**
