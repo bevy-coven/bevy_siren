@@ -43,6 +43,11 @@ required-features = ["semantic"]
 name = "evalbench"
 required-features = ["semantic"]
 
+# #46's listening check: the neighbours in rank order, numbered, with what each scored beside them.
+[[example]]
+name = "audition"
+required-features = ["semantic"]
+
 [features]
 default = []
 # `serde` on the cue table, the mix table and the music score, plus `from_ron`/`to_ron`: a project saves

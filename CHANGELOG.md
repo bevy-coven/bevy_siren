@@ -7,6 +7,11 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **The human listening check** — `#46`. `docs/guide/listening.md` is the procedure: the commands, the **order** of the
+  five questions, what counts as a failure and what the follow-up is, and the shape the outcome is recorded in.
+  `examples/audition` writes an anchor's neighbours as `01-first.wav … 0k-last.wav` — **rank order, not alphabetical**,
+  because the question the check answers is whether the ranking put the right thing first — with a `README.txt` naming
+  each file's hash, the stamp and the weights. It copies rather than re-encodes, so a listener hears the asset as it is.
 - **The device path is reported, and it is the CPU path** — `#19`'s first criterion. `Model::device()` returns a
   `Device`, and `Device::describe()` says *"CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank
   differently here"*. `Device::available()` is `Cpu` unconditionally: `ort` 2.0-rc.15 has **no CUDA feature**, so there
