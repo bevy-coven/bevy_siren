@@ -1,0 +1,29 @@
+{
+ "rank": [
+  {
+   "query": "rain falling",
+   "best": "white noise",
+   "score": 0.126
+  },
+  {
+   "query": "a steady musical tone",
+   "best": "a quiet slow pad",
+   "score": 0.218
+  },
+  {
+   "query": "a low rumble",
+   "best": "a low 60 Hz rumble",
+   "score": 0.217
+  },
+  {
+   "query": "white noise hiss",
+   "best": "rain",
+   "score": 0.429
+  },
+  {
+   "query": "a rhythmic beat",
+   "best": "a fast rhythmic pulse at 120 bpm",
+   "score": 0.133
+  }
+ ]
+}

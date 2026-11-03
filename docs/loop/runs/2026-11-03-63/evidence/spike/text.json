@@ -1,0 +1,107 @@
+{
+ "torch": "2.15.0",
+ "transformers": "5.22.1",
+ "text_params": 124645632,
+ "token_keys": [
+  "input_ids",
+  "attention_mask"
+ ],
+ "token_shapes": {
+  "input_ids": [
+   4,
+   8
+  ],
+  "attention_mask": [
+   4,
+   8
+  ]
+ },
+ "text_embed_shape": [
+  4,
+  512
+ ],
+ "text_norm": [
+  1.0,
+  1.0,
+  1.0,
+  1.0
+ ],
+ "tower_max_diff_vs_model": 0.0,
+ "onnx_mb": 501.4,
+ "n_nodes": 1016,
+ "op_types": [
+  "Add",
+  "And",
+  "Cast",
+  "Clip",
+  "Concat",
+  "Constant",
+  "ConstantOfShape",
+  "CumSum",
+  "Div",
+  "Equal",
+  "Erf",
+  "Expand",
+  "Flatten",
+  "Gather",
+  "GatherElements",
+  "Gemm",
+  "GreaterOrEqual",
+  "LayerNormalization",
+  "MatMul",
+  "Mul",
+  "Not",
+  "Range",
+  "ReduceL2",
+  "Relu",
+  "Reshape",
+  "Shape",
+  "Softmax",
+  "Tanh",
+  "Transpose",
+  "Unsqueeze",
+  "Where"
+ ],
+ "cos_vs_pytorch": 0.999999969,
+ "max_abs_diff": 6.221234798431396e-07,
+ "variable_tokens": [
+  {
+   "words": 1,
+   "tokens": 4,
+   "cos": 1.000000031
+  },
+  {
+   "words": 12,
+   "tokens": 15,
+   "cos": 1.000000085
+  }
+ ],
+ "text_to_audio_cosine_same_space": [
+  {
+   "text": "tense sparse underwater ruins",
+   "cos_to_audio": -0.002288
+  },
+  {
+   "text": "a warm footstep on gravel",
+   "cos_to_audio": -0.079546
+  },
+  {
+   "text": "a bright combat loop",
+   "cos_to_audio": 0.068073
+  },
+  {
+   "text": "dripping water in a cave",
+   "cos_to_audio": 0.167943
+  }
+ ],
+ "latency": [
+  {
+   "batch": 1,
+   "ms_per_call": 5.28
+  },
+  {
+   "batch": 4,
+   "ms_per_call": 7.34
+  }
+ ]
+}

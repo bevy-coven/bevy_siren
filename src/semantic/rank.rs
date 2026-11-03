@@ -120,15 +120,34 @@ pub fn top_k(index: &Index, query: &[f32], k: usize) -> Result<Vec<Match>, RankP
     Ok(scored)
 }
 
+/// The cosine a **correct** text-to-audio match scored in this crate's own measurement.
+///
+/// Measured on six synthetic clips and five descriptions: the right clip scored between **0.126** and **0.429**
+/// (`runs/2026-11-03-63/research.md` S3).
+pub const MEASURED_MATCH_FLOOR: f32 = 0.126;
+
+/// The cosine a **wrong** match scored in the same measurement: **−0.104** to **+0.150**.
+///
+/// **The bands overlap with [`MEASURED_MATCH_FLOOR`]**, which is the single most important fact this module's defaults
+/// are built around. A floor of 0.5 — the number intuition suggests — would reject every correct match.
+pub const MEASURED_MISS_CEILING: f32 = 0.150;
+
 /// **A similarity floor**, so a result set can be empty rather than full of unrelated assets.
 ///
-/// A cosine of 0.2 between two tracks means they are close to orthogonal; returning it as a "match" wastes a
-/// developer's attention. The floor is a named field with a **design default** because the number that works depends on
-/// the model and the library, and `V-01`'s labelled set is what replaces it with a measurement.
+/// A cosine near zero between two tracks means they are close to orthogonal; returning it as a "match" wastes a
+/// developer's attention. The floor is a named field because the number that works depends on the model and the
+/// library, and `V-01`'s labelled set is what replaces it with a measurement.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Floor {
-    /// Results below this cosine are dropped. **Design default:** `0.0`, which keeps everything, because a wrong floor
-    /// that hides the right answer is worse than a long list while there is no labelled set to choose a better number.
+    /// Results below this cosine are dropped.
+    ///
+    /// **Design default: `0.0`**, which keeps everything.
+    ///
+    /// The measurement says the correct and incorrect bands **overlap** ([`MEASURED_MATCH_FLOOR`] is *below*
+    /// [`MEASURED_MISS_CEILING`]), so no single threshold separates them: a floor that removes the wrong matches also
+    /// removes right ones. A long list with scores a caller can weigh beats a short list that has silently dropped the
+    /// answer. When `V-01`'s labelled set exists, this default becomes the threshold that maximises recall at an
+    /// acceptable precision, and the number will be recorded here with the measurement that chose it.
     pub min_score: f32,
 }
 

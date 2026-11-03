@@ -26,6 +26,7 @@
 pub mod budget;
 pub mod buffer;
 pub mod index;
+pub mod query;
 pub mod rank;
 
 /// The sample rate CLAP's feature extractor resamples to before it builds a mel spectrogram.
@@ -46,6 +47,21 @@ pub const MODEL_MEL_FRAMES: usize = 1001;
 /// It names the measurement rather than a model tag because the spike did not pin a revision: an index carrying this
 /// stamp is one this crate has evidence for, and a later pinned revision gets its own string.
 pub const MEASURED_CLAP_VERSION: &str = "transformers-5.22.1/torch-2.15.0/opset-17";
+
+/// The dimension of a CLAP **text** embedding, which is the same space as the audio one.
+///
+/// **Measured**: `get_text_features` returns `[batch, 512]`, every row L2-normalised — so a text query and an audio
+/// clip can be compared by a cosine, which is the whole premise of text-to-audio retrieval. Verified against six
+/// clips and five descriptions in `runs/2026-11-03-63/research.md` S3.
+pub const TEXT_EMBEDDING_DIM: usize = 512;
+
+/// The maximum number of tokens CLAP's text tower accepts.
+///
+/// The tokeniser produced **8 tokens for 4 short phrases** and **15 for a 12-word sentence** in the measurement, and
+/// the exported graph ran both without re-export, so the token axis is dynamic. 77 is the model card's limit for
+/// `htsat-fused`; a long description must be truncated deliberately rather than silently, which is why the number is
+/// here rather than inline at a call site.
+pub const MAX_TEXT_TOKENS: usize = 77;
 
 /// The dimension of a CLAP audio embedding.
 ///
