@@ -48,7 +48,9 @@ public type, check for a `Local` first: a system parameter is private and often 
 resource it must call is not the place; reconcile where the trait object is. (5) `hs distill` GPU-blocked (twenty-seventh
 iteration).
 
-**Commit.** `e8a8a32`; CI on `main`.
+**Commit.** `e8a8a32`, pushed to `main`; CI run 41595012489 is **success** on `big-s1`. Gate: build, test (112 + 5),
+serde (119 + 5), mixer (121 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
