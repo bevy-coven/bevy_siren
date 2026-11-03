@@ -1,0 +1,137 @@
+{
+ "torch": "2.15.0",
+ "transformers": "5.22.1",
+ "total_params": 153507530,
+ "audio_tower_params": 27549128,
+ "text_tower_params": 124645632,
+ "processor_keys": [
+  "input_features",
+  "is_longer"
+ ],
+ "input_shapes": {
+  "input_features": [
+   3,
+   4,
+   1001,
+   64
+  ],
+  "is_longer": [
+   3,
+   1
+  ]
+ },
+ "ref_shape": [
+  3,
+  512
+ ],
+ "tower_shape": [
+  3,
+  512
+ ],
+ "tower_matches_model": 0.0,
+ "export": "ok",
+ "onnx_mb": 116.5,
+ "opset": [
+  [
+   "ai.onnx",
+   17
+  ]
+ ],
+ "n_nodes": 3670,
+ "n_op_types": 39,
+ "op_types": [
+  "Add",
+  "BatchNormalization",
+  "Cast",
+  "Clip",
+  "Concat",
+  "Constant",
+  "ConstantOfShape",
+  "Conv",
+  "Div",
+  "Equal",
+  "Erf",
+  "Expand",
+  "Flatten",
+  "Gather",
+  "Gemm",
+  "GlobalAveragePool",
+  "GreaterOrEqual",
+  "LayerNormalization",
+  "MatMul",
+  "Mul",
+  "NonZero",
+  "Not",
+  "Pad",
+  "Range",
+  "ReduceL2",
+  "Relu",
+  "Reshape",
+  "Resize",
+  "ScatterND",
+  "Shape",
+  "Sigmoid",
+  "Slice",
+  "Softmax",
+  "Split",
+  "Squeeze",
+  "Sub",
+  "Transpose",
+  "Unsqueeze",
+  "Where"
+ ],
+ "checker": "pass",
+ "ort": "1.31.1",
+ "cos_batched": 1.0,
+ "max_abs_diff_batched": 6.817281246185303e-07,
+ "variable_length": [
+  {
+   "seconds": 1,
+   "mel_frames": 1001,
+   "cos": 1.0,
+   "max_abs_diff": 6.444752216339111e-07
+  },
+  {
+   "seconds": 4,
+   "mel_frames": 1001,
+   "cos": 1.0,
+   "max_abs_diff": 4.1350722312927246e-07
+  },
+  {
+   "seconds": 10,
+   "mel_frames": 1001,
+   "cos": 1.0,
+   "max_abs_diff": 6.780028343200684e-07
+  }
+ ],
+ "dynamic_batch": [
+  {
+   "batch": 1,
+   "ok": true
+  },
+  {
+   "batch": 2,
+   "ok": false,
+   "error": "[ONNXRuntimeError] : 1 : FAIL : Non-zero status code returned while running Reshape node. Name:'/audio_model/audio_encod"
+  },
+  {
+   "batch": 8,
+   "ok": false,
+   "error": "[ONNXRuntimeError] : 1 : FAIL : Non-zero status code returned while running Reshape node. Name:'/audio_model/audio_encod"
+  }
+ ],
+ "fixed_batch_export": {
+  "8": {
+   "cos": 1.0,
+   "max_abs_diff": 6.016343832015991e-07,
+   "mb": 116.5
+  }
+ },
+ "latency": [
+  {
+   "batch": 1,
+   "ms_per_clip": 34.9
+  }
+ ],
+ "device": "Apple M4, onnxruntime CPUExecutionProvider (no CUDA)"
+}
