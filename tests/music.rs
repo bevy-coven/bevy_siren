@@ -744,3 +744,79 @@ fn a_layer_whose_cue_becomes_a_loop_starts() {
     run_for(&mut app, 0.2, 1.0 / 60.0);
     assert_eq!(app.world().resource::<MusicState>().live(), 1, "and it starts once the cue loops");
 }
+
+/// **A layer's starting gain is a caller value like any other.** Iteration 18 gave the crate one rule for a number that
+/// is not a number — the neutral value for what it measures — and applied it to the four numbers entering `answer`. A
+/// layer's gain entered by a different door: `NaN` went into `db`, `target_db` and `Voice.base_db`, `chain_db`
+/// silenced the sink (correctly), and nothing said so. The stem was silent with a fader at `NaN`.
+#[test]
+fn a_layer_whose_starting_gain_is_not_a_number_starts_at_zero() {
+    let score = MusicScore {
+        layers: vec![MusicLayer { name: "calm".to_owned(), cue: "track.calm".to_owned(), gain_db: f32::NAN }],
+        tempo_bpm: 0.0,
+        beats_per_bar: 4.0,
+    };
+    let mut app = app_with(score, two_layer_table(), &["track.calm", "track.combat"]);
+    run_for(&mut app, 0.1, 1.0 / 60.0);
+
+    let state = app.world().resource::<MusicState>();
+    assert_eq!(
+        state.layer_db("calm"),
+        Some(0.0),
+        "the fader is a number: the level the layer would have had"
+    );
+    assert_eq!(state.target_db("calm"), Some(0.0));
+    let base: Vec<f32> = app.world_mut().query::<&Voice>().iter(app.world()).map(|v| v.base_db).collect();
+    assert_eq!(base, vec![0.0], "and the voice is at that level, so the meter and the sink agree");
+}
+
+/// **`SILENT_DB` is finite and must stay silent.** This is what makes the neutral value safe: a score that starts a
+/// layer silent — which is the ordinary case, and what `MusicLayer::new` does — must not come in at full level.
+#[test]
+fn a_silent_layer_is_still_silent() {
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    run_for(&mut app, 0.1, 1.0 / 60.0);
+    let calm = app.world().resource::<MusicState>().layer_db("calm").expect("the layer exists");
+    assert!(
+        calm <= bevy_siren::model::SILENT_DB,
+        "a layer a score starts at SILENT_DB is still silent, not normalised to 0 dB: {calm}"
+    );
+}
+
+/// **The same rule for a move:** a `MusicLayers` target that is not a number arrives at `0.0` dB rather than being
+/// written into a layer that is already moving.
+#[test]
+fn a_move_to_a_gain_that_is_not_a_number_arrives_at_zero() {
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    run_for(&mut app, 0.1, 1.0 / 60.0);
+    app.world_mut()
+        .resource_mut::<Messages<MusicLayers>>()
+        // `MusicLayers::new` defaults to `When::NextBar` - 2 s at 120 bpm - so a `.now()` move is what this test is
+        // about: the normalisation, not the quantisation.
+        .write(MusicLayers::new([("calm".to_owned(), f32::NAN)]).now());
+    run_for(&mut app, 0.5, 1.0 / 60.0);
+
+    let state = app.world().resource::<MusicState>();
+    assert_eq!(state.layer_db("calm"), Some(0.0), "the move lands at the neutral gain, not at NaN");
+    assert_eq!(state.target_db("calm"), Some(0.0));
+}
+
+/// **A score reports a layer gain that is not a number, and a good score reports nothing.**
+///
+/// `MusicScore::problems` returns `Vec<String>`, unlike `CueTable`'s `Vec<CueProblem>`, so this is not an API change —
+/// which is why the fix is complete without a decision file.
+#[test]
+fn a_score_reports_a_layer_gain_that_is_not_a_number() {
+    let table = two_layer_table();
+    let bad = MusicScore {
+        layers: vec![MusicLayer { name: "calm".to_owned(), cue: "track.calm".to_owned(), gain_db: f32::NAN }],
+        tempo_bpm: 120.0,
+        beats_per_bar: 4.0,
+    };
+    let reported = bad.problems(&table);
+    assert_eq!(reported.len(), 1, "{reported:?}");
+    assert!(reported[0].contains("`calm`"), "it names the layer: {}", reported[0]);
+    assert!(reported[0].contains("not a number"), "and says what is wrong: {}", reported[0]);
+
+    assert!(two_layer_score().problems(&table).is_empty(), "a good score reports nothing");
+}

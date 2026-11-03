@@ -93,6 +93,9 @@ impl MusicScore {
             } else {
                 seen.push(&layer.name);
             }
+            if !layer.gain_db.is_finite() {
+                out.push(format!("music layer `{}` has a gain that is not a number", layer.name));
+            }
             match table.get(&layer.cue) {
                 None => out.push(format!(
                     "music layer `{}` names cue `{}`, which the table does not have",
@@ -408,12 +411,19 @@ pub fn start_layers(
     }
     for layer in &score.layers {
         if state.layers.iter().all(|l| l.name != layer.name) {
+            // **A layer's starting gain is a caller value like any other.** Iteration 18 gave the crate one rule for a
+            // number that is not a number - it is the neutral one for what it measures - and applied it to the four
+            // numbers entering `answer`. A layer's gain entered here instead: `NaN` went straight into `db`,
+            // `target_db` and `Voice.base_db`, `chain_db` silenced the sink (correctly), and **nothing said so** - a
+            // silent stem with a fader at `NaN`. `SILENT_DB` is finite, so a layer a score starts silent is untouched;
+            // this only catches a value that is not a number at all.
+            let start_db = crate::model::finite_or(layer.gain_db, 0.0);
             state.layers.push(LiveLayer {
                 name: layer.name.clone(),
                 cue: layer.cue.clone(),
                 voice: None,
-                db: layer.gain_db,
-                target_db: layer.gain_db,
+                db: start_db,
+                target_db: start_db,
                 fade_s: 0.0,
                 restart: true,
                 blocked_at: None,
@@ -598,7 +608,10 @@ pub fn move_layers(
     for pending in due {
         for (name, db) in pending.targets {
             if let Some(layer) = state.layers.iter_mut().find(|l| l.name == name) {
-                layer.target_db = db;
+                // The same rule for a move: a target that is not a number is **no gain**, not `NaN` written into a
+                // layer that is already moving (`approach(NaN, x)` returns `x`, but `layer_db` would report `NaN` for
+                // the frames before the move lands).
+                layer.target_db = crate::model::finite_or(db, 0.0);
                 // **The fade is the layer's own**, so a change that moves three layers with three durations is
                 // honoured per layer, and a layer the change does not name keeps the fade it had — exactly as it keeps
                 // its gain.

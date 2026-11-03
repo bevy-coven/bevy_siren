@@ -7,6 +7,77 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 19 — 2026-11-02 — a music layer's gain is a caller value like any other
+
+**Change.**
+
+- **`src/music.rs` — `start_layers` normalises a layer's starting `gain_db` and `move_layers` every `MusicLayers`
+  target** with iteration 18's `model::finite_or`, so a gain that is not a number is **no gain** (`0.0` dB), not `NaN`
+  written into `db`, `target_db` and the voice's `base_db`.
+- **`MusicScore::problems` gains one sentence**: `"music layer \`calm\` has a gain that is not a number"`. The score's
+  report is `Vec<String>`, unlike `CueTable`'s `Vec<CueProblem>`, so **no public enum changed** — this item is complete
+  with no decision file, which is why it outranked the waiting `Refusal` items.
+- `tests/music.rs` — four tests, three failing on the base commit, the fourth the `SILENT_DB` guard; a guide section; a
+  CHANGELOG line and a media note.
+
+**Why.** Iteration 18 ended with a **measured** lead, and it was real: iteration 18's rule covered the five numbers that
+enter `answer` and missed the one that enters `start_layers`. The score's report *already spoke* about a non-finite
+number — it named a bad `tempo_bpm` — and said nothing about a bad gain.
+
+**Evidence.** `runs/2026-11-02-19/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/music-gain{,-before}.txt`.
+
+**Measured.**
+
+| row | before | after |
+|---|---|---|
+| a score layer at `gain_db: NaN` | `layer_db NaN`, `base_db NaN`, sink at **−80 dB**, `problems()` **empty** | `0.0`, `0.0`, `Applied 0.0`, one sentence |
+| a `MusicLayers` move to `NaN` | `layer_db NaN`, `target NaN` | `0.0`, `0.0` |
+| a layer started at `SILENT_DB` (guard) | −80 dB | **unchanged** — `SILENT_DB` is finite |
+| every rendered cue, the mix | — | **byte-identical** (21/21); `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| frame cost, 8 / 64 / 256 | 0.079 / 0.357 / 1.288 µs | 0.064 / 0.361 / 1.311 µs, load 8.07/9.79/13.07 — within noise; the change is once per layer, off the per-frame path |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. Two corrections are recorded rather than hidden: the
+severity is **silent until moved**, not permanent (`approach(NaN, x)` returns `x`), and the move test first failed
+because `MusicLayers::new` defaults to `When::NextBar` and the test ran 0.5 s.
+
+**Traps for the command.** (1) A rule applied to *some* doors is worse than no rule: it makes the crate look consistent
+while one field still lies. When adding a rule, enumerate **every** entry point. (2) Check what a report's type is before
+designing the fix: `MusicScore::problems` is `Vec<String>` and `CueTable::problems` is `Vec<CueProblem>`, and that
+difference is whether a fix needs a decision file. (3) A **finite** sentinel is not a bad number — `SILENT_DB` must
+survive any normalisation, and that is a test, not a comment. (4) Before claiming "permanent", probe recovery: the
+crate's `approach` already guards a non-finite current value. (5) `hs distill` GPU-blocked (eighteenth iteration).
+
+**Commit.** `see git log`; CI on `main`.
+
+**Next 5.**
+
+1. **`Refusal::NotALoop { layer, cue }`** — `needs-decision/not-a-loop-refusal.md` (iteration 16's item 1).
+2. **`CueProblem::BadGain` + the refusal for a bad request** — `needs-decision/bad-gain-problem.md` (iteration 18).
+3. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+5. Quantise a **retarget** onto the bar (iteration 14's item 1).
+
+**The hunt, eighth pass.** The non-finite class is now closed at every door a **gain or detune** has: `answer`'s five
+numbers (18), a layer's start and a `MusicLayers` target (19). Probing the bus level **before** writing it down, because
+the obvious guess was wrong:
+
+```
+BusLevel::new("Music").gain_db(NaN)
+  SirenSettings::problems()  ->  ["bus `Music` has a gain that is not a number"]   <- reported
+  SirenMix::bus_db("Music")  ->  -80.00                                            <- and silent
+```
+
+So a bad bus level is **reported and silenced**, which is the opposite of this iteration's case (silent and
+unreported). Whether that is right is a judgement, not a defect: a bus is the mix's own protection, and `chain_db`'s
+silence is what keeps a `NaN` from making every voice on it audible. **No item here** — and the probe also showed
+`problems()` reporting the default duck's `Dialogue` source twice when the table lists two buses, which is a
+**duplicate sentence**, and that *is* a small defect worth its own item.
+
+**Baseline note.** Nothing was red; the suite had 88 tests.
+
+---
+
 ## Iteration 18 — 2026-11-02 — a number that is not a number
 
 **Change.**

@@ -102,6 +102,21 @@ every frame, so `voice(name)` never names an entity the world no longer has and 
   for the live count to fall below the count at the refusal, so a full budget writes **one** refusal line, not one per
   frame.
 
+## A gain that is not a number
+
+A layer's `gain_db` — in the score and in a `MusicLayers` move — follows the crate's one rule for a number that is not a
+number: it is the **neutral** value, `0.0` dB, never silence. `SILENT_DB` is a **finite** number, so a score that starts
+a layer silent still starts it silent; only a value that is not a number at all is normalised. Without this, `NaN` went
+straight into `layer_db`, `target_db` and the voice's `base_db`: the sink was silenced by `chain_db` (correctly) while
+the fader reported `NaN`, and `MusicScore::problems` said nothing.
+
+`MusicScore::problems` now names it in one sentence — the score's report is `Vec<String>`, unlike the cue table's
+`Vec<CueProblem>`, so this added no public variant:
+
+```
+music layer `calm` has a gain that is not a number
+```
+
 ## A layer must name a cue that loops
 
 A layer is a stem: it runs throughout, at the same tempo and beat as every other layer. A cue with `Mode::Once` **ends**,

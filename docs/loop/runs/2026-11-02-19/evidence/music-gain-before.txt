@@ -1,0 +1,20 @@
+warning: calls to `std::mem::drop` with a reference instead of an owned value does nothing
+  --> examples/probe_music_nan.rs:36:5
+   |
+36 |     drop(st);
+   |     ^^^^^--^
+   |          |
+   |          argument has type `&bevy_siren::MusicState`
+   |
+   = note: `#[warn(dropping_references)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+   |
+36 -     drop(st);
+36 +     let _ = st;
+   |
+
+warning: `bevy_siren` (example "probe_music_nan") generated 1 warning
+1. score layer gain NaN: layer_db Some(NaN), Voice.base_db [NaN], Applied [-80.0]
+   problems(): []
+2. move to NaN:           layer_db Some(NaN), target Some(NaN)
+3. a layer started silent: layer_db Some(-80.0) (SILENT_DB is finite, so it must NOT become 0)

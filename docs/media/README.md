@@ -3,6 +3,17 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 19, a music layer's gain that is not a number
+
+No clip: the change is **which number a layer holds and what `layer_db` reports**, and every rendered cue is
+byte-identical (21 of 21) because no rendered cue had a `NaN` layer gain. The evidence is
+`runs/2026-11-02-19/evidence/music-gain{,-before}.txt`: before, `layer_db NaN` with `Voice.base_db NaN` while `Applied`
+was `-80.0` and `problems()` was empty; after, all three are `0.0` and one sentence names the layer — with the
+`SILENT_DB` row unmoved as the guard. Tests:
+`tests/music.rs::{a_layer_whose_starting_gain_is_not_a_number_starts_at_zero,
+a_move_to_a_gain_that_is_not_a_number_arrives_at_zero, a_score_reports_a_layer_gain_that_is_not_a_number,
+a_silent_layer_is_still_silent}`.
+
 ## No clip: iteration 18, a gain that is not a number
 
 No clip: the change is **which number reaches the sink and what `Played` reports**, and every rendered cue is

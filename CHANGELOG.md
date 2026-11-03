@@ -20,6 +20,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A music layer's gain that is not a number no longer silences the stem behind a `NaN` fader.** Iteration 18 gave the
+  crate one rule for a non-finite caller value — the neutral value for what it measures — and applied it to the numbers
+  that enter `answer`. A layer's `gain_db` entered by another door: `NaN` went into `layer_db`, `target_db` and the
+  voice's `base_db`, `chain_db` silenced the sink (correctly), and **`MusicScore::problems` said nothing**. The layer is
+  now normalised with the same `model::finite_or` in `start_layers` and in every `MusicLayers` target, so a layer with a
+  bad gain starts at `0.0` dB and the fader agrees with the sound; `SILENT_DB` is finite and is untouched, so a score
+  that starts a layer silent still does. `problems()` gains one sentence, `"music layer \`calm\` has a gain that is not
+  a number"` — the score's report is `Vec<String>`, so no public enum changed.
 - **A gain or detune that is not a number is the neutral value, not silence — and `Played` reports the rate the device
   is at.** `chain_db` returns `SILENT_DB` for a non-finite part, which is right for a bus level the crate computed and
   wrong for a number an author typed: a cue with `gain_db: NaN` (which a RON file can contain) **played silent** while
