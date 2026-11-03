@@ -7,6 +7,72 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 28 — 2026-11-03 — a despawned voice frees its mixer slot
+
+**Change.**
+
+- **`src/playback.rs` — `start_pending` keeps the starts it handed to the mixer in a
+  `Local<Vec<(Entity, String, usize)>>`** and, once per frame, retains only those still in
+  `Query<(Entity, &MixerVoice, &Voice)>`. A start whose entity is gone — its owner despawned — is stopped through the
+  trait's existing `stop_voice`, freeing the slot.
+- One test behind `mixer`, with its guard in the same test; a CHANGELOG line and a media note.
+
+**Why.** Iteration 27's lead was `Play::on(entity)`. Probed, Bevy's path is fine (its sink dies with the entity); the
+crate's mixer **never** called `stop_voice` for a despawned voice, so the `rodio` player sounded for ever with its slot
+held — a leak **and** a two-backend divergence the crate's own rule forbids. Invisible on the default path, which is why
+27 iterations did not see it.
+
+**Evidence.** `runs/2026-11-03-28/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/mixer-slot{,-before}.txt`.
+
+**Measured.**
+
+| row | before | after |
+|---|---|---|
+| owner alive, 10 frames (guard) | `stop_voice []` | `stop_voice []` |
+| owner despawned, 10 frames | **`stop_voice []`** — leak | **`stop_voice [0]`** — slot freed |
+| `SirenMix::voices_on("Effects")` | 0 | 0 |
+| the log after the despawn | `["played engine …"]` | **unchanged — the record gap, named** |
+| every rendered cue, the mix | — | **byte-identical** (21/21); `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| frame cost, 8 / 64 / 256 | median 1.338 µs at 256 | median 0.910 µs, load 10.0–7.4 — a drop this change cannot cause (`perfcheck` has no `Output`, so `start_pending` returns early); reported as measured |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. **Two drafts of `research.md`/`plan.md` were wrong**: they
+argued the fix needed a new public resource and wrote a decision file instead; probing further showed a `Local` does it
+with no public type at all. Both files were rewritten before the code was committed. A component `on_despawn` hook was
+considered and rejected — Bevy 0.20 has one, but its `DeferredWorld` cannot reach the `Output` resource.
+
+**Traps for the command.** (1) A component on an entity is **not** a record that outlives it: the crate's own bookkeeping
+lived on the voice, so the voice's death erased it. (2) **A leak can hide on the default path** — this one was invisible
+without `--features mixer`, which is why the skill's "both feature sets" rule exists. (3) When a fix looks like it needs a
+public type, check for a `Local` first: a system parameter is private and often enough. (4) A hook that cannot reach the
+resource it must call is not the place; reconcile where the trait object is. (5) `hs distill` GPU-blocked (twenty-seventh
+iteration).
+
+**Commit.** `e8a8a32`; CI on `main`.
+
+**Next 5.**
+
+1. **A `Stopped` line for a parent's despawn** — neither backend writes one; the log keeps `played` and nothing else.
+   Needs a new reason, so the public-enum decision.
+2. **Answer or route around the `CueProblem` question** — now **six** items wait on it
+   (`empty-sound-key.md`, `duplicate-sound-problem.md`, `bad-gain-problem.md`, `not-a-loop-refusal.md`,
+   `duck-recovers-entry.md`, and this).
+3. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+5. Quantise a **retarget** onto the bar (iteration 14).
+
+**The hunt, seventeenth pass.** The mixer class has now paid twice (iteration 17's `AudioPlayer` fallback, and this). Its
+remaining untested surface is **`set_voice_db` on a voice whose slot was reused**: the trait takes `(bus, index)` and the
+mixer packs a generation, so a stale write should address nothing — case 26 claims that, and `tests/mixer.rs` proves it for
+`finished` and `stop_voice`. Whether a **stale `set_voice_db`** is equally harmless is the next probe.
+
+**Baseline note.** Nothing was red; the suite had 112 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 27 — 2026-11-03 — a duck ends its hold when the voice that justified it stops
 
 **Change.**
