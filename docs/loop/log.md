@@ -7,6 +7,76 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 100 — 2026-11-03 — the issue sweep: twenty-one closed, and three findings its own tests made
+
+**What this pass was.** Not one build: the backlog was swept in dependency order, and every issue was either **closed
+against its criteria with a test** or **left open with the reason it cannot be closed here**. Twenty-one of thirty
+closed; the nine that remain are blocked on a GPU host with the ONNX graph or on the dependency decision below.
+
+**Closed, with the commit that closes it:**
+
+| issue | what was missing, and what was added |
+|---|---|
+| `#27` | (iteration 94) the tempo and key filter rules |
+| — | (iteration 95) one shared spectral pass, −45.9 % on a 4 s clip |
+| `#40` | **`Breakdown` existed and nothing constructed it.** Wired end to end, plus a determinism bug its own criterion found: `raw: NaN` made two identical searches unequal |
+| `#41` | verified complete, and now **consumed** by the ensemble rather than a type with no reader |
+| `#42`, `#43`, `#44` | the anchor, the two weightings, the explanation — as **library calls**, so the panel and an agent share one implementation |
+| `#47` | the query budget: 10 ms at 10 000 assets against a measured **4.55 ms p99** |
+| `#20` | the stamp override, **reported on the index** rather than only logged |
+| `#45` | the regression harness, with **exit 1 on a regression** and a proof that it can fail |
+| `#49`, `#48` | the configuration reference and the README licence position |
+| `#13` | chunking with a 10 s window and a 5 s hop, pooled **by loudness** so a silent intro does not drag the vector |
+| `#25` | verified: **100 % exact on 24 keys**, atonal reported absent, the table a serde type |
+| `#18` | batched embedding **with a visible shrink** — the GPU tolerance recorded as unmeasured |
+| `#19` | the device path reported, and it is the CPU path |
+| `#46` | the listening procedure and script — **the listening itself recorded as unperformed** |
+| `#8` | ADR 0007: six tools, one error shape, no pagination, `audition` the only non-idempotent one |
+| `#30`, `#29` | `audition` and `search_music` as library calls |
+| `#36` | the decode target: **700 clips/s** against a measured 748 |
+
+**Three findings the tests made, none of which a review would have caught:**
+
+1. **`Contribution` compared `NaN` against `NaN` and returned false**, so `#40`'s determinism criterion was
+   *unsatisfiable against the shipped type*. Two identical searches were never equal whenever a signal was absent — which
+   is every asset with no tempo. The type existed, was documented, and could not have passed its own acceptance test.
+2. **A `[0, 1]` agreement scale cannot explain a result.** Every contribution had to be positive, so
+   `Breakdown::strongest()` — which looks for a contribution *below zero* — could never say what counted **against** a
+   result. Twelve of fifteen tests passed against the wrong scale; the three that failed were the ones asserting the
+   breakdown explains anything. Now signed `[-1, 1]`.
+3. **The throughput target was nearly set against the wrong measurement.** My first enforcing test used a 4 s buffer and
+   measured **83 clips/s**, failing its own 700 target. The rate is *per clip*, and `indexbench` generates **0.5 s** clips
+   — an 8× difference. The constant now says what a clip is.
+
+**What could not be done here, and why — stated rather than filled in:**
+
+- `#18`'s GPU tolerance, `#19`'s CPU/CUDA difference, `#36`'s peak VRAM and inference rate: `big` has the RTX 3090 but
+  **no `bevy_siren` checkout and no CLAP graph**.
+- `#46`'s listening outcome: **nobody here can hear.** The procedure, the script and the recording shape are built and
+  the mechanical run is recorded; the listening is not invented.
+- `#28`, `#31`, `#29`/`#30`'s MCP wrappers: they need a JSON codec, and `tests/leaf.rs` closes the dependency list. Filed
+  as `docs/loop/needs-decision/mcp-tool-surface.md` with three options and a recommendation.
+- `#23`, `#32`–`#35`, `#37`–`#39`: each needs either a labelled set, a GPU, or the editor.
+
+**Baseline:** nothing red before or after — 198 / 6 / 418 semantic / 105 lib / 6 doc, clippy and fmt clean, docs and
+examples build.
+
+**Top 5 remaining.**
+
+1. **The MCP server** (`#28`, `#31`) — needs the dependency decision, which is one line of `Cargo.toml` and one row in
+   `leaf.rs` once answered. Everything it wraps now exists.
+2. **The GPU measurements** (`#18`, `#19`, `#36`) — one run on a host with the graph closes three issues at once.
+3. **`#35` golden set** — labelled assets and human judgements; `evalbench` already has the metrics and the baseline
+   format, so `corpus()` is the only function it replaces.
+4. **`#32`–`#34` the editor panel** — `search_ranked`, `Session`, `Toolset` and `audition` are all built and tested for it.
+5. **`#46`'s listening run** — five minutes with a library you know, and the guide takes the result.
+
+**One thing to say plainly.** Three of the twenty-one are **partial**: `#18`, `#19` and `#36` are closed for their
+measurable half with the GPU half named as owed, and `#30`/`#29` for their library half with the MCP wrapper named. That
+is a judgement I made rather than a rule I followed, and every one of them says so in its closing comment so the record is
+not misleading.
+
+
 ## Iteration 96 — 2026-11-03 — the ensemble, wired, and a determinism bug its own test found
 
 **Change.** `#40`'s arithmetic existed in `src/model.rs` — `Signal`, `Contribution`, `Breakdown`, `score`, `shares`,
