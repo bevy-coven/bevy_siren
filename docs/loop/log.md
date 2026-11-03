@@ -7,6 +7,73 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 79 — 2026-11-03 — the vector store, sized rather than guessed
+
+**Baseline.** All cargo steps **BLOCKED by disk**: 148 MB free at the start, `cargo clean -p bevy_pbr` buying 326 MB,
+and one 7 KB `write` failing `ENOSPC` outright before that. **Fifth consecutive iteration the disk has cost.**
+
+**#5 closed: ADR 0004, `docs/adr/0004-vector-store.md`.** One versioned file, read whole, brute force. No SQLite, no
+shard directory, no ANN.
+
+**The measurement corrected the issue's own premise.** #5 asks whether a game ships *"a 5 MB index as an asset or a
+40 MB SQLite file"*. Computed from the crate's **own** `to_text` (mean **6 376.8 bytes** per record, measured over 2 000
+records of dimension 512):
+
+| Clips | Text (exists today) | Binary f32 | Binary f16 |
+|---|---|---|---|
+| 500 | 3.19 MB | 1.03 MB | 0.52 MB |
+| **5 000** | **31.88 MB** | **10.30 MB** | **5.20 MB** |
+| 50 000 | 318.84 MB | 102.99 MB | 52.01 MB |
+
+**The 40 MB figure is the format the crate already has**, and 5 MB needs `f16`. An ADR written from the issue's numbers
+would have chosen a store to avoid a size it is already at.
+
+**Query cost, measured:** a BLAS `f32` dot over 5 000 × 512 takes **0.05–1.87 ms**. Brute force is not the slow option
+at this scale — that is the whole argument against an ANN, and it is a measurement rather than a preference.
+
+**Identity and its four rules.** Content hash, with rename keeping the vector, re-encode being a new asset, duplicate
+bytes being one vector with two paths, and a 64-bit collision **detected** by the recorded file size rather than
+assumed away.
+
+**`f16` measured and declined**, which is the decision worth keeping: it halves the file to 5.2 MB and preserved one
+query's top 10 **exactly**, and yet `rank::top_k` compares against a `floor` — one query says nothing about behaviour at
+that boundary. Deferred to `V-01`'s labelled set.
+
+**A query needs no writable filesystem**, stated as the issue requires and demonstrated by mechanism: `File::open` plus
+`read_to_end`, no `MAP_SHARED`, no lock.
+
+**Verdicts.** Pass 1 **GREAT** (all four criteria met), pass 2 **GREAT** (every size checked to the byte; the wide
+cold/warm latency range stated as a range), pass 3 **GREAT** (the correction of the issue's premise sits before the
+decision, where a reader needs it).
+
+**Gate.** Nothing compiled — docs-only, `git diff HEAD -- src/ tests/ Cargo.toml` is **0 files**. The baseline gap is in
+`eval.md`, not claimed green.
+
+**Evidence.** `runs/2026-11-03-79/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/store-sizes.txt`.
+
+**Commits.** `042796d`.
+
+**The disk, with the consumer named at last.** The volume reports 461 GB used / 148 MB free, and the culprit is outside
+this repo: `~/.cache/huggingface` is **50 GB**, of which **48 GB is two FLUX image-model checkpoints**
+(`FLUX.2-klein-9B` 33 GB, `FLUX.2-klein-4B` 15 GB). `~/bevy_siren/target` is 16 GB and `~/.cargo` 8.7 GB. Deleting
+either checkpoint recovers more than a full release build needs; neither is a build artifact, so it is the owner's
+decision, not this loop's.
+
+**All three unblocked p0 ADRs are now closed** — #4 (acoustic features), #5 (vector store) and #6 (models and licences).
+What remains is implementation, which needs a compiler.
+
+**Top 5 remaining**
+
+1. **Free the disk.** Everything below is blocked on it. The named candidates are in the paragraph above; this is a
+   one-command fix and it is the only thing standing between five iterations of documents and five of code.
+2. **`#16` incremental indexing by content hash** — p0, blockers closed, and ADR 0004 has just fixed the format it
+   writes into.
+3. **`#14` per-asset licence and source metadata** — p0, unblocked by iteration 78 and by ADR 0004's key policy.
+4. **`#21`'s index round trip** — `needs-decision/loudness-in-the-index.md` is now a decision *inside* ADR 0004's
+   format, so it can be answered against a settled store.
+5. **The binary index writer** ADR 0004 specifies, with its test asserting the 10.30 MB figure rather than accepting it.
+
 ## Iteration 78 — 2026-11-03 — every music encoder is non-commercial, and the corpus has no licence
 
 **Baseline.** `cargo fmt --check` green. `cargo test --lib --features semantic` and every other step **BLOCKED by
