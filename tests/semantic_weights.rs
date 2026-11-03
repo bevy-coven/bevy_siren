@@ -140,6 +140,8 @@ fn the_weights_round_trip_through_ron() {
         key: 0.4,
         loudness_tolerance_db: 3.0,
         noise_floor_tolerance_db: 15.0,
+        tempo_tolerance_bpm: 2.5,
+        compatibility: Default::default(),
         drop_fraction: 0.2,
     };
     let text = original.to_ron().expect("serialises");

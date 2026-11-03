@@ -28,8 +28,10 @@
 //! tool looks broken."* [`Report::describe`] names the rule that removed the most, so an empty result is a sentence
 //! rather than a mystery.
 
+use super::key::{Estimate, Key, Relation};
 use super::loudness::Loudness;
 use super::spectral::Spectral;
+use super::tempo::Tempo;
 use super::weights::Weights;
 
 /// What a rule decided about one candidate.
@@ -53,6 +55,23 @@ pub enum Exclusion {
         /// The tolerance that was exceeded.
         tolerance_db: f32,
     },
+    /// The tempi are farther apart than `Weights::tempo_tolerance_bpm`.
+    Tempo {
+        /// The difference in BPM.
+        difference_bpm: f32,
+        /// The tolerance that was exceeded.
+        tolerance_bpm: f32,
+    },
+    /// The keys are a [`Relation::Clash`] — a semitone, a tritone, anything off the circle of fifths.
+    ///
+    /// A **penalty, never an exclusion**: a modal piece can sit anywhere, and key detection is the least reliable
+    /// feature here, so `#27` puts it at the penalty level.
+    Key {
+        /// How the two keys relate.
+        relation: Relation,
+        /// The multiplier the compatibility table gives that relation.
+        multiplier: f32,
+    },
     /// The candidate's noise floor is so far above the anchor's that they are different recording conditions.
     ///
     /// A **penalty, not an exclusion**, by `#27`'s own scope — it is reported here so a caller can weight it, and
@@ -73,6 +92,14 @@ impl core::fmt::Display for Exclusion {
                 "loudness differs by {difference_db:.1} LU, beyond the {tolerance_db:.1} LU tolerance: the two are \
                  deliberately at different levels"
             ),
+            Exclusion::Tempo { difference_bpm, tolerance_bpm } => write!(
+                f,
+                "tempo differs by {difference_bpm:.1} BPM, beyond the {tolerance_bpm:.1} BPM tolerance: mixing them \
+                 is a musical clash however well the timbres match"
+            ),
+            Exclusion::Key { relation, multiplier } => {
+                write!(f, "{relation}, so the score is multiplied by {multiplier:.2}")
+            }
             Exclusion::NoiseFloor { difference_db, tolerance_db } => write!(
                 f,
                 "noise floor is {difference_db:.1} dB above the anchor's, beyond {tolerance_db:.1} dB: a different \
@@ -92,6 +119,11 @@ pub struct Features {
     pub loudness: Option<Loudness>,
     /// Spectral shape, when the analysis succeeded.
     pub spectral: Option<Spectral>,
+    /// Tempo, when the clip is rhythmic enough to have one — and `Some(Tempo)` with `bpm: None` is a real answer that
+    /// means *judged and not rhythmic*, which is different from `None` here.
+    pub tempo: Option<Tempo>,
+    /// Key and confidence, when the clip has a tonal centre.
+    pub key: Option<Estimate>,
 }
 
 impl Features {
@@ -103,6 +135,20 @@ impl Features {
     /// The noise floor in dB, when there is one.
     pub fn noise_floor_db(&self) -> Option<f32> {
         self.spectral.map(|s| s.noise_floor_db)
+    }
+
+    /// The tempo in BPM, **only when one was actually estimated**.
+    ///
+    /// A record present with `bpm: None` means *the clip is not rhythmic*, and that is not a tempo: returning it would
+    /// make every non-rhythmic asset compare against every other as though they shared one.
+    pub fn bpm(&self) -> Option<f32> {
+        self.tempo.and_then(|t| t.bpm)
+    }
+
+    /// The key, **only when one was actually found**. A record with `tonic: None` means *judged and found atonal*,
+    /// which is not a key to compare.
+    pub fn found_key(&self) -> Option<Key> {
+        self.key.map(|e| e.key).filter(Key::is_some)
     }
 }
 
@@ -148,6 +194,31 @@ pub fn evaluate(anchor: &Features, candidate: &Features, weights: &Weights) -> J
         let tolerance_db = weights.noise_floor_tolerance_db;
         if difference_db > tolerance_db {
             penalties.push(Exclusion::NoiseFloor { difference_db, tolerance_db });
+        }
+    }
+
+    // **Tempo: a hard rule when both are known**, because a 90 BPM loop under a 128 BPM track is a clash whatever the
+    // timbres — `#27`'s own words. A track whose tempo was never estimated, or was judged non-rhythmic, is
+    // **unjudged**, never excluded.
+    if let (Some(a), Some(c)) = (anchor.bpm(), candidate.bpm()) {
+        let difference_bpm = (c - a).abs();
+        let tolerance_bpm = weights.tempo_tolerance_bpm;
+        if difference_bpm > tolerance_bpm {
+            return Judgement {
+                excluded: Some(Exclusion::Tempo { difference_bpm, tolerance_bpm }),
+                penalties,
+            };
+        }
+    }
+
+    // **Key: a penalty, never an exclusion.** A `Clash` halves the score; everything else is untouched, and an absent
+    // key on either side multiplies by 1.0 — the rule `Compatibility` already encodes.
+    if let (Some(a), Some(c)) = (anchor.found_key(), candidate.found_key())
+        && let Some(relation) = a.relation(&c)
+    {
+        let multiplier = weights.compatibility.multiplier(Some(relation));
+        if multiplier < 1.0 {
+            penalties.push(Exclusion::Key { relation, multiplier });
         }
     }
 
@@ -238,6 +309,8 @@ mod tests {
                 blocks_possible: 7,
             }),
             spectral: None,
+            tempo: None,
+            key: None,
         }
     }
 
@@ -252,6 +325,8 @@ mod tests {
                 blocks_possible: 0,
             }),
             spectral: None,
+            tempo: None,
+            key: None,
         }
     }
 
@@ -381,6 +456,127 @@ mod tests {
         assert_eq!(kept.len(), 3, "every candidate is admitted");
         assert_eq!(report.unjudged_loudness, 2, "and two were not judged at all");
         assert_eq!(report.describe(), "all 3 admitted");
+    }
+
+    fn with_tempo(bpm: Option<f32>) -> Features {
+        Features {
+            tempo: Some(Tempo { bpm, confidence: 0.8, octave_ambiguous: false }),
+            ..Features::default()
+        }
+    }
+
+    fn with_key(tonic: u8, major: bool) -> Features {
+        Features {
+            key: Some(Estimate { key: Key::new(tonic, major), confidence: 0.3 }),
+            ..Features::default()
+        }
+    }
+
+    /// **A tempo gap beyond the tolerance is excluded**, and one inside it is not — `#27`'s *"a pair either side of its
+    /// threshold"*.
+    #[test]
+    fn the_tempo_threshold_is_where_the_verdict_changes() {
+        let w = Weights::default();
+        assert_eq!(w.tempo_tolerance_bpm, 4.0, "the default this test is written against");
+        // 90 under 128 is the issue's own example: 38 BPM apart, refused.
+        assert!(!evaluate(&with_tempo(Some(90.0)), &with_tempo(Some(128.0)), &w).admitted());
+        // And a gap inside the tolerance is admitted.
+        for (gap, should_admit) in [(0.0f32, true), (3.9, true), (4.0, true), (4.1, false), (38.0, false)] {
+            let judged = evaluate(&with_tempo(Some(120.0)), &with_tempo(Some(120.0 + gap)), &w);
+            assert_eq!(judged.admitted(), should_admit, "a {gap} BPM gap against a 4.0 tolerance");
+        }
+    }
+
+    /// **An unknown tempo never excludes**, and neither does a *judged non-rhythmic* asset: `bpm: None` inside a record
+    /// means the clip was measured and has no tempo, which is not a tempo to compare.
+    #[test]
+    fn an_unknown_or_non_rhythmic_tempo_never_excludes() {
+        let w = Weights::default();
+        let slow = with_tempo(Some(90.0));
+        // Absent record, present-but-no-bpm, and present on the other side only.
+        assert!(evaluate(&slow, &Features::default(), &w).admitted());
+        assert!(evaluate(&slow, &with_tempo(None), &w).admitted());
+        assert!(evaluate(&with_tempo(None), &slow, &w).admitted());
+        assert!(evaluate(&Features::default(), &Features::default(), &w).admitted());
+    }
+
+    /// **A clashing key is penalised, never excluded**, and the multiplier comes from the table — `#27`'s criterion that
+    /// the key rule works by penalty.
+    #[test]
+    fn a_clashing_key_is_penalised_and_never_excluded() {
+        let w = Weights::default();
+        // C major against C# major: a semitone apart, the clash the issue opens with.
+        let judged = evaluate(&with_key(0, true), &with_key(1, true), &w);
+        assert!(judged.admitted(), "a key clash never removes a candidate");
+        assert_eq!(judged.penalties.len(), 1);
+        match judged.penalties[0] {
+            Exclusion::Key { relation, multiplier } => {
+                assert_eq!(relation, Relation::Clash);
+                assert!((multiplier - w.compatibility.clash_penalty).abs() < f32::EPSILON);
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// A consonant relationship carries no penalty at all, which is the other side of the threshold.
+    #[test]
+    fn a_fifth_and_a_same_key_are_unpenalised() {
+        let w = Weights::default();
+        assert!(evaluate(&with_key(0, true), &with_key(0, true), &w).penalties.is_empty(), "same key");
+        assert!(evaluate(&with_key(0, true), &with_key(7, true), &w).penalties.is_empty(), "a fifth");
+        // A parallel mode is penalised, but less than a clash.
+        let parallel = evaluate(&with_key(0, true), &with_key(0, false), &w);
+        assert_eq!(parallel.penalties.len(), 1);
+        match parallel.penalties[0] {
+            Exclusion::Key { multiplier, .. } => {
+                assert!((multiplier - w.compatibility.parallel_penalty).abs() < f32::EPSILON);
+                assert!(
+                    multiplier > w.compatibility.clash_penalty,
+                    "a parallel shift is gentler than a clash"
+                );
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// **An unknown key never excludes and never penalises**, from either side.
+    #[test]
+    fn an_unknown_key_never_penalises() {
+        let w = Weights::default();
+        let c = with_key(0, true);
+        assert!(evaluate(&c, &Features::default(), &w).penalties.is_empty());
+        assert!(evaluate(&Features::default(), &c, &w).penalties.is_empty());
+        // And a *judged atonal* asset is the same case: a record with no tonic is not a key to compare.
+        let atonal =
+            Features { key: Some(Estimate { key: Key::absent(), confidence: 0.03 }), ..Features::default() };
+        assert!(evaluate(&c, &atonal, &w).penalties.is_empty());
+        assert!(evaluate(&atonal, &c, &w).penalties.is_empty());
+    }
+
+    /// **Every threshold is overridable**, which is `#27`'s third criterion applied to the two new fields.
+    #[test]
+    fn the_new_thresholds_are_overridable() {
+        let strict = Weights { tempo_tolerance_bpm: 1.0, ..Weights::default() };
+        let loose = Weights { tempo_tolerance_bpm: 100.0, ..Weights::default() };
+        let pair = (with_tempo(Some(120.0)), with_tempo(Some(124.0)));
+        assert!(!evaluate(&pair.0, &pair.1, &strict).admitted(), "a 1 BPM tolerance refuses 4 BPM");
+        assert!(evaluate(&pair.0, &pair.1, &loose).admitted(), "a 100 BPM tolerance admits it");
+
+        // And a project that wants clashing keys sets the penalty to 1.0, which makes the rule stop penalising.
+        let permissive = Weights {
+            compatibility: crate::semantic::key::Compatibility { clash_penalty: 1.0, ..Default::default() },
+            ..Weights::default()
+        };
+        assert!(
+            evaluate(&with_key(0, true), &with_key(1, true), &permissive).penalties.is_empty(),
+            "a clash_penalty of 1.0 is no penalty"
+        );
+    }
+
+    /// The default weights report nothing, so a project that ships the defaults is not warned about them.
+    #[test]
+    fn the_new_defaults_are_valid() {
+        assert!(Weights::default().problems().is_empty(), "{:?}", Weights::default().problems());
     }
 
     #[test]

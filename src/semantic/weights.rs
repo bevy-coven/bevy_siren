@@ -23,6 +23,8 @@
 
 use std::fmt;
 
+use super::key::Compatibility;
+
 /// **The weights the ensemble combines signals with**, and the thresholds it filters on.
 ///
 /// All fields are plain data so a project can ship them in its `bevy_siren.ron`, exactly as it ships a cue table. A
@@ -81,6 +83,22 @@ pub struct Weights {
     #[cfg_attr(feature = "serde", serde(default = "Weights::default_noise_floor_tolerance_db"))]
     pub noise_floor_tolerance_db: f32,
 
+    /// How far apart two tempi may be, in BPM, before the pair is **excluded**.
+    ///
+    /// **Design default: `4.0` BPM.** Twice the ±2 BPM accuracy floor ADR 0003 set for the estimator, so a pair is only
+    /// excluded when the difference is larger than **both** estimates' uncertainty — otherwise the rule would reject
+    /// tracks whose tempi merely look different because the measurement is ±2. At 120 BPM that is ±3.3 %, below the
+    /// just-noticeable difference for tempo in a rhythmic layer.
+    #[cfg_attr(feature = "serde", serde(default = "Weights::default_tempo_tolerance_bpm"))]
+    pub tempo_tolerance_bpm: f32,
+
+    /// **The key compatibility table** — which relationships are consonant, and by how much the rest are penalised.
+    ///
+    /// `#27` requires it be a **named serde type** rather than a matrix in a system, and `#25` supplied the type. A
+    /// project whose palette deliberately clashes sets `clash_penalty` to `1.0` and the rule stops penalising.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub compatibility: Compatibility,
+
     /// The share of a candidate's neighbours the ensemble drops, worst first, before a result is returned.
     ///
     /// **Design default: `0.0`.** Keep everything, because iteration 69 measured what a filter costs: at the 0.126 the
@@ -99,6 +117,8 @@ impl Default for Weights {
             key: Weights::default_key(),
             loudness_tolerance_db: Weights::default_loudness_tolerance_db(),
             noise_floor_tolerance_db: Weights::default_noise_floor_tolerance_db(),
+            tempo_tolerance_bpm: Weights::default_tempo_tolerance_bpm(),
+            compatibility: Compatibility::default(),
             drop_fraction: Weights::default_drop_fraction(),
         }
     }
@@ -135,6 +155,12 @@ impl Weights {
     /// excludes, and a library holds clean and noisy takes of the same instrument.
     pub fn default_noise_floor_tolerance_db() -> f32 {
         12.0
+    }
+
+    /// **Design default: `4.0` BPM** — twice the ±2 BPM estimator floor, so a pair is excluded only when the gap
+    /// exceeds both estimates' uncertainty.
+    pub fn default_tempo_tolerance_bpm() -> f32 {
+        4.0
     }
 
     /// **Design default: `0.0`** — keep everything, because a filter that hides the right answer is worse than a long
@@ -181,6 +207,22 @@ impl Weights {
         // negative or non-finite, which would penalise every candidate for being quieter than the anchor.
         if !self.noise_floor_tolerance_db.is_finite() || self.noise_floor_tolerance_db < 0.0 {
             problems.push(WeightProblem::BadTolerance { value: self.noise_floor_tolerance_db });
+        }
+        // The tempo tolerance may be zero — a project that demands exactly equal tempi — but not negative, which would
+        // exclude every pair, and not non-finite, which compares false against everything.
+        if !self.tempo_tolerance_bpm.is_finite() || self.tempo_tolerance_bpm < 0.0 {
+            problems.push(WeightProblem::BadTolerance { value: self.tempo_tolerance_bpm });
+        }
+        // A multiplier above 1.0 would *reward* a clash; below 0.0 would invert the score.
+        if !self.compatibility.clash_penalty.is_finite()
+            || !(0.0..=1.0).contains(&self.compatibility.clash_penalty)
+        {
+            problems.push(WeightProblem::BadDropFraction { value: self.compatibility.clash_penalty });
+        }
+        if !self.compatibility.parallel_penalty.is_finite()
+            || !(0.0..=1.0).contains(&self.compatibility.parallel_penalty)
+        {
+            problems.push(WeightProblem::BadDropFraction { value: self.compatibility.parallel_penalty });
         }
 
         if !self.drop_fraction.is_finite() || !(0.0..1.0).contains(&self.drop_fraction) {
