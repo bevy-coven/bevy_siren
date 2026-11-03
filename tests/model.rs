@@ -517,3 +517,39 @@ fn a_default_picker_remembers_one_pick() {
         assert_ne!(pair[0], pair[1], "a default picker must never repeat: {seq:?}");
     }
 }
+
+/// **`avoid: 0` really does refuse nothing** — the behavioural half of `CueProblem::InertAvoidRepeat`.
+///
+/// The problem report says so; this proves it, because a report that disagreed with the picker would be worse than no
+/// report. Two pickers with the same seed and the same keys must produce the same sequence when one is asked for zero.
+#[test]
+fn a_zero_avoid_window_refuses_exactly_nothing() {
+    use bevy_siren::model::{Rng, VariantPicker};
+
+    let keys = ["a", "b", "c"];
+    let mut zero = VariantPicker::new(1);
+    let mut zero_rng = Rng::new(7);
+    let mut shuffle = VariantPicker::new(1);
+    let mut shuffle_rng = Rng::new(7);
+
+    let mut zero_picks = Vec::new();
+    let mut shuffle_picks = Vec::new();
+    for _ in 0..24 {
+        zero_picks.push(zero.pick_from(&keys, 0, &mut zero_rng).expect("a pick"));
+        shuffle_picks.push(shuffle.pick_from(&keys, 0, &mut shuffle_rng).expect("a pick"));
+    }
+    assert_eq!(zero_picks, shuffle_picks, "a window of zero is the same rule as `Shuffle`");
+
+    // **And a zero window really can repeat back to back**, which is what the footstep rule exists to prevent. Over 24
+    // draws on three keys a repeat somewhere is overwhelmingly likely; asserting it makes the claim concrete.
+    assert!(
+        zero_picks.windows(2).any(|w| w[0] == w[1]),
+        "a zero window permits a repeat, which is the machine-gun footstep: {zero_picks:?}"
+    );
+
+    // **A window of one does not**, which is what the default asks for.
+    let mut one = VariantPicker::new(1);
+    let mut one_rng = Rng::new(7);
+    let picks: Vec<usize> = (0..24).map(|_| one.pick_from(&keys, 1, &mut one_rng).expect("a pick")).collect();
+    assert!(!picks.windows(2).any(|w| w[0] == w[1]), "`avoid: 1` never repeats back to back: {picks:?}");
+}

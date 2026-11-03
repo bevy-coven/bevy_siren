@@ -183,8 +183,11 @@ impl Default for PitchRange {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub enum Repeat {
-    /// Random, but never one of the last `avoid` variants — the default, and what kills the
-    /// machine-gun footstep.
+    /// Random, but never one of the last `avoid` **sounds** — the default, and what kills the machine-gun footstep.
+    ///
+    /// `avoid` is a count of *recordings*, not of slot indices: a cue listing one file twice is two indices and one
+    /// sound. **`avoid: 0` refuses nothing**, so it is [`Repeat::Shuffle`] under another name —
+    /// [`CueProblem::InertAvoidRepeat`] reports it rather than letting a table believe it has a rule it does not.
     AvoidRepeat {
         /// How many recent picks are refused.
         avoid: u8,
@@ -290,6 +293,15 @@ pub enum CueProblem {
         /// The cue's name.
         name: String,
     },
+    /// An `AvoidRepeat` window of zero refuses nothing, so the rule the author wrote is not the rule they get.
+    ///
+    /// `Repeat::avoid()` returns the field verbatim and the picker refuses `min(avoid, len)` recent variants — so
+    /// `avoid: 0` is **byte-identical to `Shuffle`**, and a footstep table written that way plays the machine-gun repeat
+    /// `AvoidRepeat` exists to prevent. A generated table computing the window from a variant count reaches it easily.
+    InertAvoidRepeat {
+        /// The cue's name.
+        name: String,
+    },
     /// Two cues share a name, so which one plays is a lookup detail rather than a decision.
     DuplicateName {
         /// The repeated name.
@@ -324,6 +336,11 @@ impl std::fmt::Display for CueProblem {
         match self {
             Self::NoSounds { name } => write!(f, "cue `{name}` has no sounds, so it can only be refused"),
             Self::DuplicateName { name } => write!(f, "cue `{name}` is defined more than once"),
+            Self::InertAvoidRepeat { name } => write!(
+                f,
+                "cue `{name}` uses `AvoidRepeat` with `avoid: 0`, which refuses nothing — it plays like `Shuffle`, so \
+                 the same sample can repeat back to back. Set `avoid` to 1 or more, or use `Shuffle` and say so"
+            ),
             Self::UnknownBus { name, bus } => {
                 write!(f, "cue `{name}` plays on bus `{bus}`, which the mix table does not have")
             }
@@ -455,6 +472,12 @@ impl CueTable {
             }
             if cue.max_instances == 0 {
                 out.push(CueProblem::UnlimitedInstances { name: cue.name.clone() });
+            }
+            // **A window of zero refuses nothing**, which makes `AvoidRepeat { avoid: 0 }` a different rule from the one
+            // its doc describes. `problems()` is the only place a person can find that out — the play itself looks
+            // perfectly normal, which is why this is the class of bug the crate ranks first.
+            if matches!(cue.repeat, Repeat::AvoidRepeat { avoid: 0 }) {
+                out.push(CueProblem::InertAvoidRepeat { name: cue.name.clone() });
             }
         }
         out

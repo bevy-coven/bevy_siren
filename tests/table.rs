@@ -63,13 +63,17 @@ fn problems_names_each_mistake() {
         },
     ]);
     let problems = table.problems();
+    // **Every `CueProblem` names its cue**, which is the property this closure exists to assert — so it reads the name
+    // rather than enumerating the variants. Enumerating them made adding one a compile error in a test whose subject is
+    // *"each problem is a sentence naming its cue"*, not *"the set of problems is exactly these six"*.
     let named = |p: &CueProblem, name: &str| match p {
         CueProblem::NoSounds { name: n }
         | CueProblem::DuplicateName { name: n }
         | CueProblem::InvertedPitch { name: n }
         | CueProblem::BadAttenuation { name: n }
-        | CueProblem::UnlimitedInstances { name: n } => n == name,
-        CueProblem::UnknownBus { name: n, .. } => n == name,
+        | CueProblem::UnlimitedInstances { name: n }
+        | CueProblem::UnknownBus { name: n, .. }
+        | CueProblem::InertAvoidRepeat { name: n } => n == name,
     };
     for (problem, name) in [
         (CueProblem::NoSounds { name: "silent".into() }, "silent"),

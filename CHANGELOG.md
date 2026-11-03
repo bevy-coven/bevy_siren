@@ -7,6 +7,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`Repeat::AvoidRepeat { avoid: 0 }` refuses nothing** and did so silently. `avoid()` returns the field verbatim and the
+  picker refuses `min(avoid, len)` recent sounds, so a window of zero is **byte-identical to `Shuffle`** — proved by two
+  pickers on one seed producing the same 24-pick sequence — while the variant's own doc promised it *"kills the
+  machine-gun footstep"*. A generated table computing the window from a variant count (`avoid: variants - 1`) reaches it
+  mechanically, and every play succeeds while a listener hears the repeat. `CueProblem::InertAvoidRepeat` now reports it
+  with both remedies rather than coercing the number, because a legal table's behaviour is the author's to change.
+  `Repeat`'s doc also now says `avoid` counts **sounds**, not slot indices.
 - **Three defects in the tool surface.** (1) **The similarity floor was ignored**: `tools.rs` compared against
   `Floor::default().min_score`, which is `0.0`, so `Tally::below_floor` was documented, rendered by `describe()`, and
   **permanently zero** — and a caller had no way to set a stricter filter. `Weights::min_similarity` is now a field

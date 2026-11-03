@@ -1332,3 +1332,41 @@ fn an_exact_pitch_range_still_draws_from_the_stream() {
          these become equal and this test flips"
     );
 }
+
+/// **`AvoidRepeat { avoid: 0 }` refuses nothing, so the rule a project wrote is not the rule it gets.**
+///
+/// The variant's own doc says *"Random, but never one of the last `avoid` variants — the default, and what kills the
+/// machine-gun footstep"*, and `Repeat::avoid()` returns the field verbatim. `pick_from` then does
+/// `usize::from(avoid).min(len)` — so `0` refuses nothing and is **byte-identical to `Shuffle`**. A table written with
+/// `avoid: 0` gets the machine-gun footstep the variant exists to prevent, and `avoid: 0` is what a generated table
+/// emits when it computes the window from a variant count of one.
+#[cfg(feature = "semantic")]
+#[test]
+fn avoid_repeat_zero_is_reported_because_it_refuses_nothing() {
+    use bevy_siren::{Cue, CueProblem, CueTable, Repeat};
+
+    let table = CueTable {
+        cues: vec![Cue { repeat: Repeat::AvoidRepeat { avoid: 0 }, ..Cue::new("footstep.grass") }],
+    };
+    let problems = table.problems();
+    assert!(
+        problems
+            .iter()
+            .any(|p| matches!(p, CueProblem::InertAvoidRepeat { name } if name == "footstep.grass")),
+        "an `avoid: 0` rule refuses nothing and must be named: {problems:?}"
+    );
+
+    // **The refusal that must NOT fire**: the default and every positive window are legitimate.
+    for avoid in [1u8, 2, 4, 255] {
+        let legal = CueTable {
+            cues: vec![Cue { repeat: Repeat::AvoidRepeat { avoid }, ..Cue::new("footstep.grass") }],
+        };
+        assert!(
+            !legal.problems().iter().any(|p| matches!(p, CueProblem::InertAvoidRepeat { .. })),
+            "avoid {avoid} refuses something, so it is not inert"
+        );
+    }
+    // And `Shuffle` is not inert — it never claimed to refuse anything.
+    let shuffle = CueTable { cues: vec![Cue { repeat: Repeat::Shuffle, ..Cue::new("gun.burst") }] };
+    assert!(!shuffle.problems().iter().any(|p| matches!(p, CueProblem::InertAvoidRepeat { .. })));
+}
