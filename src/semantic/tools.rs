@@ -590,3 +590,100 @@ pub fn search_music(
     };
     Ok(Answer { results, tally, weights: request.weights.to_owned() })
 }
+
+/// **The machine-readable code every tool's failure carries** — ADR 0007's error shape, as a Rust type.
+///
+/// The distinction that matters is **`BadArgument` versus `Refused`**. A bad argument is the *agent's* mistake and
+/// retrying after a fix is exactly right; a refusal is a fact about the library or the session, and retrying unchanged
+/// will fail identically. Conflating them is how an agent enters a retry loop, and `#31` exists to prevent that.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Code {
+    /// The call could not be understood: a `k` out of range, a malformed id.
+    BadArgument,
+    /// The call was understood and cannot be answered in this state.
+    Refused,
+    /// The capability is not present — auditioning with no running plugin.
+    Unavailable,
+    /// A bug.
+    Internal,
+}
+
+impl Code {
+    /// The wire spelling, which is also this type's name in a schema.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Code::BadArgument => "bad_argument",
+            Code::Refused => "refused",
+            Code::Unavailable => "unavailable",
+            Code::Internal => "internal",
+        }
+    }
+
+    /// **Whether retrying could ever succeed.** The one field an agent must read before deciding to retry.
+    ///
+    /// Only [`Code::BadArgument`] is retryable, and only *after* the argument changes: a retry with the same arguments
+    /// fails identically, which is why the flag means *"the mistake was yours and fixable"* rather than *"try again"*.
+    pub fn retryable(self) -> bool {
+        matches!(self, Code::BadArgument)
+    }
+}
+
+impl ToolProblem {
+    /// The code this failure carries, which is what a caller branches on.
+    pub fn code(&self) -> Code {
+        match self {
+            // **The agent's mistakes**: a `k` out of range. Fixable by changing the call.
+            ToolProblem::BadK { .. } => Code::BadArgument,
+            // **Facts about the state**: no anchor, an anchor not in the index. The *library* must change.
+            ToolProblem::NoAnchor | ToolProblem::AnchorNotIndexed { .. } => Code::Refused,
+            // A search failure is the ranking's own refusal or a model mismatch, both facts about the data.
+            ToolProblem::Search(_) => Code::Refused,
+        }
+    }
+
+    /// Whether a retry could succeed. Mirrors [`Code::retryable`] so a caller need not go through the code.
+    pub fn retryable(&self) -> bool {
+        self.code().retryable()
+    }
+}
+
+/// **What a caller may do with a tool**, ADR 0007's idempotency statement.
+///
+/// `#31`: *"an idempotency statement per tool: which calls are safe to retry and why"*. A statement in prose is one a
+/// caller has to find and trust; a value is one it can branch on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Idempotency {
+    /// The same arguments give the same answer, field for field, however many times.
+    Safe,
+    /// **Repeating it has a consequence** — it starts a voice. The one tool that is not safe.
+    Unsafe,
+}
+
+impl Idempotency {
+    /// A sentence naming the tool and why, for a schema's description.
+    pub fn describe(self, tool: &str) -> String {
+        match self {
+            Idempotency::Safe => format!(
+                "{tool}: safe to retry. The same arguments give the same answer field for field, so a retry after a \
+                 timeout is a second read rather than a second effect."
+            ),
+            Idempotency::Unsafe => format!(
+                "{tool}: NOT safe to retry. It starts a voice, so a retry plays the sound twice and can itself produce \
+                 a VoiceLimit refusal that the first call did not."
+            ),
+        }
+    }
+}
+
+/// **Every tool in the surface, with its idempotency** — the list `#31` asks a test to enumerate.
+///
+/// One table rather than a per-tool comment, so a new tool that forgets to state its idempotency is a missing row in a
+/// test rather than a silence in a schema.
+pub const TOOLS: [(&str, Idempotency); 6] = [
+    ("search_music", Idempotency::Safe),
+    ("set_anchor", Idempotency::Safe),
+    ("find_compatible_music", Idempotency::Safe),
+    ("find_compatible_sfx", Idempotency::Safe),
+    ("explain_match", Idempotency::Safe),
+    ("audition", Idempotency::Unsafe),
+];

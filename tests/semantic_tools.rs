@@ -476,3 +476,72 @@ fn search_music_bounds_k() {
         other => panic!("expected BadK, got {other:?}"),
     }
 }
+
+/// **`#31`: every tool's failure carries the same shape, and the bad-argument/refused split is real.**
+#[test]
+fn every_failure_has_a_code_and_only_bad_arguments_are_retryable() {
+    use bevy_siren::semantic::tools::{Code, ToolProblem};
+
+    let failures = [
+        ToolProblem::BadK { k: 0, max: 100 },
+        ToolProblem::NoAnchor,
+        ToolProblem::AnchorNotIndexed { anchor: 7 },
+        ToolProblem::Search(String::from("a refusal")),
+    ];
+
+    // **Every variant has a code**, and the code's spelling is the wire form rather than a Debug print.
+    for failure in &failures {
+        let code = failure.code();
+        assert!(
+            ["bad_argument", "refused", "unavailable", "internal"].contains(&code.as_str()),
+            "{} has an unknown code {:?}",
+            failure,
+            code.as_str()
+        );
+        // The convenience method cannot disagree with the code it wraps.
+        assert_eq!(failure.retryable(), code.retryable());
+    }
+
+    // **A bad argument is retryable, a refusal is not** — the distinction the issue exists for.
+    assert_eq!(ToolProblem::BadK { k: 0, max: 100 }.code(), Code::BadArgument);
+    assert!(ToolProblem::BadK { k: 0, max: 100 }.retryable(), "the agent can fix this and call again");
+    for refused in [ToolProblem::NoAnchor, ToolProblem::AnchorNotIndexed { anchor: 7 }] {
+        assert_eq!(refused.code(), Code::Refused);
+        assert!(!refused.retryable(), "retrying unchanged fails identically: {refused}");
+    }
+    assert!(!Code::Unavailable.retryable());
+    assert!(!Code::Internal.retryable());
+}
+
+/// **`#31`: every tool states its idempotency, and exactly one is unsafe.**
+#[test]
+fn every_tool_states_its_idempotency() {
+    use bevy_siren::semantic::tools::{Idempotency, TOOLS};
+
+    // **Six tools, as ADR 0007 fixes**, so a tool added without a row here is a failing test.
+    assert_eq!(TOOLS.len(), 6, "the surface is six tools");
+    let names: Vec<&str> = TOOLS.iter().map(|(name, _)| *name).collect();
+    for expected in [
+        "search_music",
+        "set_anchor",
+        "find_compatible_music",
+        "find_compatible_sfx",
+        "explain_match",
+        "audition",
+    ] {
+        assert!(names.contains(&expected), "{expected} is missing from the surface");
+    }
+
+    // **`audition` is the only unsafe one**: it starts a voice, so a retry plays twice.
+    let unsafe_tools: Vec<&str> =
+        TOOLS.iter().filter(|(_, id)| *id == Idempotency::Unsafe).map(|(n, _)| *n).collect();
+    assert_eq!(unsafe_tools, vec!["audition"], "exactly one tool starts a voice");
+
+    // And every tool's sentence says which and why.
+    for (name, idempotency) in TOOLS {
+        let said = idempotency.describe(name);
+        assert!(said.starts_with(name), "the sentence names the tool: {said}");
+        assert!(said.contains("retry"), "and says what retrying does: {said}");
+    }
+    assert!(Idempotency::Unsafe.describe("audition").contains("NOT safe"));
+}

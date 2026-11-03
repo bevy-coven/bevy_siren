@@ -7,6 +7,12 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **The tool surface's error shape and idempotency table** — `#31`'s library half. `tools::Code`
+  (`bad_argument`/`refused`/`unavailable`/`internal`) with `Code::retryable()`, and `ToolProblem::code()` mapping every
+  failure onto it: **only a bad argument is retryable**, because a refusal is a fact about the state and a retry with the
+  same arguments fails identically. `tools::Idempotency` and `tools::TOOLS` — six tools, each with its statement, and
+  **`audition` the only unsafe one** because it starts a voice. A test enumerates the table, so a tool added without a row
+  fails rather than going silent.
 - **A dry/wet estimate** — `#23`. `semantic::reverb` measures ISO 3382's **C50**, the early-to-late energy ratio with a
   **50 ms** boundary (`early_window_s`, from the standard) over a **500 ms** late window (**design default**). A game asset
   is not an impulse response, so the **loudest frame is the direct-sound proxy** — stated as the approximation it is.
