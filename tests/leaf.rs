@@ -29,10 +29,17 @@ use std::path::{Path, PathBuf};
 ///   standard operators and `ort` runs them exactly, and `runs/2026-11-03-63/evidence/ort-probe.txt` records it
 ///   loading the 501 MB text graph and returning a unit-norm embedding on this machine. A user who does not enable
 ///   `semantic` never compiles it.
+/// - `ebur128` — loudness and true peak, behind `semantic`. `docs/adr/0003-acoustic-features.md` selected it after
+///   checking the thing its name suggests and does not mean: it is **pure Rust**. Its `src/` is nine `.rs` files, its
+///   C is confined to `capi-test/` and `tests/c/`, and its `build.rs` runs only under the `c-tests` feature, which is
+///   off by default; with `default-features = false` a clean build takes **1.66 s**, invokes no `cc` and produces no C
+///   object. It earns the entry by agreeing with `ffmpeg`'s reference to **0.01 LU** on every clip long enough to have
+///   a 400 ms gating block, and its disagreement on shorter ones is why `semantic::loudness` carries a block count.
+///   BS.1770's K-weighting and gating are not worth reimplementing to get a number a standard already fixes.
 ///
 /// Adding a name here is a design decision, not a convenience: the sentence above is the argument, and it belongs in
 /// the same commit as the entry.
-const ALLOWED_DEPS: &[&str] = &["bevy", "serde", "ron", "rodio", "ort", "rubato"];
+const ALLOWED_DEPS: &[&str] = &["bevy", "serde", "ron", "rodio", "ort", "rubato", "ebur128"];
 
 /// Crate and type names that would mean the boundary has been crossed: a physics engine, the editor, a particular
 /// game, or a particular game's camera.
