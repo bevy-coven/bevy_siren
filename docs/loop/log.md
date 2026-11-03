@@ -7,6 +7,67 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 72 — 2026-11-03 — case 31: the decision nobody implemented
+
+**Baseline.** Every crate test green (194 / 352 + 6, clippy, fmt, rustdoc) — but **`cues.yaml` case 31 was red**, and had
+been for about thirty iterations.
+
+**The case.** Every number a cue author writes that the crate cannot honour should be named. `pitch` and `attenuation`
+are, through `problems()`. **`gain_db`, on the cue and on the slot, was silent**: a `NaN` reads as no gain, so the cue
+sounded at the level it authored and nobody ever learned why the number they wrote had no effect.
+
+**Why it stayed red, and it is the loop's failure rather than a blocker.** The case's own `blocked_on` named
+`needs-decision/bad-gain-problem.md`, and **that file has recommended option C — a sentence on `SirenLog`, no API
+change — since iteration 18.** C needs no owner's answer. Thirty iterations read the file and moved on, treating a
+recommendation as a stop sign.
+
+> **A decision file is not always a stop sign. When its recommendation is actionable and non-breaking, the
+> recommendation is the instruction.**
+
+**The change, and it adds no variant.** `Entry` is a public enum without `#[non_exhaustive]`, so a new variant breaks
+every consumer's exhaustive `match`. But iteration 16 had already established the shape: `Entry::Stopped` carries a
+free-text `why: String`. So `Started` now carries `neutralised: Vec<&'static str>` — in the shape of its existing
+`stolen` — and the log says:
+
+> `played, but cue gain_db and sound gain_db were not a number and each was read as the neutral value`
+
+The field names are the ones a project's file uses, so the string can be searched for. **The behaviour is unchanged**: the
+cue still plays, because a lost sound is worse than a mis-typed number — the conclusion the decision file already
+reached.
+
+**Four tests**, and the one that matters most is the one that must *not* fire: `a_finite_gain_says_nothing_at_all`. A
+sentence on every play would be noise a person learns to skip.
+
+**A defect worth remembering.** The first version of the test asserted on the log without ever sending a `Play` or
+loading a sound. It failed — because the assertion was `assert_eq!(said.len(), 1)`. A weaker assertion,
+`assert!(said.iter().all(…))`, **would have been green on an empty log and proved nothing**. A test that reads a log
+must trigger it.
+
+**Verdicts.** Pass 1 **GREAT**, pass 2 **GREAT**, pass 3 **GREAT**.
+
+**Gate.** **198 default / 356 all-features**, clippy 0, fmt, rustdoc — green.
+
+**`cues.yaml` case 31 is now green**, and `docs/guide/cues.md` describes what happens rather than what is missing. The
+`needs-decision/` file is **not** marked decided: option A — the `CueProblem` variant — is still the tidier home and
+still waits for a minor release.
+
+**Evidence.** `runs/2026-11-03-72/`: `research.md`, `plan.md`, `eval.md`, `review.md` (three passes), and
+`tests/neutralised.rs` as the case's evidence.
+
+**Commits.** below.
+
+**Top 5 remaining**
+
+1. **Where the weights live** — `needs-decision/weights-live-where.md` recommends a fourth ungated section plus a
+   companion commit in `bevy_grimoire`. Its recommendation is **actionable and non-breaking**, which by this iteration's
+   own lesson means it does not need to wait.
+2. **`#39`'s encoder** — genuinely blocked on `S-05`'s licence audit, which needs an owner's answer because it decides
+   what may ship.
+3. **`V-01`** — the labelled set, which needs a person.
+4. **`#28`** — the MCP tool host, then `#29` `search_music` and `#44` `explain_match`, both now possible.
+5. **Option A for `CueProblem`** — the variant, at the next minor, which would move the sentence from the log back into
+   `problems()` where the other five live.
+
 ## Iteration 71 — 2026-11-03 — the ensemble's breakdown: a score that explains itself
 
 **Baseline.** Green on every step: 181 / 339 + 6, clippy, fmt, rustdoc. Working tree clean at `c842b6b`.

@@ -404,6 +404,15 @@ struct Started {
     mode: Mode,
     /// The voices this play takes over to fit the budget, and which cap chose each.
     stolen: Vec<(Entity, Cap)>,
+    /// **The fields the crate had to neutralise**, by the name a project's file uses, in the order they appear there.
+    ///
+    /// A number that is not a number is read as the neutral one for what it measures — the same rule `distance_gain`
+    /// follows for a distance — so the play is audible at the level the cue authored. That is the right *behaviour* and
+    /// it was a silent one: a host inspecting `problems()` or `Refused` could not tell that an author had typed
+    /// something the crate had to rewrite. It is reported in the log instead, because a new `CueProblem` variant
+    /// breaks every consumer that matches the enum exhaustively (`needs-decision/bad-gain-problem.md`), and this way
+    /// costs nothing.
+    neutralised: Vec<&'static str>,
 }
 
 /// **Turns [`Play`] into an entity or a [`Refused`].** Runs in [`SirenSystems::Play`](crate::SirenSystems).
@@ -488,6 +497,23 @@ pub fn play_requests(
                         });
                     }
                 }
+                // **A number the crate had to rewrite is said out loud.** The behaviour is right — a non-finite gain is
+                // read as no gain, the same rule `distance_gain` follows for a distance — but it was silent: a host
+                // inspecting `problems()` or `Refused` could not tell that an author had typed something the crate
+                // neutralised. `Entry::Stopped`'s free-text `why` carries it, so no public enum gains a variant and no
+                // consumer's exhaustive `match` breaks (`needs-decision/bad-gain-problem.md`).
+                if !started.neutralised.is_empty() {
+                    log.push(Entry::Stopped {
+                        at_s: now,
+                        cue: request.cue.clone(),
+                        why: format!(
+                            "played, but {} {} not a number and {} read as the neutral value",
+                            started.neutralised.join(" and "),
+                            if started.neutralised.len() == 1 { "was" } else { "were" },
+                            if started.neutralised.len() == 1 { "it was" } else { "each was" }
+                        ),
+                    });
+                }
                 log.push(Entry::Played {
                     at_s: now,
                     cue: request.cue.clone(),
@@ -555,6 +581,9 @@ fn answer(
         Err(Cap::Cue | Cap::Table) => return Err(Refusal::VoiceLimit { bus: None }),
     };
 
+    // **Which of these was not a number**, recorded rather than only neutralised. The order is the order a project
+    // reads them in: the cue's pitch and gain, then the sound's gain, then the play's own.
+    let mut neutralised: Vec<&'static str> = Vec::new();
     let mut pitch = cue.pitch.at(choices.rng.next_f32());
     if let Some(extra) = request.pitch {
         pitch += extra;
@@ -564,7 +593,19 @@ fn answer(
     // disagreed, which is the one thing R6's second half forbids. One rule with `distance_gain`: a non-finite caller
     // value is the neutral one for what it measures.
     // And the number `Played` reports is the **rate the device plays**, so a detune past the clamp says so.
+    if !pitch.is_finite() {
+        neutralised.push("play pitch");
+    }
     pitch = crate::model::played_semitones(finite_or(pitch, 0.0));
+    if !cue.gain_db.is_finite() {
+        neutralised.push("cue gain_db");
+    }
+    if !slot.gain_db.is_finite() {
+        neutralised.push("sound gain_db");
+    }
+    if request.gain_db.is_some_and(|g| !g.is_finite()) {
+        neutralised.push("play gain_db");
+    }
     let mut parts = vec![
         finite_or(cue.gain_db, 0.0),
         finite_or(slot.gain_db, 0.0),
@@ -604,6 +645,7 @@ fn answer(
         priority: cue.priority,
         mode: cue.mode,
         stolen,
+        neutralised,
     })
 }
 

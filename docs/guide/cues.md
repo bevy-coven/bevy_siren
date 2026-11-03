@@ -96,13 +96,21 @@ duplicate name, a bus the mix table does not have, an inverted pitch range, an a
 produce a gain, and `max_instances: 0` (no per-cue limit, which is almost never meant). Call it once at load, and
 print what it says.
 
-**A gain that is not a number is not in that list.** `gain_db` on a cue or on a sound slot is neutralised at play time —
-`model::finite_or` reads it as **no gain**, so the cue sounds at the level it would have had and `Played.gain_db` reports
-that number (iteration 18). The play is right and the *report* is silent, which is the one place these two kinds of
-authoring mistake differ: an inverted pitch range and a bad attenuation constant in the same struct **are** reported,
-and a non-finite gain is not. A seventh `CueProblem` would fix it, and `CueProblem` is a public enum without
-`#[non_exhaustive]`, so adding it breaks every consumer's `match` — `docs/loop/needs-decision/bad-gain-problem.md` holds
-the question. Until then: a `gain_db` you computed is worth checking for `is_finite` before it reaches the table.
+**A gain that is not a number is neutralised, and the log says so.** `gain_db` on a cue or on a sound slot is read as
+**no gain** at play time — the same rule `distance_gain` follows for a distance — so the cue sounds at the level it
+would have had and `Played.gain_db` reports that number (iteration 18). The behaviour is right; what was missing was
+the *report*, and since iteration 72 it is in `SirenLog` the moment the play is answered:
+
+> `2.00s stopped `footstep.grass`: played, but cue gain_db and sound gain_db were not a number and each was read as the
+> neutral value`
+
+It arrives through `Entry::Stopped`'s free-text `why`, so **no public enum gains a variant** and a host that matches
+`CueProblem` exhaustively is unaffected. That was the choice `docs/loop/needs-decision/bad-gain-problem.md` recommended:
+a `CueProblem` variant is still the tidier home and still costs a breaking change, so it waits for a minor release.
+
+An inverted pitch range and a negative attenuation constant are still reported by `problems()`, because those have
+variants already. A `gain_db` you computed is still worth checking for `is_finite` before it reaches the table — the log
+tells you after the fact, and the table check tells you before.
 
 ```rust
 for problem in table.problems_in(&settings) {

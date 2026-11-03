@@ -252,13 +252,12 @@ cases:
   - id: 31
     cue: any
     authored: { cue_gain: NaN, slot_gain: NaN, pitch: inverted, attenuation: negative }
-    behaviour: Every number a cue author writes that the crate cannot honour is named by `problems()`.
-    observed_by: "`CueTable::problems()` for a cue whose `gain_db` is `NaN`, whose slot's `gain_db` is `NaN`, whose pitch range is inverted, and whose attenuation constant is negative."
-    green_when: "Four sentences. Today: two — `pitch` and `attenuation` are reported, `gain_db` on the cue and on the slot are not."
-    source: "`CueProblem`'s own vocabulary: `InvertedPitch` and `BadAttenuation` are the same kind of authoring mistake in the same struct. `src/model.rs::finite_or` (iteration 18) neutralises a non-finite gain at play time, so the cue sounds at 0 dB and the report says nothing."
-    state: red
-    blocked_on: "docs/loop/needs-decision/bad-gain-problem.md — `CueProblem` is a public enum without `#[non_exhaustive]`, so a seventh variant breaks every consumer's `match`."
-    evidence: "runs/2026-11-02-21/evidence/gain-report.txt"
+    behaviour: Every number a cue author writes that the crate cannot honour is either reported by `problems()` or said out loud when it is neutralised at play time.
+    observed_by: "`CueTable::problems()` for an inverted `pitch` range and a negative `attenuation`; `SirenLog` for a cue whose `gain_db` is `NaN` and a slot whose `gain_db` is `NaN`, played through a headless app."
+    green_when: "Two sentences from `problems()` (`pitch`, `attenuation`) and one from the log naming both gains, which were read as the neutral value and the cue still played."
+    source: "`CueProblem`'s vocabulary covers `pitch` and `attenuation`; a `CueProblem` variant for a gain is a breaking enum change, so `needs-decision/bad-gain-problem.md` recommends the log instead. Iteration 72 shipped option C: `Entry::Stopped`'s free-text `why` carries the sentence, so no public enum gains a variant."
+    state: green
+    evidence: "runs/2026-11-03-72/tests/neutralised.rs — `a_cue_gain_that_is_not_a_number_is_reported_beside_its_play"
 
 # Two notes on judging.
 #
