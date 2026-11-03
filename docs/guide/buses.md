@@ -29,8 +29,11 @@ let settings = SirenSettings {
 ## Ducking
 
 A duck is a rule about a **voice**: a voice starting on `source` lowers `target` by `by_db` for `hold_s`, then lets it
-recover over
-`fade_s`. The envelope is read every frame from real time, so a fade keeps running while the game is paused behind a
+recover over `fade_s`. **A rule with neither holds for no time at all** — `Duck::new(a, b)` leaves both at `0.0`, so the
+shortest rule you can write fires, is logged, and is inaudible on the frame it fires. Set one; `problems()` says so
+when you have not, and the crate's own `default_ducks()` chains `.hold_s(0.25)` on both of its rules.
+
+The envelope is read every frame from real time, so a fade keeps running while the game is paused behind a
 conversation — and two ducks do not stack: the deeper one wins, because a bus already at −8 dB is not lowered another
 4 dB by a second voice asking for −4.
 
@@ -173,6 +176,7 @@ a duck starts on bus `Nope`, which the table does not have
 a duck lowers bus `Nope`, which the table does not have
 the duck on `Effects` raises it by 3 dB; a duck lowers, so by_db should be negative
 the duck on `Effects` has a hold or fade that is negative or not a number
+the duck on `Music` has no hold and no fade, so it lowers the bus for no time at all; set hold_s or fade_s
 ```
 
 `tests/mix.rs::problems_names_every_mistake` builds one table per fault and asserts every sentence, so the list above

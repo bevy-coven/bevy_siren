@@ -7,6 +7,60 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 46 — 2026-11-03 — a duck with neither a hold nor a fade is reported
+
+**Baseline.** Green on every step, no open issues. Nothing red.
+
+**Change.** A **tenth sentence** in `SirenSettings::problems`:
+`the duck on \`Music\` has no hold and no fade, so it lowers the bus for no time at all; set hold_s or fade_s`. Plus a
+tenth bullet in the doc's list, the assertion in `problems_names_every_mistake`, and the shape in `SIREN_MIX=broken` so
+the panel draws it.
+
+**Rationale.** `Duck::new(a, b)` leaves **`hold_s: 0.0` and `fade_s: 0.0`**, and `active_duck_db` returns `0.0` past the
+hold when `fade <= 0.0` — so the shortest rule a project can write **fires, is recorded, and is inaudible on the frame
+it fires**. Measured, not assumed: the new test reads `Some(0.0)` from the bare rule and `Some(-8.0)` from the same rule
+with `.hold_s(0.25).fade_s(0.6)`. The crate's own `default_ducks()` chains both, which is why its pair works and why
+nothing had said otherwise.
+
+**Why no decision file.** `SirenSettings::problems` returns `Vec<String>`, so a sentence is **additive** — no consumer's
+`match` breaks. (A `CueProblem` or `Refusal` variant would need one; this does not.) Iteration 36 relied on the same
+fact. The **behaviour is unchanged**: a project relying on an inert rule still gets one, it is simply named.
+
+**Not built: case 31** — still blocked on `needs-decision/bad-gain-problem.md`.
+
+**Evidence.** `runs/2026-11-03-46/`: `research.md` (S1 `Duck::new`'s zero defaults, S2 `active_duck_db`'s `fade <= 0`
+branch, S2b `default_ducks()` chaining both, S3 the guide's own sentence, S4 `hold_s` having no serde default function),
+`plan.md`, `perf.md`, `eval.md`, `review.md` (three passes, GREAT), `evidence/{panel,after}`, `docs/media/mixer-broken.png`.
+
+| | before | after |
+|---|---|---|
+| a rule from `Duck::new(a,b).by_db(-8.0)` | fires, logs, ducks **0.0 dB**, report silent | unchanged behaviour, **named** |
+| the same rule with `.hold_s(0.25).fade_s(0.6)` | `-8.0 dB` | `-8.0 dB` |
+| sentences the report can emit | 9 | **10** |
+| sentences the test asserts | 9 | **10** |
+| the broken-table capture | 3-line block, 9 px | same, and the tenth among them |
+| tests | 123 / 130 / 133 + 5 | **124 / 131 / 134 + 5** |
+| perf | — | 0.406 / 1.313 µs at 256 voices, load **7.4** — the same host spread every run since 41 shows |
+
+**Three mistakes in this iteration's own work, all caught before shipping.** (1) The first test asserted `None` where
+`SirenMix::ducked` holds every bus at `0.0`. (2) `let mut app = app(...)` shadowed the helper. (3) The first big fault
+table had bare `Duck::new` rules, so the **new** sentence fired from a rule whose real fault was a missing bus and the
+assertion would have passed for the wrong reason — caught by removing the accidental triggers and seeing nine
+sentences, not ten. Every rule in that table now carries `hold_s`, with a dedicated row for the tenth.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`Duck::new`'s zero hold/fade defaults** — the report now names it, but the constructor still hands back an inert
+   rule where `by_db` gets a real default (`-6.0`). Changing it is a behaviour change and needs a decision file.
+3. A sentence for a **duck whose `source` and `target` are the same bus** — measured this iteration and legal; whether
+   it is a fault is a question, not a bug.
+4. No capture shows the panel with a **missing sound** refused (iteration 39 showed `unknown-cue` only).
+5. `docs/media/mixer.gif` captures at ~8 fps; a fade shorter than 120 ms falls between frames.
+
 ## Iteration 45 — 2026-11-03 — the mix table's report is held to the standard its sibling meets
 
 **Baseline.** Green on every step, no open issues. Nothing red.

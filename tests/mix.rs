@@ -288,11 +288,20 @@ fn problems_names_every_mistake() {
             BusLevel::new("  "),                        // no name
             BusLevel::new("Effects").gain_db(f32::NAN), // a gain that is not a number
         ],
+        // **Every rule here carries a hold and a fade the sentence under test is not about**, because `Duck::new`
+        // leaves both at `0.0` and would otherwise trip the "no hold and no fade" check from a rule whose real fault is
+        // something else — the assertion would pass for the wrong reason. That check has its own row below.
         ducks: vec![
-            Duck::new("Nope", "Music"),               // starts on a bus the table does not have
-            Duck::new("Music", "Nope"),               // lowers a bus the table does not have
-            Duck::new("Music", "Effects").by_db(3.0), // raises rather than lowers
-            Duck { hold_s: -1.0, ..Duck::new("Music", "Effects") }, // a hold that is negative
+            // starts on a bus the table does not have
+            Duck::new("Nope", "Music").hold_s(0.25),
+            // lowers a bus the table does not have
+            Duck::new("Music", "Nope").hold_s(0.25),
+            // raises rather than lowers
+            Duck::new("Music", "Effects").by_db(3.0).hold_s(0.25),
+            // a hold that is negative
+            Duck { hold_s: -1.0, fade_s: 0.4, ..Duck::new("Music", "Effects") },
+            // no hold and no fade: the shape `Duck::new` gives a rule before a caller chains one on
+            Duck::new("Music", "Music"),
         ],
         ..SirenSettings::default()
     };
@@ -307,6 +316,10 @@ fn problems_names_every_mistake() {
         ("a duck lowers bus `Nope`", "a duck lowering a bus that is not there"),
         ("raises it by 3", "a duck that raises"),
         ("has a hold or fade that is negative or not a number", "a duck hold that is negative"),
+        (
+            "the duck on `Music` has no hold and no fade, so it lowers the bus for no time at all",
+            "a duck with neither a hold nor a fade",
+        ),
     ] {
         assert!(reported.iter().any(|s| s.contains(needle)), "the report names {what}: {reported:?}");
     }
@@ -919,4 +932,49 @@ fn the_newest_duck_naming_a_bus_is_the_one_a_panel_shows() {
     // A second duck on the same bus wins: the row must say what is lowering it *now*.
     log.push(Entry::Ducked { at_s: 0.4, bus: "Music".to_owned(), by_db: -9.5, by: "stinger".to_owned() });
     assert_eq!(by(&log, "Music").as_deref(), Some("stinger"), "the newest one wins");
+}
+
+/// **A duck built by `Duck::new` alone ducks for no time at all, and nothing reports it.**
+///
+/// `Duck::new("A", "B")` leaves `hold_s: 0.0` and `fade_s: 0.0`, and `active_duck_db` returns `0.0` once
+/// `elapsed >= hold` when `fade <= 0.0` — so the rule fires, is recorded, and is inaudible on the frame it fires.
+/// The crate's own `default_ducks()` chains `.hold_s(0.25).fade_s(…)` on every rule, which is how the pair every
+/// project starts from works; a hand-written rule that forgets both is silent, and `problems()` — nine sentences —
+/// says nothing.
+///
+/// This test **pins the measured behaviour** so the hazard is recorded rather than assumed. It is not an endorsement:
+/// a sentence for it is `docs/loop/needs-decision/zero-length-duck.md`.
+#[test]
+fn a_duck_with_no_hold_and_no_fade_ducks_for_no_time() {
+    let settings = SirenSettings {
+        buses: vec![BusLevel::new("Music"), BusLevel::new("Dialogue")],
+        ducks: vec![Duck::new("Dialogue", "Music").by_db(-8.0)],
+        ..SirenSettings::default()
+    };
+    let table = CueTable::new(vec![Cue { bus: "Dialogue".to_owned(), ..cue("line", "Dialogue", 0, 1) }]);
+    let mut silent = app(table, settings, sounds(&["line"]), false);
+
+    silent.world_mut().write_message(Play::cue("line"));
+    silent.update();
+    assert_eq!(
+        silent.world().resource::<SirenMix>().ducked.get("Music").copied(),
+        Some(0.0),
+        "the rule fired on the frame the line started, and its depth is already spent"
+    );
+
+    // The same rule with the crate's own hold and fade does duck, which is what makes this a hazard rather than a law.
+    let settings = SirenSettings {
+        buses: vec![BusLevel::new("Music"), BusLevel::new("Dialogue")],
+        ducks: vec![Duck::new("Dialogue", "Music").by_db(-8.0).hold_s(0.25).fade_s(0.6)],
+        ..SirenSettings::default()
+    };
+    let table = CueTable::new(vec![Cue { bus: "Dialogue".to_owned(), ..cue("line", "Dialogue", 0, 1) }]);
+    let mut held = app(table, settings, sounds(&["line"]), false);
+    held.world_mut().write_message(Play::cue("line"));
+    held.update();
+    assert_eq!(
+        held.world().resource::<SirenMix>().ducked.get("Music").copied(),
+        Some(-8.0),
+        "with a hold it reaches its authored depth"
+    );
 }

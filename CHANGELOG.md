@@ -7,6 +7,17 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A duck with neither a hold nor a fade is reported.** `Duck::new(source, target)` leaves `hold_s: 0.0` and
+  `fade_s: 0.0`, and `active_duck_db` returns `0.0` past the hold when `fade <= 0.0` — so the shortest rule a project
+  can write **fires, is recorded in the log, and is inaudible on the very frame it fires**. Measured:
+  `tests/mix.rs::a_duck_with_no_hold_and_no_fade_ducks_for_no_time` reads `0.0` from the bare rule and `-8.0` from the
+  same rule with `.hold_s(0.25).fade_s(0.6)`. The crate's own `default_ducks()` chains both, which is why its pair
+  works and why nothing said otherwise. `SirenSettings::problems` gains a tenth sentence —
+  *"the duck on `Music` has no hold and no fade, so it lowers the bus for no time at all; set hold_s or fade_s"* — the
+  report is `Vec<String>`, so this is additive. The **behaviour is unchanged**: a project that relies on an inert rule
+  today still gets one, it is simply named now. A raising rule is not reported twice (the guard is `by_db < 0.0`).
+
+
 - **The panel's `Problems` block draws the mix table's faults, not only the cue table's.** It read
   `table.problems_in(&settings)` alone, so a mix table with `max_voices: 0`, a NaN `master_db` or a bus listed twice
   drew `Problems: none` **while every bus read −80 dB** — the report said a table it could not run was fine. It now

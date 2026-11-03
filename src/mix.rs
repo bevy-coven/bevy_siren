@@ -119,7 +119,7 @@ impl SirenSettings {
 
     /// Everything wrong with the table, as sentences a person reads on an editor's status line.
     ///
-    /// **Nine checks**, and `tests/mix.rs::problems_names_every_mistake` walks all nine so this list and the code cannot
+    /// **Ten checks**, and `tests/mix.rs::problems_names_every_mistake` walks all ten so this list and the code cannot
     /// drift apart — the rule `MusicScore::problems`'s own test holds it to, and this doc named six of the nine until
     /// iteration 45:
     ///
@@ -131,7 +131,9 @@ impl SirenSettings {
     /// - a duck starts on a bus the table does not have;
     /// - a duck lowers a bus the table does not have;
     /// - a duck's `by_db` is positive, so it raises rather than lowers;
-    /// - a duck's `hold_s` or `fade_s` is negative or not a number.
+    /// - a duck's `hold_s` or `fade_s` is negative or not a number;
+    /// - a duck has **no hold and no fade**, so it lowers the bus for no time at all — the shape `Duck::new` gives a
+    ///   rule before a caller chains `.hold_s(..)` or `.fade_s(..)` on, which is why `default_ducks()` chains both.
     ///
     /// Two of those are **one sentence per cause, not per rule**: `default_ducks()` is `Dialogue -> Music` and
     /// `Dialogue -> Effects`, so a table without `Dialogue` has two rules with the same fault and the report says so
@@ -187,6 +189,17 @@ impl SirenSettings {
                 out.push(format!(
                     "the duck on `{}` raises it by {} dB; a duck lowers, so by_db should be negative",
                     duck.target, duck.by_db
+                ));
+            }
+            // **A rule with neither a hold nor a fade ducks for no time at all.** `Duck::new` leaves both at `0.0`,
+            // and `active_duck_db` returns `0.0` once `elapsed >= hold` when `fade <= 0.0` — so the rule fires, is
+            // recorded in the log, and is inaudible on the very frame it fires. Measured:
+            // `tests/mix.rs::a_duck_with_no_hold_and_no_fade_ducks_for_no_time` gets `0.0` from `Duck::new(..).by_db(-8.0)`
+            // and `-8.0` from the same rule with the hold and fade the crate's own `default_ducks()` chains on.
+            if duck.hold_s == 0.0 && duck.fade_s == 0.0 && duck.by_db < 0.0 {
+                out.push(format!(
+                    "the duck on `{}` has no hold and no fade, so it lowers the bus for no time at all; set hold_s or fade_s",
+                    duck.target
                 ));
             }
             if !duck.hold_s.is_finite() || !duck.fade_s.is_finite() || duck.hold_s < 0.0 || duck.fade_s < 0.0
