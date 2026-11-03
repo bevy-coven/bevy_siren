@@ -7,6 +7,80 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 11 — 2026-11-02 — the rule written the way it reads
+
+**Change.**
+
+- **`tests/mix.rs` — two tests state `UNSTEALABLE_PRIORITY` directly.** It was proved through
+  `the_table_budget_refuses_rather_than_grow`, whose second request is the *same* unstealable cue. Now a **priority-0**
+  request against a **priority-200** voice is refused with nothing spawned, the voice still live and no `stolen by`
+  line; and a stealable voice still plays beside an unstealable one, so neither can pass vacuously.
+- `cues.yaml` case 9 names the stealable-request direction as its observation and cites Gregory §14.5.8.4;
+  `CHANGELOG`, media note. **No `src/` file changed at all.**
+
+**Why.** Two things, and the second is the honest one.
+
+First, `DuckClock.started` — iteration 10's next-5 head — **is not a bug**: measured, 50 fires over two rules leave two
+entries, because the map is keyed by rule, not by fire, and `duck_db` reads only pairs still in `settings.ducks`.
+
+Second, with that closed and five decision-blocked items left, this pass tested **six** candidate rank-1 defects and
+found none: the map above; a stop on the play's own frame (still fades — `update_mix` writes `Applied` before
+`stop_requests`); `Played.gain_db` against the audible chain (−11.00 dB both); a stealable request taking an unstealable
+voice; a bus cap above the table's (clamped); `SirenLog` at capacity. What remained was legibility, and that is what
+shipped.
+
+**Evidence.** `runs/2026-11-02-11/`: `eval.md` (baseline green; the six candidates and their measurements),
+`research.md` (**corrected mid-run** — my first premise was wrong), `plan.md` (corrected the same way), `perf.md` (the
+mutation), `review.md`, and `evidence/{before,after}/` with the render trees, spectrograms and loudness.
+
+**Measured.**
+
+| candidate | result |
+|---|---|
+| `DuckClock.started` grows with table swaps | **two** entries after 50 fires over two rules |
+| a stop on the play's own frame cuts | fades for 0.48 s; `Applied` is written before `stop_requests` |
+| `Played.gain_db` vs the audible chain | −2 −3 −6 = **−11.00 dB**; `Applied` −11.0 |
+| a stealable request takes an unstealable voice | refused; nothing stopped |
+| a bus cap above the table's | clamped with `.min(total)` |
+| `SirenLog` at capacity | keeps 256, drops the oldest |
+| **the mutation: `steal` ignores `unstealable`** | **three** tests red — both new ones **and** the old table-budget test |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT — for what this is: a legibility change plus six negative
+results, not a repair.
+
+**A premise corrected by measurement.** I wrote, and briefly believed, that the unstealable promise had an untested
+half. The mutation disproved it in one run: the existing test reddens too, because its second request then steals its
+own older voice. `research.md` and `plan.md` carry the correction rather than the original claim, because the loop's
+own rule is that a claim without a measurement is a guess.
+
+**Traps for the command.** (1) A mutation is the cheapest way to find out whether a test covers a rule — and it can
+disprove the reason you wrote the test. Run it *before* claiming the gap. (2) A test-only iteration still owes the
+evidence rules: the `before` tree here is the after-tree's binary, because `src/` is unchanged, and `perf.md` says so
+instead of presenting a lower number (load 2.4 against 4.7) as an improvement. (3) `hs distill` is still GPU-blocked
+(`bge-m3` wants 5000 MB; a 14.8 GB VLLM engine holds the card), ninth iteration running.
+
+**Commit.** `ef2f91b`, pushed to `main`; CI run 41557694429 is **success** on `big-s1`. Gate: build, test (68 + 4), serde (75 + 4), mixer (75 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green.
+
+**Next 5.** All five are public-enum decisions for the owner; one minor can carry them together.
+
+1. **A `Refusal` variant for a stinger on the wrong bus** — `needs-decision/stinger-refusal.md`.
+2. **A variant that distinguishes "never mapped" from "corrupt file"** — `needs-decision/undecodable-sound.md`.
+3. **A payload that names the cap** — `needs-decision/refusal-names-its-cap.md`.
+4. **`Completes` is public and can never be true** — `needs-decision/remove-completes.md`.
+5. **A log line for a position a non-spatial cue ignores** — `needs-decision/non-spatial-position.md`, whose `Entry` arm
+   could land with item 4.
+
+**A note on the loop's run.** Eleven iterations have taken the crate from "a 32-voice budget that silently locks out on
+the mixer path" to "every rank-1 defect the suite and the probes can find is closed". The remaining work is not
+engineering the loop can do alone: four of the five are one `match` arm each, and the fifth is one field. The next
+iteration should start with the owner's answer to any of them, or with a new cue case that turns something red.
+
+**Baseline note.** Nothing was red, and the suite had 66 tests. Six candidates were probed and none was a defect, which
+is the finding this entry records.
+
+---
+
 ## Iteration 10 — 2026-11-02 — the mix's buses are this frame's buses
 
 **Change.**
