@@ -52,7 +52,7 @@ which reads as a stop before its play. Read bottom-up the timestamps descend mon
 play; `review.md` records the sequence. The review's first explanation — "two interleaved cycles" — was wrong and is
 corrected there.
 
-**Commit.** (see `git log`).
+**Commit.** `de35eea` — *mix: a parented sound says it stopped when its owner is despawned*.
 
 **Top 5 remaining**
 
