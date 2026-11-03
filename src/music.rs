@@ -70,8 +70,21 @@ impl MusicScore {
         Some(f64::from(60.0 / self.tempo_bpm) * f64::from(self.beats_per_bar))
     }
 
-    /// Everything wrong with the score, as sentences a person reads: a layer with no name, a layer naming a
-    /// cue the table does not have, the same layer twice, a tempo or bar that is negative or not a number.
+    /// **Everything wrong with the score**, as sentences a person reads. Nine checks, and this list is the whole of
+    /// them — a doc that says "should" or that lists four of nine leaves a reader believing the crate catches less than
+    /// it does:
+    ///
+    /// - a tempo that is negative or not a number, or a bar that is not a positive number;
+    /// - a score with no layers;
+    /// - a layer with no name, or the same layer listed twice;
+    /// - a layer whose `gain_db` is not a number;
+    /// - a layer naming a cue the table does not have;
+    /// - a layer naming a cue that is not a loop, so it cannot hold a layer;
+    /// - a layer naming a cue **not on the `Music` bus** — a layer is a stem of that bus, and the plugin refuses to
+    ///   start one elsewhere.
+    ///
+    /// The plugin enforces the last two: it does not start such a layer and writes one line, word for word the sentence
+    /// this report gives.
     pub fn problems(&self, table: &CueTable) -> Vec<String> {
         let mut out = Vec::new();
         if !self.tempo_bpm.is_finite() || self.tempo_bpm < 0.0 {
@@ -143,7 +156,9 @@ impl MusicScore {
 pub struct MusicLayer {
     /// The layer's name, which [`MusicLayers`] moves.
     pub name: String,
-    /// The looping cue this layer plays. It should name the `Music` bus.
+    /// The looping cue this layer plays. It **must** name the `Music` bus: a layer is a stem of that bus, and a cue on
+    /// another bus is refused — not started — with a sentence in [`MusicScore::problems`] and one line in
+    /// [`SirenLog`].   
     pub cue: String,
     /// Where the layer sits when the score starts. Most start at
     /// [`SILENT_DB`] and are brought in by gameplay.

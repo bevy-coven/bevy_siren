@@ -953,3 +953,62 @@ fn a_layer_on_the_music_bus_still_starts() {
     assert_eq!(app.world().resource::<MusicState>().live(), 2, "both layers start");
     assert!(two_layer_score().problems(&two_layer_table()).is_empty(), "and a good score reports nothing");
 }
+
+/// **`MusicScore::problems` docs itself as nine checks, and all nine fire.**
+///
+/// Its doc listed **four** while the function performed nine — the doc was written when the report was new, and the two
+/// faults this loop added (a gain that is not a number, a layer on the wrong bus) were never added to it. A reader trusted a
+/// list that said the crate catches less than it does. This test makes the list and the code the same length: one score with
+/// every fault, and nine sentences.
+#[test]
+fn a_score_reports_every_fault_its_doc_lists() {
+    let table = CueTable::new(vec![
+        layer_cue("track.calm"),
+        Cue {
+            sounds: vec![SoundSlot::new("a")],
+            bus: "Effects".to_owned(),
+            mode: Mode::Loop,
+            ..Cue::new("on.effects")
+        },
+        Cue { sounds: vec![SoundSlot::new("b")], bus: "Music".to_owned(), ..Cue::new("one.shot") },
+    ]);
+    let score = MusicScore {
+        layers: vec![
+            // no name
+            MusicLayer { name: "  ".to_owned(), cue: "track.calm".to_owned(), gain_db: 0.0 },
+            // listed twice
+            MusicLayer::new("calm", "track.calm"),
+            MusicLayer::new("calm", "track.calm"),
+            // gain that is not a number
+            MusicLayer { name: "nan".to_owned(), cue: "track.calm".to_owned(), gain_db: f32::NAN },
+            // not in the table
+            MusicLayer::new("missing", "no.such.cue"),
+            // not a loop
+            MusicLayer::new("oneshot", "one.shot"),
+            // not on the Music bus
+            MusicLayer::new("wrongbus", "on.effects"),
+        ],
+        tempo_bpm: -1.0,
+        beats_per_bar: 0.0,
+    };
+    let reported = score.problems(&table);
+    let sentences: Vec<&str> = reported.iter().map(String::as_str).collect();
+    for (needle, what) in [
+        ("tempo_bpm is negative", "the tempo"),
+        ("beats_per_bar is not a positive", "the bar"),
+        ("has no name", "a blank layer name"),
+        ("is listed more than once", "a duplicate"),
+        ("has a gain that is not a number", "a NaN gain"),
+        ("which the table does not have", "a missing cue"),
+        ("which is not a loop", "a non-looping cue"),
+        ("a layer is a stem of the `Music` bus", "a wrong bus"),
+    ] {
+        assert!(sentences.iter().any(|s| s.contains(needle)), "the report names {what}: {reported:?}");
+    }
+    // The ninth is `the score has no layers`, which needs an empty score of its own.
+    let empty = MusicScore { layers: vec![], tempo_bpm: 120.0, beats_per_bar: 4.0 };
+    assert!(
+        empty.problems(&table).iter().any(|s| s.contains("the score has no layers")),
+        "and a score with no layers"
+    );
+}

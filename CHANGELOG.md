@@ -20,6 +20,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`MusicScore::problems`'s doc lists all nine checks it performs, and `MusicLayer::cue` says `must`, not `should`.**
+  The report's doc named four checks while the function performed nine — the two added since (a gain that is not a number,
+  and a layer on a bus other than `Music`) were never added to it, so a reader trusted a list and stopped. The layer's doc
+  still said the cue *"should"* name the `Music` bus after the plugin began **refusing** one that does not. Both now describe
+  the mechanism, and `tests/music.rs::a_score_reports_every_fault_its_doc_lists` walks all nine so the list and the code
+  cannot drift apart again.
+
 - **A music layer naming a cue on another bus no longer plays there.** `MusicLayer::cue`'s doc says the cue *"should name
   the `Music` bus"*, and nothing checked: a layer naming a loop on `Effects` started on that bus, so `MusicState` reported
   two layers live while one was mixed on the effects bus, `MusicLayers` could not move it, and `MusicScore::problems` said
@@ -122,6 +129,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
 
 ### Fixed
+
+- **`MusicScore::problems`'s doc lists all nine checks it performs, and `MusicLayer::cue` says `must`, not `should`.**
+  The report's doc named four checks while the function performed nine — the two added since (a gain that is not a number,
+  and a layer on a bus other than `Music`) were never added to it, so a reader trusted a list and stopped. The layer's doc
+  still said the cue *"should"* name the `Music` bus after the plugin began **refusing** one that does not. Both now describe
+  the mechanism, and `tests/music.rs::a_score_reports_every_fault_its_doc_lists` walks all nine so the list and the code
+  cannot drift apart again.
 
 - **A music layer naming a cue on another bus no longer plays there.** `MusicLayer::cue`'s doc says the cue *"should name
   the `Music` bus"*, and nothing checked: a layer naming a loop on `Effects` started on that bus, so `MusicState` reported
@@ -351,6 +365,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`MusicScore::problems`'s doc lists all nine checks it performs, and `MusicLayer::cue` says `must`, not `should`.**
+  The report's doc named four checks while the function performed nine — the two added since (a gain that is not a number,
+  and a layer on a bus other than `Music`) were never added to it, so a reader trusted a list and stopped. The layer's doc
+  still said the cue *"should"* name the `Music` bus after the plugin began **refusing** one that does not. Both now describe
+  the mechanism, and `tests/music.rs::a_score_reports_every_fault_its_doc_lists` walks all nine so the list and the code
+  cannot drift apart again.
+
 - **A music layer naming a cue on another bus no longer plays there.** `MusicLayer::cue`'s doc says the cue *"should name
   the `Music` bus"*, and nothing checked: a layer naming a loop on `Effects` started on that bus, so `MusicState` reported
   two layers live while one was mixed on the effects bus, `MusicLayers` could not move it, and `MusicScore::problems` said
@@ -468,6 +489,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 The first release: sound for Bevy 0.20 as data, mixed in buses.
 
 ### Fixed
+
+- **`MusicScore::problems`'s doc lists all nine checks it performs, and `MusicLayer::cue` says `must`, not `should`.**
+  The report's doc named four checks while the function performed nine — the two added since (a gain that is not a number,
+  and a layer on a bus other than `Music`) were never added to it, so a reader trusted a list and stopped. The layer's doc
+  still said the cue *"should"* name the `Music` bus after the plugin began **refusing** one that does not. Both now describe
+  the mechanism, and `tests/music.rs::a_score_reports_every_fault_its_doc_lists` walks all nine so the list and the code
+  cannot drift apart again.
 
 - **A music layer naming a cue on another bus no longer plays there.** `MusicLayer::cue`'s doc says the cue *"should name
   the `Music` bus"*, and nothing checked: a layer naming a loop on `Effects` started on that bus, so `MusicState` reported

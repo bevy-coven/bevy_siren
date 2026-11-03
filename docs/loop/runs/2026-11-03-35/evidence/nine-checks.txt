@@ -1,0 +1,12 @@
+one score carrying every fault:
+   1. tempo_bpm is negative or not a number
+   2. beats_per_bar is not a positive number
+   3. a music layer has no name
+   4. music layer `calm` is listed more than once
+   5. music layer `nan` has a gain that is not a number
+   6. music layer `missing` names cue `no.such`, which the table does not have
+   7. music layer `oneshot` names cue `once`, which is not a loop, so it cannot hold a layer
+   8. music layer `wrongbus` names cue `on.effects`, which plays on bus `Effects`; a layer is a stem of the `Music` bus
+   9. the score has no layers
+
+The doc listed FOUR of these before iteration 35.
