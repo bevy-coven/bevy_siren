@@ -7,6 +7,15 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A duck that starts on the bus it lowers is reported.** `Duck::new("Effects", "Effects")` is accepted and
+  **quietens its own voices**: `fire_all` matches rules on `source`, `duck_db` matches them on `target`, and for a
+  self-duck one bus is both — so a footstep pulls down every other effect for the rule's whole envelope, and itself with
+  them. Measured: `-6.0 dB` on the frame its own voice starts, and the bus mixed that much lower. `problems()` gains an
+  eleventh sentence — *"the duck on `Effects` starts on the bus it lowers, so every voice on it quietens itself"* — which
+  states the mechanism rather than forbidding it, because a self-sidechain is a real device. Additive: the report is
+  `Vec<String>`. The behaviour is unchanged.
+
+
 - **A duck with neither a hold nor a fade is reported.** `Duck::new(source, target)` leaves `hold_s: 0.0` and
   `fade_s: 0.0`, and `active_duck_db` returns `0.0` past the hold when `fade <= 0.0` — so the shortest rule a project
   can write **fires, is recorded in the log, and is inaudible on the very frame it fires**. Measured:

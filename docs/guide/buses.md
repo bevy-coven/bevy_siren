@@ -177,7 +177,12 @@ a duck lowers bus `Nope`, which the table does not have
 the duck on `Effects` raises it by 3 dB; a duck lowers, so by_db should be negative
 the duck on `Effects` has a hold or fade that is negative or not a number
 the duck on `Music` has no hold and no fade, so it lowers the bus for no time at all; set hold_s or fade_s
+the duck on `Effects` starts on the bus it lowers, so every voice on it quietens itself
 ```
+
+**A duck whose `source` and `target` are the same bus is a compressor, and the report says so once.** Nothing stops
+you: a voice on `Effects` lowering `Effects` is how a bus pulls itself back under a loud hit. But the voice that fired
+the rule is multiplied by it too, so the sentence states the mechanism rather than forbidding it.
 
 `tests/mix.rs::problems_names_every_mistake` builds one table per fault and asserts every sentence, so the list above
 and the code cannot drift apart — the rule `MusicScore::problems` has been held to since iteration 34.

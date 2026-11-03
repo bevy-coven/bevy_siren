@@ -244,7 +244,7 @@ fn problems_names_each_mistake() {
         ducks: vec![
             Duck::new("Nope", "Music"),
             Duck::new("Music", "Nope"),
-            Duck::new("Music", "Music").by_db(3.0),
+            Duck::new("Music", "Effects").by_db(3.0),
         ],
         ..SirenSettings::default()
     };
@@ -301,7 +301,9 @@ fn problems_names_every_mistake() {
             // a hold that is negative
             Duck { hold_s: -1.0, fade_s: 0.4, ..Duck::new("Music", "Effects") },
             // no hold and no fade: the shape `Duck::new` gives a rule before a caller chains one on
-            Duck::new("Music", "Music"),
+            Duck::new("Nope", "Effects").hold_s(0.0),
+            // starts on the bus it lowers
+            Duck::new("Music", "Music").hold_s(0.25),
         ],
         ..SirenSettings::default()
     };
@@ -317,9 +319,10 @@ fn problems_names_every_mistake() {
         ("raises it by 3", "a duck that raises"),
         ("has a hold or fade that is negative or not a number", "a duck hold that is negative"),
         (
-            "the duck on `Music` has no hold and no fade, so it lowers the bus for no time at all",
+            "the duck on `Effects` has no hold and no fade, so it lowers the bus for no time at all",
             "a duck with neither a hold nor a fade",
         ),
+        ("the duck on `Music` starts on the bus it lowers", "a duck whose source is its target"),
     ] {
         assert!(reported.iter().any(|s| s.contains(needle)), "the report names {what}: {reported:?}");
     }
@@ -332,7 +335,7 @@ fn problems_names_every_mistake() {
 
     // **A duck whose hold is not a number** — the other half of the last sentence, which `-1.0` alone would not cover.
     let nan_hold =
-        settings(vec![music()], vec![Duck { fade_s: f32::NAN, ..Duck::new("Music", "Music") }], 0.0, 8);
+        settings(vec![music()], vec![Duck { fade_s: f32::NAN, ..Duck::new("Music", "Effects") }], 0.0, 8);
     assert!(
         nan_hold.problems().iter().any(|s| s.contains("hold or fade that is negative or not a number")),
         "{:?}",
@@ -976,5 +979,95 @@ fn a_duck_with_no_hold_and_no_fade_ducks_for_no_time() {
         held.world().resource::<SirenMix>().ducked.get("Music").copied(),
         Some(-8.0),
         "with a hold it reaches its authored depth"
+    );
+}
+
+/// **A duck whose source is its own target lowers the bus that fired it.** `Duck::new("Effects", "Effects")` is a rule
+/// a project can write and `problems()` does not report, and its wording is not obviously wrong — *"when something
+/// lands on `Effects`, pull `Effects` back"*. What it does is lower the bus **including the voice that fired it**:
+/// `fire_all` matches on `source` and `duck_db` matches on `target`, and for a self-duck those are one bus.
+///
+/// Measured here rather than reasoned about, because the same investigation last iteration produced a different
+/// finding (`Duck::new`'s zero hold) and the assumption was wrong. The rule is **legal and does what it says**; whether
+/// it is a *fault* is a question for `docs/loop/needs-decision/self-duck.md`, not a bug.
+#[test]
+fn a_duck_whose_source_is_its_target_lowers_the_bus_that_fired_it() {
+    let settings = SirenSettings {
+        buses: vec![BusLevel::new("Effects")],
+        ducks: vec![Duck::new("Effects", "Effects").by_db(-6.0).hold_s(0.25).fade_s(0.4)],
+        ..SirenSettings::default()
+    };
+    let table = CueTable::new(vec![Cue { mode: bevy_siren::Mode::Loop, ..cue("hum", "Effects", 0, 1) }]);
+    let mut app = app(table, settings, sounds(&["hum"]), false);
+
+    app.update();
+    assert_eq!(
+        app.world().resource::<SirenMix>().ducked.get("Effects").copied(),
+        Some(0.0),
+        "no voice on the bus, so nothing fired the rule"
+    );
+
+    app.world_mut().write_message(Play::cue("hum"));
+    app.update();
+    // The bus it lowered is the bus its own voice plays on: the level a player hears is the cue's 0 dB *minus* 6.
+    assert_eq!(
+        app.world().resource::<SirenMix>().ducked.get("Effects").copied(),
+        Some(-6.0),
+        "the voice lowered the bus it plays on"
+    );
+    let heard = app.world().resource::<SirenMix>().bus_db("Effects");
+    assert!(heard < -5.9, "and the bus is mixed that much lower: {heard}");
+}
+
+/// **A looping cue at `max_instances: 1` keeps exactly one voice, forever.** `retire_voices` skips loops by design —
+/// *"a `Mode::Loop` voice has no end to notice"* — so the only thing that bounds a loop is its own polyphony. A second
+/// request must take the first back rather than accumulate, or a loop requested every frame grows without bound.
+#[test]
+fn a_looping_cue_at_one_instance_never_accumulates() {
+    let settings = SirenSettings {
+        buses: vec![BusLevel::new("Effects")],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    let table = CueTable::new(vec![Cue {
+        mode: bevy_siren::Mode::Loop,
+        max_instances: 1,
+        ..cue("engine", "Effects", 0, 1)
+    }]);
+    let mut app = app(table, settings, sounds(&["engine"]), false);
+
+    // Ask sixty times, one per frame: two seconds of a game requesting its engine loop every frame.
+    for _ in 0..60 {
+        app.world_mut().write_message(Play::cue("engine"));
+        run_for(&mut app, 1.0 / 60.0, 1.0 / 60.0);
+    }
+
+    assert_eq!(
+        app.world().resource::<SirenMix>().voices_on("Effects"),
+        1,
+        "one voice, however many times it was asked for"
+    );
+}
+
+/// **A bus cannot raise the budget above the table's.** `SirenSettings::bus_voice_limit` takes `min(cap, total)`, so a
+/// bus asking for more voices than the table has is silently clamped — and `problems()` says nothing, which is the
+/// question this test pins rather than assumes.
+#[test]
+fn a_bus_asking_for_more_than_the_table_is_clamped_not_reported() {
+    let settings = SirenSettings {
+        max_voices: 4,
+        buses: vec![BusLevel::new("Effects").max_voices(16)],
+        ducks: Vec::new(),
+        ..SirenSettings::default()
+    };
+    assert_eq!(
+        settings.bus_voice_limit("Effects"),
+        4,
+        "the table's budget wins, as `bus_voice_limit`'s own `min` says"
+    );
+    assert!(
+        settings.problems().is_empty(),
+        "and the report says nothing about it: {:?}",
+        settings.problems()
     );
 }

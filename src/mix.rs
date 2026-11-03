@@ -119,7 +119,7 @@ impl SirenSettings {
 
     /// Everything wrong with the table, as sentences a person reads on an editor's status line.
     ///
-    /// **Ten checks**, and `tests/mix.rs::problems_names_every_mistake` walks all ten so this list and the code cannot
+    /// **Eleven checks**, and `tests/mix.rs::problems_names_every_mistake` walks all eleven so this list and the code cannot
     /// drift apart — the rule `MusicScore::problems`'s own test holds it to, and this doc named six of the nine until
     /// iteration 45:
     ///
@@ -133,7 +133,8 @@ impl SirenSettings {
     /// - a duck's `by_db` is positive, so it raises rather than lowers;
     /// - a duck's `hold_s` or `fade_s` is negative or not a number;
     /// - a duck has **no hold and no fade**, so it lowers the bus for no time at all — the shape `Duck::new` gives a
-    ///   rule before a caller chains `.hold_s(..)` or `.fade_s(..)` on, which is why `default_ducks()` chains both.
+    ///   rule before a caller chains `.hold_s(..)` or `.fade_s(..)` on, which is why `default_ducks()` chains both;
+    /// - a duck **starts on the same bus it lowers**, so every voice on it quietens itself.
     ///
     /// Two of those are **one sentence per cause, not per rule**: `default_ducks()` is `Dialogue -> Music` and
     /// `Dialogue -> Effects`, so a table without `Dialogue` has two rules with the same fault and the report says so
@@ -189,6 +190,18 @@ impl SirenSettings {
                 out.push(format!(
                     "the duck on `{}` raises it by {} dB; a duck lowers, so by_db should be negative",
                     duck.target, duck.by_db
+                ));
+            }
+            // **A rule that starts on the bus it lowers quietens its own voices.** `fire_all` matches rules on
+            // `source` and `duck_db` matches them on `target`; when those are one bus, the voice that fired the rule is
+            // multiplied by it too — a footstep pulling down every other effect for the rule's whole envelope, and
+            // itself with them. The wording is not obviously wrong (*"when something lands on `Effects`, pull `Effects`
+            // back"* is a compressor), so the sentence asks rather than forbids: a project that meant it loses one line,
+            // and one that did not finds its bus quiet for a reason it could not have named.
+            if duck.source == duck.target {
+                out.push(format!(
+                    "the duck on `{}` starts on the bus it lowers, so every voice on it quietens itself",
+                    duck.target
                 ));
             }
             // **A rule with neither a hold nor a fade ducks for no time at all.** `Duck::new` leaves both at `0.0`,

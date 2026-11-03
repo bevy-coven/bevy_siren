@@ -196,7 +196,15 @@ fn settings() -> SirenSettings {
             BusLevel::new("Dialogue"),
         ],
         ducks: if broken {
-            vec![Duck::new("Dialogue", "Music"), Duck { hold_s: -1.0, ..Duck::new("Dialogue", "Effects") }]
+            // **Three faults, chosen so the block's three-sentence cap shows the two this loop just added.** A fourth
+            // (a negative hold) pushed the self-duck off the bottom, and a capture that cannot see the sentence does not
+            // prove it.
+            vec![
+                // no hold and no fade, on a rule whose source and target differ — the tenth sentence, alone
+                Duck::new("Dialogue", "Music").by_db(-4.0),
+                // both: no hold and no fade, *and* it starts on the bus it lowers — the eleventh
+                Duck::new("Effects", "Effects").by_db(-6.0),
+            ]
         } else {
             SirenSettings::default().ducks
         },

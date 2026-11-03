@@ -33,8 +33,9 @@ a_duck_whose_source_keeps_playing_holds, a_second_line_extends_the_duck}`.
 `mixer-broken.png` is the same panel under `SIREN_MIX=broken`, which gives the **mix** table faults instead of the cue
 table's — so the `Problems` block can be seen drawing `SirenSettings::problems()`, which it never did before iteration
 45 (`SIREN_FAULTS` adds *cue* faults, which it already drew). The broken table carries three at once: a NaN
-`master_db`, a duck whose hold is negative, and a duck with **neither a hold nor a fade** — the shape `Duck::new` gives
-a rule, which fires, is logged, and is inaudible on the frame it fires.
+`master_db`, a duck with **neither a hold nor a fade** (the shape `Duck::new` gives a rule, which fires, is logged, and
+is inaudible), and a duck that **starts on the bus it lowers** — the capture's log shows the second one firing:
+`0.38s sword.hit ducked Effects by -6.0 dB`. The block draws three sentences and says `and 1 more`.
 
 `mixer-waiting.png` is the same panel under `SIREN_TIGHT=1`, which gives the `Music` bus **one** voice: the score's second
 layer's `Play` is refused, so it becomes a **virtual voice** — Gregory §14.5.8's *"sound the game believes is playing but

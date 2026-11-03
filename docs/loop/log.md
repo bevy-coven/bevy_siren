@@ -7,6 +7,68 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 47 — 2026-11-03 — a duck that starts on the bus it lowers is reported
+
+**Baseline.** Green on every step, no open issues. Nothing red.
+
+**Change.** An **eleventh sentence** in `SirenSettings::problems`:
+`the duck on \`Effects\` starts on the bus it lowers, so every voice on it quietens itself`. Plus an eleventh bullet in
+the doc's list, the assertion in `problems_names_every_mistake`, `SIREN_MIX=broken`'s ducks chosen so the block's
+three-sentence cap shows both new sentences, and two guards kept from the probing.
+
+**Rationale.** Iteration 45's backlog listed a **self-duck** as an open question and iteration 46's first probe of it
+produced a different finding, so it had never been settled. Measured this iteration:
+`Duck::new("Effects","Effects")` with a hold lowers the bus **that fired it** — `-6.0 dB` on the frame its own voice
+starts, and `bus_db` that much lower. `fire_all` matches on `source`, `duck_db` matches on `target`; for a self-duck one
+bus is both, so a footstep pulls down every other effect for the rule's whole envelope, and itself with them.
+
+**Why no decision file — though I wrote one first.** `needs-decision/README.md`: *"only the public API, the message
+types and the definitions-file schema come here."* `problems()` returns **`Vec<String>`**, additive, no `match` breaks.
+I wrote `self-duck.md`, read the README, and deleted it; iteration 46 relied on the same fact. The sentence states the
+**mechanism** rather than forbidding the rule: a self-sidechain is a real device, so a project that meant one reads a true
+line and moves on.
+
+**Not built: case 31** — still blocked on `needs-decision/bad-gain-problem.md`.
+
+**Evidence.** `runs/2026-11-03-47/`: `research.md` (S1 `source`/`target` are different sentences, S2 `fire_all` +
+`duck_db`, S3 the guide reasons about two rules never a self-rule, S4 the decision README's scope, S5 Gregory §14.6.3),
+`plan.md`, `perf.md`, `eval.md` (six probes, five already correct), `review.md` (three passes, GREAT),
+`evidence/{panel,after}`.
+
+| | before | after |
+|---|---|---|
+| a self-duck's depth on its own voice's frame | −6.0 dB, **unreported** | unchanged, **named** |
+| the bus it mixes | 6 dB lower | unchanged |
+| sentences `problems()` can emit | 10 | **11** |
+| the log on that frame | silent about it | `sword.hit ducked Effects by -6.0 dB` |
+| the sentence's width | 118 chars, **wrapped**, pushed the log to `and 1 more` | **78 chars**, one line |
+| tests | 124 / 131 / 134 + 5 | **126 / 133 / 136 + 5** |
+| perf | — | 0.580 / 1.353 µs at 256 voices, load **10.9** — the same host spread every run since 41 shows |
+
+**Six probes, five of them already correct** (recorded so the next iteration does not repeat them): `Cue::new` agrees
+with the serde defaults field for field; `backend_spatial_gain` is **identical to rodio's own `spatial.rs`** arithmetic,
+confirmed from the crate source; `stop_requests` against a layer's voice is handled by `reconcile`; a loop at
+`max_instances: 1` asked 60 times keeps **one** voice (new guard, kept).
+
+**Three mistakes in this iteration's own work.** (1) The first sentence was 118 characters and **wrapped onto a second
+line** — caught by reading the capture, shortened to 78. (2) `SIREN_MIX=broken` still carried iteration 45's ducks because
+`cargo fmt` had reflowed the block and my replacement silently did not match — the capture showed the *old* sentences and
+I nearly read it as "the new one does not fire". (3) `let mut app = app(...)` shadowed the helper, and one assertion used
+`None` where `ducked` holds every bus at `0.0`.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`Duck::new`'s zero hold/fade defaults** — reported since iteration 46, but the constructor still hands back an inert
+   rule where `by_db` gets a real `-6.0`. Changing it is a behaviour change and needs a decision file.
+3. No capture shows the panel with a **missing sound** refused (iteration 39 showed `unknown-cue` only).
+4. `docs/media/mixer.gif` captures at ~8 fps; a fade shorter than 120 ms falls between frames.
+5. `SirenSettings::problems` has no sentence for a **bus with a `max_voices` above the table's** — the table's budget
+   silently wins, and nothing says so.
+
 ## Iteration 46 — 2026-11-03 — a duck with neither a hold nor a fade is reported
 
 **Baseline.** Green on every step, no open issues. Nothing red.
