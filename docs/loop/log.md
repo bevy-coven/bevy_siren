@@ -7,6 +7,71 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 9 — 2026-11-02 — a stinger's duck waits for a sound that plays
+
+**Change.**
+
+- **`src/music.rs`, `src/lib.rs` — the duck is armed on `Played`, not on the request.** `play_stingers` wrote the `Play`
+  and armed the duck in the same breath while `Play` is answered later in the frame, so a refused stinger left the
+  `Music` bus down for a sound nobody heard — and the log said both. A new `arm_stinger_ducks` runs after `Play` and
+  before `Mix`, arming the duck for a stinger that was answered and dropping one that was refused; the dip still lands
+  on the frame the stinger fires.
+- **A cue not in the table is refused as `UnknownCue`**, instead of inheriting `Music` through `unwrap_or("Music")` and
+  passing the bus check. **Stinger refusals write a `Refused` message**, not only a log line.
+- `tests/music.rs` — four tests: unknown cue, missing sound (both fail on the unfixed tree), a real stinger ducking on
+  the frame it fires, and a wrong-bus stinger. `examples/render` gains the unknown-cue refusal; `cues.yaml` case 28;
+  `needs-decision/stinger-refusal.md`; the music guide, the CHANGELOG and a media note.
+
+**Why.** Rank 1 at its sharpest: a duck that corresponds to no sound. The log was the proof — *"stinger ducked Music by
+-9.0 dB"* on the line above *"refused … no handle …"* — two records of one request disagreeing, which is exactly what
+the crate's refusals exist to prevent. Gregory §14.6.3 and the crate's own R3 both say a duck is driven by a voice that
+starts; the dialogue path already obeyed that, and stingers were the one exception.
+
+**Evidence.** `runs/2026-11-02-09/`: `eval.md` (baseline green; case 16 proves a stinger ducks and no case asks what
+happens when it cannot), `research.md`, `plan.md`, `perf.md`, `review.md`, and `evidence/{before,after}/` with both
+render trees, the new refusal file, the spectrograms and the loudness numbers.
+
+**Measured.**
+
+| case | before | after |
+|---|---|---|
+| cue not in the table | **Music −9.00 dB**, `UnknownCue`, log says it ducked | Music 0.00 dB, `UnknownCue`, **one** line |
+| a sound with no handle | **Music −9.00 dB**, log says ducked **and** refused | Music 0.00 dB, refusal only |
+| a stinger that plays | −9.0 dB on its frame | unchanged |
+| a stinger on another bus | refused, no duck | unchanged |
+| every rendered cue and the mix | — | **byte-identical** (16/16 WAVs) |
+| frame cost, 8 / 64 / 256 voices | 0.063 / 0.367 / 1.347 µs | not on this path; one empty `Vec` and two drained buffers per frame |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The zoom pass caught a regression I nearly shipped: the
+wrong-bus branch briefly reused `Refusal::UnknownBus`, whose sentence (*"bus `Effects` is not in the mix table"*) is
+**false** — `Effects` is in the table. Reverted to the true prose line, and the variant that would say it properly is
+`needs-decision/stinger-refusal.md`.
+
+**Traps for the command.** (1) A bug with two independent halves needs **both** reverted to prove the tests: reverting
+only the ordering left the unknown-cue test passing, because the table lookup half still refused it. (2) `render.txt`
+and the rendered audio cannot show an ordering fix — the panel settles to the same value once the frame is over; the
+tests are the evidence, and the log is the *symptom*. (3) `hs distill` is still GPU-blocked (`bge-m3` wants 5000 MB;
+a 14.8 GB VLLM engine holds the card), seventh iteration running.
+
+**Commit.** `64fce41`, pushed to `main`; CI run 41556188200 is **success** on `big-s1`. Gate: build, test (63 + 4), serde (70 + 4), mixer (70 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The Cauldron panel test still pins
+`rev = "7029b20"`; the panel prints `SirenLog` lines, so a stinger that cannot play now shows one line where it showed
+two — an improvement it gets without a consumer change.
+
+**Next 5.** Four of the five are now public-enum decisions that one minor can carry together:
+
+1. **A `Refusal` variant for a stinger on the wrong bus** — `needs-decision/stinger-refusal.md`.
+2. **A variant that distinguishes "never mapped" from "corrupt file"** — `needs-decision/undecodable-sound.md`.
+3. **A payload that names the cap** — `needs-decision/refusal-names-its-cap.md`.
+4. **`Completes` is public and can never be true** — `needs-decision/remove-completes.md`.
+5. **A log line for a position a non-spatial cue ignores** — `needs-decision/non-spatial-position.md`, whose `Entry`
+   arm could land with item 4.
+
+**Baseline note.** Nothing was red, and the suite had 59 tests. Case 16 proves the duck happens; nothing asked what
+happens when the stinger cannot play, which is why the contradiction sat in the log unread for six iterations.
+
+---
+
 ## Iteration 8 — 2026-11-02 — a non-spatial cue is never handed to the panner
 
 **Change.**
