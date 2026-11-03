@@ -1,0 +1,146 @@
+//! **Ranking: cosine similarity, and a top-k that is honest about ties and refusals.**
+//!
+//! A query embedding against every vector in an index. The arithmetic is four lines; the decisions are not, and they
+//! are why this module exists separately from any model call:
+//!
+//! - **CLAP normalises its embeddings** before returning them (measured in `runs/2026-11-03-62/research.md`), so a
+//!   cosine is a dot product of unit vectors. This module does not assume that: it computes a real cosine, so an index
+//!   built by a future model that does not normalise still ranks correctly rather than silently returning a dot
+//!   product that is not a similarity.
+//! - **A zero vector has no cosine.** Its norm is zero, so the division is undefined; it is reported as
+//!   [`RankProblem::DegenerateVector`] rather than as a score of `0.0`, which would look like "not similar" instead of
+//!   "this vector cannot be compared".
+//! - **`k = 0` is a refusal**, not an empty answer: an agent that asked for nothing made a mistake, and an empty list
+//!   would hide it.
+//! - **Ordering is total and reproducible.** Equal scores break by content hash, so two runs over the same index
+//!   return the same order field for field — the crate's determinism rule, applied to a ranking.
+
+use std::cmp::Ordering;
+
+use super::index::Index;
+
+/// Why a query could not be ranked.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RankProblem {
+    /// The query asked for no results.
+    ZeroK,
+    /// A vector in the index, or the query itself, is all zeros, so a cosine is undefined.
+    DegenerateVector {
+        /// The content hash of the offending vector, or `None` when it was the query.
+        hash: Option<u64>,
+    },
+    /// The query vector is not the index's dimension.
+    DimensionMismatch {
+        /// The query's length.
+        query: usize,
+        /// The index's, from its stamp.
+        index: usize,
+    },
+}
+
+impl core::fmt::Display for RankProblem {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            RankProblem::ZeroK => f.write_str("a query for zero results is not a query"),
+            RankProblem::DegenerateVector { hash } => match hash {
+                Some(h) => write!(f, "the vector for asset {h:016x} is all zeros, so it has no similarity"),
+                None => f.write_str("the query vector is all zeros, so it has no similarity to anything"),
+            },
+            RankProblem::DimensionMismatch { query, index } => {
+                write!(f, "the query has {query} values and this index holds {index}")
+            }
+        }
+    }
+}
+
+/// One result: which asset, and how similar.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Match {
+    /// The asset's content hash.
+    pub hash: u64,
+    /// Cosine similarity in `[-1, 1]`. The model's embeddings are normalised, so in practice this is `[0, 1]`.
+    pub score: f32,
+}
+
+/// **Cosine similarity** of two equal-length slices, or `None` when either has no direction.
+///
+/// Returns `None` for a zero vector rather than `0.0`: those are different facts and a caller must be able to tell
+/// them apart.
+pub fn cosine(a: &[f32], b: &[f32]) -> Option<f32> {
+    if a.len() != b.len() || a.is_empty() {
+        return None;
+    }
+    let mut dot = 0.0f64;
+    let mut na = 0.0f64;
+    let mut nb = 0.0f64;
+    for (&x, &y) in a.iter().zip(b) {
+        if !x.is_finite() || !y.is_finite() {
+            return None;
+        }
+        dot += f64::from(x) * f64::from(y);
+        na += f64::from(x) * f64::from(x);
+        nb += f64::from(y) * f64::from(y);
+    }
+    if na <= 0.0 || nb <= 0.0 {
+        return None;
+    }
+    Some((dot / (na.sqrt() * nb.sqrt())) as f32)
+}
+
+/// **The `k` most similar assets to `query`**, best first.
+///
+/// Ties are broken by content hash so the order is total, and a vector that cannot be compared is refused rather than
+/// scored. A query whose length disagrees with the index is refused before any comparison.
+pub fn top_k(index: &Index, query: &[f32], k: usize) -> Result<Vec<Match>, RankProblem> {
+    if k == 0 {
+        return Err(RankProblem::ZeroK);
+    }
+    let dimension = index.stamp.dimension;
+    if query.len() != dimension {
+        return Err(RankProblem::DimensionMismatch { query: query.len(), index: dimension });
+    }
+    match cosine(query, query) {
+        Some(_) => {}
+        None => return Err(RankProblem::DegenerateVector { hash: None }),
+    }
+
+    let mut scored: Vec<Match> = Vec::with_capacity(index.records.len());
+    for (hash, vector) in &index.records {
+        match cosine(query, vector) {
+            Some(score) => scored.push(Match { hash: *hash, score }),
+            None => return Err(RankProblem::DegenerateVector { hash: Some(*hash) }),
+        }
+    }
+
+    scored.sort_by(|a, b| {
+        // Descending score, then ascending hash: a total order, so two runs cannot differ.
+        b.score.partial_cmp(&a.score).unwrap_or(Ordering::Equal).then_with(|| a.hash.cmp(&b.hash))
+    });
+    scored.truncate(k);
+    Ok(scored)
+}
+
+/// **A similarity floor**, so a result set can be empty rather than full of unrelated assets.
+///
+/// A cosine of 0.2 between two tracks means they are close to orthogonal; returning it as a "match" wastes a
+/// developer's attention. The floor is a named field with a **design default** because the number that works depends on
+/// the model and the library, and `V-01`'s labelled set is what replaces it with a measurement.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Floor {
+    /// Results below this cosine are dropped. **Design default:** `0.0`, which keeps everything, because a wrong floor
+    /// that hides the right answer is worse than a long list while there is no labelled set to choose a better number.
+    pub min_score: f32,
+}
+
+impl Default for Floor {
+    fn default() -> Self {
+        Floor { min_score: 0.0 }
+    }
+}
+
+impl Floor {
+    /// Keep only results at or above the floor.
+    pub fn apply(&self, results: Vec<Match>) -> Vec<Match> {
+        results.into_iter().filter(|m| m.score >= self.min_score).collect()
+    }
+}
