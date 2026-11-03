@@ -7,6 +7,60 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 45 — 2026-11-03 — the mix table's report is held to the standard its sibling meets
+
+**Baseline.** Green on every step, no open issues. Nothing red.
+
+**Change.**
+1. **`SirenSettings::problems`'s doc lists all nine checks** — it named **six** of the nine, and **four of the nine
+   sentences had no test at all** (measured by fixed-string search over `tests/`): `master_db is not a number`, `a bus
+   has no name`, a bus's gain that is not a number, and a duck's hold or fade.
+2. **`tests/mix.rs::problems_names_every_mistake`** — one table holding every fault, each sentence asserted, each shown
+   to be its own fault, the `NaN` half of the hold/fade covered, and a clean table asserting nothing.
+3. **The panel's `Problems` block draws both reports.** It read `table.problems_in(&settings)` alone, so a mix table with
+   a NaN master drew `Problems: none` **while every bus read −80 dB**.
+4. **`SIREN_MIX=broken`** produces the mix table's faults so the block can be seen drawing them.
+5. **The cue list is bounded at eight rows** with `and N more`, and the log's count subtracts that row.
+
+**Rationale.** `MusicScore::problems` has had a nine-sentence test since iteration 34, written after *its* doc named four
+of nine. The mix table's report — the one an author trusts instead of the sound — had never been held to it, and the
+panel drew only half of it. Beats the runner-up (`Music` header live-layer count) because that is decoration while this
+is a report that says `none` about a table it cannot run.
+
+**Not built: case 31** — still **blocked** on `needs-decision/bad-gain-problem.md` (a public enum; its own
+recommendation defers the variant to the next minor, and the crate is 0.1.0).
+
+**Evidence.** `runs/2026-11-03-45/`: `research.md` (S1 the score's test, S2 the doc's six-of-nine, S3 R6, S4 the existing
+four-sentence test), `plan.md`, `perf.md`, `eval.md`, `review.md` (three passes, GREAT),
+`evidence/{panel,after}`.
+
+| | before | after |
+|---|---|---|
+| a mix table with a NaN master | `Problems: **none**`, every bus −80 dB | `master_db is not a number` |
+| sentences reached by a test | **5 of 9** | **9 of 9** |
+| the doc's list | six of nine | nine of nine |
+| 12 cue rows (`SIREN_FAULTS=many`) | log **off the bottom**, heading not on screen | `and 6 more`, log visible |
+| margins: clean / broken / 14 cues | 9 / **0** / **0** px | **9 / 10 / 10 px** |
+| tests | 122 / 129 / 132 + 5 | **123 / 130 / 133 + 5** |
+| perf | — | unchanged; 256 voices read 0.537 at HEAD vs 0.455 here, alternating on one machine |
+
+**Two defects in this iteration's own work, found by looking**: the broken-mix capture clipped at **0 px** (the block
+cost two lines the log did not give up), and `SIREN_FAULTS=many` still clipped at 0 px because the **cue list** — twelve
+rows — pushed the log off the screen entirely. Both fixed; three tables now measure 9–10 px.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. No capture shows the panel with a **missing sound** refused (iteration 39 showed `unknown-cue` only).
+3. `docs/media/mixer.gif` captures at ~8 fps; a fade shorter than 120 ms falls between frames.
+4. `SirenSettings::problems` has no sentence for a **duck whose `source` and `target` are the same bus** — accepted today;
+   worth deciding whether it is a fault.
+5. The panel's `Problems` block prints the mix table's sentences **before** the cue table's; a reader may expect the
+   cue list's faults first, since the cue list is what sits above it.
+
 ## Iteration 44 — 2026-11-03 — a music layer waiting for a voice says so
 
 **Baseline.** Green on every step, no open issues. Nothing red.

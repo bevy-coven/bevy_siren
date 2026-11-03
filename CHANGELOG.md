@@ -5,6 +5,25 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+
+- **The panel's `Problems` block draws the mix table's faults, not only the cue table's.** It read
+  `table.problems_in(&settings)` alone, so a mix table with `max_voices: 0`, a NaN `master_db` or a bus listed twice
+  drew `Problems: none` **while every bus read −80 dB** — the report said a table it could not run was fine. It now
+  concatenates `SirenSettings::problems()` with the cue table's, and `SIREN_MIX=broken` produces the former so the block
+  can be seen doing it. Example only; no `src/` behaviour changed.
+
+- **The panel's cue list is bounded at eight rows.** `SIREN_FAULTS=many`'s fourteen cues drew twelve rows and pushed
+  the `Problems` block and then the whole log off a 1280×720 capture — measured, the log's heading was not on screen and
+  the lowest ink sat at `y = 719` of 719. It now says `and N more; the log below is what played`, the same rule the
+  block under it already followed, and the log's line count subtracts that row as well as the block's. Margins after:
+  9 px clean, 10 px broken, 10 px with fourteen cues.
+
+- **`SirenSettings::problems`'s doc lists all nine checks it performs.** It named six — `master_db` not a number, a
+  bus's gain not a number, and a duck's hold or fade were unlisted — while `MusicScore::problems`'s doc has listed all
+  nine since iteration 34. Four of the nine sentences had **no test at all**; `tests/mix.rs::problems_names_every_mistake`
+  now walks all nine, each shown to be its own fault, and each of the four reddens it when removed. No behaviour changed.
+
 ### Added
 
 - **`MusicState::blocked(layer)` reports a virtual voice.** A score may name more layers than the budget has room for;

@@ -117,9 +117,25 @@ impl SirenSettings {
         }
     }
 
-    /// Everything wrong with the table, as sentences a person reads on an editor's status line: a bus
-    /// listed twice or unnamed, a budget of zero, a duck that names a bus the table does not have, a duck
-    /// that raises rather than lowers.
+    /// Everything wrong with the table, as sentences a person reads on an editor's status line.
+    ///
+    /// **Nine checks**, and `tests/mix.rs::problems_names_every_mistake` walks all nine so this list and the code cannot
+    /// drift apart — the rule `MusicScore::problems`'s own test holds it to, and this doc named six of the nine until
+    /// iteration 45:
+    ///
+    /// - `max_voices` is `0`, so no sound can ever play;
+    /// - `master_db` is not a number;
+    /// - a bus has no name;
+    /// - a bus is listed more than once;
+    /// - a bus's `gain_db` is not a number;
+    /// - a duck starts on a bus the table does not have;
+    /// - a duck lowers a bus the table does not have;
+    /// - a duck's `by_db` is positive, so it raises rather than lowers;
+    /// - a duck's `hold_s` or `fade_s` is negative or not a number.
+    ///
+    /// Two of those are **one sentence per cause, not per rule**: `default_ducks()` is `Dialogue -> Music` and
+    /// `Dialogue -> Effects`, so a table without `Dialogue` has two rules with the same fault and the report says so
+    /// once.
     pub fn problems(&self) -> Vec<String> {
         let mut out = Vec::new();
         if self.max_voices == 0 {

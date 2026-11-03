@@ -28,6 +28,10 @@ a_duck_whose_source_keeps_playing_holds, a_second_line_extends_the_duck}`.
 
 ![the Music block with one layer waiting for a voice](mixer-waiting.png)
 
+`SIREN_MIX=broken` gives the **mix** table faults instead of the cue table's — a NaN `master_db` and a duck whose hold
+is negative — so the `Problems` block can be seen drawing `SirenSettings::problems()`, which it never did before
+iteration 45 (`SIREN_FAULTS` adds *cue* faults, which it already drew).
+
 `mixer-waiting.png` is the same panel under `SIREN_TIGHT=1`, which gives the `Music` bus **one** voice: the score's second
 layer's `Play` is refused, so it becomes a **virtual voice** — Gregory §14.5.8's *"sound the game believes is playing but
 that has no hardware voice"* — and the block says `combat -80.0 dB waiting`. Without it the block drew `-80.0 dB` for a

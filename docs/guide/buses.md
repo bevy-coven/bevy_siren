@@ -155,3 +155,25 @@ Two consequences are worth knowing, because both are observable from a game:
 - **A sound's end is noticed on both paths.** Bevy's sink reports an empty sample; the mixer's player reports the
   same. The voice is retired, its `ended` line is logged, and its slot in the budget is free for the next play —
   which is what keeps a full bus a *steal* rather than a lockout.
+
+## The report covers both files
+
+`SirenSettings::problems()` and `CueTable::problems_in(&settings)` answer about **different files** — the mix table and
+the cue table — and an editor's `Problems` block draws both, because a person asks one question: *is this table fit to
+run?* A mix table with `max_voices: 0`, a NaN `master_db` or a bus listed twice is unplayable however healthy the cues
+are, and `problems()` says so in nine sentences, each naming its field:
+
+```text
+max_voices is 0, so no sound can ever play
+master_db is not a number
+a bus has no name
+bus `Music` is listed more than once
+bus `Effects` has a gain that is not a number
+a duck starts on bus `Nope`, which the table does not have
+a duck lowers bus `Nope`, which the table does not have
+the duck on `Effects` raises it by 3 dB; a duck lowers, so by_db should be negative
+the duck on `Effects` has a hold or fade that is negative or not a number
+```
+
+`tests/mix.rs::problems_names_every_mistake` builds one table per fault and asserts every sentence, so the list above
+and the code cannot drift apart — the rule `MusicScore::problems` has been held to since iteration 34.

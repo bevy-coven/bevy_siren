@@ -37,8 +37,9 @@ use bevy::text::FontSize;
 use bevy::ui::widget::Text;
 use bevy::window::WindowResolution;
 use bevy_siren::{
-    Attenuation, BusLevel, Cue, CueTable, Entry, Mode, MusicLayer, MusicLayers, MusicPlugin, MusicScore,
-    MusicState, Play, SirenLog, SirenMix, SirenPlugin, SirenSettings, SirenSounds, SoundSlot, Stinger,
+    Attenuation, BusLevel, Cue, CueTable, Duck, Entry, Mode, MusicLayer, MusicLayers, MusicPlugin,
+    MusicScore, MusicState, Play, SirenLog, SirenMix, SirenPlugin, SirenSettings, SirenSounds, SoundSlot,
+    Stinger,
 };
 
 /// The capture, present only when `SIREN_FRAMES` is set.
@@ -180,7 +181,13 @@ fn settings() -> SirenSettings {
     // by looking. The cap is on the **bus**, not the table: the other buses keep their room, so the picture isolates the
     // waiting layer instead of refusing every play in the script.
     let tight = std::env::var("SIREN_TIGHT").is_ok_and(|v| v != "0");
+    // **`SIREN_MIX=broken` gives the *mix* table faults instead of the cue table.** `SIREN_FAULTS` adds cues that cannot
+    // play; this adds a table that cannot mix — a master that is not a number, a bus listed twice, and a duck whose hold
+    // is negative. Until iteration 45 the `Problems` block drew only the cue table's faults, so this table read
+    // `none`: the report's other half was never on screen.
+    let broken = std::env::var("SIREN_MIX").is_ok_and(|v| v == "broken");
     SirenSettings {
+        master_db: if broken { f32::NAN } else { 0.0 },
         max_voices: 12,
         buses: vec![
             BusLevel::new("Music").gain_db(-2.0).max_voices(if tight { 1 } else { 0 }),
@@ -188,6 +195,11 @@ fn settings() -> SirenSettings {
             BusLevel::new("Ambience").gain_db(-6.0),
             BusLevel::new("Dialogue"),
         ],
+        ducks: if broken {
+            vec![Duck::new("Dialogue", "Music"), Duck { hold_s: -1.0, ..Duck::new("Dialogue", "Effects") }]
+        } else {
+            SirenSettings::default().ducks
+        },
         ..SirenSettings::default()
     }
 }
@@ -230,6 +242,17 @@ fn cues_with_faults() -> CueTable {
 }
 
 /// The cues the panel lists, and the keys their samples are synthesised under.
+/// **How many sentences the `Problems` block draws**: three, or two and `and N more`. Measured on a 1280×720 capture —
+/// the block is a fixed column with no scroll and the log is the last thing in it, so the bound is what keeps the log
+/// on screen. The **log's** line count follows it, and both read this one number.
+const PROBLEMS_SHOWN: usize = 3;
+
+/// **How many cue rows the list draws.** Measured on a 1280×720 capture: eight rows fit beside a three-line `Problems`
+/// block and six log lines. A longer table says `and N more` rather than pushing the log off the bottom — the block
+/// under it already did this; iteration 45 gave the cue list the same rule after `SIREN_FAULTS=many`'s twelve rows
+/// removed the log entirely.
+const CUES_SHOWN: usize = 8;
+
 /// **Where the `spatial` step puts `bang`, in metres.** 8 m is twice the default `Inverse` near radius, where the law
 /// gives exactly half the amplitude — the number `cues.yaml` case 14 asserts (−6.02 dB). One constant, read by both the
 /// step and the row, so the picture and the play cannot disagree.
@@ -532,10 +555,16 @@ fn draw_panel(
                     .as_ref()
                     .map(|s| s.layers.iter().map(|l| l.cue.clone()).collect())
                     .unwrap_or_default();
-                table
-                    .cues
+                let rows: Vec<&Cue> = table.cues.iter().filter(|cue| !owned.contains(&cue.name)).collect();
+                // **The cue list is bounded the way the `Problems` block is**, because the panel is a fixed column with
+                // no scroll. A table under `SIREN_FAULTS=many` has fourteen cues and drew twelve rows, which pushed the
+                // `Problems` block and then the **whole log** off the bottom — measured, the last ink sat at `y = 719`
+                // of 719 and the log's heading was not on screen at all. Eight rows is what fits beside a three-line
+                // problems block and six log lines.
+                let hidden = rows.len().saturating_sub(CUES_SHOWN);
+                let mut lines: Vec<String> = rows
                     .iter()
-                    .filter(|cue| !owned.contains(&cue.name))
+                    .take(CUES_SHOWN)
                     .map(|cue| {
                         let mode = if cue.mode.is_loop() { "loop" } else { "once" };
                         let bad = problems.iter().any(|p| problem_names(p, &cue.name));
@@ -580,8 +609,11 @@ fn draw_panel(
                             cue.priority
                         )
                     })
-                    .collect::<Vec<_>>()
-                    .join("\n")
+                    .collect();
+                if hidden > 0 {
+                    lines.push(format!("and {hidden} more; the log below is what played"));
+                }
+                lines.join("\n")
             }
             // **The crate's own verdict on its table.** A cue on a bus the mix does not have, or one whose pitch range
             // is inverted, was drawn here with the same four columns as a healthy cue — nothing marked it, and the
@@ -593,18 +625,29 @@ fn draw_panel(
                 // with six faults the block grew past the window and pushed the log — the section that says what played
                 // and why — off the bottom. Measured on a 1280x720 capture. Three sentences plus a count is what fits
                 // under the cue list, and the rest is named rather than hidden.
-                const SHOWN: usize = 3;
-                let problems = table.problems_in(&settings);
+                // **The mix table's own faults, which this block never drew.** It read `table.problems_in(&settings)` —
+                // the *cue* table's — so a mix table with `max_voices: 0`, a bus listed twice or a NaN master showed
+                // `Problems: none` while every play was refused. `SirenSettings::problems()` is the other half of the
+                // report, and the two are asked separately because they answer questions about different files.
+                let mut problems: Vec<String> = settings.problems();
+                problems.extend(table.problems_in(&settings).iter().map(ToString::to_string));
                 match problems.len() {
                     0 => "none".to_owned(),
                     n => {
-                        let mut text =
-                            problems.iter().take(SHOWN).map(|p| p.to_string()).collect::<Vec<_>>().join("\n");
-                        if n > SHOWN {
+                        let mut text = problems
+                            .iter()
+                            .take(PROBLEMS_SHOWN)
+                            .map(|p| p.to_string())
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        if n > PROBLEMS_SHOWN {
                             // **Plain ASCII, not an em dash.** The panel's font has no glyph for `—` and drew a box;
                             // the capture showed it as `and 3 more ▯ the log`. A debug view cannot afford a character
                             // the font may not have.
-                            text.push_str(&format!("\nand {} more; the log below is what played", n - SHOWN));
+                            text.push_str(&format!(
+                                "\nand {} more; the log below is what played",
+                                n - PROBLEMS_SHOWN
+                            ));
                         }
                         text
                     }
@@ -620,11 +663,24 @@ fn draw_panel(
             // five still leaves `1 px`, and **four restores 11 px**. The block's height is a function of the table it
             // describes, so the log's is too — a panel with faults shows fewer log lines, which is the right trade: the
             // faults are what the reader came for.
-            Kind::Log => log
-                .recent(if table.problems_in(&settings).is_empty() { 6 } else { 4 })
-                .map(Entry::line)
-                .collect::<Vec<_>>()
-                .join("\n"),
+            // **The log's line count is what is left over, counted from the rows above it.** The panel is a fixed
+            // column with no scroll, so every row a fault adds comes out of the log — the section that says what played
+            // and why. Two rules were each right for one table and wrong for the other: "empty or not" (iteration 32)
+            // could not count, and "the problems block's own height" (this iteration's first draft) ignored the six
+            // extra **cue rows** `SIREN_FAULTS=many` adds, which measured **0 px** of margin — clipped. The rows are
+            // counted where they are drawn: the cue list's, the problems block's, and the music block's one.
+            Kind::Log => {
+                let faults = settings.problems().len() + table.problems_in(&settings).len();
+                let drawn = if faults == 0 { 1 } else { faults.min(PROBLEMS_SHOWN + 1) };
+                // **Two blocks above the log can grow.** The `Problems` block draws one line for a clean table and one
+                // per fault up to its bound; the cue list draws `CUES_SHOWN` rows **plus** an `and N more` line when it
+                // truncates. Both come out of the log, and counting only the first left the log overflowing by
+                // exactly that one row on `SIREN_FAULTS=many` — measured, a clipped glyph at `y = 719` of 719.
+                let layers = music.score.as_ref().map_or(0, |s| s.layers.len());
+                let cue_rows = table.cues.len().saturating_sub(layers);
+                let overflow = drawn.saturating_sub(1) + usize::from(cue_rows > CUES_SHOWN);
+                log.recent(6usize.saturating_sub(overflow)).map(Entry::line).collect::<Vec<_>>().join("\n")
+            }
         };
         if text.0 != next {
             text.0 = next;

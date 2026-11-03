@@ -257,6 +257,79 @@ fn problems_names_each_mistake() {
     let _ = table;
 }
 
+/// **The mix table's report names every mistake it knows, and the doc above it lists the same nine.**
+///
+/// `MusicScore::problems` has had this test since iteration 34, after its doc named four of its nine checks. The mix
+/// table's doc named **six of its nine**, and four of the nine sentences had no test at all — measured by fixed-string
+/// search over `tests/`: `master_db is not a number`, `a bus has no name`, `a bus ... has a gain that is not a number`,
+/// and `a duck ... has a hold or fade that is negative`. A sentence nothing reaches is what an author trusts instead of
+/// the sound, unread.
+///
+/// The mutation is any of the nine `out.push` lines in `src/mix.rs::problems`, which reddens the assertion naming it.
+#[test]
+fn problems_names_every_mistake() {
+    let settings = |buses: Vec<BusLevel>, ducks: Vec<Duck>, master_db: f32, max_voices: u16| SirenSettings {
+        master_db,
+        max_voices,
+        buses,
+        ducks,
+        ..SirenSettings::default()
+    };
+    let music = || BusLevel::new("Music");
+
+    // One table, every fault it can hold. Faults that cannot coexist — a bus named and unnamed, `max_voices` zero and
+    // not — are two tables, because one would hide the other's sentence behind an earlier `else if`.
+    let named = SirenSettings {
+        master_db: f32::NAN,
+        max_voices: 0,
+        buses: vec![
+            music(),
+            music(),                                    // listed more than once
+            BusLevel::new("  "),                        // no name
+            BusLevel::new("Effects").gain_db(f32::NAN), // a gain that is not a number
+        ],
+        ducks: vec![
+            Duck::new("Nope", "Music"),               // starts on a bus the table does not have
+            Duck::new("Music", "Nope"),               // lowers a bus the table does not have
+            Duck::new("Music", "Effects").by_db(3.0), // raises rather than lowers
+            Duck { hold_s: -1.0, ..Duck::new("Music", "Effects") }, // a hold that is negative
+        ],
+        ..SirenSettings::default()
+    };
+    let reported = named.problems();
+    for (needle, what) in [
+        ("max_voices is 0", "a budget of zero"),
+        ("master_db is not a number", "a master that is not a number"),
+        ("a bus has no name", "a bus with no name"),
+        ("`Music` is listed more than once", "a duplicate bus"),
+        ("bus `Effects` has a gain that is not a number", "a bus gain that is not a number"),
+        ("a duck starts on bus `Nope`", "a duck starting on a bus that is not there"),
+        ("a duck lowers bus `Nope`", "a duck lowering a bus that is not there"),
+        ("raises it by 3", "a duck that raises"),
+        ("has a hold or fade that is negative or not a number", "a duck hold that is negative"),
+    ] {
+        assert!(reported.iter().any(|s| s.contains(needle)), "the report names {what}: {reported:?}");
+    }
+
+    // **Each sentence is its own fault, not a side effect of another.** A table with only the duplicate bus reports
+    // only the duplicate, so no assertion above can pass because some unrelated fault happened to print the words.
+    let only_duplicate = settings(vec![music(), music()], vec![], 0.0, 8).problems();
+    assert_eq!(only_duplicate.len(), 1, "{only_duplicate:?}");
+    assert!(only_duplicate[0].contains("listed more than once"), "{only_duplicate:?}");
+
+    // **A duck whose hold is not a number** — the other half of the last sentence, which `-1.0` alone would not cover.
+    let nan_hold =
+        settings(vec![music()], vec![Duck { fade_s: f32::NAN, ..Duck::new("Music", "Music") }], 0.0, 8);
+    assert!(
+        nan_hold.problems().iter().any(|s| s.contains("hold or fade that is negative or not a number")),
+        "{:?}",
+        nan_hold.problems()
+    );
+
+    // **And a good table says nothing**, which is what makes every sentence above a fault rather than a habit.
+    assert!(SirenSettings::default().problems().is_empty(), "{:?}", SirenSettings::default().problems());
+}
+
 /// **Several requests in one frame respect the bus cap together.** A snapshot of the live voices taken before the
 /// loop lets three requests in one frame each see an empty bus and all three play, which is the cap broken by the
 /// very frame that asked most for it. The budget is re-counted per request, including the voices this frame made.
