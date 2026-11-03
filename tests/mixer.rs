@@ -22,6 +22,8 @@ use bevy_siren::{
     Voice,
 };
 
+use crate::helpers::{app, sounds};
+
 use crate::helpers::{advance, played, refused, run_for, voices};
 
 /// The crate's own mixer, as far as the crate can see it: it starts a voice on a bus and answers whether that
@@ -379,4 +381,57 @@ fn a_slot_is_reused_and_a_stale_index_addresses_nothing() {
     assert!(backend.finished("Effects", stale), "a stale name has ended");
     backend.set_voice_db("Effects", stale, -80.0);
     backend.stop_voice("Effects", stale);
+}
+
+/// **A voice whose entity is despawned frees its mixer slot.**
+///
+/// The mixer's number for a voice lives in a component on the voice entity, so despawning that entity — which is what
+/// happens when a game despawns the parent a `Play::on` sound belongs to — destroyed the number and left the `rodio`
+/// player sounding with its slot held **for ever**. Measured before this: one voice started, the owner despawned,
+/// `stop_voice` **never called**. Bevy's path was never affected (the sink is a component on the same entity, so it dies
+/// with it); this is the two-backend divergence the crate promises not to have.
+#[test]
+fn a_despawned_voices_mixer_slot_is_freed() {
+    use bevy_siren::SirenMix;
+
+    let fake = FakeOutput::default();
+    let stopped = fake.stopped.clone();
+    let started = fake.started.clone();
+    let mut app = app(
+        CueTable::new(vec![Cue {
+            sounds: vec![SoundSlot::new("engine")],
+            mode: Mode::Loop,
+            ..Cue::new("engine")
+        }]),
+        SirenSettings::default(),
+        sounds(&["engine"]),
+        false,
+    );
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<AudioSource>>()
+        .add(AudioSource { bytes: Arc::from(vec![0u8; 64]) });
+    app.insert_resource(SirenSounds::new());
+    app.world_mut().resource_mut::<SirenSounds>().insert("engine", handle);
+    app.insert_resource(Output(Box::new(fake)));
+    app.insert_resource(Backend(true));
+
+    // Parented to an entity, as `Play::on` does for an engine on its vehicle.
+    let owner = app.world_mut().spawn_empty().id();
+    app.update();
+    app.world_mut().write_message(Play::cue("engine").on(owner));
+    run_for(&mut app, 0.1, 1.0 / 60.0);
+    assert_eq!(started.lock().unwrap().len(), 1, "the mixer started one voice");
+    assert!(stopped.lock().unwrap().is_empty(), "and it is playing, so nothing stopped it");
+
+    // The owner is despawned: the voice goes with it.
+    app.world_mut().entity_mut(owner).despawn();
+    run_for(&mut app, 0.1, 1.0 / 60.0);
+
+    assert_eq!(
+        *stopped.lock().unwrap(),
+        vec![0],
+        "the mixer slot is freed, once, because the entity it belonged to is gone"
+    );
+    assert_eq!(app.world().resource::<SirenMix>().voices_on("Effects"), 0, "and the mix counts none");
 }

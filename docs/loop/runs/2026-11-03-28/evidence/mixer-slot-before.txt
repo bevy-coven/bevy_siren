@@ -1,0 +1,5 @@
+mixer voices started:            1
+owner alive, 10 frames:          stop_voice []   (a live voice must not be stopped)
+owner despawned, 10 frames:      stop_voice []   (the slot must be freed)
+mix voices on Effects:           0
+log: ["0.02s played `engine` (engine) on Effects at 0.0 dB"]

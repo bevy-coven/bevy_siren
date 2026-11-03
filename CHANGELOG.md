@@ -20,6 +20,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A voice whose entity is despawned frees its mixer slot.** `Play::on(entity)` parents the voice to a game entity, and
+  despawning that entity is the ordinary way a parented sound ends. On Bevy's path the sink is a component on the voice's
+  own entity and dies with it; on the crate's own mixer the voice's number was also a component there, so the despawn
+  destroyed the number and **`stop_voice` was never called** — the `rodio` player kept sounding with its slot held for the
+  life of the process, and the two backends answered differently from the same input. `start_pending` now keeps the starts
+  it handed out in a `Local` and, once per frame, stops any whose entity is no longer in the world. No public type changed;
+  Bevy's path is untouched.
+
 - **A duck ends its hold when the voice that justified it stops.** `Duck`'s own doc says a duck holds for `hold_s`
   *"because a voice starting on `source`"* is playing; `DuckClock` ran the full hold whatever happened to the source, so a
   line stopped on frame 0 kept `Music` at −8 dB for another 15 frames and then spent 0.6 s recovering — **0.85 s of duck
@@ -74,6 +82,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
 
 ### Fixed
+
+- **A voice whose entity is despawned frees its mixer slot.** `Play::on(entity)` parents the voice to a game entity, and
+  despawning that entity is the ordinary way a parented sound ends. On Bevy's path the sink is a component on the voice's
+  own entity and dies with it; on the crate's own mixer the voice's number was also a component there, so the despawn
+  destroyed the number and **`stop_voice` was never called** — the `rodio` player kept sounding with its slot held for the
+  life of the process, and the two backends answered differently from the same input. `start_pending` now keeps the starts
+  it handed out in a `Local` and, once per frame, stops any whose entity is no longer in the world. No public type changed;
+  Bevy's path is untouched.
 
 - **A duck ends its hold when the voice that justified it stops.** `Duck`'s own doc says a duck holds for `hold_s`
   *"because a voice starting on `source`"* is playing; `DuckClock` ran the full hold whatever happened to the source, so a
@@ -255,6 +271,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A voice whose entity is despawned frees its mixer slot.** `Play::on(entity)` parents the voice to a game entity, and
+  despawning that entity is the ordinary way a parented sound ends. On Bevy's path the sink is a component on the voice's
+  own entity and dies with it; on the crate's own mixer the voice's number was also a component there, so the despawn
+  destroyed the number and **`stop_voice` was never called** — the `rodio` player kept sounding with its slot held for the
+  life of the process, and the two backends answered differently from the same input. `start_pending` now keeps the starts
+  it handed out in a `Local` and, once per frame, stops any whose entity is no longer in the world. No public type changed;
+  Bevy's path is untouched.
+
 - **A duck ends its hold when the voice that justified it stops.** `Duck`'s own doc says a duck holds for `hold_s`
   *"because a voice starting on `source`"* is playing; `DuckClock` ran the full hold whatever happened to the source, so a
   line stopped on frame 0 kept `Music` at −8 dB for another 15 frames and then spent 0.6 s recovering — **0.85 s of duck
@@ -324,6 +348,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 The first release: sound for Bevy 0.20 as data, mixed in buses.
 
 ### Fixed
+
+- **A voice whose entity is despawned frees its mixer slot.** `Play::on(entity)` parents the voice to a game entity, and
+  despawning that entity is the ordinary way a parented sound ends. On Bevy's path the sink is a component on the voice's
+  own entity and dies with it; on the crate's own mixer the voice's number was also a component there, so the despawn
+  destroyed the number and **`stop_voice` was never called** — the `rodio` player kept sounding with its slot held for the
+  life of the process, and the two backends answered differently from the same input. `start_pending` now keeps the starts
+  it handed out in a `Local` and, once per frame, stops any whose entity is no longer in the world. No public type changed;
+  Bevy's path is untouched.
 
 - **A duck ends its hold when the voice that justified it stops.** `Duck`'s own doc says a duck holds for `hold_s`
   *"because a voice starting on `source`"* is playing; `DuckClock` ran the full hold whatever happened to the source, so a

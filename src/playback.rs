@@ -33,6 +33,14 @@ pub fn start_pending(
     assets: Option<Res<Assets<AudioSource>>>,
     table: Res<CueTable>,
     waiting: Query<(Entity, &Voice, &Samples), Without<MixerVoice>>,
+    // **Every voice the mixer is playing right now**, which is what `waiting` is not: a started voice carries a
+    // [`MixerVoice`] and the query above skips it.
+    playing: Query<(Entity, &MixerVoice, &Voice)>,
+    // **The starts this system handed out, kept where the entity cannot take them with it.** A voice's mixer number
+    // lives in a component on the voice entity, so despawning that entity — which is what happens when a game despawns
+    // the parent a `Play::on` sound belongs to — destroys the number and leaves the `rodio` player sounding with its slot
+    // held for ever. Measured: one voice started, the owner despawned, `stop_voice` **never called**.
+    mut starts: Local<Vec<(Entity, String, usize)>>,
     mut refused: MessageWriter<Refused>,
     mut log: ResMut<SirenLog>,
     real: Res<Time<Real>>,
@@ -40,6 +48,16 @@ pub fn start_pending(
     let (Some(mut output), Some(assets)) = (output, assets) else {
         return;
     };
+    // **Stop whatever the world has taken.** A start whose entity is not among `playing` was despawned by its owner;
+    // its slot must be freed, exactly as `retire_voices` frees one whose sample ended. One retain over the starts this
+    // system made, and no per-frame allocation beyond the list it already keeps.
+    starts.retain(|(entity, bus, index)| {
+        if playing.get(*entity).is_ok() {
+            return true;
+        }
+        output.0.stop_voice(bus, *index);
+        false
+    });
     let now = real.elapsed_secs_f64();
     for (entity, voice, samples) in &waiting {
         let Some(source) = assets.get(&samples.0) else {
@@ -59,6 +77,7 @@ pub fn start_pending(
         );
         match started {
             Some(index) => {
+                starts.push((entity, voice.bus.clone(), index));
                 commands.entity(entity).insert((MixerVoice(index), crate::play::Completes::default()));
             }
             None => {
