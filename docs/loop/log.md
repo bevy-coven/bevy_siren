@@ -50,7 +50,9 @@ half. (3) A perf figure from one run on a machine at load 16 is a scheduler meas
 (4) A test file behind a feature gate can run zero tests under a filter that misses — count the result, do not read "ok".
 (5) `hs distill` GPU-blocked (twenty-first iteration).
 
-**Commit.** `see git log`; CI on `main`.
+**Commit.** `51e9bf3`, pushed to `main`; CI run 41588637059 is **success** on `big-s1`. Gate: build, test (101 + 5),
+serde (108 + 5), mixer (109 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (blocker above, re-confirmed this iteration: the same two compile errors).
 
 **Next 5.**
 
