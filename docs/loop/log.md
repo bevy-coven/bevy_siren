@@ -49,7 +49,7 @@ sentence. Every bus row under it reads `2 / 4`, agreeing with the sentence.
 47's still in the file; the older one was deleted and the survivor rewritten to assert the sentence rather than the
 silence it used to pin.
 
-**Commit.** (see `git log`).
+**Commit.** `1486c4b` — *mix: a bus cap above the table's budget is reported*.
 
 **Top 5 remaining**
 
