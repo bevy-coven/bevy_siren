@@ -7,6 +7,11 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`tools::audition`** — `#30`'s library half. Given an indexed asset, a library and a bus, it returns an `Audition { cue,
+  play }`: a cue named `audition.<hash>` (so the same asset always auditions under the same name) with **one** sound slot,
+  and **exactly one** `Play` for the caller to send. It never plays anything itself, so `play_requests` remains the only
+  place a voice starts. `AuditionProblem` distinguishes an asset that is not indexed from one the library no longer holds,
+  because the two need different fixes.
 - **`tools::MAX_K` and `tools::check_k`** — ADR 0007's bound: every list-returning tool returns at most `k`, `k` is
   capped at **100** (**design default**), and a bad `k` is refused *before* any work happens. `ToolProblem::BadK` names
   the valid range. A `k` with no ceiling is an unbounded list with a friendlier name.

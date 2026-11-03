@@ -436,3 +436,100 @@ pub fn features_by_hash(index: &Index) -> BTreeMap<u64, Features> {
 pub fn stamp_of(index: &Index) -> ModelStamp {
     index.stamp.clone()
 }
+
+/// **The cue name an auditioned asset plays under**, derived from its content hash so the same asset always auditions
+/// under the same name — and so two auditions of one asset are the same cue rather than two.
+///
+/// Prefixed so it cannot collide with a project's own cue names by accident: a project's cues are authored, and
+/// `audition.` is a namespace the crate owns.
+pub fn audition_cue_name(asset: u64) -> String {
+    format!("audition.{asset:016x}")
+}
+
+/// **A cue that plays one indexed asset**, for an audition to name.
+///
+/// `#30`'s rule is that an audition goes **through the crate's existing messages** rather than opening a second way to
+/// play audio: one writer per voice gain, and every play answers exactly one of `Played`/`Refused`. So this builds the
+/// cue — a name, one sound slot, and the bus — and the caller sends a `Play` naming it. Nothing here touches a sink.
+///
+/// `bus` is the cue's own bus, **`""` meaning Effects**, which is the crate's default. An unknown bus is not checked
+/// here: the play path already refuses `UnknownBus` and names it, and a second check would be a second set of rules.
+pub fn audition_cue(asset: u64, sound: &str, bus: &str) -> crate::cue::Cue {
+    // Built from `Cue::new` rather than a struct literal, so a field added to `Cue` later takes **its own** default here
+    // instead of needing this function edited — a second place that constructs a cue is a second place to forget.
+    let mut cue = crate::cue::Cue::new(audition_cue_name(asset));
+    cue.sounds = vec![crate::cue::SoundSlot::new(sound)];
+    cue.bus = bus.to_string();
+    // **One instance, and not spatial**: an audition is one sound in the listener's ear, not a thing in a world. A
+    // project can raise `max_instances` on the cue it holds if it wants to compare two takes at once.
+    cue.max_instances = 1;
+    cue
+}
+
+/// **Why an audition did not happen**, distinct from a play that was refused.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AuditionProblem {
+    /// The asset is not in the index, carrying its hash.
+    NotIndexed {
+        /// The hash.
+        asset: u64,
+    },
+    /// The index holds the asset but the library scan did not find a path for it, so there is nothing to load.
+    NoPath {
+        /// The hash.
+        asset: u64,
+    },
+}
+
+impl core::fmt::Display for AuditionProblem {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            AuditionProblem::NotIndexed { asset } => {
+                write!(f, "asset {asset:016x} is not in this index: build it, or index the file")
+            }
+            AuditionProblem::NoPath { asset } => write!(
+                f,
+                "asset {asset:016x} is indexed but no file on disk holds it: the library changed since the index was \
+                 built, so rebuild it"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for AuditionProblem {}
+
+/// **An audition request**: the cue to send and the `Play` that names it.
+///
+/// `#30`'s acceptance is that *"an audition produces exactly one `Played` (or one `Refused`), never both and never
+/// silence"*, and *"no code path outside `play_requests` starts an audition"*. Both are structural here: this returns a
+/// **`Play` for the caller to send** and never plays anything itself, so the plugin's single drain point is still the
+/// only place a voice starts.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Audition {
+    /// The cue the play names, so a caller can add it to its `CueTable`.
+    pub cue: crate::cue::Cue,
+    /// The play to send. **Exactly one**, by construction.
+    pub play: crate::play::Play,
+}
+
+/// **Prepare an audition of an indexed asset** — `#30`'s library half.
+///
+/// `sound` is the key the loader maps to a file; `library` is what gives an asset its path. Both are the caller's,
+/// because this crate does not own a project's asset loading — it owns the cue and the message.
+pub fn audition(
+    index: &Index,
+    asset: u64,
+    library: &crate::library::Library,
+    sound: &str,
+    bus: &str,
+) -> Result<Audition, AuditionProblem> {
+    if !index.records.contains_key(&asset) {
+        return Err(AuditionProblem::NotIndexed { asset });
+    }
+    if !library.assets.contains_key(&asset) {
+        return Err(AuditionProblem::NoPath { asset });
+    }
+    let cue = audition_cue(asset, sound, bus);
+    let play = crate::play::Play::cue(cue.name.clone());
+    Ok(Audition { cue, play })
+}

@@ -306,3 +306,67 @@ fn a_bad_k_is_refused() {
         Err(bevy_siren::semantic::tools::ToolProblem::BadK { .. })
     ));
 }
+
+/// **`#30`: an audition produces exactly one `Play` for the crate's own play path, and never starts a voice itself.**
+#[test]
+fn an_audition_produces_exactly_one_play_through_the_existing_path() {
+    use bevy_siren::semantic::tools::{AuditionProblem, audition, audition_cue_name};
+
+    let index = index();
+    let mut library = bevy_siren::library::Library::default();
+    library.assets.insert(
+        2,
+        bevy_siren::library::Asset {
+            paths: vec![std::path::PathBuf::from("footstep_stone.wav")],
+            hash: 2,
+            bytes: 4_096,
+            sample_rate: Some(48_000),
+            channels: Some(1),
+        },
+    );
+
+    let prepared = audition(&index, 2, &library, "footstep_stone", "Effects").expect("a prepared audition");
+
+    // **One play, naming one cue.** `Play` is a struct, so "exactly one" is structural rather than counted.
+    assert_eq!(prepared.play.cue, prepared.cue.name);
+    assert_eq!(prepared.cue.name, audition_cue_name(2));
+    assert_eq!(prepared.cue.sounds.len(), 1, "one sound, so a retry cannot double-play two");
+    assert_eq!(prepared.cue.bus, "Effects");
+
+    // **The same asset auditions under the same name**, so two auditions are one cue rather than two.
+    let again = audition(&index, 2, &library, "footstep_stone", "Effects").expect("again");
+    assert_eq!(again.cue.name, prepared.cue.name);
+
+    // A different asset is a different cue.
+    let other = audition(&index, 3, &library, "gun_burst", "Effects");
+    assert!(
+        matches!(other, Err(AuditionProblem::NoPath { asset: 3 })),
+        "asset 3 is not in the library: {other:?}"
+    );
+
+    // **One instance and not spatial**: an audition is one sound in the listener's ear.
+    assert_eq!(prepared.cue.max_instances, 1);
+    assert!(!prepared.cue.spatial);
+}
+
+/// An audition names what is missing rather than playing silence.
+#[test]
+fn an_audition_names_what_is_missing() {
+    use bevy_siren::semantic::tools::{AuditionProblem, audition};
+
+    let index = index();
+    let library = bevy_siren::library::Library::default();
+
+    // Not in the index at all.
+    match audition(&index, 99, &library, "x", "Effects") {
+        Err(AuditionProblem::NotIndexed { asset }) => assert_eq!(asset, 99),
+        other => panic!("expected NotIndexed, got {other:?}"),
+    }
+    // In the index, but no file holds it — the library changed since the index was built.
+    match audition(&index, 2, &library, "x", "Effects") {
+        Err(AuditionProblem::NoPath { asset }) => assert_eq!(asset, 2),
+        other => panic!("expected NoPath, got {other:?}"),
+    }
+    assert!(AuditionProblem::NotIndexed { asset: 1 }.to_string().contains("not in this index"));
+    assert!(AuditionProblem::NoPath { asset: 1 }.to_string().contains("rebuild it"));
+}
