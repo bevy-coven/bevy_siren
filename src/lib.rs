@@ -83,6 +83,7 @@
 use bevy::prelude::*;
 
 pub mod cue;
+pub mod library;
 pub mod log;
 pub mod mix;
 pub mod model;

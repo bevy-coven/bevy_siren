@@ -7,6 +7,7 @@
 
 mod helpers;
 mod leaf;
+mod library;
 mod mix;
 #[cfg(feature = "mixer")]
 mod mixer;
