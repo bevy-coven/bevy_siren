@@ -45,7 +45,11 @@ caller data: a layer may name a cue the table lacks, and that case is reported e
 with a **different correct answer** is how to prove a number is computed rather than typed. (5) `hs distill` GPU-blocked
 (thirty-seventh iteration).
 
-**Commit.** `2a94b2a`; CI on `main`.
+**Commit.** `2a94b2a` (+ `012c71a`), pushed to `main`. CI run **41601066231 is success** on `big-s1`, covering `HEAD`.
+The code commit's own run (`41601006025`) shows **cancelled** with no jobs — the workflow's concurrency group cancelled it
+when the docs commit landed 29 s later; that is normal for a push-per-branch group, not a failure. Gate: build, test
+(119 + 5), serde (126 + 5), mixer (128 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green.
+The Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
