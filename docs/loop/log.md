@@ -7,6 +7,74 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 39 — 2026-11-03 — the panel shows a refusal
+
+**Change.**
+
+- **`examples/mixer.rs` — a `refuse` step**, `Play::cue("no.such.cue")` → `Refusal::UnknownCue`, **in the default script**
+  after `duck`. The still now opens its log with `refused \`no.such.cue\`: no cue of that name`.
+- **The log's line count follows the `Problems` block**: seven when clean, **four** when it has faults — measured, the
+  fault table costs three log lines and seven leaves a 1 px margin.
+- The GIF is captured at native 1280; `docs/media/README.md` and a CHANGELOG line.
+
+**Why.** Iteration 38's lead: the panel's claim is *"the log of what played and why"*, and the scripted run **never
+refused anything** — `steal` steals, `duck` ducks, `layer` moves, every step plays. So the `Log` block had never drawn a
+`Refused` line, the one message the skill calls the most valuable.
+
+**Evidence.** `runs/2026-11-03-39/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/panel/{refusal-1280,zoom-refusal,zoom-log-95,faults-final,zoom-tail-faults}.png`.
+
+**Measured.**
+
+| row | before | after |
+|---|---|---|
+| a refusal in the log | **never** | `refused \`no.such.cue\`: no cue of that name`, at the top |
+| the default script | `steal,layer,duck` | `steal,layer,duck,**refuse**` |
+| fault table, 7 log lines | — | margin **1 px — clipped** |
+| fault table, 5 | — | **1 px** |
+| fault table, 4 | — | **11 px** |
+| the clean still | 7 lines, 11 px | 7 lines, 11 px |
+| the GIF | 960 wide (down-scaled) | **1280, native** |
+| every test, both feature sets | — | unchanged (119 / 126 / 128 + 5) |
+| every rendered cue | — | **byte-identical** (21/21) |
+| frame cost, 8 / 64 / 256 | — | 0.063 / 0.357 / 1.355 µs, load 4.6–4.2; no `src/` line moved |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. **Three things I got wrong and recorded:** (1) I read a clipped
+last line in a **crop** and called it the panel's — the window measures 11 px. (2) I computed the fault table's overflow as
+−59 px from row heights while the pixel scan said 1 px; the scan was right, my arithmetic was the wrong model. (3) I assumed
+the GIF's 960 down-scale caused the wrap; the fault table overflows at 1280 too. **And the GIF's first frame is at 88,
+before the refusal at 90** — the still proves the line, the GIF proves the layout.
+
+**Traps for the command.** (1) A showcase can be **complete and still not show its own subject**: three steps, ten
+iterations, and none of them ever refused. Ask *"what does this panel claim, and which line of it has never been
+rendered?"* (2) **A crop's edge is not the window's** — measure the capture, not the snippet. (3) Row-height arithmetic is
+a **model**; when it disagrees with a pixel scan by 60 px, the model is wrong. (4) A **down-scale** changes what fits: a
+960-wide GIF wraps lines the 1280 panel does not, so capture at native size. (5) `hs distill` GPU-blocked (thirty-eighth
+iteration).
+
+**Commit.** `f40ff6e`; CI on `main`.
+
+**Next 5.**
+
+1. **A `Stopped` line for a parent's despawn** — neither backend writes one; the log keeps `played` and nothing else.
+2. **Answer or route around the `CueProblem` question** — **seven** items wait on it.
+3. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+5. A gain above 0 dB — `needs-decision/above-unity-gain.md`, recommendation to **not** add it.
+
+**The hunt, twenty-eighth pass.** The panel now shows all five kinds of entry: `played`, `stopped`, `ducked`, `refused`, and
+the score. What it has **never** shown is the **stinger** — `MusicState` and `Play` both know one, the example's table has
+`music.stinger`, and no step plays it. The next run should stage it and check that the duck it arms (`by "stinger"`) is
+visible on the `Music` row, which is the one duck whose cause is not a cue.
+
+**Baseline note.** Nothing was red; the suite had 119 tests. `cues.yaml` case 31 is red by design. **Disk 9.8 GB free** —
+the tightest this loop has recorded; a release build would need a clean-up first.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 38 — 2026-11-03 — the header counts what the panel shows
 
 **Change.**
