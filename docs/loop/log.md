@@ -7,6 +7,87 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 23 — 2026-11-03 — the seed the stream was built from
+
+**Change.**
+
+- **`src/model.rs` — `Rng::ZERO_SEED` and `Rng::seed()`.** `Rng` was a bare `u64` holding the live xorshift state; it now
+  also remembers the seed it was **built from**, so `seed()` answers a number that does not move as the stream draws.
+- **`src/play.rs` — `SirenChoices::new` records `rng.seed()`**, so `SirenChoices::seed()` — *"the seed this stream was
+  built from"* — is true by construction.
+- Four tests; a paragraph in `docs/guide/cues.md`; a CHANGELOG line; and `needs-decision/empty-sound-key.md` for a
+  separate gap found while probing.
+
+**Why.** `Rng::new(0)` maps a zero state to `0x5EED_51AE_0000_0001`, which is **also**
+`SirenSettings::default_seed()`. So `seed: 0` and the default are **one stream**, and `SirenChoices::seed()` reported the
+argument — `0` — for a stream that started somewhere else. Two identical streams wearing two different numbers, and the
+one that says `0` is a lie. The reproducibility promise is the crate's own stated reason for a seeded stream (*"a sound
+that cannot be reproduced cannot be debugged"*), so the report has to name the seed the sound came from.
+
+**Evidence.** `runs/2026-11-03-23/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/seed{,-before}.txt`.
+
+**Measured.**
+
+| settings | before: `seed()` | after |
+|---|---|---|
+| `seed: 0` | **`0`** — a number the stream did not come from | `6840213216811810817` |
+| default seed (guard) | `6840213216811810817` | `6840213216811810817` |
+| `seed: 1` (guard) | `1` | `1` |
+| every rendered cue, the mix | — | **byte-identical** (21/21); `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| frame cost, 8 / 64 / 256 | median 1.31 µs at 256 | median 1.391 µs, load 10.2–17.5 — within the spread; the change is one `u64` written once |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. A defect in my own first attempt is recorded: `Rng::seed()`
+initially read the **live** xorshift state, which changes on every draw — the test
+`a_streams_seed_does_not_move_as_it_draws` fails against that version and is why it exists.
+
+**Traps for the command.** (1) A **sentinel** that collides with a real value is a lie waiting to be told: `0` mapping to
+the default seed's constant means two names for one stream, and the report must name the value the stream holds.
+(2) A method documented as *"the seed this stream was built from"* must read something that **does not move** — the live
+state is the wrong field. (3) A lead that comes back **clean** is a result: the `Rng` stream is uniform, long, and never
+returns 1.0, so the index clamp is defensive — written down so the next iteration does not re-probe it. (4) Check a new
+name against **every** other name check: bus names and cue names are trimmed-checked, a slot's `sound` key is not.
+(5) `hs distill` GPU-blocked (twenty-second iteration).
+
+**Commit.** `7aff968`; CI on `main`.
+
+**Next 5.**
+
+1. **`CueProblem` for an empty `sound` key** — `needs-decision/empty-sound-key.md`; it plays and is not reported.
+2. **`CueProblem` for a duplicate key** — `needs-decision/duplicate-sound-problem.md` (iteration 22).
+3. **`CueProblem::BadGain`** — `needs-decision/bad-gain-problem.md`; `cues.yaml` case 31 is red until it lands.
+4. **`Refusal::NotALoop { layer, cue }`** — `needs-decision/not-a-loop-refusal.md` (iteration 16).
+5. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+
+**The hunt, twelfth pass.** The **seed** class is now closed: the mapping is named, reported, and pinned as behaviour.
+Four `CueProblem` variants are waiting on one public-enum decision, and the loop should stop re-finding them.
+
+Probed the **cue table as a replaced resource** — `CueTable` is a `Resource`, and iterations 13/14 fixed `SirenSettings`
+and `MusicScore` replacements, so this was the last one:
+
+```
+table swapped for one with no `old`, then StopCue { cue: "old" }
+  40 frames later:  []       no voice, no `Stopping`
+  no swap, same test:  []    identical
+  log: stopped `old`: cue stopped   played `old` (a) on Effects at 0.0 dB
+```
+
+**Clean.** A voice outlives the table that named it, fades, and despawns exactly as it does without the swap — which is
+right: the voice's own `Voice` record carries what it needs, and nothing reads the table on the way out. My first probe
+reported `live 1` only because it counted `&Voice` without excluding `Stopping`, which is the same mistake this loop has
+caught before; the corrected probe is the one above.
+
+**Next probe:** the **`SirenLog` cap under a burst** — `CAPACITY` is 256 and `push` evicts the oldest, but nothing asserts
+that the entry a panel is *currently drawing* survives a frame that writes 300 entries, or that `recent(n)` with `n`
+larger than the buffer returns what it has rather than panicking.
+
+**Baseline note.** Nothing was red; the suite had 101 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 22 — 2026-11-03 — `AvoidRepeat` avoids the sound, not the slot index
 
 **Change.**
