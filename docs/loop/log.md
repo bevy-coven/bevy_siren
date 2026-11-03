@@ -49,7 +49,9 @@ depends on, not just the buffer's size and accessors — the arithmetic was righ
 awkward tempos, and every no-ears spatial shape. A clean probe is a result. (5) `hs distill` GPU-blocked (twenty-third
 iteration).
 
-**Commit.** `200a119`; CI on `main`.
+**Commit.** `200a119`, pushed to `main`; CI run 41591975363 is **success** on `big-s1`. Gate: build, test (109 + 5),
+serde (116 + 5), mixer (117 + 5), doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The
+Cauldron's panel test still **cannot** run (iteration 21's blocker, unchanged).
 
 **Next 5.**
 
