@@ -7,6 +7,62 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 58 — 2026-11-03 — a layer change that names nothing says so
+
+**Baseline.** Green on every step, no open issues. Nothing red.
+
+**Change.** `move_layers`' `if let Some(layer) = …find(..)` became a `let … else` writing
+``refused `{name}`: this score has no layer `{name}`, so the change names nothing``. Plus `SIREN_LAYER=typo` in
+`examples/mixer`, its capture, the guide's paragraph, and a CHANGELOG entry.
+
+**Rationale.** `MusicLayers` was the one message in the crate with **no failure path at all**: no `Refusal` arm, no log,
+no counter. `find` returning `None` inside an `if let` reads as *"apply it if the layer exists"* — true, and hiding that
+the caller's whole intent was discarded. A typo in a layer name was a change that did nothing and said nothing, which is
+exactly what `src/lib.rs:50` promises the crate never does.
+
+| | log |
+|---|---|
+| before | **only the layers' own `played` lines** — nothing about the typo |
+| after | ``refused `cmobat`: this score has no layer `cmobat`, so the change names nothing`` |
+| a real layer in the same change | still moves to its target |
+| tests | 156 / 164 / 166 + 6 |
+| after | **157 / 165 / 167 + 6** |
+
+**Why the log and not a new `Refusal` variant.** The score is not the mix table, so `UnknownBus` would be a false
+sentence; a new variant is the public-enum break three open decisions already wait on. Iteration 9 set this route for the
+stinger's wrong bus. The entry is a `Refused`, and the log's own rule — *"a refusal outlives a play"* — means a busy scene
+cannot scroll it away.
+
+**Three probes that passed**, all deleted rather than kept: a stinger's duck recovering after its voice is gone, a deeper
+stinger handing back to a shallower dialogue duck, and a negative/`NaN` `duck_s` still recovering.
+
+**Three captures before one worked, each failure informative.** The panel shows the newest **six** log lines, and the
+layer step fires on the bar: 96 frames landed it at the very end; 200 frames fired it but scrolled it out behind later
+plays; `SIREN_KEYS=layer SIREN_KEY_EVERY=200` fires it **once**, and `docs/media/mixer-layer-typo.png` then shows
+`combat -3.0 dB` and the refusal sentence on one screen.
+
+**Nothing audible moved**: `bus-Music` still `duck -8.0 dB, deepest -7.96 dB, recovered by 1.97 s`; `mix.wav` still
+−18.6 LUFS at −6.1 dBFS; the music cue's spectrogram is a clean attack with silence after 0.85 s.
+
+**Evidence.** `runs/2026-11-03-58/`: `research.md` (S1 `MusicLayers`' doc, S2 the crate's "nothing plays with no
+explanation", S3 iteration 9's log-not-variant precedent, S4 the `if let` trap, S5 the log's eviction rule), `plan.md`,
+`perf.md`, `eval.md`, `review.md` (three passes, GREAT), `evidence/{panel,spectrograms,after}`, and
+`docs/media/mixer-layer-typo.png`.
+
+**Commit.** (see `git log`).
+
+**Top 5 remaining**
+
+1. `cues.yaml` case 31 — a non-finite cue `gain_db` is neutralised silently — **blocked** on
+   `needs-decision/bad-gain-problem.md`.
+2. **`AvoidRepeat`'s window that cannot be honoured is unreported** — `pick_from`'s comment promises `problems()` names
+   it; probed `problems: []` for two sounds at `avoid: 5`. Same open enum decision.
+3. **A stinger on the wrong bus writes only a log line, not a `Refused`** — `needs-decision/stinger-refusal.md`; a host
+   reading `Refused` sees an unknown-cue stinger but not a wrong-bus one. (This iteration shows the log route works, but
+   a program still cannot react.)
+4. `load_table` does not call `retain_keys` itself — changes a documented contract; wants a decision file.
+5. `reset_histories` has no caller — a consumer item for `bevy_grimoire`.
+
 ## Iteration 57 — 2026-11-03 — a stinger that cannot dip does not claim it did
 
 **Baseline.** Green on every step, no open issues. Nothing red. `bevy_siren` **0.1.0 is published** (crates.io,

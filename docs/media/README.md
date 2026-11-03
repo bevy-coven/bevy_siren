@@ -56,6 +56,14 @@ so the bus never moves. The `Problems` block is that one sentence. It has its ow
 `overbudget` does: `SIREN_MIX=broken` already fills the three-sentence cap, and a fourth fault there would be the
 invisible `and 1 more` — a capture that cannot show a sentence does not prove it.
 
+![the panel naming a music layer the score does not have](mixer-layer-typo.png)
+
+`mixer-layer-typo.png` is `SIREN_LAYER=typo SIREN_KEYS=layer`, one `MusicLayers` change naming **two** layers: the real
+`combat`, which moves to `-3.0 dB`, and `cmobat`, which the score does not have. The log carries a sentence per fire —
+`refused `cmobat`: this score has no layer `cmobat`, so the change names nothing` — because `move_layers` used to drop a
+target `find` could not match with nothing said at all. `SIREN_KEY_EVERY=200` fires the step once so the line is still
+in the panel's six-line window when the still is taken.
+
 `mixer-waiting.png` is the same panel under `SIREN_TIGHT=1`, which gives the `Music` bus **one** voice: the score's second
 layer's `Play` is refused, so it becomes a **virtual voice** — Gregory §14.5.8's *"sound the game believes is playing but
 that has no hardware voice"* — and the block says `combat -80.0 dB waiting`. Without it the block drew `-80.0 dB` for a

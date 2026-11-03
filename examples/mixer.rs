@@ -811,13 +811,24 @@ fn stage(
             plays.write(Play::cue("no.such.cue"));
         }
         Step::Layer => {
-            layers.write(
-                MusicLayers::new(vec![
-                    ("combat".to_owned(), -3.0),
-                    ("calm".to_owned(), bevy_siren::model::SILENT_DB),
-                ])
-                .next_bar(),
-            );
+            // **`SIREN_LAYER=typo` names a layer the score does not have**, so the panel can show the sentence
+            // `move_layers` writes for it. Before this the change was dropped by `find` returning `None` with nothing
+            // said, which is the class of bug refusals exist to prevent — and a capture that cannot show a sentence
+            // does not prove it.
+            if std::env::var("SIREN_LAYER").is_ok_and(|v| v == "typo") {
+                layers.write(
+                    MusicLayers::new(vec![("combat".to_owned(), -3.0), ("cmobat".to_owned(), -12.0)])
+                        .next_bar(),
+                );
+            } else {
+                layers.write(
+                    MusicLayers::new(vec![
+                        ("combat".to_owned(), -3.0),
+                        ("calm".to_owned(), bevy_siren::model::SILENT_DB),
+                    ])
+                    .next_bar(),
+                );
+            }
         }
     }
 }

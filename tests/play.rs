@@ -1117,3 +1117,114 @@ fn a_raising_stinger_does_not_claim_a_duck() {
         "a +6 dB stinger claims no duck"
     );
 }
+/// **A `MusicLayers` change that names a layer the score does not have says so.**
+///
+/// `move_layers` does `state.layers.iter_mut().find(|l| l.name == name)` and drops the target when nothing matches — no
+/// log line, no refusal, nothing. A typo in a layer name is then a change that silently does nothing, which is the class
+/// of bug this crate's refusals exist to prevent.
+#[test]
+fn a_layer_change_naming_a_missing_layer_says_so() {
+    let mut app = app(
+        CueTable::new(vec![Cue {
+            sounds: vec![SoundSlot::new("calm")],
+            bus: "Music".to_owned(),
+            mode: Mode::Loop,
+            ..Cue::new("track.calm")
+        }]),
+        SirenSettings { max_voices: 32, ..SirenSettings::default() },
+        sounds(&["calm"]),
+        true,
+    );
+    app.insert_resource(bevy_siren::MusicScore {
+        layers: vec![bevy_siren::MusicLayer::new("calm", "track.calm")],
+        tempo_bpm: 120.0,
+        ..bevy_siren::MusicScore::default()
+    });
+    app.update();
+    app.world_mut().write_message(bevy_siren::MusicLayers::new(vec![("nope".to_owned(), -6.0)]));
+    app.update();
+    let lines: Vec<String> = app.world().resource::<SirenLog>().iter().map(|e| e.line()).collect();
+    assert!(
+        lines.iter().any(|l| l.contains("nope")),
+        "a change naming a layer the score does not have must be said: {lines:?}"
+    );
+}
+/// **A layer change that names a real layer still moves it and writes no refusal** — the non-regression.
+#[test]
+fn a_real_layer_change_moves_and_says_nothing() {
+    let mut app = app(
+        CueTable::new(vec![Cue {
+            sounds: vec![SoundSlot::new("calm")],
+            bus: "Music".to_owned(),
+            mode: Mode::Loop,
+            ..Cue::new("track.calm")
+        }]),
+        SirenSettings { max_voices: 32, ..SirenSettings::default() },
+        sounds(&["calm"]),
+        true,
+    );
+    app.insert_resource(bevy_siren::MusicScore {
+        layers: vec![bevy_siren::MusicLayer::new("calm", "track.calm")],
+        tempo_bpm: 120.0,
+        ..bevy_siren::MusicScore::default()
+    });
+    app.update();
+    app.world_mut().write_message(bevy_siren::MusicLayers::new(vec![("calm".to_owned(), -6.0)]));
+    app.update();
+    run_for(&mut app, 1.0, 0.016);
+
+    let state = app.world().resource::<bevy_siren::MusicState>();
+    let target = state.target_db("calm").expect("the layer exists");
+    assert!((target - -6.0).abs() < 1e-4, "the target moved: {target}");
+    let lines: Vec<String> = app.world().resource::<SirenLog>().iter().map(|e| e.line()).collect();
+    assert!(
+        !lines.iter().any(|l| l.contains("refused") && l.contains("calm")),
+        "a real layer is not refused: {lines:?}"
+    );
+}
+/// **The sentence names the layer the author typed and the score they typed it against**, which is what a person needs
+/// to fix the typo — and a valid layer in the same change still moves.
+#[test]
+fn a_typo_says_which_layer_and_a_real_one_still_moves() {
+    let mut app = app(
+        CueTable::new(vec![
+            Cue {
+                sounds: vec![SoundSlot::new("calm")],
+                bus: "Music".to_owned(),
+                mode: Mode::Loop,
+                ..Cue::new("track.calm")
+            },
+            Cue {
+                sounds: vec![SoundSlot::new("combat")],
+                bus: "Music".to_owned(),
+                mode: Mode::Loop,
+                ..Cue::new("track.combat")
+            },
+        ]),
+        SirenSettings { max_voices: 32, ..SirenSettings::default() },
+        sounds(&["calm", "combat"]),
+        true,
+    );
+    app.insert_resource(bevy_siren::MusicScore {
+        layers: vec![
+            bevy_siren::MusicLayer::new("calm", "track.calm"),
+            bevy_siren::MusicLayer::new("combat", "track.combat"),
+        ],
+        tempo_bpm: 120.0,
+        ..bevy_siren::MusicScore::default()
+    });
+    app.update();
+    // One change, two targets: a real layer and a typo. The real one must move; the typo must be named.
+    app.world_mut().write_message(bevy_siren::MusicLayers::new(vec![
+        ("combat".to_owned(), -3.0),
+        ("cmobat".to_owned(), -12.0),
+    ]));
+    app.update();
+
+    let state = app.world().resource::<bevy_siren::MusicState>();
+    assert_eq!(state.target_db("combat"), Some(-3.0), "the real layer still moves");
+    let lines: Vec<String> = app.world().resource::<SirenLog>().iter().map(|e| e.line()).collect();
+    let said = lines.iter().find(|l| l.contains("cmobat")).expect("the typo is named");
+    assert!(said.contains("no layer"), "and says what is wrong: {said}");
+    assert!(!lines.iter().any(|l| l.contains("no layer `combat`")), "the real layer is not refused");
+}

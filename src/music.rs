@@ -669,6 +669,7 @@ pub fn move_layers(
     mut requests: MessageReader<MusicLayers>,
     mut state: ResMut<MusicState>,
     real: Res<Time<Real>>,
+    mut log: ResMut<SirenLog>,
     mut voices: Query<(&MusicVoice, &mut Voice)>,
 ) {
     let now = real.elapsed_secs_f64();
@@ -706,16 +707,26 @@ pub fn move_layers(
     state.pending.retain(|p| p.at_s > now);
     for pending in due {
         for (name, db) in pending.targets {
-            if let Some(layer) = state.layers.iter_mut().find(|l| l.name == name) {
-                // The same rule for a move: a target that is not a number is **no gain**, not `NaN` written into a
-                // layer that is already moving (`approach(NaN, x)` returns `x`, but `layer_db` would report `NaN` for
-                // the frames before the move lands).
-                layer.target_db = crate::model::finite_or(db, 0.0);
-                // **The fade is the layer's own**, so a change that moves three layers with three durations is
-                // honoured per layer, and a layer the change does not name keeps the fade it had — exactly as it keeps
-                // its gain.
-                layer.fade_s = pending.fade_s;
-            }
+            // **A target the score cannot name is said, not dropped.** `find` returned `None` and the change vanished:
+            // no log line, no refusal, nothing — so a typo in a layer name was a change that silently did nothing, which
+            // is the class of bug this crate's refusals exist to prevent. `MusicLayers` is a message with no
+            // `Refusal` arm (`needs-decision/` has no file for one, and adding an enum variant is the same break three
+            // other open decisions wait on), so the sentence goes where iteration 9 put the stinger's wrong-bus case:
+            // the log, naming the layer the author typed. The change still does nothing — this reports, it does not
+            // play anything differently.
+            let Some(layer) = state.layers.iter_mut().find(|l| l.name == name) else {
+                let reason = format!("this score has no layer `{name}`, so the change names nothing");
+                log.push(Entry::Refused { at_s: now, cue: name.clone(), reason });
+                continue;
+            };
+            // The same rule for a move: a target that is not a number is **no gain**, not `NaN` written into a
+            // layer that is already moving (`approach(NaN, x)` returns `x`, but `layer_db` would report `NaN` for
+            // the frames before the move lands).
+            layer.target_db = crate::model::finite_or(db, 0.0);
+            // **The fade is the layer's own**, so a change that moves three layers with three durations is
+            // honoured per layer, and a layer the change does not name keeps the fade it had — exactly as it keeps
+            // its gain.
+            layer.fade_s = pending.fade_s;
         }
     }
 

@@ -7,6 +7,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A `MusicLayers` change naming a layer the score does not have was silently dropped.** `move_layers` applied each target
+  with `if let Some(layer) = state.layers.iter_mut().find(|l| l.name == name)`, so a name that matched nothing vanished:
+  no log line, no refusal, no counter — the one message in the crate with no failure path. A typo in a layer name was
+  therefore a change that did nothing and said nothing. Measured: `MusicLayers::new(vec![("nope", -6.0)])` left the log
+  holding only the layers' own `played` lines. The lookup is now a `let … else` that writes
+  ``refused `nope`: this score has no layer `nope`, so the change names nothing`` and carries on, so **one bad target does
+  not cost the others** — a message naming a real layer and a typo moves the real one and refuses the typo.
+  `SIREN_LAYER=typo` captures it.
+
+
 - **A stinger at `duck_db: 0.0` logged a duck it did not make.** `arm_stinger_ducks` armed `DuckClock::manual` and pushed
   `Entry::Ducked { by_db }` unconditionally, while `model::active_duck_db` returns `0.0` for any `by_db >= 0.0` — so a zero
   depth (or a positive one, meant as a lift) wrote a line saying the music stepped back and the music did not move.

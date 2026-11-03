@@ -45,6 +45,12 @@ Each layer carries the fade its own change gave it, so three layers moved with t
 second change arriving mid-fade replaces the target and the fade — the layer does not queue — which is worth knowing
 when a game's state machine can flicker.
 
+**A target naming a layer the score does not have is named in the log, and the rest of the change still applies.** A
+typo is the ordinary case — `cmobat` for `combat` — and the sentence says which layer and which score:
+``refused `cmobat`: this score has no layer `cmobat`, so the change names nothing``. One bad target does not cost the
+others: a message naming `combat` and `cmobat` moves `combat` and refuses `cmobat`. The entry is a `Refused`, so a busy
+scene cannot scroll it away behind routine lines.
+
 `When::NextBar` quantises to the next boundary from the tempo alone (`model::next_boundary`) — no beat map, no authoring
 tool, and a frame that lands exactly on the bar is *on* it rather than past it. With `tempo_bpm: 0.0` there is no grid,
 and every transition is immediate: a pad, not a song.
