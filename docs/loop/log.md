@@ -7,6 +7,78 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 4 — 2026-11-02 — a crossfade takes the time it was given
+
+**Change.**
+
+- **`src/music.rs`, `src/model.rs` — `MusicLayers::fade_s` is honoured.** It was stored in `Pending` and read by
+  nothing; `move_layers` eased every layer at `MIX_TAU_S`, so an authored 800 ms crossfade arrived in ~150 ms.
+  `model::tau_for_fade` derives the constant from `approach`'s own definition — `fade_s / ln(1000)`, an arrival within
+  one part in a thousand — and each `LiveLayer` carries the fade its own change gave it.
+- **`move_layers` holds a layer's gain on a frame with no elapsed time.** `approach` returns its target for `dt <= 0`,
+  which is right for a bus on a game's first frame and wrong for a layer: the frame that applied a change could spend
+  the whole fade in one step. The tests found this; it is fixed in the crate, not in the tests.
+- `examples/render.rs` — a **layer-fade plot** (the same move under `MIX_TAU_S` and under an authored 0.8 s) and its
+  caption in `render.txt`; `tests/model.rs` and `tests/music.rs` — four tests, one of which fails on the unfixed tree;
+  `cues.yaml` case 23; the music guide, the CHANGELOG and a media note.
+
+**Why.** The top of iteration 3's next-5, and the same class as its two predecessors: a number a person wrote whose
+sentence the code did not honour, silently. Rank 2 in the loop's order (music transitions and fades) but rank 1 in
+practice — the field is public, documented and already in every project's builder chain.
+
+**Evidence.** `runs/2026-11-02-04/`: `eval.md` (baseline green; the one red case is the fade), `research.md`,
+`plan.md`, `perf.md`, `review.md`, and `evidence/` with both render trees, the fade plot and its zoom, and the cue
+spectrograms.
+
+**Measured.**
+
+| measurement | before | after |
+|---|---|---|
+| 0.3 s into an authored 0.8 s fade | **−9.13 dB** (settled) | **−13.6 dB** (arriving) |
+| the same fade at 0.85 s | −9.0 dB | −9.07 dB → its target |
+| `fade_s(0)` at 0.5 s | −9.0 dB | −9.0 dB (default easing unchanged) |
+| a layer the change does not name | — | keeps its own fade |
+| every rendered cue and the mix | — | **byte-identical** (16/16 WAVs) |
+| frame cost, 8 / 64 / 256 voices | 0.019 / 0.103 / 0.684 µs | the same — the harness does not drive the music systems |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The zoom pass found three defects **in my own plot**: a
+fixed `0 dB` vertical scale that pinned a fade from silence to the floor, a marker labelled "duck fires" on a plot
+with no duck, and a t=0 marker drawn on the y axis where its label collided. All fixed before the verdict.
+
+**A number worth keeping.** The derivation is not a fitted constant: `approach` reaches `1 − e^(−t/τ)`, so "arrive
+within a thousandth at `fade_s`" is `τ = fade_s / ln(1000)`, and `tests/model.rs` asserts both halves of that —
+it has arrived at `fade_s`, and it has **not** arrived at `fade_s / 2`.
+
+**Traps for the command.** (1) A headless test's **first** update has `dt = 0` unless `advance()` ran first, so a test
+that writes a message and immediately updates tests the step branch of `approach`, not the fade. Every existing music
+test advanced first; the new ones must too. (2) `perfcheck` cannot see a change on the music path — say so in
+`perf.md` rather than presenting identical numbers as a measurement. (3) An evidence harness that draws *both* the old
+and the new curve prints the same line whichever tree it was built from; that identity is by design and is not
+evidence of the fix — the test is.
+
+**Commit.** `951e627`, pushed to `main`; CI run 41551366531 is **success** on `big-s1`. Gate: build, test (48 + 4), serde (55 + 4), mixer (52 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green. The Cauldron panel test still pins
+`rev = "7029b20"` and would compile the crate's third predecessor, so it was not run; no public type, field or message
+moved.
+
+**Next 5.**
+
+1. **A `VoiceLimit` refusal names the bus even when the table's budget was the cap that failed** (`answer` always
+   passes `bus: Some(bus)`). A panel prints the wrong culprit. Changing a `Refusal` payload wants a decision file;
+   the log line could be fixed without one, and probably should be.
+2. **`Completes` is public and can never be true** — `needs-decision/remove-completes.md`. One line to remove in the
+   next minor.
+3. **A crossfade that a second change interrupts** replaces the target and the fade rather than queueing. Whether a
+   game wants queueing, and from which gain it should start, is a design question the log now names.
+4. **`needs-decision/stinger-release.md`** — a project-chosen stinger release; shipped at `DEFAULT_FADE_S`.
+5. **`Rng::next_f32` deliberately discards the low bits** of a xorshift64\* output (the weak ones). A sentence in
+   `model.rs` stops the next reader re-deriving it.
+
+**Baseline note.** Nothing was red, and the suite had 44 tests; the fade defect was invisible to it because no test
+ever wrote a non-zero `fade_s` and then read the layer before it settled.
+
+---
+
 ## Iteration 3 — 2026-11-02 — the seed a project writes, and the hold a stinger promises
 
 **Change.**
