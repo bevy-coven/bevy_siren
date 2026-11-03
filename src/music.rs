@@ -293,6 +293,12 @@ struct Pending {
     targets: Vec<(String, f32)>,
     at_s: f64,
     fade_s: f32,
+    /// **The boundary this change was quantised to**, so a tempo edited while it waits can re-quantise it. `at_s` alone
+    /// cannot: a change queued for the next bar at 160 bpm and fired at 1.5 s is the **middle** of a bar at 80 bpm, where
+    /// the bar is 3.0 s — measured, and the crossfade lands off the beat.
+    when: When,
+    /// The tempo `at_s` was computed with, so a frame at the same tempo does no work.
+    tempo: f32,
 }
 
 impl MusicState {
@@ -601,7 +607,28 @@ pub fn move_layers(
             When::NextBeat => next_boundary(now, tempo, 1.0),
             When::NextBar => next_boundary(now, tempo, f64::from(beats)),
         };
-        state.pending.push(Pending { targets: request.targets.clone(), at_s: at, fade_s: request.fade_s });
+        state.pending.push(Pending {
+            targets: request.targets.clone(),
+            at_s: at,
+            fade_s: request.fade_s,
+            when: request.when,
+            tempo,
+        });
+    }
+    // **A queued change follows the score's tempo.** A `MusicScore` is a resource a project and the Cauldron edit, and a
+    // tempo change while a `NextBar` change waits made it land mid-bar: queued at 160 bpm for 1.5 s, fired at 1.5 s after
+    // the score said 80, where the bar is 3.0 s. Re-quantise against the current tempo, keeping the same boundary kind,
+    // and never move it **earlier** than the frame that is reading it.
+    for pending in &mut state.pending {
+        if pending.tempo != tempo && pending.at_s > now {
+            let at = match pending.when {
+                When::Now => pending.at_s,
+                When::NextBeat => next_boundary(now, tempo, 1.0),
+                When::NextBar => next_boundary(now, tempo, f64::from(beats)),
+            };
+            pending.at_s = at.max(now);
+            pending.tempo = tempo;
+        }
     }
     let due: Vec<Pending> = state.pending.iter().filter(|p| p.at_s <= now).cloned().collect();
     state.pending.retain(|p| p.at_s > now);

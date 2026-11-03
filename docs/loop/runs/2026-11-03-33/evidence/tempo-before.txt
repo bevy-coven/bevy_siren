@@ -1,0 +1,17 @@
+warning: variable does not need to be mutable
+ --> examples/probe_tempo.rs:9:9
+  |
+9 |     let mut table = CueTable::new(vec![
+  |         ----^^^^^
+  |         |
+  |         help: remove this `mut`
+  |
+  = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `bevy_siren` (example "probe_tempo") generated 1 warning (run `cargo fix --example "probe_tempo" -p bevy_siren` to apply 1 suggestion)
+queued NextBar, tempo unchanged:
+  160 bpm (bar 1.5 s) -> fired at Some(1.440000000000001)
+  80 bpm  (bar 3.0 s) -> fired at Some(2.944000000000002)
+queued NextBar at 160, then the score changes:
+  -> 80 bpm before the bar   -> fired at Some(1.440000000000001)   (a bar at 80 is 3.0 s)
+  -> 240 bpm before the bar  -> fired at Some(1.440000000000001)   (a bar at 240 is 1.0 s)

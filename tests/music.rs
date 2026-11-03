@@ -820,3 +820,82 @@ fn a_score_reports_a_layer_gain_that_is_not_a_number() {
 
     assert!(two_layer_score().problems(&table).is_empty(), "a good score reports nothing");
 }
+
+/// **A queued change follows the score's tempo.** `When::NextBar` is documented as *"on the next bar, quantised with
+/// `next_boundary`"*, and `Pending` stored only the instant — so a change queued for 1.5 s at 160 bpm fired at 1.5 s after
+/// the score said **80**, where the bar is 3.0 s: the crossfade landed in the **middle** of a bar. A `MusicScore` is a
+/// resource a project and the Cauldron edit, so a tempo change while a change waits is the ordinary path.
+#[test]
+fn a_queued_change_follows_the_scores_tempo() {
+    let mut app = app_with(
+        MusicScore {
+            layers: vec![MusicLayer::new("calm", "track.calm"), MusicLayer::new("combat", "track.combat")],
+            tempo_bpm: 160.0,
+            beats_per_bar: 4.0,
+        },
+        two_layer_table(),
+        &["track.calm", "track.combat"],
+    );
+    run_for(&mut app, 0.05, 1.0 / 60.0);
+    app.world_mut()
+        .resource_mut::<Messages<MusicLayers>>()
+        .write(MusicLayers::new([("combat".to_owned(), -3.0)]).next_bar());
+    app.update();
+    let queued = app.world().resource::<MusicState>().next_change_s().expect("a change is queued");
+    assert!((queued - 1.5).abs() < 0.1, "a bar at 160 bpm is 1.5 s: {queued}");
+
+    // The score halves: a bar is now 3.0 s, and the queued instant is the middle of one.
+    app.world_mut().resource_mut::<MusicScore>().tempo_bpm = 80.0;
+    app.update();
+    let requantised = app.world().resource::<MusicState>().next_change_s().expect("still queued");
+    assert!(
+        (requantised - 3.0).abs() < 0.1,
+        "the change moved to the bar the score now has, not the one it was queued with: {requantised}"
+    );
+}
+
+/// **A tempo edit that changes nothing moves nothing.** The guard: `move_layers` runs every frame, so a re-quantise that
+/// fired unconditionally would push a queued change forward for ever.
+#[test]
+fn a_queued_change_holds_at_an_unchanged_tempo() {
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    run_for(&mut app, 0.05, 1.0 / 60.0);
+    app.world_mut()
+        .resource_mut::<Messages<MusicLayers>>()
+        .write(MusicLayers::new([("combat".to_owned(), -3.0)]).next_bar());
+    app.update();
+    let queued = app.world().resource::<MusicState>().next_change_s();
+
+    run_for(&mut app, 0.5, 1.0 / 60.0);
+    assert_eq!(
+        app.world().resource::<MusicState>().next_change_s(),
+        queued,
+        "thirty frames at the same tempo must leave the instant alone"
+    );
+}
+
+/// **A re-quantised change still fires**, and a `When::Now` change is not delayed by a tempo edit on the same frame.
+#[test]
+fn a_requantised_change_still_fires_and_now_is_not_delayed() {
+    // `Now`: the change applies on the frame it was written, whatever the tempo does.
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    run_for(&mut app, 0.05, 1.0 / 60.0);
+    app.world_mut()
+        .resource_mut::<Messages<MusicLayers>>()
+        .write(MusicLayers::new([("combat".to_owned(), -30.0)]).now());
+    app.update();
+    let target = app.world().resource::<MusicState>().target_db("combat").expect("the combat layer");
+    assert!((target + 30.0).abs() < 1e-3, "a `Now` change is applied on its own frame: {target}");
+
+    // `NextBar` then a retempo: it must still land.
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    run_for(&mut app, 0.05, 1.0 / 60.0);
+    app.world_mut()
+        .resource_mut::<Messages<MusicLayers>>()
+        .write(MusicLayers::new([("combat".to_owned(), -30.0)]).next_bar());
+    app.update();
+    app.world_mut().resource_mut::<MusicScore>().tempo_bpm = 200.0;
+    run_for(&mut app, 2.0, 1.0 / 60.0);
+    let target = app.world().resource::<MusicState>().target_db("combat").expect("the combat layer");
+    assert!((target + 30.0).abs() < 1e-3, "the re-quantised change still fires: {target}");
+}

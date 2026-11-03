@@ -20,6 +20,15 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A queued `NextBar` change follows the score's tempo.** `When::NextBar` is documented as *"on the next bar, quantised
+  with `next_boundary`"*, and `move_layers` computed that instant once, at request time, from the tempo then — `Pending`
+  stored only `at_s`. A `MusicScore` is a resource the Cauldron edits, so a tempo change while a change waits left it
+  scheduled against a bar that no longer existed: queued at 160 bpm for 1.5 s and fired at 1.44 s after the score said
+  **80**, where a bar is 3.0 s — the crossfade began **mid-bar**; after a change to **240** it fired a whole bar late. The
+  queue now remembers which boundary it was quantised to and the tempo it used, and re-quantises on a frame whose tempo
+  differs, never moving a change earlier than that frame. A queued change at an unchanged tempo does not move at all, and
+  a `When::Now` change still applies on its own frame.
+
 - **The panel's log is no longer clipped.** `examples/mixer` asked `SirenLog::recent(10)` in a fixed column that fits about
   8.5 lines, so the last entry was cut off **mid-glyph** in every capture, including the README's — measured, the lowest
   ink reached `y = 719` of 720. `SirenLog::CAPACITY`'s own doc says *"a panel shows eight"*, and the panel now shows eight:
@@ -106,6 +115,15 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   answer every other reader uses. `problems()` keeps its documented default-four meaning and now says what it assumes.
 
 ### Fixed
+
+- **A queued `NextBar` change follows the score's tempo.** `When::NextBar` is documented as *"on the next bar, quantised
+  with `next_boundary`"*, and `move_layers` computed that instant once, at request time, from the tempo then — `Pending`
+  stored only `at_s`. A `MusicScore` is a resource the Cauldron edits, so a tempo change while a change waits left it
+  scheduled against a bar that no longer existed: queued at 160 bpm for 1.5 s and fired at 1.44 s after the score said
+  **80**, where a bar is 3.0 s — the crossfade began **mid-bar**; after a change to **240** it fired a whole bar late. The
+  queue now remembers which boundary it was quantised to and the tempo it used, and re-quantises on a frame whose tempo
+  differs, never moving a change earlier than that frame. A queued change at an unchanged tempo does not move at all, and
+  a `When::Now` change still applies on its own frame.
 
 - **The panel's log is no longer clipped.** `examples/mixer` asked `SirenLog::recent(10)` in a fixed column that fits about
   8.5 lines, so the last entry was cut off **mid-glyph** in every capture, including the README's — measured, the lowest
@@ -319,6 +337,15 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A queued `NextBar` change follows the score's tempo.** `When::NextBar` is documented as *"on the next bar, quantised
+  with `next_boundary`"*, and `move_layers` computed that instant once, at request time, from the tempo then — `Pending`
+  stored only `at_s`. A `MusicScore` is a resource the Cauldron edits, so a tempo change while a change waits left it
+  scheduled against a bar that no longer existed: queued at 160 bpm for 1.5 s and fired at 1.44 s after the score said
+  **80**, where a bar is 3.0 s — the crossfade began **mid-bar**; after a change to **240** it fired a whole bar late. The
+  queue now remembers which boundary it was quantised to and the tempo it used, and re-quantises on a frame whose tempo
+  differs, never moving a change earlier than that frame. A queued change at an unchanged tempo does not move at all, and
+  a `When::Now` change still applies on its own frame.
+
 - **The panel's log is no longer clipped.** `examples/mixer` asked `SirenLog::recent(10)` in a fixed column that fits about
   8.5 lines, so the last entry was cut off **mid-glyph** in every capture, including the README's — measured, the lowest
   ink reached `y = 719` of 720. `SirenLog::CAPACITY`'s own doc says *"a panel shows eight"*, and the panel now shows eight:
@@ -420,6 +447,15 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 The first release: sound for Bevy 0.20 as data, mixed in buses.
 
 ### Fixed
+
+- **A queued `NextBar` change follows the score's tempo.** `When::NextBar` is documented as *"on the next bar, quantised
+  with `next_boundary`"*, and `move_layers` computed that instant once, at request time, from the tempo then — `Pending`
+  stored only `at_s`. A `MusicScore` is a resource the Cauldron edits, so a tempo change while a change waits left it
+  scheduled against a bar that no longer existed: queued at 160 bpm for 1.5 s and fired at 1.44 s after the score said
+  **80**, where a bar is 3.0 s — the crossfade began **mid-bar**; after a change to **240** it fired a whole bar late. The
+  queue now remembers which boundary it was quantised to and the tempo it used, and re-quantises on a frame whose tempo
+  differs, never moving a change earlier than that frame. A queued change at an unchanged tempo does not move at all, and
+  a `When::Now` change still applies on its own frame.
 
 - **The panel's log is no longer clipped.** `examples/mixer` asked `SirenLog::recent(10)` in a fixed column that fits about
   8.5 lines, so the last entry was cut off **mid-glyph** in every capture, including the README's — measured, the lowest
