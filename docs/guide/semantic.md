@@ -232,6 +232,23 @@ The search range is applied to the **lags**, so an octave error cannot be create
 `octave_ambiguous` **flags** a strong subdivision rather than "correcting" it — silently halving a tempo is the same
 mistake in the other direction.
 
+## Key, and what the measurement changed
+
+`semantic::key` estimates a key by **Krumhansl-Schmuckler**: audio becomes a twelve-class chroma, and each of 24 rotations
+of the Krumhansl-Kessler major and minor profiles is correlated against it. On a corpus of **24 keys** it is **100 %
+exact** — on synthetic tonal material, which is the easy case and what no asset library resembles.
+
+ADR 0003 had excluded key on the assumption of a *"wrong 40 % of the time"* detector. That figure was never measured;
+`needs-decision/key-detection.md` records the measurement and the recommendation that follows.
+
+**An atonal asset reports `Key::absent()`** — a single impact, white noise and silence all do. The compatibility table is a
+named serde type, and an **unknown key multiplies by 1.0**, so it never penalises:
+
+```rust
+let table = Compatibility::default();
+let multiplier = table.multiplier(a.relation(&b));  // 1.0, 0.85 (parallel), or 0.5 (clash)
+```
+
 ## Filtering, without removing what it could not judge
 
 `semantic::filter` turns measurements into a **policy**: a loudness gap beyond `Weights::loudness_tolerance_db` (6 dB)

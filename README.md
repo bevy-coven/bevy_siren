@@ -142,9 +142,11 @@ the first 32 footsteps and quietly stole or refused every one after that.
   floor — so two sounds from the same room can be found by brightness and cleanliness, and a **loudness or noise-floor
   filter removes a mismatch while an unmeasured asset always survives**. **Tempo is estimated per track with a ±2 BPM
   floor that is a test over 80 known tempi**, and a non-rhythmic asset reports *no tempo* rather than a confident wrong
-  one. The whole index is **binary, 10.28 MB for 5 000 clips** against 31.88 MB as text, and decoding one runs at
-  **~1 150 clips/s** — a 5 000-clip library costs seconds, not minutes. Off by default, and a crate that does not enable
-  it sees no change: `cargo tree` reads the same 413 lines either way:
+  one. **Key and mode are detected too** — Krumhansl-Schmuckler, 100 % exact on a 24-key synthetic corpus, with an
+  atonal asset reporting *no key* rather than a confident wrong one. The whole index is **binary, 10.28 MB for 5 000
+  clips** against 31.88 MB as text, and decoding one runs at **~1 150 clips/s** — a 5 000-clip library costs seconds,
+  not minutes. Off by default, and a crate that does not enable it sees no change: `cargo tree` reads the same 413 lines
+  either way:
   [semantic](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md).
 - **Ship the sound as data, and edit it in the Cauldron** — with `serde`, the cue table, the mix table and the score
   are RON files; `bevy_grimoire`'s audio panel edits this crate's own types in

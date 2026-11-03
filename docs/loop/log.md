@@ -7,6 +7,76 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 92 — 2026-11-03 — key detection, and an ADR's assumption disproved
+
+**Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **376 semantic** / **80 lib**; clippy
+0, fmt, rustdoc, examples. Volume held **19 GB** free.
+
+**`#25` built, and ADR 0003's reason for excluding it was never measured.** The ADR declared key out of scope because a
+detector would be *"wrong 40 % of the time"* — an assumption with no citation. `semantic::key` now implements
+**Krumhansl-Schmuckler** with the Krumhansl-Kessler profiles, and on **24 keys** — every tonic, both modes, I–IV–V–I with
+the roots in the bass — it is **100 % exact** and **100 % fifth-compatible**.
+
+**That 100 % is synthetic tonal material**, the easy case, and the module doc says so in its first paragraph. Claiming it
+as a general accuracy would be ADR 0003's error in the flattering direction. `needs-decision/key-detection.md` records
+the measurement, the three options, and **what would overturn the recommendation** — a `V-01` labelled set showing a
+wrong key above the confidence floor commonly moving right answers out of the top *k*.
+
+**Five defects between the first draft and that number, and every one was found by printing a value.**
+
+1. **A 1024-point window cannot see a pitch.** 46.875 Hz/bin is **2.85 semitones at C4**, and a pure C4 peaks in bin 6
+   (**281 Hz**) — read as C#. 4096 fixed the low octave.
+2. **4096 is not enough at the top.** B4 and C5 are 29 Hz apart, which is **2.5 bins** against a four-bin Hann main lobe,
+   so they merged and B tied the tonic. **8192** gives 5.0 bins.
+3. **The band edges were half a semitone out of phase.** Note `n` spans `[n − 0.5, n + 0.5)`; comparing `note` and
+   `note + 1` split C4's own partial between **B and C** — measured **B 10.71 against C 5.80** on a pure C major scale.
+   **This produced every wrong answer**, and it survived two window changes because the window was also wrong.
+4. **Log-magnitude compression flattened the chroma** to 3.96–5.41 across all twelve classes, leaving nothing to
+   correlate. Reverted to linear.
+5. **The fixture was musically wrong.** A tonic pedal under the **V** chord is a **minor second** against its third, so
+   the passage genuinely held as much B as C and "no key" was the **correct** answer. My test was asserting the detector
+   should be wrong. The bass now follows each chord's root.
+
+**And the confidence floor was measured, not chosen**: progression **0.241**, single impact **0.067**, white noise
+**0.030**. `0.05` sat above noise and *below* the impact, so a single hit reported a confident `D# minor`. It is **0.15**.
+
+**An atonal asset reports `Key::absent()`** from three directions, and `Compatibility::multiplier(None) == 1.0`, so an
+unknown key never penalises — `#27`'s rule, carried into the table.
+
+| voices | µs/frame | iteration 91 |
+|---|---|---|
+| 64 | **0.107** | 0.282 |
+| 256 | **0.833** | 1.055 |
+
+No audio-path change. Key is **not wired into `build`** — one schema change carries tempo and key together.
+
+**Visual gate unchanged:** 32 render files, **14 of 14 distinct** cue hashes, **−21.5 LUFS**, **−7.5 dBFS** — identical to
+iterations 67, 71, 74, 75, 80–91.
+
+**Verdicts.** Pass 1 **GREAT** (three criteria, three tests, and the ADR's premise disproved with a number), pass 2
+**GREAT** (five defects, four of them invisible in the output, all found by dumping the chroma), pass 3 **GREAT** (the
+absence is a value, the table never penalises an unknown, and the limit is stated in the module's opening).
+
+**Docs.** The guide gains a key section and the measurement story; the README says 100 % on a synthetic corpus; the
+decision file records the options and the overturning condition; `CHANGELOG.md` gains the feature and the five defects.
+
+**Evidence.** `runs/2026-11-03-92/`: `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/{after,spectrograms}/`.
+
+**Commits.** `154631b`.
+
+**Top 5 remaining**
+
+1. **Wire tempo and key into `build` and the index** — one schema change carrying both, with a `tempo` and a `key`
+   section beside `loudness`, `provenance` and `spectral`. Everything else is built and tested.
+2. **`#27`'s tempo and key rules** — now unblocked. Its criteria require that an unknown never excludes, which both
+   types model as `None`.
+3. **`#28` the MCP tool host**, then `#29`/`#44`/`#30` — the largest user-facing win.
+4. **Share the FFT passes** — spectral (89) and key (92) both walk frames, and key uses an 8192-point transform. Three
+   passes over the same audio is the cost this loop keeps adding and never consolidating.
+5. **`V-01`'s labelled set** — it is now the only thing that can turn key's 100 %, tempo's ±2 BPM and the six weights
+   from claims about synthetic material into measurements of a real library.
+
 ## Iteration 91 — 2026-11-03 — tempo, and a threshold whose unit was wrong
 
 **Baseline.** Green, complete, uninterrupted: 198 / 207 serde / 208 mixer / 6 doc / **376 semantic** / **68 lib**; clippy

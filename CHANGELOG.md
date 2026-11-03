@@ -7,6 +7,28 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Key and mode detection, measured rather than assumed out of scope.** ADR 0003 excluded key from the Rust path on the
+  assumption of a detector *"wrong 40 % of the time"* — a figure nobody had measured. `semantic::key` implements
+  **Krumhansl-Schmuckler** with the Krumhansl-Kessler profiles, and on a corpus of **24 keys** (every tonic, both modes,
+  I–IV–V–I with the roots in the bass) is **100 % exact**.
+
+  That is **synthetic tonal material** — the easy case, and the module says so rather than claiming a general accuracy. An
+  atonal asset reports `Key::absent()` from three directions (a single impact, white noise, silence), and
+  `Compatibility::multiplier(None) == 1.0`, so an unknown key never penalises.
+
+  `Compatibility` is a **named serde type** with cited defaults — a clash multiplies a candidate's score by **0.5**, a
+  parallel mode by **0.85**, a fifth not at all — which is `#25`'s third criterion.
+
+  **Five defects between the first draft and that number**, each found by printing a value: a 1024-point window cannot
+  see a pitch (2.85 semitones per bin at C4); 4096 cannot separate B4 from C5 (2.5 bins against a four-bin main lobe);
+  the chroma's band edges were **half a semitone out of phase**, splitting C4's own partial between B and C; log
+  compression flattened the vector; and the test's own fixture held a tonic pedal under the V chord — a **minor second**
+  — so the passage genuinely contained as much B as C and "no key" was the correct answer.
+
+  `needs-decision/key-detection.md` records the measurement and what would overturn the recommendation.
+
+### Documented
+
 - **A tempo estimate, with ADR 0003's ±2 BPM floor as a test rather than a claim.** `semantic::tempo::estimate` returns
   `Tempo { bpm: Option<f32>, confidence, octave_ambiguous }`. The corpus is **every whole BPM from 80 to 159 — 80
   tracks**, four times `#24`'s minimum, and every one lands inside the floor.
