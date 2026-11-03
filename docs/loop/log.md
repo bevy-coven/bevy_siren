@@ -7,6 +7,71 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 36 — 2026-11-03 — the panel shows the music score
+
+**Change.**
+
+- **`examples/mixer.rs` — a `Music` block** between `Buses` and `Cues`: `MusicState::names()` with `layer_db`, and
+  `-> target_db` while `moving()`. One line for the whole score.
+- **The cue list filters out a cue the score owns**, so a layer is shown once, where it can show live gain;
+  `music.stinger` stays (a one-shot on `Music`, not a layer).
+- **Seven log lines** instead of eight, because the block costs 68 px against the 63 px the three cue rows freed.
+- `docs/media/mixer.{png,gif}` regenerated; `docs/media/README.md` says why seven; a CHANGELOG line.
+
+**Why.** `MusicState` exposes **seven** panel-facing accessors and the panel drew none — deferred **four times** for
+height. This iteration made the layout decision instead of routing around it again.
+
+**Evidence.** `runs/2026-11-03-36/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/panel/{music-block-1280,final-mid-fade,zoom-final-music}.png`.
+
+**Measured.**
+
+| state | before | after |
+|---|---|---|
+| the score at rest | absent — two ordinary cue rows | `calm -4.0 dB   combat -80.0 dB` |
+| **mid-crossfade** | invisible | `calm -79.9 -> -80.0   combat -3.1 -> -3.0` |
+| after the bar | invisible | `calm -80.0 dB   combat -3.0 dB` |
+| cue rows | 9 (3 of them layers) | **7**, no layer among them |
+| log lines | 8, margin 12 px | **7**, margin **11 px** |
+| a row-per-layer block (my first version) | — | margin **1 px — clipped glyph** |
+| every test, both feature sets | — | unchanged (119 / 126 / 128 + 5) |
+| every rendered cue | — | **byte-identical** (21/21) |
+| frame cost, 8 / 64 / 256 | — | median 1.069 µs at 256, load 4.2–5.3; no `src/` line moved |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. **A defect I introduced and measured away:** a row per layer
+cost more than the three cue rows it displaced — margin 12 px → **1 px**, a clipped glyph, iteration 32's defect returned.
+Two measured fixes (one line, seven log lines) take it to 11 px.
+
+**Traps for the command.** (1) A **heading is expensive** — 30 px + gap, about one and a half cue rows — so "remove three
+rows, add a block" is not break-even even when the row count says it is. (2) A static row cannot show a **transition**: the
+`-> target` arrow is the whole reason for a music block, and it only exists while `moving()` is non-zero. (3) The example
+runs at **~8.3 ms/frame (≈120 fps)**, so a 1.5 s bar is ~180 frames; my first mid-fade captures at 112–175 were **before**
+the bar. Capture by state, not by a frame number you guessed. (4) `MusicLayer::new` starts at `SILENT_DB` — `combat -80.0 dB`
+is the default, not a bug. (5) `hs distill` GPU-blocked (thirty-fifth iteration).
+
+**Commit.** `a1e3a02`; CI on `main`.
+
+**Next 5.**
+
+1. **A `Stopped` line for a parent's despawn** — neither backend writes one; the log keeps `played` and nothing else.
+2. **Answer or route around the `CueProblem` question** — **seven** items wait on it.
+3. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+5. A gain above 0 dB — `needs-decision/above-unity-gain.md`, recommendation to **not** add it.
+
+**The hunt, twenty-fifth pass.** The panel now shows buses, the score, the cues that are not layers, the report and the log —
+and the **score block has no `next_change_s`**, the one accessor whose doc says *"for a panel that says 'in 0.8 s'"*. It would
+be a fifth block, and the column has **11 px** free. The honest next step is not another block: it is to check whether the
+**guide's** sentence *"layers that change on the bar"* is now visible end to end in the GIF — regenerate at a smaller frame
+step so the 1.5 s bar is inside 20 frames instead of 12.
+
+**Baseline note.** Nothing was red; the suite had 119 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 35 — 2026-11-03 — the report's doc is the whole list, and a layer's bus is a `must`
 
 **Change.**
