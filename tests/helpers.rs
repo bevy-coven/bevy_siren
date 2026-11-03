@@ -86,3 +86,29 @@ pub fn run_for(app: &mut App, seconds: f64, frame_s: f64) {
         app.update();
     }
 }
+
+/// A real 16-bit mono WAV of 64 samples: long enough for a decoder to accept, short enough to end at once.
+pub fn tiny_wav() -> Vec<u8> {
+    const RATE: u32 = 22_050;
+    let count = 64usize;
+    let mut out = Vec::with_capacity(44 + count * 2);
+    let data_len = (count * 2) as u32;
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&(36 + data_len).to_le_bytes());
+    out.extend_from_slice(b"WAVEfmt ");
+    out.extend_from_slice(&16u32.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&RATE.to_le_bytes());
+    out.extend_from_slice(&(RATE * 2).to_le_bytes());
+    out.extend_from_slice(&2u16.to_le_bytes());
+    out.extend_from_slice(&16u16.to_le_bytes());
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&data_len.to_le_bytes());
+    for i in 0..count {
+        let t = i as f32 / RATE as f32;
+        let sample = (t * 440.0 * std::f32::consts::TAU).sin() * 0.3;
+        out.extend_from_slice(&((sample * f32::from(i16::MAX)) as i16).to_le_bytes());
+    }
+    out
+}

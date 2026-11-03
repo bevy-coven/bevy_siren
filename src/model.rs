@@ -190,6 +190,27 @@ pub fn tau_for_fade(fade_s: f32) -> f32 {
     if !fade_s.is_finite() || fade_s <= 0.0 { MIX_TAU_S } else { fade_s / 1000f32.ln() }
 }
 
+/// How many low bits of a voice index name its **slot**, the rest its **generation**.
+///
+/// A mixer hands out an index per voice and three systems hold it across frames (a gain write, a stop fade, an
+/// end-of-sample query), so an index must stay a valid name for exactly one voice. Slots are reused — the alternative
+/// is keeping every voice a game has ever played — and the generation is what makes a reused slot a *different* name:
+/// an index from a voice the world has not finished despawning addresses nothing, rather than addressing its
+/// replacement.
+pub const VOICE_SLOT_BITS: u32 = 32;
+
+/// Packs a slot and its generation into one voice index: generation high, slot low.
+pub fn pack_voice(slot: usize, generation: u32) -> usize {
+    ((generation as usize) << VOICE_SLOT_BITS) | (slot & (usize::MAX >> (usize::BITS - VOICE_SLOT_BITS)))
+}
+
+/// Splits a voice index into its slot and generation, the inverse of [`pack_voice`].
+pub fn unpack_voice(voice: usize) -> (usize, u32) {
+    let slot = voice & (usize::MAX >> (usize::BITS - VOICE_SLOT_BITS));
+    let generation = (voice >> VOICE_SLOT_BITS) as u32;
+    (slot, generation)
+}
+
 /// A gain one frame closer to `target`: `current + (target - current) * (1 - exp(-dt / tau))`.
 ///
 /// This is what makes a bus move without a click. A `tau` or a `dt` of zero or less returns `target`:

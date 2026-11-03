@@ -65,7 +65,13 @@ impl std::fmt::Debug for MixerBackend {
 struct BusTrack {
     mixer: Mixer,
     gain: Arc<AtomicU32>,
-    voices: Vec<VoiceTrack>,
+    /// **`None` is a free slot**, and the length is the peak *concurrent* voice count — never the number of sounds
+    /// played. `play` reuses the first free slot; the alternative, appending, retains one `rodio` player and its
+    /// queues for every sound a game has ever played.
+    slots: Vec<Option<VoiceTrack>>,
+    /// Each slot's generation, bumped when the slot is handed out. Together with the slot it forms the voice index, so
+    /// a stale index addresses nothing rather than the slot's next occupant.
+    generations: Vec<u32>,
 }
 
 struct VoiceTrack {
@@ -99,9 +105,21 @@ impl MixerBackend {
         self.buses.get(name).map(|t| f32::from_bits(t.gain.load(Ordering::Relaxed)))
     }
 
-    /// How many voices `name` has held.
+    /// How many **slots** `name` holds: the peak number of voices it has had at once, not the number it has played.
     pub fn voices(&self, name: &str) -> usize {
-        self.buses.get(name).map_or(0, |t| t.voices.len())
+        self.buses.get(name).map_or(0, |t| t.slots.len())
+    }
+
+    /// The voice index `slot` is at when handed out with `generation`, or `None` when the slot is free or the
+    /// generation is not the one the slot is holding. Every index-taking method goes through this, so a stale name is
+    /// a no-op in one place rather than a rule each method remembers.
+    fn occupant_mut(&mut self, bus: &str, voice: usize) -> Option<&mut VoiceTrack> {
+        let (slot, generation) = crate::model::unpack_voice(voice);
+        let track = self.buses.get_mut(bus)?;
+        if track.generations.get(slot).copied() != Some(generation) {
+            return None;
+        }
+        track.slots.get_mut(slot).and_then(Option::as_mut)
     }
 
     fn bus_mut(&mut self, name: &str) -> &mut BusTrack {
@@ -110,7 +128,10 @@ impl MixerBackend {
             let (mixer, output) = rodio::mixer::mixer(channels, rate);
             let gain = Arc::new(AtomicU32::new(1.0f32.to_bits()));
             self.device.mixer().add(BusGain { source: output, gain: gain.clone() });
-            self.buses.insert(name.to_owned(), BusTrack { mixer, gain, voices: Vec::new() });
+            self.buses.insert(
+                name.to_owned(),
+                BusTrack { mixer, gain, slots: Vec::new(), generations: Vec::new() },
+            );
         }
         self.buses.get_mut(name).expect("just inserted")
     }
@@ -123,21 +144,15 @@ impl AudioOutput for MixerBackend {
     }
 
     fn set_voice_db(&mut self, bus: &str, voice: usize, db: f32) {
-        let Some(track) = self.buses.get(bus) else {
-            self.bus_mut(bus);
-            return;
-        };
-        let Some(entry) = track.voices.get(voice) else {
-            return;
-        };
-        entry.gain.store(crate::model::db_to_gain(db).to_bits(), Ordering::Relaxed);
+        // **A stale index addresses nothing.** The generation in `voice` must match the slot's, or a gain meant for a
+        // voice the world has not finished despawning would move its replacement.
+        if let Some(entry) = self.occupant_mut(bus, voice) {
+            entry.gain.store(crate::model::db_to_gain(db).to_bits(), Ordering::Relaxed);
+        }
     }
 
     fn stop_voice(&mut self, bus: &str, voice: usize) {
-        let Some(track) = self.buses.get_mut(bus) else {
-            return;
-        };
-        if let Some(entry) = track.voices.get_mut(voice) {
+        if let Some(entry) = self.occupant_mut(bus, voice) {
             entry.player.stop();
             entry.stopped = true;
         }
@@ -156,15 +171,36 @@ impl AudioOutput for MixerBackend {
         } else {
             player.append(voiced);
         }
-        track.voices.push(VoiceTrack { player, gain, stopped: false });
-        Some(track.voices.len() - 1)
+
+        // **Reuse the first slot whose voice has ended.** Appending would retain one `rodio` player and its queues for
+        // every sound a game has ever played; the vector's length is the peak *concurrent* count, which the budget
+        // already bounds. A slot is freed here rather than in `retire_voices`, so the trait stays unchanged and the
+        // cost sits in the one method that already allocates a player.
+        let free =
+            track.slots.iter().position(|slot| slot.as_ref().is_none_or(|v| v.stopped || v.player.empty()));
+        let slot = free.unwrap_or(track.slots.len());
+        // The generation is bumped on every hand-out: a new voice in a reused slot is a new name.
+        let generation = track.generations.get(slot).copied().unwrap_or(0).wrapping_add(1);
+        if slot == track.slots.len() {
+            track.slots.push(None);
+            track.generations.push(generation);
+        } else {
+            track.generations[slot] = generation;
+        }
+        track.slots[slot] = Some(VoiceTrack { player, gain, stopped: false });
+        Some(crate::model::pack_voice(slot, generation))
     }
 
     fn finished(&self, bus: &str, voice: usize) -> bool {
+        let (slot, generation) = crate::model::unpack_voice(voice);
         let Some(track) = self.buses.get(bus) else {
             return true;
         };
-        track.voices.get(voice).is_none_or(|v| v.stopped || v.player.empty())
+        if track.generations.get(slot).copied() != Some(generation) {
+            // A name that no longer exists has, as far as its holder is concerned, ended.
+            return true;
+        }
+        track.slots.get(slot).is_none_or(|slot| slot.as_ref().is_none_or(|v| v.stopped || v.player.empty()))
     }
 }
 

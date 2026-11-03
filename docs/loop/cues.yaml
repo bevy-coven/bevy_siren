@@ -135,6 +135,15 @@ cases:
     green_when: Equal field for field within a seed, and different across seeds.
     evidence: "tests/play.rs::a_projects_seed_reaches_the_stream, changing_the_seed_restarts_the_stream"
 
+  - id: 26
+    cue: any
+    authored: { plays: [200, 400], mixer: real-device }
+    behaviour: The crate's own mixer reuses a voice slot, and a reused slot is a new name.
+    observed_by: "`MixerBackend::voices(bus)` after N one-shots that have all ended, and the set of indices handed out."
+    green_when: "Slots bounded by the concurrent peak (6 for 400 plays), distinct indices == plays, and a stale index is a no-op."
+    source: "Gregory §14.5.8.4 — a sound engine supports a **fixed** number of voices; crate rule R4 bounds the concurrent count"
+    evidence: "runs/2026-11-02-07/perf.md, tests/mixer.rs::a_slot_is_reused_and_a_stale_index_addresses_nothing, tests/model.rs::a_voice_index_is_a_slot_and_a_generation"
+
   - id: 25
     cue: footstep.grass
     authored: { variant_key: step_03, bytes: undecodable }

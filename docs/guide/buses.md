@@ -88,7 +88,9 @@ not have, a duck that raises rather than lowers, and a hold or fade that is nega
 ## Two backends, one behaviour
 
 Without the `mixer` feature, Bevy's `AudioPlayer` plays each voice and the mix writes every voice's volume into its
-`AudioSink`. With it, the crate sums one graph and a bus's gain is one number per bus per frame. Either way a play
+`AudioSink`. The `mixer` feature keeps **one slot per voice heard at once**, reusing the slot of a sound that has
+ended — a long session does not accumulate one player per sound played — and each slot hand-out is a new name, so an
+entity still fading out cannot address the voice that replaced it. With it, the crate sums one graph and a bus's gain is one number per bus per frame. Either way a play
 answers `Played`, a refusal is `Refused`, and a live sound is a `Voice` — so a game, an editor panel and a test all
 see the same thing and only the sample path differs.
 

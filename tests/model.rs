@@ -239,3 +239,21 @@ fn a_fade_arrives_within_one_part_in_a_thousand() {
     assert_eq!(tau_for_fade(-1.0), bevy_siren::model::MIX_TAU_S);
     assert_eq!(tau_for_fade(f32::NAN), bevy_siren::model::MIX_TAU_S);
 }
+
+/// **A voice index is a slot and a generation**, and the packing round-trips at both ends of both ranges. The mixer
+/// hands a `usize` to three systems that hold it across frames, so the encoding cannot drift: slot 0 at generation
+/// `u32::MAX` and the largest slot the low bits allow must both come back exactly as they went in.
+#[test]
+fn a_voice_index_is_a_slot_and_a_generation() {
+    use bevy_siren::model::{VOICE_SLOT_BITS, pack_voice, unpack_voice};
+
+    assert_eq!(unpack_voice(pack_voice(0, 1)), (0, 1));
+    assert_eq!(unpack_voice(pack_voice(7, 3)), (7, 3));
+    assert_eq!(unpack_voice(pack_voice(0, u32::MAX)), (0, u32::MAX));
+    let widest_slot = (1usize << VOICE_SLOT_BITS) - 1;
+    assert_eq!(unpack_voice(pack_voice(widest_slot, 9)), (widest_slot, 9));
+
+    // Two different voices never share an index, which is the whole point.
+    assert_ne!(pack_voice(3, 1), pack_voice(3, 2));
+    assert_ne!(pack_voice(3, 1), pack_voice(4, 1));
+}

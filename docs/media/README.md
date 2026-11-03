@@ -3,6 +3,19 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 7, a reused voice slot
+
+No capture: the change is **memory**, not sound. Every rendered WAV is byte-identical, and the panel draws the same
+live-voice count because that count was never wrong — it was the backend's retained list behind it that grew. The
+evidence is `docs/loop/runs/2026-11-02-07/perf.md`: on this Mac's real audio device, 400 one-shots held **400 slots**
+before and **6** after, with the same 400 distinct *names* in both trees.
+`tests/mixer.rs::a_slot_is_reused_and_a_stale_index_addresses_nothing` asserts the three facts together, and skips with
+a sentence on a machine with no device.
+
+A capture that *would* show it: a memory strip in `examples/mixer` — resident bytes over a long run of one-shots — which
+would rise until the run ends before, and flatten after. That needs a long run and a process-memory probe, neither of
+which the panel has.
+
 ## No clip: iteration 6, a refused sample names the sound
 
 No capture: the change is **text** — one refusal sentence and the key inside it — and a still of the panel cannot show

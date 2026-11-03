@@ -344,3 +344,39 @@ fn a_key_with_no_handle_still_names_the_key() {
     let reason = refused(&mut app).remove(0).reason;
     assert_eq!(reason, Refusal::MissingSound { sound: "step_03".to_owned() });
 }
+
+/// **A slot is reused, and a stale index addresses nothing.**
+///
+/// The real `MixerBackend` is the only thing that can prove both halves: that 400 one-shots hold a handful of slots
+/// rather than 400 (the leak fixed here), and that a reused slot's *old* index cannot move its new occupant. It needs
+/// an audio device, so it returns early where there is none — the crate's own rule that a headless machine hears
+/// nothing and says so.
+#[test]
+fn a_slot_is_reused_and_a_stale_index_addresses_nothing() {
+    use bevy_siren::mixer::MixerBackend;
+
+    let Some(mut backend) = MixerBackend::open() else {
+        eprintln!("no audio device; the real mixer's slot reuse cannot be measured here");
+        return;
+    };
+    let bytes: Arc<[u8]> = Arc::from(crate::helpers::tiny_wav());
+    let mut first = None;
+    let mut distinct = std::collections::BTreeSet::new();
+    for _ in 0..200 {
+        if let Some(index) = backend.play("Effects", &bytes, -6.0, 1.0, false) {
+            distinct.insert(index);
+            first.get_or_insert(index);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    let held = backend.voices("Effects");
+    assert!(held <= 32, "200 one-shots hold at most the concurrent peak, not 200: {held}");
+    assert!(held > 0, "the short samples were actually started");
+    assert_eq!(distinct.len(), 200, "each hand-out is a fresh name, even in a reused slot");
+
+    // The first index names a voice that ended long ago. It must not address the slot's current occupant.
+    let stale = first.expect("the first play started");
+    assert!(backend.finished("Effects", stale), "a stale name has ended");
+    backend.set_voice_db("Effects", stale, -80.0);
+    backend.stop_voice("Effects", stale);
+}

@@ -7,6 +7,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The crate's own mixer reuses a voice slot instead of retaining every sound ever played.** `MixerBackend` pushed a
+  `VoiceTrack` — a `rodio::Player` and its queues — per play and never removed one, so a game on the `mixer` backend
+  held one player for every sound it had ever played: 400 one-shots held **400 slots** on a real device. `play` now
+  reuses the first slot whose voice has ended, bounding the list by the peak *concurrent* count (6 for those 400), and
+  the index it returns packs a slot **and a generation** (`model::pack_voice`), so a `MixerVoice` held by an entity the
+  world has not finished despawning addresses nothing rather than the slot's next occupant. `MixerBackend::voices()`
+  now reports slots, not sounds played. No public type or trait signature changed.
 - **A sample the decoder refuses names the sound key, not the cue.** `start_pending` reported a decode failure as
   `MissingSound { sound: voice.cue }`, putting the cue's name (`footstep.grass`) in a field documented as the key a
   project maps to a file (`step_03`) — so a corrupt `step_03.wav` sent a person looking for a file that never existed.
