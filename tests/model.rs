@@ -257,3 +257,19 @@ fn a_voice_index_is_a_slot_and_a_generation() {
     assert_ne!(pack_voice(3, 1), pack_voice(3, 2));
     assert_ne!(pack_voice(3, 1), pack_voice(4, 1));
 }
+
+/// **The panner's own law is the number a spatial cue divides back out** — and the number a non-spatial cue used to be
+/// handed unawares. On-axis, 8 m from a listener whose ears are a metre apart, `rodio`'s formula gives about 0.0117 in
+/// amplitude, i.e. **−38.7 dB**; that is why routing a "flat" cue through the panner was not a pan but a silence.
+#[test]
+fn the_panner_law_is_what_a_spatial_cue_divides_out() {
+    use bevy_siren::model::backend_spatial_gain;
+
+    let gain = backend_spatial_gain([0.0, 0.0, 8.0], [-0.5, 0.0, 0.0], [0.5, 0.0, 0.0]);
+    assert!((gain - 0.0117).abs() < 0.0005, "the panner's own gain at 8 m: {gain}");
+    let db = 20.0 * gain.log10();
+    assert!(
+        (db - -38.7).abs() < 0.2,
+        "which is {db} dB — a cue reported at 0 dB would be silent in practice"
+    );
+}

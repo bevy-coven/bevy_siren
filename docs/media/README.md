@@ -3,6 +3,19 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 8, a position a non-spatial cue does not have
+
+No capture: the change is **which backend flag a voice is spawned with**, and every rendered WAV is byte-identical —
+the crate's own mixer does not pan at all, and `examples/mixer` runs Bevy's path over cues that are all `spatial: false`
+played *without* a position, so nothing in the panel's script hits the mismatch. The evidence is the
+`tests/play.rs::a_non_spatial_cue_ignores_a_position` failure on the unfixed tree (*"a non-spatial cue is not routed
+through the panner"*) and `render.txt`'s panner line, **0.0117 linear, −38.7 dB at 8 m** — the falloff a "flat" cue was
+secretly given.
+
+A capture that *would* show it: a cue list row for a `spatial: false` cue auditioned at a position, with the panel
+showing its `Played.gain_db` against a level meter. That needs a meter on the panel, which is the same gain-history
+strip the last four iterations have proposed.
+
 ## No clip: iteration 7, a reused voice slot
 
 No capture: the change is **memory**, not sound. Every rendered WAV is byte-identical, and the panel draws the same

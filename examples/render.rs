@@ -216,6 +216,16 @@ fn main() {
         at_third(&quick)
     ));
 
+    // 3d. **What the panner would add on its own**, beside the cue's own law, at the distance a player notices. A
+    // spatial cue divides this back out (`Compensation`); a cue that is not spatial never sees it at all — and until
+    // iteration 8 a non-spatial cue played with a position was handed it unawares, at −38.7 dB.
+    let panner = bevy_siren::model::backend_spatial_gain([0.0, 0.0, 8.0], [-0.5, 0.0, 0.0], [0.5, 0.0, 0.0]);
+    report.push(format!(
+        "panner: its own law at 8 m on-axis is {:.4} linear, {:.1} dB; a spatial cue divides it out, a non-spatial cue is never placed",
+        panner,
+        20.0 * panner.log10()
+    ));
+
     // 4. A spatial cue's gain at the distances a player notices.
     let inverse = Attenuation::Inverse { near_m: 4.0, rolloff: 1.0 };
     report.push(format!(

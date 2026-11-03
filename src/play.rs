@@ -345,6 +345,9 @@ struct Started {
     pitch: f32,
     handle: Handle<AudioSource>,
     compensation_db: f32,
+    /// Whether this voice is placed in the world: the cue is spatial **and** the play has a position. One predicate,
+    /// decided where the attenuation is computed, so the panner and the `Transform` cannot disagree with it.
+    spatial: bool,
     priority: u8,
     mode: Mode,
     /// The voices this play takes over to fit the budget.
@@ -479,9 +482,13 @@ fn answer(
     }
     let mut parts = vec![cue.gain_db, slot.gain_db, request.gain_db.unwrap_or(0.0)];
     let mut compensation_db = 0.0;
-    if cue.spatial
-        && let Some(at) = request.position
-    {
+    // **A voice is placed only if the cue is spatial and the play has a position.** This one predicate decides the
+    // attenuation here, the panner in `spawn_voice`, and the `Transform` there too. A non-spatial cue given a position
+    // used to be routed through the two-ear player by a *different* predicate (`position.is_some()`), which applied
+    // rodio's `min(1, 1/d²)` — −38.7 dB at 8 m — while `Played.gain_db` reported 0.00: the sample and the meter said
+    // different things, and the meter is what a game's own level readout believes.
+    let spatial = cue.spatial && request.position.is_some();
+    if spatial && let Some(at) = request.position {
         let Some((ear, ears)) = listener.iter().next() else {
             return Err(Refusal::SpatiallyMute(at));
         };
@@ -504,6 +511,7 @@ fn answer(
         pitch,
         handle: handle.clone(),
         compensation_db,
+        spatial,
         priority: cue.priority,
         mode: cue.mode,
         stolen,
@@ -624,12 +632,15 @@ fn spawn_voice(
                 started.compensation_db,
             ]))),
             speed: semitones_to_ratio(started.pitch),
-            spatial: request.position.is_some(),
+            spatial: started.spatial,
             ..PlaybackSettings::ONCE
         };
         spawned.insert((AudioPlayer::new(started.handle.clone()), settings));
     }
-    if let Some(at) = request.position {
+    // The `Transform` is what the panner reads, so it exists on exactly the voices that are placed.
+    if started.spatial
+        && let Some(at) = request.position
+    {
         spawned.insert(Transform::from_translation(at));
     }
     if let Some(target) = request.target {

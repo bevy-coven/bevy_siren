@@ -7,6 +7,13 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A non-spatial cue given a position is no longer routed through the two-ear panner.** `spawn_voice` decided Bevy's
+  `PlaybackSettings.spatial` — and whether to attach a `Transform` — from `request.position.is_some()` alone, so a cue
+  authored `spatial: false` and played with `.at(..)` went through `rodio`'s panner, which applies `min(1, 1/d²)` as
+  well as a pan: **−38.7 dB at 8 m**, while `Played.gain_db` and the log reported **0.00 dB**. One predicate now
+  decides the attenuation, the panner and the `Transform` (`cue.spatial && position.is_some()`). **A project that
+  relied on the accident loses a pan it was never promised, and its meter was wrong while it happened.** Refusing such
+  a play instead is `docs/loop/needs-decision/non-spatial-position.md`.
 - **The crate's own mixer reuses a voice slot instead of retaining every sound ever played.** `MixerBackend` pushed a
   `VoiceTrack` — a `rodio::Player` and its queues — per play and never removed one, so a game on the `mixer` backend
   held one player for every sound it had ever played: 400 one-shots held **400 slots** on a real device. `play` now

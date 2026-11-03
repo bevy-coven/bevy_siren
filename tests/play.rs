@@ -292,3 +292,112 @@ fn the_missing_sound_sentence_covers_both_causes() {
     assert_eq!(line, "no handle or undecodable bytes for sound `step_03`");
     assert!(line.contains("step_03"), "the file to look at is named");
 }
+
+/// **A non-spatial cue ignores a position.** `Cue::spatial` is "whether the cue is placed in the world"; a cue that
+/// says no, played with `.at(..)`, must not be routed through the two-ear panner. The unfixed tree decided the panner
+/// from `position.is_some()` alone, so such a voice played at rodio's `min(1, 1/d²)` — −38.7 dB at 8 m — while
+/// `Played.gain_db` reported 0.00 dB and the log said it played. The sample and the meter disagreed.
+/// The `PlaybackSettings` half of this test is Bevy's backend: with `--features mixer` the crate's own graph owns
+/// playback and there is no settings component, so the entity shape is asserted only where that path is live. The
+/// `Played.gain_db` assertion holds either way.
+#[test]
+fn a_non_spatial_cue_ignores_a_position() {
+    use bevy::audio::AudioPlayer;
+    use bevy::audio::PlaybackSettings;
+
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("click")],
+        spatial: false,
+        ..Cue::new("click")
+    }]);
+    let mut app = app_with(table, sounds(&["click"]));
+    app.world_mut().spawn((Transform::default(), GlobalTransform::default(), SpatialListener::new(1.0)));
+
+    app.world_mut().write_message(Play::cue("click").at(Vec3::new(0.0, 0.0, 8.0)));
+    app.update();
+
+    let answer = played(&mut app).remove(0);
+    assert!(
+        (answer.gain_db - 0.0).abs() < 1e-4,
+        "the cue's own gain, and true for the sample too: {}",
+        answer.gain_db
+    );
+
+    let entity = answer.entity;
+    if !cfg!(feature = "mixer") {
+        let settings = app.world().get::<PlaybackSettings>(entity).expect("Bevy's path spawns with settings");
+        assert!(!settings.spatial, "a non-spatial cue is not routed through the panner");
+        assert!(app.world().get::<AudioPlayer>(entity).is_some(), "it still plays");
+    }
+    assert!(
+        app.world().get::<Transform>(entity).is_none(),
+        "no placed voice carries a position for a panner to read"
+    );
+}
+
+/// **A spatial cue at a position is still panned, placed and compensated.** The case the fix must not overshoot: it
+/// keeps its `Transform`, its panner flag, its distance gain and a non-zero `Compensation` for the panner's own law.
+#[test]
+fn a_spatial_cue_at_a_position_is_still_panned_and_compensated() {
+    use bevy::audio::PlaybackSettings;
+    use bevy_siren::Compensation;
+
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("bang")],
+        spatial: true,
+        attenuation: bevy_siren::Attenuation::Inverse { near_m: 4.0, rolloff: 1.0 },
+        ..Cue::new("bang")
+    }]);
+    let mut app = app_with(table, sounds(&["bang"]));
+    app.world_mut().spawn((Transform::default(), GlobalTransform::default(), SpatialListener::new(1.0)));
+
+    app.world_mut().write_message(Play::cue("bang").at(Vec3::new(0.0, 0.0, 8.0)));
+    app.update();
+
+    let answer = played(&mut app).remove(0);
+    assert!(
+        (answer.gain_db - -6.0206).abs() < 1e-3,
+        "twice the near radius halves the amplitude: {}",
+        answer.gain_db
+    );
+    let entity = answer.entity;
+    if !cfg!(feature = "mixer") {
+        assert!(app.world().get::<PlaybackSettings>(entity).expect("settings").spatial);
+    }
+    let at = app.world().get::<Transform>(entity).expect("a placed voice reads a place").translation;
+    assert!((at - Vec3::new(0.0, 0.0, 8.0)).length() < 1e-5);
+    let compensation = app.world().get::<Compensation>(entity).expect("the panner's law is divided out");
+    assert!(
+        compensation.db > 1.0,
+        "the panner would apply its own falloff; it is divided back out: {}",
+        compensation.db
+    );
+}
+
+/// **A spatial cue with no position is flat**, which is what its doc says: *"heard by everyone at the cue's own gain"*.
+/// The fix must not start panning it.
+#[test]
+fn a_spatial_cue_without_a_position_is_still_flat() {
+    let table =
+        CueTable::new(vec![Cue { sounds: vec![SoundSlot::new("bang")], spatial: true, ..Cue::new("bang") }]);
+    let mut app = app_with(table, sounds(&["bang"]));
+    app.world_mut().spawn((Transform::default(), GlobalTransform::default(), SpatialListener::new(1.0)));
+
+    app.world_mut().write_message(Play::cue("bang"));
+    app.update();
+    let answer = played(&mut app).remove(0);
+    assert!((answer.gain_db - 0.0).abs() < 1e-4, "{}", answer.gain_db);
+    assert!(app.world().get::<Transform>(answer.entity).is_none(), "no position, no placement");
+}
+
+/// **A spatial cue with no listener is still refused**, carrying the position — the crate's existing rule, unchanged.
+#[test]
+fn a_spatial_cue_with_no_listener_is_still_refused() {
+    let table =
+        CueTable::new(vec![Cue { sounds: vec![SoundSlot::new("bang")], spatial: true, ..Cue::new("bang") }]);
+    let mut app = app_with(table, sounds(&["bang"]));
+    let at = Vec3::new(3.0, 0.0, 4.0);
+    app.world_mut().write_message(Play::cue("bang").at(at));
+    app.update();
+    assert_eq!(refused(&mut app)[0].reason, bevy_siren::Refusal::SpatiallyMute(at));
+}

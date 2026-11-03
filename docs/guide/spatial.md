@@ -45,6 +45,11 @@ A spatial play with no listener is refused with the position it was asked for, b
 origin, is a different sound from the one the game asked for. A game that wants a flat fallback plays the cue without
 `at(..)` and gets exactly that.
 
+The same rule runs the other way: **a cue that is not spatial is never placed**, whatever the play passed. Its
+`Attenuation` is not applied, it is not panned, and its `Played.gain_db` is the gain it actually plays at. A
+non-spatial cue with `.at(..)` is flat — the position is ignored — because the crate applies no distance law a project
+did not write, and applying the backend's own was a bug that made a "flat" cue 38 dB down while the log said 0 dB.
+
 ## The two backends
 
 With Bevy's `AudioPlayer` (the default), a spatial voice goes through Bevy's two-ear `SpatialPlayer`, which pans by the
