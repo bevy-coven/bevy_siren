@@ -187,7 +187,7 @@ pub fn build(
 }
 
 /// Decode, convert and embed one file, with every step's failure turned into a sentence.
-fn embed_one(
+pub(super) fn embed_one(
     path: &Path,
     embed: &mut impl FnMut(&[f32]) -> Result<Vec<f32>, String>,
 ) -> Result<Vec<f32>, String> {

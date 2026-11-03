@@ -29,6 +29,8 @@ mod semantic_decode;
 #[cfg(feature = "semantic")]
 mod semantic_eval;
 #[cfg(feature = "semantic")]
+mod semantic_incremental;
+#[cfg(feature = "semantic")]
 mod semantic_index;
 #[cfg(feature = "semantic")]
 mod semantic_indexer;

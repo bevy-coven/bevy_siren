@@ -28,6 +28,7 @@ pub mod budget;
 pub mod buffer;
 pub mod decode;
 pub mod eval;
+pub mod incremental;
 pub mod index;
 pub mod indexer;
 pub mod loudness;
