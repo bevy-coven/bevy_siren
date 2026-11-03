@@ -7,6 +7,89 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 24 — 2026-11-03 — a refusal outlives a burst of plays
+
+**Change.**
+
+- **`src/log.rs` — `SirenLog::push` drops the oldest *routine* entry when the buffer is full**, not simply the oldest.
+  `Played`, `Stopped` and `Ducked` happen at frame rate; a healthy game produces no `Refused` at all. If every entry is
+  a refusal the oldest still goes. The buffer stays `CAPACITY` (256) — same memory, same `recent`/`iter`/`len`.
+- Four tests, two failing on the base commit and two guards; a CHANGELOG line and a media note.
+
+**Why.** Iteration 23's lead was the log's cap under a burst. Its **arithmetic** was clean (capped, oldest dropped,
+`recent(n)` safe past the buffer, no growth), and so were four other probes. The one that paid asked a different
+question: **how long a *refusal* lives**. One `Refused` was evicted by exactly **256 plays** — **0.40 s** at a 32-voice
+scene writing 640 entries a second. That is the silent-failure class the log exists to prevent.
+
+**Evidence.** `runs/2026-11-03-24/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/refusal-lifetime{,-before}.txt`.
+
+**Measured.**
+
+| row | before | after |
+|---|---|---|
+| one refusal, then plays | evicted after **256 plays** | survives **2000**; leaves at 256 *routine* entries |
+| a 32-voice scene at 640 entries/s | **0.40 s** | ≥ 0.40 s, and longer in a quiet scene |
+| 600 refusals (guard) | len 256, oldest `c344` | unchanged |
+| 1000 mixed pushes (guard) | len ≤ 256 | unchanged |
+| cost, 200k routine pushes | — | 11.1 ms (**55 ns** each) |
+| cost, 1000 pushes into an all-refusal log | — | 272 µs (**272 ns** each, pathological) |
+| every rendered cue, the mix | — | **byte-identical** (21/21); `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| frame cost, 8 / 64 / 256 | median 1.391 µs at 256 | median 1.267 µs, load 8.8–13.8 — within the spread; the log is not on `perfcheck`'s path |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. One correction in my own evidence, recorded: the first probe
+printed "3.12 s" for the after case by falling back to its 2000-play limit — a made-up number for a rule that has no
+fixed play count. It now states the rule (256 *routine* entries) and the floor that follows.
+
+**Traps for the command.** (1) A **ring buffer** with one eviction rule treats a routine fact and an exceptional one
+alike; the exceptional one is what a person reads the buffer for. (2) Measure the *lifetime* of the entry a diagnostic
+depends on, not just the buffer's size and accessors — the arithmetic was right and the retention was wrong.
+(3) A probe that reports "survives N" by hitting its own limit has measured nothing; state the rule, not the loop bound.
+(4) Five probes came back clean and are written down: the cap, `recent(n)`, `line()` (host-only), `next_boundary` at
+awkward tempos, and every no-ears spatial shape. A clean probe is a result. (5) `hs distill` GPU-blocked (twenty-third
+iteration).
+
+**Commit.** `200a119`; CI on `main`.
+
+**Next 5.**
+
+1. **`CueProblem` for an empty `sound` key** — `needs-decision/empty-sound-key.md`; it plays and is not reported.
+2. **`CueProblem` for a duplicate key** — `needs-decision/duplicate-sound-problem.md` (iteration 22).
+3. **`CueProblem::BadGain`** — `needs-decision/bad-gain-problem.md`; `cues.yaml` case 31 is red until it lands.
+4. **`Refusal::NotALoop { layer, cue }`** — `needs-decision/not-a-loop-refusal.md` (iteration 16).
+5. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+
+**The hunt, thirteenth pass.** The log class is closed. Four `CueProblem` variants now wait on one public-enum decision,
+and the loop should stop re-finding them — the next run should **ask the owner** whether to take the break, or pick
+something outside that enum.
+
+Probed `SirenSounds::failed` first, before writing it down:
+
+```
+load::<AudioSource>("audio/does_not_exist.wav")
+  frame 0: Some(Loading)
+  frame 1: Some(Failed(MissingAssetLoader { asset_path: "audio/does_not_exist.wav" }))
+  failed(table) = ["missing"]                 <- correct, and it names the key
+```
+
+So the **Failed path works** — my first probe had simply not advanced the app, which is this loop's own recurring trap
+(a `Loading` state read on frame 0 is not a verdict).
+
+One state is named by neither accessor: a **`Handle::default()`** inserted for a key is *mapped* (so `missing()` skips it)
+and never loads (so `failed()` skips it). It is reachable only if a host inserts a placeholder handle, which is not a
+project's table doing anything wrong — **noted, not an item.**
+
+**Next probe:** with the log and `SirenSounds` classes closed, the surface left is **`examples/mixer`** — the one visible
+harness the loop has never inspected frame by frame, and the item the skill asks about when a change is in the crate:
+does it render every bus the table has, and does a bus it does not list appear as zero?
+
+**Baseline note.** Nothing was red; the suite had 105 tests. `cues.yaml` case 31 is red by design.
+
+**Consumer status.** Unchanged: `bevy_grimoire`'s `main` still lacks `AudioPanelPlugin` and declares `pub mod audio_panel`
+twice, so the panel test cannot run; `799fad2` waits on local `main`.
+
+---
+
 ## Iteration 23 — 2026-11-03 — the seed the stream was built from
 
 **Change.**
