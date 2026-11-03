@@ -7,6 +7,75 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 13 — 2026-11-02 — the cap is a budget on plays, and the docs say so
+
+**Change.**
+
+- **`src/cue.rs` — `Cue::max_instances` now says "may **start**", and why.** It read *"how many of this cue may sound at
+  once"*, a standing promise; the crate keeps it at the moment of each play. A table edited under live voices leaves
+  them sounding and refuses the next request. `CueTable::insert` — the method a project calls to edit one at runtime —
+  points at the same sentence, and `docs/guide/buses.md` says it in a project's words: all three caps are budgets on
+  plays, and editing a table under playing sounds is safe.
+- `tests/mix.rs` — two tests hold the reading: a lowered cap refuses and does not cut; a raised cap admits. The mutation
+  that would adopt the other reading (removing `room_for`'s unstealable guard, the shape a "reconcile by ending"
+  implementation has) reddens the first. **No behaviour changed.**
+
+**Why.** Iteration 12's log named the hunt: hold a public handle across a frame and use it as documented. This pass ran
+it over every remaining carrier — `Play::on` in both despawn orders, `MusicState::voice`, `SirenChoices`, the `Samples`
+handle — and all were safe; the audit of every `commands.entity(..)` confirms iteration 12 closed the only unguarded
+path. What the hunt did find was a **documented promise with two readings**, and the written one was the one the crate
+does not implement.
+
+**Evidence.** `runs/2026-11-02-13/`: `eval.md` (baseline green; case 7 asserts the cap only at play time), `research.md`,
+`plan.md`, `perf.md` (the probe and the mutation), `review.md`, and `evidence/{before,after}/` with both render trees, the
+spectrograms and the loudness numbers.
+
+**Measured.**
+
+| sequence | observed | documented now |
+|---|---|---|
+| two voices at `max_instances: 2`, table edited to 1, third play | refused `VoiceLimit`; **both voices still sounding**; nothing stopped or logged | the cap governs the next play; live voices live out their length |
+| cap raised from 1 to 2 under one live voice | the next play is `Played` | unchanged |
+| the rejected design | removing `room_for`'s unstealable guard reddens the new test | measured |
+| every rendered cue, the mix, and `examples/music` | — | **byte-identical**; *"transitions on the bar: yes"* |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The zoom pass found two defects in my own tests — priority-0
+voices meant the lowered cap *stole* rather than refused, and a second test read a `Played` left buffered by the previous
+play — both the loop's old traps, both fixed.
+
+**The alternative, rejected with a reason.** Reconciling live voices would despawn a voice the game did not stop, on a
+frame it did not choose, and log a stop it did not request: three surprises to replace one, plus rules for which voice
+goes and for a table edited twice in a frame. A feature with its own decision, not a doc fix.
+
+**Traps for the command.** (1) A cap that can **steal** never refuses: to test a refusal, the voices must be unstealable
+or the test asserts the wrong path. (2) Drain `Played`/`Refused` between plays, or the next assertion counts the
+previous request's message. (3) Two readings of one sentence can both be defensible; the repair is to write down which
+one the code takes and hold it with a test, not to change the code to match the looser reading. (4) `hs distill` is still
+GPU-blocked (`bge-m3` wants 5000 MB; a 14.8 GB VLLM engine holds the card), eleventh iteration running.
+
+**Commit.** `c53f030`, pushed to `main`; CI run 41559273528 is **success** on `big-s1`. Gate: build, test (73 + 4), serde (80 + 4), mixer (80 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green.
+
+**Next 5.**
+
+1. **A method to reconcile a cue's live voices with its cap**, for a project that wants the count enforced — as
+   something a game calls, never as a frame the crate chooses. New public API, so a decision file first.
+2. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+3. A variant that distinguishes "never mapped" from "corrupt file" — `needs-decision/undecodable-sound.md`.
+4. A payload that names the cap — `needs-decision/refusal-names-its-cap.md`.
+5. `Completes` is public and can never be true — `needs-decision/remove-completes.md` (its `Entry` arm can carry item 1
+   of iteration 10's note).
+
+**The hunt, after two passes of it.** Iteration 12 found a crash by holding a handle across a frame; this pass ran the
+same shape over every other carrier and found nothing, then found a contract gap by asking what a **public field's
+sentence** promises. Both hunts are now written into the command: the handle class is exhausted, and the contract class
+is the one that keeps paying.
+
+**Baseline note.** Nothing was red, and the suite had 71 tests. Case 7 asserts the polyphony cap only at play time; no
+case edits a table under a live voice.
+
+---
+
 ## Iteration 12 — 2026-11-02 — a stop for a sound that already ended
 
 **Change.**
