@@ -30,6 +30,8 @@ mod semantic_query;
 #[cfg(feature = "semantic")]
 mod semantic_rank;
 #[cfg(feature = "semantic")]
+mod semantic_resample;
+#[cfg(feature = "semantic")]
 mod semantic_search;
 #[cfg(feature = "semantic")]
 mod semantic_session;

@@ -48,7 +48,7 @@ readme-example = []
 # `rodio` is here because the feature must **decode**, and the crate already has a decoder it trusts: the one the mixer
 # uses. Reusing it means an asset that plays is the same asset that indexes, and it brings no new dependency — only the
 # one the `mixer` feature already enables.
-semantic = ["dep:ort", "dep:rodio"]
+semantic = ["dep:ort", "dep:rodio", "dep:rubato"]
 
 [dependencies]
 # The umbrella with defaults off. A game already has the full `bevy`, so these features cost it nothing;
@@ -72,6 +72,11 @@ ort = { version = "=2.0.0-rc.15", default-features = false, features = [
     "download-binaries", # fetches ONNX Runtime 1.31; without it the crate builds and fails to link
     "tls-rustls",        # what lets the build script fetch it; without it ort-sys cannot compile
 ], optional = true }
+# The resampler. `needs-decision/resampler-dependency.md` measured the three candidates: `rodio`'s converter discards
+# samples when down-sampling (its own doc comment), a hand-rolled interpolator produces a plausible embedding from a
+# corrupted signal, and `rubato`'s FFT resampler keeps a 1 kHz tone at 0.9763 of its energy with 15 kHz intact
+# (`runs/2026-11-03-63/evidence/resampler-probe.txt`). Pure Rust, so no C toolchain and no download.
+rubato = { version = "0.16", default-features = false, features = ["fft_resampler"], optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 ron = { version = "0.12", optional = true }
 # The `mixer` backend only. Same version as `bevy_audio`'s own, so the graph has one rodio.

@@ -30,6 +30,7 @@ pub mod index;
 pub mod model;
 pub mod query;
 pub mod rank;
+pub mod resample;
 pub mod search;
 pub mod session;
 

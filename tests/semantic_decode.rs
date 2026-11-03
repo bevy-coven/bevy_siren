@@ -83,25 +83,35 @@ fn a_file_at_the_models_rate_goes_all_the_way_to_a_model_buffer() {
 }
 
 #[test]
-fn a_file_at_another_rate_is_decoded_and_then_refused_naming_both_rates() {
-    // The commonest case in a real library. Decoding must succeed — the refusal is about conversion, not reading —
-    // and the message must name the file's rate and the model's.
+fn a_file_at_another_rate_is_converted_not_refused() {
+    // **The behaviour #12 closed on.** 44.1 kHz is the commonest rate a game ships; it must reach the model, at the
+    // model's rate and the right duration, rather than being turned away.
     let s = Scratch::new("441");
-    let p = s.file("cd.wav", &wav_tone(44_100, 1_000.0, 4410));
+    let rate = 44_100u32;
+    let seconds = 0.5;
+    let frames = (f64::from(rate) * seconds) as usize;
+    let p = s.file("cd.wav", &wav_tone(rate, 1_000.0, frames));
 
-    let decoded = decode(&p).expect("44.1 kHz still decodes");
-    assert_eq!(decoded.sample_rate, 44_100);
+    let decoded = decode(&p).expect("decodes");
+    assert_eq!(decoded.sample_rate, 44_100, "the file's own rate");
 
-    let err = decode_for_model(&p).expect_err("not converted yet");
-    match &err {
-        DecodeProblem::Buffer(BufferProblem::ResamplingRequired { from, to }) => {
-            assert_eq!(*from, 44_100);
-            assert_eq!(*to, MODEL_SAMPLE_RATE);
-        }
-        other => panic!("expected ResamplingRequired, got {other:?}"),
-    }
-    let msg = err.to_string();
-    assert!(msg.contains("44100") && msg.contains("48000"), "both rates are in the message: {msg}");
+    let buffer = decode_for_model(&p).expect("a 44.1 kHz file is converted, not refused");
+    let expected = ((frames as f64) * (f64::from(MODEL_SAMPLE_RATE)) / f64::from(rate)).round() as usize;
+    assert_eq!(buffer.len(), expected, "0.5 s stays 0.5 s: {frames} at 44.1 kHz is {expected} at 48 kHz");
+    assert!(buffer.iter().all(|x| x.is_finite()), "no NaN in the converted buffer");
+
+    // And it is still the tone: 1 kHz for 0.5 s is ~500 rising crossings.
+    let crossings = buffer.windows(2).filter(|w| w[0] <= 0.0 && w[1] > 0.0).count();
+    assert!((497..=503).contains(&crossings), "the tone survives the conversion; got {crossings}");
+}
+
+#[test]
+fn the_low_level_refusal_still_exists_for_a_caller_that_skips_the_conversion() {
+    // `buffer::model_buffer` is public and still refuses a rate it cannot convert. That is the low-level contract;
+    // `decode_for_model` is the path that does the conversion first.
+    let err = bevy_siren::semantic::buffer::model_buffer(&[0.1f32; 100], 1, 44_100)
+        .expect_err("model_buffer itself still refuses");
+    assert!(matches!(err, BufferProblem::ResamplingRequired { .. }), "got {err:?}");
 }
 
 #[test]

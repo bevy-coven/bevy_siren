@@ -228,16 +228,18 @@ fn the_semantic_feature_declares_no_dependency_of_its_own() {
         .find(|l| l.trim_start().starts_with("semantic ="))
         .expect("the semantic feature is declared");
     let rhs = line.split('=').nth(1).expect("a feature has a value").trim();
-    // The feature names exactly two dependencies, and each has its argument in `tests/leaf.rs`:
+    // The feature names exactly three dependencies, and each has its argument in `tests/leaf.rs`:
     //   ort    — the inference runtime (ADR 0002).
     //   rodio  — the decoder the crate already trusts, which costs no new crate: `bevy_audio` resolves rodio 0.22.2
     //            in the default graph already, so this entry turns on this crate's own decoder features and adds
-    //            nothing. Measured: `cargo tree --edges normal` is 413 lines with no features, before and after.
+    //            nothing. Measured: `cargo tree --edges normal` is 413 lines with no features.
+    //   rubato — the resampler, which turns a 44.1 kHz library from refused into converted. Measured: a 1 kHz tone
+    //            keeps 0.5000 of its 0.5000 energy and a 1.000 s file becomes exactly 48000 samples.
     assert_eq!(
-        rhs, "[\"dep:ort\", \"dep:rodio\"]",
-        "the semantic feature pulls the inference runtime and the decoder, and nothing else: `{line}`.\n\
-         Anything more is a design decision: add it to ALLOWED_DEPS in tests/leaf.rs with the sentence that argues \
-         for it, in the same commit."
+        rhs, "[\"dep:ort\", \"dep:rodio\", \"dep:rubato\"]",
+        "the semantic feature pulls the inference runtime, the decoder and the resampler, and nothing else: \
+         `{line}`.\nAnything more is a design decision: add it to ALLOWED_DEPS in tests/leaf.rs with the sentence that \
+         argues for it, in the same commit."
     );
 }
 

@@ -14,18 +14,20 @@
 //! so enabling the feature's own `rodio` entry turns on the decoder features this crate declares and adds nothing to
 //! the graph. The default build stays **413 lines**, unchanged.
 //!
-//! # What it does not do
+//! # The rate
 //!
-//! It does not resample. `buffer::model_buffer` refuses a rate that is not the model's, and
-//! `docs/loop/needs-decision/resampler-dependency.md` records why that refusal is deliberate and what would end it.
-//! Decoding a 44.1 kHz file here succeeds; converting it does not, and the refusal names it.
+//! A file at the model's rate is downmixed and returned; a file at any other rate is downmixed and **resampled** by
+//! [`super::resample`], which is the commonest case in a game's library. `buffer::model_buffer` still refuses a rate it
+//! cannot convert, and that remains the low-level contract — but nothing on this path reaches it with a rate other than
+//! the model's, because the conversion happens first.
 
 use std::fs::File;
 use std::path::Path;
 
 use rodio::Source;
 
-use super::buffer::{BufferProblem, model_buffer};
+use super::buffer::{BufferProblem, downmix_to_mono};
+use super::resample;
 
 /// Why a file could not be decoded.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,9 +109,19 @@ pub fn decode(path: &Path) -> Result<Decoded, DecodeProblem> {
 
 /// **Decode and prepare in one step**: the whole path from a file to a model input, or the reason it stops.
 ///
-/// One function so there is one path, per the crate's rule that a second path is a second set of rules. A 48 kHz file
-/// returns a buffer; anything else returns [`BufferProblem::ResamplingRequired`] naming both rates.
+/// One function so there is one path, per the crate's rule that a second path is a second set of rules.
+///
+/// A file at the model's rate is downmixed and returned. **A file at any other rate is downmixed and resampled**, which
+/// is the commonest case in a game's library — 44.1 kHz is what asset stores ship. The conversion is `rubato`'s FFT
+/// resampler, chosen by measurement: it keeps a 1 kHz tone at **0.5000 of 0.5000** of its energy and yields **exactly
+/// 48000** samples from a 1.000 s input (`runs/2026-11-03-65/research.md`).
+///
+/// A rate of zero is still refused, because nothing can be divided by it.
 pub fn decode_for_model(path: &Path) -> Result<Vec<f32>, DecodeProblem> {
     let decoded = decode(path)?;
-    model_buffer(&decoded.samples, decoded.channels, decoded.sample_rate).map_err(DecodeProblem::Buffer)
+    let mono = downmix_to_mono(&decoded.samples, decoded.channels).map_err(DecodeProblem::Buffer)?;
+    if mono.is_empty() {
+        return Err(DecodeProblem::Buffer(BufferProblem::Empty));
+    }
+    resample::to_model_rate(&mono, decoded.sample_rate).map_err(DecodeProblem::Buffer)
 }

@@ -19,6 +19,11 @@ use std::path::{Path, PathBuf};
 ///   `semantic`. The version `bevy_audio` itself resolves, so the graph has one. The `semantic` entry costs no new
 ///   crate: `cargo tree -i rodio` reports `bevy_audio → bevy_internal → bevy → bevy_siren` already, so the entry
 ///   turns on this crate's decoder features and adds nothing to the graph.
+/// - `rubato` — the resampler, behind `semantic`. It earns its place the way `ort` does, by measurement: `rodio`'s own
+///   converter discards samples when down-sampling, and a hand-rolled interpolator produced a plausible embedding from
+///   a corrupted signal (removed in iteration 62). `rubato`'s FFT resampler keeps a 1 kHz tone at **0.5000 of 0.5000**
+///   of its energy with 15 kHz intact and a 1.000 s file at **exactly 48000** samples, measured in
+///   `runs/2026-11-03-65/research.md`. Pure Rust: no C toolchain, no download.
 /// - `ort` — the inference runtime, behind `semantic` and off by default. It earns its place by measurement rather
 ///   than by convenience: `docs/adr/0002-inference-runtime.md` chose it over `candle` because CLAP's graph is 39
 ///   standard operators and `ort` runs them exactly, and `runs/2026-11-03-63/evidence/ort-probe.txt` records it
@@ -27,7 +32,7 @@ use std::path::{Path, PathBuf};
 ///
 /// Adding a name here is a design decision, not a convenience: the sentence above is the argument, and it belongs in
 /// the same commit as the entry.
-const ALLOWED_DEPS: &[&str] = &["bevy", "serde", "ron", "rodio", "ort"];
+const ALLOWED_DEPS: &[&str] = &["bevy", "serde", "ron", "rodio", "ort", "rubato"];
 
 /// Crate and type names that would mean the boundary has been crossed: a physics engine, the editor, a particular
 /// game, or a particular game's camera.
