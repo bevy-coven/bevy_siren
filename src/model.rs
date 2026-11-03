@@ -174,6 +174,22 @@ pub fn active_duck_db(by_db: f32, since_s: f64, hold_s: f32, fade_s: f32) -> f32
     if left > -1e-3 { 0.0 } else { left }
 }
 
+/// The time constant for `approach` to arrive within one part in a thousand of its target in `fade_s` seconds, or
+/// [`MIX_TAU_S`] when `fade_s` is zero or less.
+///
+/// **A fade duration means "the time to arrive", everywhere in this crate.** [`active_duck_db`] reaches its target at
+/// exactly `hold + fade`, and a music layer's [`fade_s`](crate::music::MusicLayers) is documented the same way. But
+/// [`approach`] is exponential — it reaches 63.2 % of the way in one time constant and never quite arrives — so the
+/// constant that honours that sentence is the one for which `1 - e^(-fade_s / tau) >= 1 - 1/1000`, i.e.
+/// `tau = fade_s / ln(1000)`, about `fade_s / 6.9078`.
+///
+/// A thousandth of the move is below the crate's 0.01 dB comparison for any move up to 10 dB, and a caller with a
+/// larger move snaps the last hundredth of a dB off anyway (`move_layers` and `update_mix` both do). A `fade_s` of
+/// zero or less keeps [`MIX_TAU_S`], so "no fade given" and "the crate's easing" stay the same thing.
+pub fn tau_for_fade(fade_s: f32) -> f32 {
+    if !fade_s.is_finite() || fade_s <= 0.0 { MIX_TAU_S } else { fade_s / 1000f32.ln() }
+}
+
 /// A gain one frame closer to `target`: `current + (target - current) * (1 - exp(-dt / tau))`.
 ///
 /// This is what makes a bus move without a click. A `tau` or a `dt` of zero or less returns `target`:

@@ -165,6 +165,7 @@ fn main() {
         "Music under a stinger: duck_s as the hold (the fix) and as the fade (before)",
         &[("hold then release", &held, "--c1"), ("fade from the first frame", &faded, "--c4")],
         starts_at,
+        "duck fires",
     );
     write_samples(&out, "bus-Music-stinger-before.wav", &bus_from(&faded), 1.0);
     let at = |env: &[f32]| {
@@ -174,6 +175,45 @@ fn main() {
         "bus-Music-stinger: duck {stinger_db:.1} dB; duck_s as the hold ({stinger_hold:.2} s) + release {stinger_release:.2} s reads {:.2} dB halfway, duck_s as the fade reads {:.2} dB halfway",
         at(&held),
         at(&faded)
+    ));
+
+    // 3c. **A music layer's crossfade**, in the two readings of `fade_s`: the crate's `MIX_TAU_S` easing (which is what
+    // `0` means and what every move used to get whatever the project wrote) and an authored 0.8 s arrival, whose time
+    // constant is `model::tau_for_fade`. Drawn from `SILENT_DB` to −9 dB, the move a combat layer makes.
+    let fade_s = 0.8f32;
+    let layer_from = bevy_siren::model::SILENT_DB;
+    let layer_to = -9.0f32;
+    let layer_env = |tau: f32| {
+        let mut gain = layer_from;
+        let mut env = Vec::new();
+        for _ in 0..60 {
+            gain = approach(gain, layer_to, tau, 1.0 / 60.0);
+            if (gain - layer_to).abs() < 0.01 {
+                gain = layer_to;
+            }
+            env.push(gain);
+        }
+        env
+    };
+    let quick = layer_env(bevy_siren::model::MIX_TAU_S);
+    let authored = layer_env(bevy_siren::model::tau_for_fade(fade_s));
+    let layer_bus = |env: &[f32]| -> Vec<f32> {
+        env.iter().flat_map(|d| std::iter::repeat_n(db_to_gain(music + d), per_frame)).collect()
+    };
+    write_samples(&out, "layer-fade.wav", &layer_bus(&authored), 1.0);
+    write_samples(&out, "layer-fade-before.wav", &layer_bus(&quick), 1.0);
+    write_gain_plot(
+        &out.join("layer-fade.svg"),
+        "A music layer from silence to -9 dB: an authored 0.8 s fade and the crate's default easing",
+        &[("fade_s(0.8)", &authored, "--c1"), ("default (MIX_TAU_S)", &quick, "--c4")],
+        0.0,
+        "change",
+    );
+    let at_third = |env: &[f32]| env.get(18).copied().unwrap_or(0.0);
+    report.push(format!(
+        "layer-fade: from {layer_from:.0} to {layer_to:.0} dB; 0.3 s in, the authored {fade_s:.1} s fade reads {:.1} dB and the default easing reads {:.1} dB",
+        at_third(&authored),
+        at_third(&quick)
     ));
 
     // 4. A spatial cue's gain at the distances a player notices.
@@ -342,7 +382,13 @@ fn write_gain(out: &Path, name: &str, samples: &[f32], speed: f32, gain_db: f32)
 ///
 /// Colours are the reader's own (`var(--c1)`, `var(--c4)`), so the same file reads on a light or a dark theme. The
 /// dashed line marks the frame the duck fired.
-fn write_gain_plot(path: &Path, name: &str, envelopes: &[(&str, &[f32], &str)], mark_s: f64) {
+fn write_gain_plot(
+    path: &Path,
+    name: &str,
+    envelopes: &[(&str, &[f32], &str)],
+    mark_s: f64,
+    mark_label: &str,
+) {
     const W: f64 = 900.0;
     const H: f64 = 320.0;
     const LEFT: f64 = 64.0;
@@ -350,10 +396,16 @@ fn write_gain_plot(path: &Path, name: &str, envelopes: &[(&str, &[f32], &str)], 
     const TOP: f64 = 64.0;
     const BOTTOM: f64 = 52.0;
     let n = envelopes.iter().map(|(_, e, _)| e.len()).max().unwrap_or(2).max(2);
-    let lo = envelopes.iter().flat_map(|(_, e, _)| e.iter().copied()).fold(0.0f32, f32::min).min(-1.0);
+    // **The vertical scale is the data's own**, not a fixed 0 dB: a fade from silence drawn against 0 dB is a line
+    // pinned to the floor, and a fade to -9 dB drawn against 0 dB wastes two thirds of the plot. A tenth of headroom
+    // keeps the top curve off the frame.
+    let lo = envelopes.iter().flat_map(|(_, e, _)| e.iter().copied()).fold(0.0f32, f32::min);
+    let hi = envelopes.iter().flat_map(|(_, e, _)| e.iter().copied()).fold(lo, f32::max);
+    let (lo, hi) = (lo - 1.0, hi + ((hi - lo) * 0.1).max(0.5));
     let x = |i: usize| LEFT + (i as f64 / (n - 1) as f64) * (W - LEFT - RIGHT);
-    let y =
-        |v: f32| H - BOTTOM - ((f64::from(v) - f64::from(lo)) / (0.0 - f64::from(lo))) * (H - TOP - BOTTOM);
+    let y = |v: f32| {
+        H - BOTTOM - ((f64::from(v) - f64::from(lo)) / (f64::from(hi) - f64::from(lo))) * (H - TOP - BOTTOM)
+    };
     let axis_y = H - BOTTOM;
 
     let mut out = String::new();
@@ -362,7 +414,7 @@ fn write_gain_plot(path: &Path, name: &str, envelopes: &[(&str, &[f32], &str)], 
     ));
     out.push_str(&format!("<text x=\"{LEFT}\" y=\"22\" font-size=\"14\" fill=\"var(--fg)\">{name}</text>"));
     out.push_str(&format!(
-        "<text x=\"{LEFT}\" y=\"42\" font-size=\"11\" fill=\"var(--muted)\">{lo:.1} dB to 0 dB, 30 fps</text>"
+        "<text x=\"{LEFT}\" y=\"42\" font-size=\"11\" fill=\"var(--muted)\">{lo:.1} dB to {hi:.1} dB, 30 fps</text>"
     ));
 
     // Legend: a swatch then its label, laid out left to right so nothing can fall outside the viewBox.
@@ -370,12 +422,12 @@ fn write_gain_plot(path: &Path, name: &str, envelopes: &[(&str, &[f32], &str)], 
     for (label, _, colour) in envelopes {
         out.push_str(&format!(
             "<rect x=\"{legend_x:.1}\" y=\"{:.1}\" width=\"10\" height=\"10\" fill=\"var({colour})\"/>",
-            TOP - 26.0
+            TOP - 14.0
         ));
         out.push_str(&format!(
             "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--fg)\">{label}</text>",
             legend_x + 14.0,
-            TOP - 17.0
+            TOP - 5.0
         ));
         legend_x += 24.0 + label.len() as f64 * 6.2;
     }
@@ -396,16 +448,21 @@ fn write_gain_plot(path: &Path, name: &str, envelopes: &[(&str, &[f32], &str)], 
         "<line x1=\"{LEFT}\" y1=\"{axis_y:.1}\" x2=\"{:.1}\" y2=\"{axis_y:.1}\" stroke=\"var(--border)\"/>",
         W - RIGHT
     ));
+    // A marker at t = 0 sits on the y axis and its label would collide with the axis's own; draw it only when the
+    // moment is inside the plot.
     let mark_x = x(((mark_s * 30.0) as usize).min(n - 1));
+    let mark_visible = mark_s > 0.0;
+    if mark_visible {
+        out.push_str(&format!(
+            "<line x1=\"{mark_x:.1}\" y1=\"{TOP}\" x2=\"{mark_x:.1}\" y2=\"{axis_y:.1}\" stroke=\"var(--border)\" stroke-dasharray=\"4 4\"/>"
+        ));
+    }
     out.push_str(&format!(
-        "<line x1=\"{mark_x:.1}\" y1=\"{TOP}\" x2=\"{mark_x:.1}\" y2=\"{axis_y:.1}\" stroke=\"var(--border)\" stroke-dasharray=\"4 4\"/>"
-    ));
-    out.push_str(&format!(
-        "<text x=\"{:.1}\" y=\"{axis_y:.1}\" font-size=\"11\" fill=\"var(--muted)\">0 dB</text>",
+        "<text x=\"{:.1}\" y=\"{axis_y:.1}\" font-size=\"11\" fill=\"var(--muted)\" text-anchor=\"end\">{lo:.0} dB</text>",
         LEFT - 6.0
     ));
     out.push_str(&format!(
-        "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--muted)\">{lo:.0} dB</text>",
+        "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--muted)\" text-anchor=\"end\">{hi:.0} dB</text>",
         LEFT - 6.0,
         TOP + 4.0
     ));
@@ -416,11 +473,13 @@ fn write_gain_plot(path: &Path, name: &str, envelopes: &[(&str, &[f32], &str)], 
     ));
     // Above the plot's top edge, where no curve can be: a label on the axis or in the well sits on top of the line it
     // is describing.
-    out.push_str(&format!(
-        "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--muted)\">duck fires</text>",
-        mark_x + 5.0,
-        TOP - 5.0
-    ));
+    if mark_visible {
+        out.push_str(&format!(
+            "<text x=\"{:.1}\" y=\"{:.1}\" font-size=\"11\" fill=\"var(--muted)\">{mark_label}</text>",
+            mark_x + 5.0,
+            axis_y + 14.0
+        ));
+    }
     out.push_str("</svg>\n");
     if let Err(e) = std::fs::write(path, out) {
         eprintln!("cannot write {}: {e}", path.display());

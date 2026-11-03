@@ -7,6 +7,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`MusicLayers::fade_s` is the crossfade it says it is.** The field was accepted, stored in `Pending`, and read by
+  nothing: `move_layers` eased every layer at `MIX_TAU_S`, so an authored 800 ms crossfade arrived in ~150 ms and
+  nothing said so. `model::tau_for_fade` derives the time constant from `approach`'s own definition
+  (`fade_s / ln(1000)`, an arrival within one part in a thousand), and each layer carries the fade it was last given.
+  `fade_s(0)` keeps `MIX_TAU_S`, so the builder's default is unchanged.
+- **A frame with no elapsed time holds a layer's gain.** `approach` returns its target for `dt <= 0`, which is right
+  for a bus on a game's first frame and wrong for a layer: the frame that applied a change could spend the whole
+  authored fade in one step. `move_layers` now holds the gain when `dt <= 0`.
 - **`SirenSettings::seed` is now the stream the crate draws from.** `SirenChoices` was `init_resource`d from a crate
   constant and never rebuilt, so a project's `seed:` was read by nothing: `seed: 7` and `seed: 99` produced
   byte-identical `Played` streams. `play::seed_choices` replaces the stream (and every variant history) when the mix

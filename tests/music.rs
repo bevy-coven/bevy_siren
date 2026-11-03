@@ -212,3 +212,79 @@ fn a_stinger_holds_the_music_back_for_its_whole_length() {
     let released = app.world().resource::<SirenMix>().ducked["Music"];
     assert!(released > -0.01, "the music is back to 0 dB by hold + release ({DEFAULT_FADE_S} s): {released}");
 }
+
+/// **A layer takes the fade it was given.** `MusicLayers::fade_s` is documented as *"how long the move takes once it
+/// starts"*, and the unfixed tree eased every move at `MIX_TAU_S` (~150 ms), so an authored 0.8 s crossfade arrived in
+/// a blink with nothing said about it. This pins the authored duration at both ends: still moving at 0.3 s, arrived by
+/// `fade_s`.
+#[test]
+fn a_layer_takes_the_fade_it_was_given() {
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    app.update();
+    app.update();
+    app.update();
+    assert_eq!(app.world().resource::<MusicState>().live(), 2, "one voice per layer");
+    assert_eq!(app.world().resource::<MusicState>().layer_db("combat"), Some(bevy_siren::model::SILENT_DB));
+
+    // The clock must tick into the frame that applies the change: a frame with no elapsed time holds the gain rather
+    // than skipping the fade, which is the crate's rule and the reason this loop advances first.
+    advance(&mut app, 1.0 / 60.0);
+    app.world_mut().write_message(MusicLayers::new(vec![("combat".to_owned(), -9.0)]).now().fade_s(0.8));
+    app.update();
+
+    // 0.3 s in: today's code has long settled; a 0.8 s fade is still arriving.
+    run_for(&mut app, 0.3, 1.0 / 60.0);
+    let early = app.world().resource::<MusicState>().layer_db("combat").expect("the layer");
+    assert!(
+        early < -12.0,
+        "0.3 s into an 0.8 s fade the layer is still well short of -9 dB, not settled: {early}"
+    );
+
+    // By the authored duration plus a frame or two, it is there.
+    run_for(&mut app, 0.55, 1.0 / 60.0);
+    let arrived = app.world().resource::<MusicState>().layer_db("combat").expect("the layer");
+    assert!((arrived - -9.0).abs() < 0.05, "0.85 s into an 0.8 s fade the layer has arrived: {arrived}");
+}
+
+/// **`fade_s(0)` keeps the crate's `MIX_TAU_S` easing** — the builder's documented default is unchanged by the fix.
+#[test]
+fn a_layer_fade_of_zero_keeps_the_crates_easing() {
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    app.update();
+    app.update();
+    advance(&mut app, 1.0 / 60.0);
+    app.world_mut().write_message(MusicLayers::new(vec![("combat".to_owned(), -9.0)]).now());
+    app.update();
+    // `MIX_TAU_S` is 0.05 s, so 0.3 s leaves ~0.17 dB; half a second is well inside the crate's own 0.2 dB tolerance.
+    run_for(&mut app, 0.5, 1.0 / 60.0);
+    let db = app.world().resource::<MusicState>().layer_db("combat").expect("the layer");
+    assert!((db - -9.0).abs() < 0.05, "no fade given settles in ~150 ms, as it always did: {db}");
+}
+
+/// **A layer the change does not name keeps the fade it had**, exactly as it keeps its gain.
+#[test]
+fn a_layer_missing_from_a_change_keeps_its_fade() {
+    let mut app = app_with(two_layer_score(), two_layer_table(), &["track.calm", "track.combat"]);
+    app.update();
+    app.update();
+
+    // `calm` gets a long fade; `combat` is named in a second change with none, and must still arrive quickly.
+    advance(&mut app, 1.0 / 60.0);
+    app.world_mut().write_message(MusicLayers::new(vec![("calm".to_owned(), -12.0)]).now().fade_s(0.8));
+    app.update();
+    advance(&mut app, 1.0 / 60.0);
+    app.world_mut().write_message(MusicLayers::new(vec![("combat".to_owned(), -9.0)]).now());
+    app.update();
+
+    // 0.2 s in: the long fade is nowhere near done; the layer that was given no fade is all but settled.
+    run_for(&mut app, 0.2, 1.0 / 60.0);
+    let state = app.world().resource::<MusicState>();
+    let calm = state.layer_db("calm").expect("calm");
+    let combat = state.layer_db("combat").expect("combat");
+    assert!(
+        calm < combat - 6.0,
+        "the layer given a long fade ({calm}) is far behind the one given none ({combat})"
+    );
+    // `MIX_TAU_S` over 0.2 s is ~-10.3 dB, i.e. 1.3 dB short; the point is that it is far ahead of the long fade.
+    assert!(combat > -10.5, "the layer given no fade is nearly there already: {combat}");
+}

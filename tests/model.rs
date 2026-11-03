@@ -197,3 +197,45 @@ fn steal_takes_low_priority_then_the_oldest() {
     // Room enough is nothing stolen.
     assert_eq!(steal(&candidates, 1, 8), Vec::<usize>::new());
 }
+
+/// **A fade duration is a time to arrive**, for a duck and for a music layer alike. `tau_for_fade` derives the time
+/// constant from `approach`'s own definition: within one part in a thousand at `fade_s`, and not before halfway
+/// through it. This is the arithmetic `move_layers` rests on, pinned where the crate's other numbers live.
+#[test]
+fn a_fade_arrives_within_one_part_in_a_thousand() {
+    use bevy_siren::model::tau_for_fade;
+
+    for fade in [0.2_f32, 0.3, 0.8, 2.0] {
+        let tau = tau_for_fade(fade);
+        let target = 1.0_f32;
+        let mut value = 0.0_f32;
+        let dt = 1.0 / 240.0;
+        let mut arrived = None;
+        for step in 1..=(fade * 240.0) as usize + 8 {
+            value = approach(value, target, tau, dt);
+            if (target - value).abs() <= 0.001 && arrived.is_none() {
+                arrived = Some(step as f32 * dt);
+            }
+        }
+        let arrived = arrived.expect("the move arrives");
+        assert!(
+            arrived <= fade + 2.0 * dt,
+            "fade {fade}: arrives at {arrived}, which is past the {fade} s it was given"
+        );
+
+        // And it is still moving halfway through: the duration is spent, not rounded to one frame.
+        let mut half = 0.0_f32;
+        for _ in 0..(fade / 2.0 * 240.0) as usize {
+            half = approach(half, target, tau, dt);
+        }
+        assert!(
+            (target - half).abs() > 0.001,
+            "fade {fade}: already at the target halfway through ({half}), so the duration is not a duration"
+        );
+    }
+
+    // No fade given is the crate's easing, unchanged.
+    assert_eq!(tau_for_fade(0.0), bevy_siren::model::MIX_TAU_S);
+    assert_eq!(tau_for_fade(-1.0), bevy_siren::model::MIX_TAU_S);
+    assert_eq!(tau_for_fade(f32::NAN), bevy_siren::model::MIX_TAU_S);
+}

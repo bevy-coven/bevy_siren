@@ -135,6 +135,15 @@ cases:
     green_when: Equal field for field within a seed, and different across seeds.
     evidence: "tests/play.rs::a_projects_seed_reaches_the_stream, changing_the_seed_restarts_the_stream"
 
+  - id: 23
+    cue: music.calm + music.combat
+    authored: { score_layers: 2, tempo_bpm: 120.0, fade_s: 0.8, target_db: -9.0 }
+    behaviour: A layer takes the fade it was given, and a fade of 0 keeps the crate's easing.
+    observed_by: "`MusicState::layer_db` per frame, and `model::tau_for_fade` directly."
+    green_when: "Still moving at `fade_s / 2`; within 0.01 dB by `fade_s`; `fade_s(0)` settles in ~150 ms."
+    source: "`MusicLayers::fade_s`'s doc (\"how long the move takes\") and `Duck::fade_s` (the crate's meaning of a duration); the constant is derived, design default"
+    evidence: "runs/2026-11-02-04/evidence/plots/layer-fade-zoom.svg, tests/music.rs::a_layer_takes_the_fade_it_was_given"
+
   - id: 22
     cue: music.stinger
     authored: { stinger: { duck_db: -9.0, duck_s: 0.6 } }

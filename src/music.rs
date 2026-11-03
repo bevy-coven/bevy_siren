@@ -25,7 +25,7 @@ use bevy::prelude::*;
 use crate::cue::CueTable;
 use crate::log::{Entry, SirenLog};
 use crate::mix::DuckClock;
-use crate::model::{DEFAULT_FADE_S, MIX_TAU_S, SILENT_DB, approach, next_boundary};
+use crate::model::{DEFAULT_FADE_S, SILENT_DB, approach, next_boundary, tau_for_fade};
 use crate::play::{Play, Played, Voice};
 
 /// A music score: the layers a track is made of, and its tempo.
@@ -172,8 +172,9 @@ pub enum When {
 pub struct MusicLayers {
     /// The layers to move, and where.
     pub targets: Vec<(String, f32)>,
-    /// How long the move takes once it starts. `0` is the crate's
-    /// [`MIX_TAU_S`] easing, which is what a layer wants.
+    /// How long the move takes once it starts — **the time to arrive**, like [`Duck::fade_s`](crate::mix::Duck).
+    /// `0` is the crate's [`MIX_TAU_S`](crate::model::MIX_TAU_S) easing (~150 ms), which is what a layer wants unless a
+    /// project says otherwise; a crossfade a game asks for is usually a bar or part of one.
     pub fade_s: f32,
     /// When it starts.
     pub when: When,
@@ -258,6 +259,9 @@ struct LiveLayer {
     voice: Option<Entity>,
     db: f32,
     target_db: f32,
+    /// The arrival time this layer was last given, in seconds. `0` is the crate's [`MIX_TAU_S`] easing, which is what
+    /// a layer starts at and what a change that names no fade leaves alone.
+    fade_s: f32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -338,6 +342,7 @@ pub fn start_layers(
                 voice: None,
                 db: layer.gain_db,
                 target_db: layer.gain_db,
+                fade_s: 0.0,
             });
         }
     }
@@ -397,6 +402,10 @@ pub fn move_layers(
         for (name, db) in pending.targets {
             if let Some(layer) = state.layers.iter_mut().find(|l| l.name == name) {
                 layer.target_db = db;
+                // **The fade is the layer's own**, so a change that moves three layers with three durations is
+                // honoured per layer, and a layer the change does not name keeps the fade it had — exactly as it keeps
+                // its gain.
+                layer.fade_s = pending.fade_s;
             }
         }
     }
@@ -406,8 +415,17 @@ pub fn move_layers(
         let Some(layer) = state.layers.iter_mut().find(|l| l.name == music.layer) else {
             continue;
         };
-        let next = approach(layer.db, layer.target_db, MIX_TAU_S, dt);
-        layer.db = if (next - layer.target_db).abs() < 0.01 { layer.target_db } else { next };
+        // **A frame with no elapsed time holds the gain.** `approach` returns the target for `dt <= 0`, which is right
+        // for a bus that must be at its level on a game's first frame — but a layer moving over `fade_s` would then
+        // skip its whole fade in the one frame that applied the change, so the number a project wrote would be spent
+        // by the clock rather than by the crossfade. A layer's gain is its own state, not a level the first frame must
+        // establish; the score's starting gains come from `MusicLayer::gain_db`.
+        layer.db = if dt <= 0.0 || !dt.is_finite() {
+            layer.db
+        } else {
+            let next = approach(layer.db, layer.target_db, tau_for_fade(layer.fade_s), dt);
+            if (next - layer.target_db).abs() < 0.01 { layer.target_db } else { next }
+        };
         voice.base_db = layer.db;
     }
 }

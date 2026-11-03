@@ -34,6 +34,17 @@ layers.write(MusicLayers::new(vec![
 layers.write(MusicLayers::new(vec![("calm".to_owned(), -12.0)]).now());
 ```
 
+`fade_s` is **how long the move takes** — the time to arrive, like a duck's `fade_s`. `0` (the default) is the
+crate's ~150 ms easing; a crossfade a game asks for is usually a bar or part of one:
+
+```rust
+layers.write(MusicLayers::new(vec![("combat".to_owned(), -3.0)]).next_bar().fade_s(2.4));
+```
+
+Each layer carries the fade its own change gave it, so three layers moved with three durations each take theirs. A
+second change arriving mid-fade replaces the target and the fade — the layer does not queue — which is worth knowing
+when a game's state machine can flicker.
+
 `When::NextBar` quantises to the next boundary from the tempo alone (`model::next_boundary`) — no beat map, no authoring
 tool, and a frame that lands exactly on the bar is *on* it rather than past it. With `tempo_bpm: 0.0` there is no grid,
 and every transition is immediate: a pad, not a song.

@@ -3,6 +3,18 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 4, a crossfade that takes the time it was given
+
+No capture, for the same reason as iteration 3: the change is a **gain envelope over time**, and `examples/mixer` draws
+`SirenMix` as live numbers rather than history. The evidence is the plot,
+`docs/loop/runs/2026-11-02-04/evidence/plots/layer-fade-zoom.svg` — blue (`fade_s(0.8)`) still rising where red
+(`MIX_TAU_S`) flat-lines — and `tests/music.rs::a_layer_takes_the_fade_it_was_given`, which fails on the unfixed tree.
+The panel would show the same "moving" count and the same final dB before and after; only the *time* differs, and a
+still has no time in it.
+
+The gain-history strip proposed here in iteration 3 would show this too. It remains the first thing to add when the
+panel next grows.
+
 ## No clip: iteration 3, the seed and the stinger's hold
 
 Also no capture, and for a different reason than iteration 2. The stinger's fix is a **bus gain envelope**, and
