@@ -561,3 +561,86 @@ fn a_backend_with_an_output_leaves_the_voice_to_the_mixer() {
     let with_player = app.world_mut().query::<&bevy::audio::AudioPlayer>().iter(app.world()).count();
     assert_eq!(with_player, 0, "the mixer owns it, so Bevy must not also play it");
 }
+
+/// **A gain that is not a number is no gain, not silence.**
+///
+/// `chain_db` silences the whole chain on a non-finite part — right for a bus level the crate computed, wrong for a
+/// number an author typed: the cue played **silent** while `Played` reported `-80.00` as though that level were
+/// authored. R6 is explicit: *"a play is never silent: `Played` or `Refused`, both with the reason."* And the crate's
+/// stated policy for the one other non-finite caller value it accepts puts the matter beyond doubt — `docs/guide/spatial.md`:
+/// *"a caller handing in a `NaN` transform gets a sound at the listener's feet, not a `NaN` volume that silences the
+/// whole bus."* One rule: a value that is not a number is the **neutral** one for what it measures.
+#[test]
+fn a_gain_that_is_not_a_number_is_no_gain() {
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("step_01")],
+        gain_db: f32::NAN,
+        ..Cue::new("footstep.grass")
+    }]);
+    let mut app = app_with(table, sounds(&["step_01"]));
+    app.world_mut().write_message(Play::cue("footstep.grass"));
+    app.update();
+
+    let answers = played(&mut app);
+    assert_eq!(answers.len(), 1, "the play is answered, not dropped");
+    assert_eq!(answers[0].gain_db, 0.0, "at the level the cue would have had without the NaN, not SILENT_DB");
+    assert_eq!(voices(&mut app), 1, "and the voice exists");
+}
+
+/// **The same for a `Play`'s own gain override** — it enters by a different door and had the same silent result.
+#[test]
+fn a_plays_gain_that_is_not_a_number_is_no_gain() {
+    let mut app = app_with(two_variant_step(), sounds(&["step_01", "step_02"]));
+    app.world_mut().write_message(Play::cue("footstep.grass").gain(f32::NEG_INFINITY));
+    app.update();
+
+    let answers = played(&mut app);
+    assert_eq!(answers.len(), 1);
+    assert_eq!(answers[0].gain_db, 0.0, "no gain applied, not silence");
+}
+
+/// **`Played.pitch` reports the rate the device is at**, not the number asked for.
+///
+/// `semitones_to_ratio` already played a non-finite detune at `1.0x` and clamped a large one to `16x`, but
+/// `Started.pitch` carried the raw value into `Played`: the meter and the sound disagreed, which is the one thing
+/// R6's second half (*"everything a play decides is readable"*) forbids. The clamp is four octaves each way, so
+/// `+/-48` semitones is the number that actually plays.
+#[test]
+fn a_pitch_that_is_not_a_number_reports_the_speed_it_plays_at() {
+    let mut app = app_with(two_variant_step(), sounds(&["step_01", "step_02"]));
+    app.world_mut().write_message(Play::cue("footstep.grass").pitch(f32::NAN));
+    app.world_mut().write_message(Play::cue("footstep.grass").pitch(1.0e9));
+    app.update();
+
+    let answers = played(&mut app);
+    assert_eq!(answers.len(), 2);
+    assert_eq!(answers[0].pitch, 0.0, "a NaN detune plays at 1.0x, so it reports 0 semitones");
+    assert_eq!(answers[1].pitch, 48.0, "a detune past the clamp reports the clamp: four octaves each way");
+}
+
+/// **The guard: a silent bus still silences its voices.**
+///
+/// `chain_db`'s rule is what keeps a `NaN` **bus level** from making a game audible, and it must survive this fix. The
+/// inputs are normalised; the model's own silence is untouched.
+#[test]
+fn a_silent_bus_still_silences_its_voices() {
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("step_01")],
+        bus: "Effects".to_owned(),
+        ..Cue::new("footstep.grass")
+    }]);
+    let settings = SirenSettings {
+        buses: vec![bevy_siren::BusLevel::new("Effects").gain_db(bevy_siren::model::SILENT_DB)],
+        ..SirenSettings::default()
+    };
+    let mut app = app(table, settings, sounds(&["step_01"]), false);
+    app.world_mut().write_message(Play::cue("footstep.grass"));
+    run_for(&mut app, 0.1, 1.0 / 60.0);
+
+    let mix = app.world().resource::<bevy_siren::SirenMix>();
+    assert!(
+        mix.bus_db("Effects") <= bevy_siren::model::SILENT_DB,
+        "the bus is silent: {}",
+        mix.bus_db("Effects")
+    );
+}

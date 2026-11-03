@@ -3,6 +3,16 @@
 Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
 below. A media file a published README names is never moved; a re-capture replaces it in place.
 
+## No clip: iteration 18, a gain that is not a number
+
+No clip: the change is **which number reaches the sink and what `Played` reports**, and every rendered cue is
+byte-identical (21 of 21) because no rendered cue was authored with a `NaN`. The evidence is
+`runs/2026-11-02-18/evidence/nan.txt`: before, `gain NaN` reports `gain -80.00` (silent, and the meter says it is a level);
+after, `gain 0.00`. Pitch: before `pitch NaN` reports `NaN` and `pitch 1e9` reports `1000000000.00` — for a sound playing
+at `1.0×` and `16×` respectively; after, `0.00` and `48.00`. Tests:
+`tests/play.rs::{a_gain_that_is_not_a_number_is_no_gain, a_plays_gain_that_is_not_a_number_is_no_gain,
+a_pitch_that_is_not_a_number_reports_the_speed_it_plays_at, a_silent_bus_still_silences_its_voices}`.
+
 ## No clip: iteration 17, the backend flag does not decide ownership alone
 
 No clip: the change is **which entity component a voice gets**, visible only as a missing or present `AudioPlayer`,

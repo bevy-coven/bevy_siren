@@ -22,8 +22,8 @@ use crate::cue::{Cue, CueTable, Mode};
 use crate::log::{Entry, SirenLog};
 use crate::mix::{DuckClock, SirenSettings, Stopping, UNSTEALABLE_PRIORITY};
 use crate::model::{
-    Candidate, Rng, SILENT_DB, VariantPicker, backend_spatial_gain, chain_db, distance_gain, gain_to_db,
-    semitones_to_ratio, steal,
+    Candidate, Rng, SILENT_DB, VariantPicker, backend_spatial_gain, chain_db, distance_gain, finite_or,
+    gain_to_db, semitones_to_ratio, steal,
 };
 use crate::sounds::SirenSounds;
 
@@ -494,7 +494,17 @@ fn answer(
     if let Some(extra) = request.pitch {
         pitch += extra;
     }
-    let mut parts = vec![cue.gain_db, slot.gain_db, request.gain_db.unwrap_or(0.0)];
+    // **A detune that is not a number is no detune, and `Played` says so.** `semitones_to_ratio` already played a
+    // non-finite pitch at `1.0x`, but `Started.pitch` carried the raw `NaN` into `Played`: the meter and the device
+    // disagreed, which is the one thing R6's second half forbids. One rule with `distance_gain`: a non-finite caller
+    // value is the neutral one for what it measures.
+    // And the number `Played` reports is the **rate the device plays**, so a detune past the clamp says so.
+    pitch = crate::model::played_semitones(finite_or(pitch, 0.0));
+    let mut parts = vec![
+        finite_or(cue.gain_db, 0.0),
+        finite_or(slot.gain_db, 0.0),
+        finite_or(request.gain_db.unwrap_or(0.0), 0.0),
+    ];
     let mut compensation_db = 0.0;
     // **A voice is placed only if the cue is spatial and the play has a position.** This one predicate decides the
     // attenuation here, the panner in `spawn_voice`, and the `Transform` there too. A non-spatial cue given a position

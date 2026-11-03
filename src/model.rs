@@ -63,6 +63,18 @@ pub fn sum_db(parts: &[f32]) -> f32 {
     gain_to_db(linear)
 }
 
+/// A caller's number, with one that is not a number read as `neutral`.
+///
+/// **One rule for every non-finite caller value the crate accepts.** [`distance_gain`] already does this - a `NaN`
+/// distance is `0.0` m, the listener's feet, not a `NaN` volume that silences a bus (`docs/guide/spatial.md`) - and
+/// [`chain_db`]'s silencing rule is right for a **bus level the crate computed**, not for a gain an author typed. A
+/// non-finite gain used to reach `chain_db`, which returned [`SILENT_DB`]: the cue played **silent** while `Played`
+/// reported `-80.00` as though that level were authored, which R6 forbids (*"a play is never silent: `Played` or
+/// `Refused`, both with the reason"*).
+pub fn finite_or(db: f32, neutral: f32) -> f32 {
+    if db.is_finite() { db } else { neutral }
+}
+
 /// The dB of gains applied one after another: a cue's gain, then its slot's, then the bus's, then the
 /// master's.
 ///
@@ -122,6 +134,23 @@ pub fn semitones_to_ratio(semitones: f32) -> f32 {
         return 1.0;
     }
     (2f32.powf(semitones / 12.0)).clamp(1.0 / 16.0, 16.0)
+}
+
+/// The semitones a playback rate actually plays at: the inverse of [`semitones_to_ratio`]'s clamp.
+///
+/// `semitones_to_ratio` clamps to `1/16 ..= 16`, so a detune past +/-48 semitones plays at the clamp rather than at the
+/// number asked for. `Played.pitch` must report the **rate the device is at**, or the meter disagrees with the sound -
+/// the one thing R6's second half forbids. Four octaves each way is the clamp's own span, not a new constant.
+pub fn ratio_to_semitones(ratio: f32) -> f32 {
+    if !ratio.is_finite() || ratio <= 0.0 {
+        return 0.0;
+    }
+    12.0 * ratio.log2()
+}
+
+/// The semitones a detune plays at, after the clamp in [`semitones_to_ratio`].
+pub fn played_semitones(semitones: f32) -> f32 {
+    ratio_to_semitones(semitones_to_ratio(semitones))
 }
 
 /// The gain of a source `distance_m` from the listener, by the cue's [`Attenuation`].

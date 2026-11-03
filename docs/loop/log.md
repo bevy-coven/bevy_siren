@@ -7,6 +7,82 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 18 — 2026-11-02 — a number that is not a number
+
+**Change.**
+
+- **`src/model.rs` — `finite_or`, `ratio_to_semitones`, `played_semitones`.** One rule for every non-finite caller value
+  the crate accepts: it is the **neutral** value for what it measures, which is what `distance_gain` already does for a
+  distance and `docs/guide/spatial.md` already states (*"a `NaN` transform gets a sound at the listener's feet, not a
+  `NaN` volume that silences the whole bus"*).
+- **`src/play.rs` — `answer` normalises the four numbers that enter from a caller** (a cue's gain, a slot's gain, a
+  `Play`'s gain override, a `Play`'s detune) and reports the detune the device is **actually at**.
+- `tests/play.rs` — four tests, three failing on the base commit; a *"A number that is not a number"* section in
+  `docs/guide/buses.md`; a CHANGELOG line; and `needs-decision/bad-gain-problem.md` for the two stricter answers.
+
+**Why.** Iteration 17's lead (the `AudioOutput` trait's contract) came back **clean**: `Applied` records what the crate
+decided, and a backend that ignores it desynchronises nothing the crate reads. The probe that paid was different: the
+crate had **two opposite answers to one caller mistake**. A `NaN` distance was the neutral `0.0` m; a `NaN` gain was
+silence. A cue authored `gain_db: NaN` — which a RON file can contain — **played silent** while `Played` reported
+`-80.00` as though that level were authored, and `problems()` said nothing. Worse, `Played.pitch` reported `NaN` for a
+sound `semitones_to_ratio` was already playing at `1.0×`: the meter disagreed with the device, which is the one thing
+R6's second half forbids.
+
+**Evidence.** `runs/2026-11-02-18/`: `eval.md`, `research.md`, `plan.md`, `perf.md`, `review.md`, and
+`evidence/nan{,-before}.txt`.
+
+**Measured.**
+
+| row | before | after |
+|---|---|---|
+| a cue authored `gain_db: NaN` | `gain -80.00`, **silent**, no problem reported | `gain 0.00`, audible |
+| `Play::gain(NaN)` | `gain -80.00` | `gain 0.00` |
+| `Play::gain(-∞)` | `gain -80.00` | `gain 0.00` |
+| `Play::pitch(NaN)` | `pitch NaN` for a `1.0×` sound | `pitch 0.00` |
+| `Play::pitch(1e9)` | `pitch 1000000000.00` for a `16×` sound | `pitch 48.00` |
+| a bus at `SILENT_DB` (guard) | silent | **unchanged** |
+| every rendered cue, the mix | — | **byte-identical** (21/21); `mix.wav` −4.3 LUFS / +0.2 dBFS |
+| frame cost, 8 / 64 / 256 | 0.077 / 0.370 / 0.713 µs | 0.079 / 0.357 / 1.288 µs, load 8.72/4.85/4.83 — the 256 row sits in a loaded first sample; the change is once per **play**, off the per-frame path |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. The judgement this iteration had to make — neutralise or
+refuse — is written down in `needs-decision/bad-gain-problem.md` with what each costs a consumer.
+
+**Traps for the command.** (1) Two answers to one caller mistake is a bug even when both answers are individually
+defensible: find the **stated policy** and make the other path match it. (2) A **meter** that reports the number asked
+for rather than the rate that plays is wrong even when the sound is right — `semitones_to_ratio` had the audio correct
+and `Started.pitch` re-broke it. (3) `chain_db`'s silence rule is right for a **bus level the crate computed** and wrong
+for an **input**; the boundary is "did the crate compute this number". (4) Normalising a bad input is a **behaviour
+change** and belongs in a decision file, not in a patch's fine print. (5) `hs distill` GPU-blocked (seventeenth
+iteration).
+
+**Commit.** `see git log`; CI on `main`.
+
+**Next 5.**
+
+1. **`Refusal::NotALoop { layer, cue }`** — `needs-decision/not-a-loop-refusal.md` (iteration 16's item 1).
+2. **`CueProblem::BadGain` + the refusal for a bad request** — `needs-decision/bad-gain-problem.md` (this iteration).
+3. Re-time a restarted stem to the bar — `needs-decision/restart-on-the-bar.md`.
+4. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+5. Quantise a **retarget** onto the bar (iteration 14's item 1).
+
+**The hunt, seventh pass.** Two structural leads have now come back **clean** (the two-backend answers, the
+`AudioOutput` contract). Probing the third before writing it down: **a `MusicLayer` whose `gain_db` is `NaN`** does
+reach `MusicState` unfiltered — measured,
+
+```
+MusicLayer { name: "calm", cue: "t", gain_db: NaN }
+  layer_db = Some(NaN), target_db = Some(NaN)    score.problems() = []
+```
+
+so the layer's gain is `NaN` for the rest of the process and nothing reports it. `MusicLayer::gain_db` is the same
+class of caller number this iteration normalised, reaching a **different** field by a different door — the one place
+`finite_or` was not applied. That is the next item, not a guess: measured, and left unbuilt because this iteration
+shipped a complete change.
+
+**Baseline note.** Nothing was red; the suite had 84 tests.
+
+---
+
 ## Iteration 17 — 2026-11-02 — the backend flag does not decide ownership alone
 
 **Change.**

@@ -20,6 +20,18 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A gain or detune that is not a number is the neutral value, not silence — and `Played` reports the rate the device
+  is at.** `chain_db` returns `SILENT_DB` for a non-finite part, which is right for a bus level the crate computed and
+  wrong for a number an author typed: a cue with `gain_db: NaN` (which a RON file can contain) **played silent** while
+  `Played` reported `-80.00` as though that level were authored, and nothing said why — which R6 forbids (*"a play is
+  never silent: `Played` or `Refused`, both with the reason"*). `semitones_to_ratio` already played a non-finite detune
+  at `1.0x`, but `Played.pitch` carried the raw `NaN`. One rule now covers every non-finite caller value, matching what
+  `distance_gain` already does for a distance (`docs/guide/spatial.md`): no gain, no detune, and `Played.gain_db` /
+  `Played.pitch` report the numbers the voice is **actually at** — a detune past the clamp reports `±48` semitones,
+  which is the rate that plays. `chain_db`'s silencing rule is untouched, so a silent bus still silences its voices. The
+  stricter answers (a `CueProblem::BadGain`, a `Refusal` variant) are recorded as
+  `docs/loop/needs-decision/bad-gain-problem.md`: both public enums are exhaustive and a new variant breaks every
+  consumer's `match`.
 - **`Backend(true)` with no `Output` no longer gives a voice nobody plays.** `Backend` is a public resource whose flag a
   host may set, and `spawn_voice` decided *"the mixer owns playback"* from that flag alone: with the flag set and no
   `Output`, a voice carried **no `AudioPlayer`** (the mixer owns it) and had **no mixer** (none exists), so it could not

@@ -93,6 +93,25 @@ gain of `SILENT_DB` — a player's mute switch must not destroy the mix they spe
 `SirenSettings::problems()` names a bus listed twice or unnamed, a budget of zero, a duck naming a bus the table does
 not have, a duck that raises rather than lowers, and a hold or fade that is negative or not a number.
 
+## A number that is not a number
+
+The crate has **one rule** for a caller value that is not a number: it is the **neutral** value for what it measures,
+never the silencing one. A distance that is not a number is `0.0` m (the listener's feet,
+`docs/guide/spatial.md`); a gain that is not a number is `0.0` dB (**no gain applied**); a detune that is not a number
+plays at `1.0×`. `model::finite_or` is the helper and `model::played_semitones` reports the detune the device is
+actually at, so `Played.gain_db` and `Played.pitch` never disagree with the sound.
+
+Why not silence it? Because R6 says *"a play is never silent: `Played` or `Refused`, both with the reason"*. Before this
+rule, `gain_db: NaN` in a table reached `chain_db`, which returns `SILENT_DB` for a non-finite part: the cue played
+silent while `Played` reported `-80.00` as though that level were authored, and nothing anywhere said why.
+
+`chain_db` keeps its silencing rule for a **bus level the crate computed** — that is the mix's protection, and a `NaN`
+bus level must not make a game audible. The rule changed for the **inputs**, not for the model.
+
+`needs-decision/bad-gain-problem.md` records the two stricter answers not taken here (a `CueProblem::BadGain` and a
+`Refusal` variant for a bad request), because both public enums are exhaustive and a new variant breaks every
+consumer's `match`.
+
 ## Two backends, one behaviour
 
 Without the `mixer` feature, Bevy's `AudioPlayer` plays each voice and the mix writes every voice's volume into its

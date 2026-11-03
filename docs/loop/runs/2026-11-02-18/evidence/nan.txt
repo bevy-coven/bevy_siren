@@ -1,0 +1,7 @@
+plain                : played ["gain 0.00 pitch 0.41"], problems 0
+cue gain NaN         : played ["gain 0.00 pitch 0.41"], problems 0
+play gain NaN        : played ["gain 0.00 pitch 0.41"], problems 0
+play gain -inf       : played ["gain 0.00 pitch 0.41"], problems 0
+play pitch NaN       : played ["gain 0.00 pitch 0.00"], problems 0
+play pitch 1e9       : played ["gain 0.00 pitch 48.00"], problems 0
+cue NaN, problems()  : played ["gain 0.00 pitch 0.41"], problems 0
