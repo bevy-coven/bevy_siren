@@ -7,6 +7,70 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 14 — 2026-11-02 — a score edited at runtime reconciles its voices
+
+**Change.**
+
+- **`src/music.rs` — `start_layers` reconciles a changed score's voices, not only its layer list.** A layer **removed**
+  from the score had its looping voice left playing forever, ownerless (`retire_voices` skips loops by design); a layer
+  **retargeted** to a new `cue` kept the old sample while the new one never started. Both now stop through the crate's
+  one fade, marked `Stopping` with the true reason (`"layer removed"` / `"layer retargeted"`), so the log says what the
+  score did; a retargeted layer starts its new cue the same frame. A **gain** edit keeps the voice.
+- **`MusicState::names()`'s documented score order is restored** after the reconcile — my first version dropped and
+  re-appended a retargeted layer and returned `["combat", "calm"]`; the gate caught it.
+- `tests/music.rs` — three tests (removal, retarget, gain-keeps-the-voice), two of which fail on the unfixed tree; an
+  "Editing the score" section in the music guide; the CHANGELOG and a media note.
+
+**Why.** Iteration 13 named the class that keeps paying: what a **public resource's** contract promises. `MusicScore` is
+documented as a file *"a project ships and the Cauldron edits"* — a value that changes at runtime — and the plugin only
+ever added to it. Two edits left the score and the sound disagreeing in silence, and one of them (the retarget) plays
+the **wrong sample indefinitely**.
+
+**Evidence.** `runs/2026-11-02-14/`: `eval.md` (baseline green; no case edited a score at runtime), `research.md`,
+`plan.md`, `perf.md` (the two probes), `review.md`, and `evidence/{before,after}/`.
+
+**Measured.**
+
+| edit | before | after |
+|---|---|---|
+| remove a layer | `names = ["combat"]`, **2 voices live**, no line | 1 voice, `stopped … layer removed` |
+| retarget a layer | the score says `track.b`; **`track.a` plays** and `track.b` never starts | only `track.combat` live; two lines |
+| change a gain | eases | same entity, no restart |
+| `names()` | `["combat", "calm"]` on the first attempt | `["calm", "combat"]`, score order |
+| every rendered cue, the mix, `examples/music` | — | **byte-identical**; *"transitions on the bar: yes"* |
+| frame cost, 8 / 64 / 256 voices | 0.062 / 0.353 / 1.135 µs | the reconcile runs only on a frame the score changed |
+
+**Verdicts.** Function GREAT, Zoom GREAT, Fresh eyes GREAT. Two defects found by the gate in my own work: the first fix
+logged every stop as `"stop"` (a `StopVoice` carries no reason), and the second broke `names()`'s documented score order.
+
+**Traps for the command.** (1) `StopVoice` carries an **entity and no reason**, so a system that knows *why* it is
+stopping something must mark `Stopping` itself rather than route through `stop_requests` — otherwise the log says
+`"stop"` and the reason is lost. (2) A reconcile that drops and re-adds an entry silently changes **order**; check every
+accessor that documents one. (3) A `retain` that only filters the state is half a reconcile when each entry owns a
+voice: the other half is what the voice does. (4) `hs distill` is still GPU-blocked (`bge-m3` wants 5000 MB; a 14.8 GB
+VLLM engine holds the card), twelfth iteration running.
+
+**Commit.** `0bff015`, pushed to `main`; CI run 41560011538 is **success** on `big-s1`. Gate: build, test (76 + 4), serde (83 + 4), mixer (83 + 4),
+doctests, clippy, fmt, rustdoc, examples and the README quick start, all green.
+
+**Next 5.**
+
+1. **Quantise a retarget onto the bar.** A cue change restarts immediately; `When::NextBeat` exists for gain changes.
+   Needs a decision about the gap between the old stem's fade and the bar.
+2. A method to reconcile a cue's live voices with its cap (iteration 13's item 1; new API, decision first).
+3. A `Refusal` variant for a stinger on the wrong bus — `needs-decision/stinger-refusal.md`.
+4. A variant that distinguishes "never mapped" from "corrupt file" — `needs-decision/undecodable-sound.md`.
+5. A payload that names the cap — `needs-decision/refusal-names-its-cap.md`.
+
+**The hunt, third pass.** The handle class is exhausted (iteration 12 closed the only unguarded path; iteration 13 ran
+the rest). The **resource-contract** class has now paid twice: `max_instances`' sentence, and `MusicScore`'s. The next
+hunt should look at the third resource a project may replace — `SirenSettings` — for a field whose sentence promises
+more than the frame does.
+
+**Baseline note.** Nothing was red, and the suite had 73 tests. Cases 15 and 23 drive the score; neither edits it.
+
+---
+
 ## Iteration 13 — 2026-11-02 — the cap is a budget on plays, and the docs say so
 
 **Change.**
