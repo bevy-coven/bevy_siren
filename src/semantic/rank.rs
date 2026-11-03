@@ -18,6 +18,7 @@
 use std::cmp::Ordering;
 
 use super::index::Index;
+use super::provenance::Provenance;
 
 /// Why a query could not be ranked.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,13 +54,20 @@ impl core::fmt::Display for RankProblem {
     }
 }
 
-/// One result: which asset, and how similar.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// One result: which asset, how similar, and **where it came from**.
+///
+/// `provenance` is carried on every result rather than left to a second lookup, because the alternative lets a
+/// consumer forget — and a result that omits its licence presents an unlicensed asset as if it had no obligation.
+/// That costs this type its `Copy`: two of the three provenance fields are `String`s. A caller that iterated by value
+/// now iterates by reference.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Match {
     /// The asset's content hash.
     pub hash: u64,
     /// Cosine similarity in `[-1, 1]`. The model's embeddings are normalised, so in practice this is `[0, 1]`.
     pub score: f32,
+    /// Where the asset came from, or the explicit unknown when nothing was recorded.
+    pub provenance: Provenance,
 }
 
 /// **Cosine similarity** of two equal-length slices, or `None` when either has no direction.
@@ -107,7 +115,13 @@ pub fn top_k(index: &Index, query: &[f32], k: usize) -> Result<Vec<Match>, RankP
     let mut scored: Vec<Match> = Vec::with_capacity(index.records.len());
     for (hash, vector) in &index.records {
         match cosine(query, vector) {
-            Some(score) => scored.push(Match { hash: *hash, score }),
+            Some(score) => scored.push(Match {
+                hash: *hash,
+                score,
+                // An asset with no record carries `Provenance::unknown()` — a value, not an absence, so a caller
+                // printing a result always has something to print.
+                provenance: index.provenance.get(hash).cloned().unwrap_or_default(),
+            }),
             None => return Err(RankProblem::DegenerateVector { hash: Some(*hash) }),
         }
     }

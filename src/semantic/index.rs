@@ -23,6 +23,8 @@
 //! part of it as if it were whole.
 
 use std::collections::BTreeMap;
+
+use super::provenance::Provenance;
 use std::fmt::Write as _;
 
 /// The identity of the model that made an index's vectors.
@@ -137,16 +139,98 @@ pub struct Record {
     pub vector: Vec<f32>,
 }
 
-/// **An index: a stamp, and one vector per content hash.**
+/// **An index: a stamp, one vector per content hash, and — optionally — where each asset came from.**
+///
+/// `provenance` is a **trailing optional section**, per `needs-decision/provenance-in-the-index.md`: an index written
+/// before it existed loads unchanged, and an asset with no record is simply absent rather than carrying a sentinel.
+/// Absence is absence, which is the same rule `#21` learned about a short clip's loudness.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Index {
     /// The model that made every vector here.
     pub stamp: ModelStamp,
     /// Vectors by content hash.
     pub records: BTreeMap<u64, Vec<f32>>,
+    /// Where each asset came from, by content hash. Empty when nothing was recorded — never a map of unknowns.
+    pub provenance: BTreeMap<u64, Provenance>,
 }
 
 const MAGIC: &str = "bevy_siren index 1";
+
+/// **A field as one whitespace-free token**, so a licence with a space in it survives a space-delimited format.
+///
+/// `None` becomes `-`, and a value that is genuinely `-` or contains a space or a backslash is escaped with `\`. The
+/// escape is what keeps *recorded absence* distinguishable from *recorded content that looks like absence* — the same
+/// distinction `Provenance` draws in memory.
+fn one_line(value: Option<&str>) -> String {
+    match value {
+        None => String::from("-"),
+        Some(v) => escape(v),
+    }
+}
+
+/// Escape a field for the space-delimited provenance section.
+fn escape(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            ' ' => out.push_str("\\s"),
+            '\\' => out.push_str("\\\\"),
+            '\n' | '\r' => out.push_str("\\n"),
+            '-' if value == "-" => out.push_str("\\-"),
+            c => out.push(c),
+        }
+    }
+    if out.is_empty() { String::from("\\e") } else { out }
+}
+
+/// Unescape a field written by [`escape`], or `None` for the recorded-absence marker.
+fn unescape(field: &str) -> Option<String> {
+    if field == "-" {
+        return None;
+    }
+    let mut out = String::with_capacity(field.len());
+    let mut chars = field.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            out.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('s') => out.push(' '),
+            Some('n') => out.push('\n'),
+            Some('\\') => out.push('\\'),
+            Some('-') => out.push('-'),
+            Some('e') => {}
+            Some(other) => out.push(other),
+            None => out.push('\\'),
+        }
+    }
+    Some(out)
+}
+
+/// One provenance record: `<16 hex hash> <licence> <author> <source>`, or `None` when the line names no hash.
+fn parse_provenance_line(line: &str) -> Option<(u64, Provenance)> {
+    let mut fields = line.split(' ');
+    let hash = u64::from_str_radix(fields.next()?, 16).ok()?;
+    let licence = unescape(fields.next().unwrap_or("-"));
+    let author = unescape(fields.next().unwrap_or("-"));
+    let source = match fields.next().unwrap_or("-") {
+        "-" => None,
+        "?unknown" => Some(super::provenance::Source::Unknown),
+        token => {
+            let (kind, rest) = token.split_at(1);
+            let value = unescape(rest).unwrap_or_default();
+            match kind {
+                "u" => Some(super::provenance::Source::Url(value)),
+                "p" => Some(super::provenance::Source::Pack(value)),
+                // An unknown kind is a record this crate cannot interpret. Refusing the whole line keeps the store
+                // honest: a silently-dropped source would present a recorded origin as unrecorded.
+                _ => return None,
+            }
+        }
+    };
+    Some((hash, Provenance { licence, source, author }))
+}
 
 /// The two stamps in a [`IndexProblem::ModelMismatch`], boxed as one value.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -160,7 +244,7 @@ pub struct Mismatch {
 impl Index {
     /// A new, empty index for `stamp`.
     pub fn new(stamp: ModelStamp) -> Self {
-        Index { stamp, records: BTreeMap::new() }
+        Index { stamp, records: BTreeMap::new(), provenance: BTreeMap::new() }
     }
 
     /// How many assets are indexed.
@@ -203,6 +287,26 @@ impl Index {
                 let _ = write!(body, " {v:?}");
             }
             body.push('\n');
+        }
+        // **The provenance section is part of the checksummed body**, so a record cannot be edited without the file
+        // being detected as corrupt. It is written only when there is something to write: an index with no provenance
+        // is byte-identical to one written before this section existed, which is what makes the change additive.
+        if !self.provenance.is_empty() {
+            let _ = writeln!(body, "provenance {}", self.provenance.len());
+            for (hash, p) in &self.provenance {
+                let _ = write!(body, "{hash:016x}");
+                // `-` is the recorded absence in one column. A licence that is genuinely the single character `-`
+                // would be written `\-`, so the escape keeps absence and content distinguishable.
+                let _ = write!(body, " {}", one_line(p.licence.as_deref()));
+                let _ = write!(body, " {}", one_line(p.author.as_deref()));
+                let source = match &p.source {
+                    None => String::from("-"),
+                    Some(super::provenance::Source::Unknown) => String::from("?unknown"),
+                    Some(super::provenance::Source::Url(u)) => format!("u{}", escape(u)),
+                    Some(super::provenance::Source::Pack(p)) => format!("p{}", escape(p)),
+                };
+                let _ = writeln!(body, " {source}");
+            }
         }
         let checksum = crate::library::fnv1a(body.as_bytes());
         let mut out = String::new();
@@ -277,11 +381,35 @@ impl Index {
         }
 
         let mut records = BTreeMap::new();
+        let mut provenance: BTreeMap<u64, Provenance> = BTreeMap::new();
+        let mut expected_provenance: Option<usize> = None;
+        // **The section marker is the only line that can start with `provenance `**, because every other line begins
+        // with a 16-hex-character hash. Everything after it is a provenance record, not a vector.
+        let mut in_provenance = false;
         for (n, line) in body.lines().enumerate() {
             if line.trim().is_empty() {
                 continue;
             }
             let line_no = n + 8;
+            if in_provenance {
+                if let Some((hash, record)) = parse_provenance_line(line) {
+                    provenance.insert(hash, record);
+                } else {
+                    return Err(IndexProblem::Record {
+                        line: line_no,
+                        what: String::from("a provenance record names no hash"),
+                    });
+                }
+                continue;
+            }
+            if let Some(count) = line.strip_prefix("provenance ") {
+                expected_provenance = Some(count.parse().map_err(|_| IndexProblem::Record {
+                    line: line_no,
+                    what: format!("`{count}` is not a provenance record count"),
+                })?);
+                in_provenance = true;
+                continue;
+            }
             let mut fields = line.split(' ');
             let hash_text = fields
                 .next()
@@ -309,8 +437,15 @@ impl Index {
         if records.len() != expected_records {
             return Err(IndexProblem::Truncated { expected: expected_records, found: records.len() });
         }
+        // A section that promises more records than it carries is a truncated file, the same failure the vector count
+        // catches — and an index with no section at all has `None` here and is simply valid.
+        if let Some(expected) = expected_provenance
+            && provenance.len() != expected
+        {
+            return Err(IndexProblem::Truncated { expected, found: provenance.len() });
+        }
 
-        Ok(Index { stamp, records })
+        Ok(Index { stamp, records, provenance })
     }
 }
 
