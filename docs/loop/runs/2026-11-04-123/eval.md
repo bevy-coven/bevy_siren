@@ -64,7 +64,11 @@ the printer.
 
 **The matrix** (`matrix-final.log`): **9 + 247 / 9 + 256 / 118 + 565 / 20 + 262 / 129 + 593**, 7 doc, 1 readme, fmt,
 clippy `-D warnings`, rustdoc `-D warnings`, `cargo build --examples` — **+4 integration tests in every build**
-(`tests/console.rs`), no lib or doc test added. **Cue table**: 44 cases, none red. **The render set**: 21 of 21 WAVs and
+(`tests/console.rs`), no lib or doc test added. **Two steps did not link on the disk** — `cargo test --features semantic`
+and `cargo build --examples --all-features`, at 2.3 GB free — and both were re-run alone afterwards: the first **passes
+(565)**, and `cargo check --examples --all-features` compiles every example. `[[INFERENCE]]` the disk and not the code:
+the same two steps failed the same way on iteration 122's tree, and the volume has 9.8 GB of dependency artifacts with
+2 – 2.3 GB free. **Cue table**: 44 cases, none red. **The render set**: 21 of 21 WAVs and
 every refusal text byte-identical to iteration 122's; `render.txt` identical but for the `variants` lines; `mix.wav`
 **−21.5 LUFS**, LRA 0.0, **−7.5 dBFS**, its spectrogram read. **`perfcheck`**: 0.058 – 0.062 / 0.325 – 0.358 /
 1.209 – 1.304 µs, inside iteration 122's band. **The public surface**: unchanged. **On the real device**: the README's
