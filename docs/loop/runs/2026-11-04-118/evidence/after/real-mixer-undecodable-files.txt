@@ -1,0 +1,41 @@
+Iteration 118, AFTER the change. `scratch_front_door real-undecodable` (release, --features mixer, a real audio device): the full stack —
+`AssetPlugin` + the real `AudioPlugin` + `SirenPlugin` — with the crate's own mixer owning playback (Backend = true), fourteen real files written
+under /tmp/siren-quickstart/assets/audio and loaded by the real asset server, one play of each at frame 40, 140 frames, and a game system
+that hangs a component on every `Played::entity` after `SirenSystems::Play` (the use `Played::entity` documents). Output verbatim:
+
+-- the full stack, the crate's own mixer (Backend = true), 14 files, one play of each, a game system tagging every Played::entity
+RESULT: 140 frames, no panic
+played  ( 8) = ["c.good.ogg -> good.ogg", "c.good441.ogg -> good441.ogg", "c.good.mp3 -> good.mp3", "c.good.flac -> good.flac", "c.s24.wav -> s24.wav", "c.f32.wav -> f32.wav", "c.mulaw.wav -> mulaw.wav", "c.alaw.wav -> alaw.wav"]
+refused ( 6)
+  refused: c.adpcm.wav : no handle or undecodable bytes for sound `adpcm.wav`
+  refused: c.opus.ogg : no handle or undecodable bytes for sound `opus.ogg`
+  refused: c.lfs.ogg : no handle or undecodable bytes for sound `lfs.ogg`
+  refused: c.empty.ogg : no handle or undecodable bytes for sound `empty.ogg`
+  refused: c.cut.ogg : no handle or undecodable bytes for sound `cut.ogg`
+  refused: c.one-byte.ogg : no handle or undecodable bytes for sound `one-byte.ogg`
+voices alive at the end = 8
+SirenSounds::failed = []
+log      : 1.41s played `c.good.ogg` (good.ogg) on Effects at 0.00 dB
+log      : 1.41s played `c.good441.ogg` (good441.ogg) on Effects at 0.00 dB
+log      : 1.41s played `c.good.mp3` (good.mp3) on Effects at 0.00 dB
+log      : 1.41s played `c.good.flac` (good.flac) on Effects at 0.00 dB
+log      : 1.41s played `c.s24.wav` (s24.wav) on Effects at 0.00 dB
+log      : 1.41s played `c.f32.wav` (f32.wav) on Effects at 0.00 dB
+log      : 1.41s played `c.mulaw.wav` (mulaw.wav) on Effects at 0.00 dB
+log      : 1.41s played `c.alaw.wav` (alaw.wav) on Effects at 0.00 dB
+log      : 1.41s refused `c.adpcm.wav`: the bytes of sound `adpcm.wav` cannot be decoded: The format of the data has not been recognized.
+log      : 1.41s refused `c.opus.ogg`: the bytes of sound `opus.ogg` cannot be decoded: The format of the data has not been recognized. — an Ogg Opus file, and this build decodes Ogg Vorbis, not Opus
+log      : 1.41s refused `c.lfs.ogg`: the bytes of sound `lfs.ogg` cannot be decoded: The format of the data has not been recognized. — a Git LFS pointer, not the audio file
+log      : 1.41s refused `c.empty.ogg`: the bytes of sound `empty.ogg` cannot be decoded: The format of the data has not been recognized. — the file has no bytes
+log      : 1.41s refused `c.cut.ogg`: the bytes of sound `cut.ogg` cannot be decoded: The format of the data has not been recognized.
+log      : 1.41s refused `c.one-byte.ogg`: the bytes of sound `one-byte.ogg` cannot be decoded: The format of the data has not been recognized.
+
+Reading it: 8 plays announced, 8 voices alive, 6 refusals — every refused play answered ONCE, at the play (the same 1.41 s as the plays beside it), with
+the decoder's words and, where the first bytes say what the file is, the hint; nothing announced for them, no voice, no panic in the tagging system.
+(The `Refused` message's own text is `Refusal::MissingSound`'s Display, "no handle or undecodable bytes for sound ...": no variant was added —
+`needs-decision/undecodable-sound.md`, option 4 — and the log carries the cause.)
+
+On the unchanged tree the same six refusals were the `tag-refused` probe of `evidence/before/`: `Played`, then `Refused`, the entity despawned in that
+frame, and the tagging system panicked in `bevy_ecs-0.20.1/src/error/handler.rs:128` ("Entity despawned"). That probe used a fake output whose `play`
+answers None (`rodio`'s answer for these bytes, proved on the real backend by `tests/mixer.rs::the_real_mixers_decode_error_agrees_with_its_play`,
+whose `play` column is the unchanged `MixerBackend::play`); the full-stack run on the unchanged tree was not made.

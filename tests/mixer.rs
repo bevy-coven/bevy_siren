@@ -270,7 +270,8 @@ fn log_lines(app: &App) -> Vec<String> {
 /// `MixerBackend::play` returns `None` when `rodio::Decoder::new` rejects the bytes — a truncated file, a format the
 /// build does not include, a header that lies. `MissingSound::sound` is documented as *the key a project maps to a
 /// file*, and the unfixed tree put the **cue's** name there: a project would search `audio/` for `footstep.grass`,
-/// which was never a file. The fake output refuses every sample, which is exactly that path.
+/// which was never a file. The fake output refuses every sample, which is exactly that path — **the refusal in `start_pending`**, which a real backend reaches only for bytes that arrive after the play, and a fake reaches
+/// whenever it leaves `AudioOutput::decode_error` at its default (`None`): a backend that says beforehand is refused at the play, and `tests/one_answer.rs` holds that.
 #[test]
 fn a_sample_the_decoder_refuses_names_its_sound_key() {
     let settings = SirenSettings {
@@ -426,6 +427,52 @@ fn an_ogg_loop_on_the_real_mixer_sounds_until_it_is_stopped() {
     assert!(!backend.finished("Ambience", voice), "three passes of a 0.1 s loop later it is still sounding");
     backend.stop_voice("Ambience", voice);
     assert!(backend.finished("Ambience", voice), "a stopped loop is finished");
+}
+
+/// **The real backend's answer before a voice exists is the answer its `play` gives.** `decode_error` is a second construction of the decoder `play` builds, asked first so a play whose bytes `rodio` refuses is refused at the play, with no
+/// `Played` and no entity (`tests/one_answer.rs`); if the two ever disagreed, a file would be announced as played and refused in one frame again, or refused though it sounds. Every kind of file the crate meets, good and bad: five
+/// formats that decode, and the five deliveries that do not — an Ogg Opus, an ADPCM WAV, a Git LFS pointer (the text a repository stores where the audio should be), an empty file, and an Ogg cut off after 40 bytes. It needs
+/// an audio device and returns early where there is none; every voice is played at −80 dB and stopped at once.
+#[test]
+fn the_real_mixers_decode_error_agrees_with_its_play() {
+    use bevy_siren::mixer::MixerBackend;
+
+    let Some(mut backend) = MixerBackend::open() else {
+        eprintln!("no audio device; the real mixer's decode_error cannot be compared with its play here");
+        return;
+    };
+    let tone: &[u8] = include_bytes!("fixtures/tone.ogg");
+    let lfs: &[u8] = b"version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 1234567\n";
+    let files: [(&str, Arc<[u8]>, bool); 10] = [
+        ("tone.ogg", Arc::from(tone), true),
+        ("tone-441.ogg", Arc::from(include_bytes!("fixtures/tone-441.ogg").as_slice()), true),
+        ("tone.mp3", Arc::from(include_bytes!("fixtures/tone.mp3").as_slice()), true),
+        ("tone.flac", Arc::from(include_bytes!("fixtures/tone.flac").as_slice()), true),
+        ("a WAV", Arc::from(crate::helpers::tiny_wav()), true),
+        ("an Ogg Opus", Arc::from(include_bytes!("fixtures/opus.ogg").as_slice()), false),
+        ("an ADPCM WAV", Arc::from(include_bytes!("fixtures/adpcm.wav").as_slice()), false),
+        ("a Git LFS pointer", Arc::from(lfs), false),
+        ("an empty file", Arc::from(Vec::<u8>::new()), false),
+        ("an Ogg cut off after 40 bytes", Arc::from(&tone[..40]), false),
+    ];
+    for (name, bytes, decodes) in files {
+        let error = backend.decode_error(&bytes);
+        let started = backend.play("Effects", &bytes, -80.0, 1.0, false);
+        assert_eq!(
+            error.is_none(),
+            started.is_some(),
+            "{name}: decode_error said {error:?} and play returned {started:?}"
+        );
+        assert_eq!(
+            started.is_some(),
+            decodes,
+            "{name}: the real mixer {} it",
+            if started.is_some() { "plays" } else { "refuses" }
+        );
+        if let Some(voice) = started {
+            backend.stop_voice("Effects", voice);
+        }
+    }
 }
 
 /// **A voice whose entity is despawned frees its mixer slot.**

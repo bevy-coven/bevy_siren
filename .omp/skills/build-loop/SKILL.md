@@ -129,6 +129,14 @@ spawned entity takes finds these in minutes. **To see one, run the real plugin o
 **A verdict that is a property of the build is tested as a property, against an oracle, not as a table**: `tests/undecodable.rs` asserts the crate refuses a play *exactly when `AudioSource::decoder()` panics* (`catch_unwind`), for every file, so
 it is true with and without `mixer` (an MP3 is refused where `rodio` has no decoder for it and played where it has). And when a check must be *the same call* as the code it protects, **reach it through the trait's associated type** (`<AudioSource
 as Decodable>::Decoder::builder()`) before adding a dependency: it was the whole difference between a new dependency in every consumer's default build and none.
+
+**Run the documented use of a handle the crate hands out, not only its refusals.** Iteration 118: `Played::entity` is documented as *"for a game that hangs its own data on it"*; a probe that did exactly that — a system after `SirenSystems::Play`
+doing `commands.entity(played.entity).insert(..)` — found that on the crate's own mixer bytes `rodio` refused were `Played` **and** `Refused` in one frame, the entity despawned in it, and the game **panicked in `bevy_ecs`'s command handler** (Bevy 0.20's `insert`
+on a despawned entity is an error whose default handler panics; only `try_insert` is silent). A refusal test that counts messages and voices never touches the handle. For every identifier a message hands out (an `Entity`, an index, a key), write the
+one line a game would write and run it through the scenarios that **end** the thing it names: refused, stolen, stopped in the frame it started, owner gone, load failed. Then state the **invariant you can honestly promise** and test it across them
+(`tests/one_answer.rs`: *each play is answered once, and a `Played` entity that is gone is explained by a `stopped` line*) — the first form, *"a `Played` entity exists when the frame ends"*, was red for an **intended** behaviour (a voice stolen in the frame it
+was announced never sounded and is despawned in it), so the promise was narrowed and the exception written where a game reads it (`Played::entity`'s doc). **Mutate the guard to see which test notices** (hook ignored, answer ignored, one memo for two askers, no
+memo, the real backend's check always `None`): five switches, each reddened the tests that guard it and no others needed.
 **Run `cargo fmt && cargo clippy --all-targets --all-features -- -D warnings` after every edit, before any test and before the matrix** — it was the first red of the matrix in iterations 115 and 116, and the cargo output a tool summarises shows `Finished`
 and hides the warning that becomes the error.
 

@@ -21,7 +21,7 @@ use crate::log::{Entry, SirenLog};
 use crate::ogg;
 use crate::output::Output;
 use crate::play::{MixerVoice, Refusal, Refused, Samples, Voice};
-use crate::sounds::{Files, SirenSounds, cannot_play};
+use crate::sounds::{Decode, Files, SirenSounds, cannot_play};
 
 /// The `sound` key a cue's chosen variant names, or `None` when the table can no longer answer for it.
 fn key_of(table: &CueTable, cue: &str, variant: usize) -> Option<String> {
@@ -33,6 +33,9 @@ fn key_of(table: &CueTable, cue: &str, variant: usize) -> Option<String> {
 /// Runs in [`SirenSystems::Play`](crate::SirenSystems) after the requests, so a play whose bytes are already in
 /// memory starts in the frame it was asked for. Without an [`Output`] — the default build, or one whose device
 /// failed to open — this system returns at once and Bevy's `AudioPlayer` owns every voice.
+///
+/// **A refusal here is a second answer.** A play whose bytes were already loaded was asked of this backend's decoder before its voice existed (`AudioOutput::decode_error`, in `play_requests`) and refused there. What reaches `play`
+/// and comes back `None` is a voice spawned while its bytes were still loading, which `Played` could not have known to withhold — or one whose backend breaks `AudioOutput`'s contract by refusing in `play` what `decode_error` accepted.
 #[allow(clippy::too_many_arguments)]
 pub fn start_pending(
     mut commands: Commands,
@@ -137,7 +140,8 @@ pub(crate) fn refuse_unplayable_voices(
 ) {
     let now = real.elapsed_secs_f64();
     for (entity, voice, samples, bevy_decodes) in &waiting {
-        let Some(unplayable) = cannot_play(&files, &sounds, &samples.0, bevy_decodes) else {
+        let decode = if bevy_decodes { Decode::Bevy } else { Decode::Skip };
+        let Some(unplayable) = cannot_play(&files, &sounds, &samples.0, &decode) else {
             continue;
         };
         // The key the play chose, recovered as `start_pending` recovers it; a table edited since can no longer answer, and then the cue really is unknown.

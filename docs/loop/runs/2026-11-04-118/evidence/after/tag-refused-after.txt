@@ -1,0 +1,30 @@
+Iteration 118, AFTER the change: `scratch_front_door tag-refused` and `tag-refused truthful` (release, --features mixer, headless app, a fake `AudioOutput` whose `play`
+answers None for the placeholder bytes — `rodio`'s answer for bytes it refuses — and a game system after `SirenSystems::Play` that does
+`commands.entity(played.entity).insert(Tag)`, the use `Played::entity` documents). The BEFORE run of the same probe is in evidence/before/ (the tree it ran on: 84ac075).
+
+=== tag-refused  (a backend that does NOT say beforehand: `decode_error` left at its default, None)
+
+PANIC HOOK: panicked at /Users/rebekahbrittain/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_ecs-0.20.1/src/error/handler.rs:128:1:
+Encountered an error in command `<Enable the debug feature to see the name>`: Entity despawned: The entity with ID 45v0 is invalid; its index now has generation 1.
+Note that interacting with a despawned entity is the most common cause of this error but there are others
+-- a refusing backend (decode_error says beforehand: false), and a game system tagging Played::entity after SirenSystems::Play
+[tag] played = []  refused = []
+[tag] voice entities = 0 (with a ChildOf: 0)  counted on Effects = 0
+[tag] log: 0.00s played `engine` (s) on Effects at 0.00 dB
+[tag] log: 0.00s refused `engine`: no handle or undecodable bytes for sound `s`
+[tag] RESULT: PANIC — Encountered an error in command `<Enable the debug feature to see the name>`: Entity despawned: The entity with ID 45v0 is invalid; its index now has generation 1.
+Note that interacting with a despawned entity is the most common cause of this error but there are others
+
+=== tag-refused truthful  (a backend that says beforehand, as `MixerBackend` does)
+
+-- a refusing backend (decode_error says beforehand: true), and a game system tagging Played::entity after SirenSystems::Play
+[tag] played = []  refused = ["engine : no handle or undecodable bytes for sound `s`"]
+[tag] voice entities = 0 (with a ChildOf: 0)  counted on Effects = 0
+[tag] log: 0.00s refused `engine`: the bytes of sound `s` cannot be decoded: the fake backend cannot decode these bytes
+[tag] RESULT: survived 3 frames
+
+Reading it: the first run is the documented limitation, not a regression — an output whose `play` can refuse and whose `decode_error` says nothing keeps the two answers
+(`AudioOutput::decode_error`'s doc, `needs-decision/audio-output-decode-error.md`, AGENTS.md's trap); `start_pending` still answers for it. The second is the contract kept:
+one answer, at the play, with the backend's own words in the log, no voice, no panic. (`played = []` in the first run: the probe's tally runs in `PostUpdate`, which the panic out of `Update` would not have
+reached — [INFERENCE], not separately checked.) The real `MixerBackend` signs the contract — `tests/mixer.rs::the_real_mixers_decode_error_agrees_with_its_play`, and
+evidence/after/real-mixer-undecodable-files.txt on a real device.

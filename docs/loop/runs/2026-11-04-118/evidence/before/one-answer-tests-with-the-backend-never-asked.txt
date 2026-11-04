@@ -1,0 +1,58 @@
+   Compiling bevy_siren v0.1.0 (/Users/rebekahbrittain/bevy_siren)
+warning: unused variable: `output`
+   --> src/sounds.rs:290:28
+    |
+290 |             Decode::Output(output) => {
+    |                            ^^^^^^ help: if this is intentional, prefix it with an underscore: `_output`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `bevy_siren` (lib) generated 1 warning (run `cargo fix --lib -p bevy_siren` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.51s
+     Running tests/all.rs (target/debug/deps/all-bef009fc5a82eb4f)
+
+running 4 tests
+test one_answer::bytes_the_crates_mixer_refuses_are_refused_at_the_play_and_nothing_is_announced ... FAILED
+test one_answer::a_verdict_is_the_askers_own ... ok
+test one_answer::a_sound_is_asked_of_the_mixer_once_however_often_it_is_played ... FAILED
+test one_answer::every_play_is_answered_once_and_a_voice_that_is_gone_is_explained ... FAILED
+
+failures:
+
+---- one_answer::bytes_the_crates_mixer_refuses_are_refused_at_the_play_and_nothing_is_announced stdout ----
+
+thread 'one_answer::bytes_the_crates_mixer_refuses_are_refused_at_the_play_and_nothing_is_announced' (12968329) panicked at /Users/rebekahbrittain/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_ecs-0.20.1/src/error/handler.rs:128:1:
+Encountered an error in command `<Enable the debug feature to see the name>`: Entity despawned: The entity with ID 44v0 is invalid; its index now has generation 1.
+Note that interacting with a despawned entity is the most common cause of this error but there are others
+
+    If you were attempting to apply a command to this entity,
+    and want to handle this error gracefully, consider using `EntityCommands::queue_handled` or `queue_silenced`.
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'one_answer::bytes_the_crates_mixer_refuses_are_refused_at_the_play_and_nothing_is_announced' (12968329) panicked at tests/one_answer.rs:91:5:
+a game system that hangs data on `Played::entity` ran for three frames without a panic
+
+---- one_answer::a_sound_is_asked_of_the_mixer_once_however_often_it_is_played stdout ----
+
+thread 'one_answer::a_sound_is_asked_of_the_mixer_once_however_often_it_is_played' (12968327) panicked at tests/one_answer.rs:208:5:
+assertion `left == right` failed: and the backend was asked about the bytes once
+  left: 0
+ right: 1
+
+---- one_answer::every_play_is_answered_once_and_a_voice_that_is_gone_is_explained stdout ----
+
+thread 'one_answer::every_play_is_answered_once_and_a_voice_that_is_gone_is_explained' (12968330) panicked at tests/one_answer.rs:129:13:
+assertion `left == right` failed: bytes the crate's mixer refuses: frame 0: one answer per play, got 1 played and 1 refused
+  left: 2
+ right: 1
+
+
+failures:
+    one_answer::a_sound_is_asked_of_the_mixer_once_however_often_it_is_played
+    one_answer::bytes_the_crates_mixer_refuses_are_refused_at_the_play_and_nothing_is_announced
+    one_answer::every_play_is_answered_once_and_a_voice_that_is_gone_is_explained
+
+test result: FAILED. 1 passed; 3 failed; 0 ignored; 0 measured; 213 filtered out; finished in 0.07s
+
+error: test failed, to rerun pass `--test all`

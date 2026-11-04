@@ -163,18 +163,20 @@ and nothing is invented about a slow disk. The `Refused` message carries the one
 `reason` reads the one sentence; the log has the cause (`docs/loop/needs-decision/undecodable-sound.md` weighs a variant
 of its own).
 
-**Bytes that load and cannot be decoded are refused too — on Bevy's path as well as the crate's own mixer's.** A file can load (the asset loader returns the bytes and stops) and not be audio the build can decode: a **Git LFS
+**Bytes that load and cannot be decoded are refused too — on Bevy's path and on the crate's own mixer's.** A file can load (the asset loader returns the bytes and stops) and not be audio the build can decode: a **Git LFS
 pointer** where the audio should be, a file with no bytes, a cut one, an **Ogg Opus** file in a `.ogg`, an ADPCM WAV. Bevy's own `AudioSource::decoder` is `….build().unwrap()`, so on the default build that file used to be `Played`
-and then **panic the game in the same frame**, at `bevy_audio-…/src/audio_source.rs:101`, naming no file. The crate now asks the decoder — **the call Bevy makes, once per asset** — before Bevy does:
+and then **panic the game in the same frame**, at `bevy_audio-…/src/audio_source.rs:101`, naming no file; on the crate's own mixer it was `Played` and then `Refused` **in the same frame**, with the voice despawned in it, so a
+game that hung data on `Played::entity` — the use that field documents — panicked in Bevy's command handler instead. The crate now asks **whoever will decode the bytes**, once per asset, before a voice exists: Bevy's call on Bevy's path,
+the mixer's own decoder (`AudioOutput::decode_error`) on the crate's own mixer:
 
 ```
 0.05s refused `ui.click`: the bytes of sound `click.ogg` cannot be decoded: The format of the data has not been recognized. — a Git LFS pointer, not the audio file
 ```
 
 No `Played`, no voice, no slot. The decoder's own words are the same for every one of these files, so the three commonest are told apart by their first bytes and the sentence says which (a hint changes a sentence, never a
-decision). A voice spawned while the bytes were still loading is refused in the frame they arrive, before Bevy's `PostUpdate` can decode it. **What is decoded is a property of the build**: an MP3 or a FLAC is refused where
-`rodio` has no decoder for it and played where it has one (`mixer`, `semantic`, or Bevy's own `mp3`/`flac`), because the check is the decoder's own answer and not a list of formats. The crate's own mixer decodes in
-`start_pending` and answers as it always did (`Played`, then `Refused` in that frame).
+decision). A voice spawned while the bytes were still loading is refused in the frame they arrive — after the `Played` it could not have known to withhold — and despawned, before Bevy's `PostUpdate` can decode it, or by the mixer's
+own `start_pending`. **What is decoded is a property of the build**: an MP3 or a FLAC is refused where `rodio` has no decoder for it and played where it has one (`mixer`, `semantic`, or Bevy's own `mp3`/`flac`), because the check
+is the decoder's own answer and not a list of formats.
 
 `Repeat::AvoidRepeat { avoid: n }` refuses the last `n` variants, and the default `avoid: 1` is what stops the
 machine-gun footstep. **The window is the number the cue asks for, read on every play** — a table an editor reloads with

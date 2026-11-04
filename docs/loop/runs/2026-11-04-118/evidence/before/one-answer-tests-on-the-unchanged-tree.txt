@@ -1,0 +1,36 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+     Running tests/all.rs (target/debug/deps/all-bef009fc5a82eb4f)
+
+running 2 tests
+test one_answer::bytes_the_crates_mixer_refuses_are_refused_at_the_play_and_nothing_is_announced ... FAILED
+test one_answer::an_entity_a_played_names_exists_when_the_frame_ends ... FAILED
+
+failures:
+
+---- one_answer::bytes_the_crates_mixer_refuses_are_refused_at_the_play_and_nothing_is_announced stdout ----
+
+thread 'one_answer::bytes_the_crates_mixer_refuses_are_refused_at_the_play_and_nothing_is_announced' (12956091) panicked at /Users/rebekahbrittain/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_ecs-0.20.1/src/error/handler.rs:128:1:
+Encountered an error in command `<Enable the debug feature to see the name>`: Entity despawned: The entity with ID 44v0 is invalid; its index now has generation 1.
+Note that interacting with a despawned entity is the most common cause of this error but there are others
+
+    If you were attempting to apply a command to this entity,
+    and want to handle this error gracefully, consider using `EntityCommands::queue_handled` or `queue_silenced`.
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'one_answer::bytes_the_crates_mixer_refuses_are_refused_at_the_play_and_nothing_is_announced' (12956091) panicked at tests/one_answer.rs:83:5:
+a game system that hangs data on `Played::entity` ran for three frames without a panic
+
+---- one_answer::an_entity_a_played_names_exists_when_the_frame_ends stdout ----
+
+thread 'one_answer::an_entity_a_played_names_exists_when_the_frame_ends' (12956090) panicked at tests/one_answer.rs:116:17:
+bytes the crate's mixer refuses: frame 0: `Played` named 44v0, which does not exist when the frame ends
+
+
+failures:
+    one_answer::an_entity_a_played_names_exists_when_the_frame_ends
+    one_answer::bytes_the_crates_mixer_refuses_are_refused_at_the_play_and_nothing_is_announced
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 213 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `--test all`

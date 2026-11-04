@@ -90,11 +90,20 @@ it.
 `SILENT_DB = −80` is where a gain becomes exactly `0.0` on the way in and out, so "is this bus audible" is one
 comparison. A chain of gains **adds in dB** and any silent stage silences the whole (a cue at −80 dB is not brought
 back by a bus at 0 dB), while several sounds **sum in linear** (two 0 dB sounds are one at +6.02 dB). And a play is
-never silent: `Played` or `Refused`, both with the reason. `SirenMix` is one number per bus, so a panel can draw it.
-*Where:* `src/model.rs` (`SILENT_DB`, `db_to_gain`, `gain_to_db`, `sum_db`, `chain_db`), `src/log.rs`.
+never silent: `Played` or `Refused`, both with the reason — **and never both**. `Played` is a promise that a voice exists, a handle
+a game may keep and hang its own data on, so a play whose bytes the backend that will decode them cannot read is refused *at the
+play* on either backend, before a voice is spawned (iterations 117 and 118). The postcondition is a contract and failing it is a bug
+(Hunt and Thomas, *The Pragmatic Programmer*, tip 37); a handle goes stale, so a system that hands one out must not hand out one it
+has already destroyed (Gregory, *Game Engine Architecture*, §16.5.3); and an invariant checked across scenarios is a partial test
+oracle (Barr et al., *The Oracle Problem in Software Testing*, IEEE TSE 2015, §4.1). `SirenMix` is one number per bus, so a panel can
+draw it.
+*Where:* `src/model.rs` (`SILENT_DB`, `db_to_gain`, `gain_to_db`, `sum_db`, `chain_db`), `src/log.rs`, `src/sounds.rs` (`cannot_play`),
+`src/output.rs` (`AudioOutput::decode_error`).
 *Proved by:* `tests/model.rs::{db_to_gain_is_the_amplitude_ratio, silence_is_exactly_zero_and_never_negative_infinity,
 a_sum_of_two_equal_sounds_is_plus_six_db, a_chain_adds_and_a_silent_stage_silences_it}`,
-`tests/play.rs::an_unknown_cue_is_refused_and_spawns_nothing`.
+`tests/play.rs::an_unknown_cue_is_refused_and_spawns_nothing`,
+`tests/one_answer.rs::{bytes_the_crates_mixer_refuses_are_refused_at_the_play_and_nothing_is_announced,
+every_play_is_answered_once_and_a_voice_that_is_gone_is_explained}`.
 
 ## How shipping games do it
 

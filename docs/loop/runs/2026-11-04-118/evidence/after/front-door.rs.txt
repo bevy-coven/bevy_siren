@@ -1,0 +1,505 @@
+//! SCRATCH (iteration 118): the front door, run for real, and two states the tests never built.
+//!
+//! `scratch_front_door quick <as-written|with-extensions>`   the README quick start's `setup`, the real `AudioPlugin` (a device), real files under /tmp/siren-quickstart/assets/audio
+//! `scratch_front_door owner-bevy`                           `Play::on` an owner that is already gone, a loop, Bevy's path (headless)
+//! `scratch_front_door owner-mixer`   (needs `--features mixer`)  the same, on the crate's own mixer with a counting fake output
+//! `scratch_front_door tag-refused`   (needs `--features mixer`)  `Played` then `Refused` in one frame, and a game that hangs data on `Played::entity`
+
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::Path;
+use std::sync::Arc;
+use std::time::Duration;
+
+use bevy::asset::AssetPlugin;
+use bevy::audio::{AudioPlugin, AudioSink, AudioSource};
+use bevy::prelude::*;
+use bevy_siren::*;
+
+const ROOT: &str = "/tmp/siren-quickstart/assets";
+const TONE: &[u8] = include_bytes!("../tests/fixtures/tone.ogg");
+
+fn prepare() {
+    let dir = Path::new(ROOT).join("audio");
+    std::fs::create_dir_all(&dir).expect("dir");
+    std::fs::write(dir.join("step_01.ogg"), TONE).expect("step_01.ogg");
+    std::fs::copy("tests/fixtures/tone-441.ogg", dir.join("step_02.ogg")).expect("step_02.ogg");
+}
+
+#[derive(Resource, Default)]
+struct Seen {
+    played: Vec<String>,
+    refused: Vec<String>,
+}
+
+fn tally(mut played: MessageReader<Played>, mut refused: MessageReader<Refused>, mut seen: ResMut<Seen>) {
+    for p in played.read() {
+        seen.played.push(format!("{} -> {}", p.cue, p.sound));
+    }
+    for r in refused.read() {
+        seen.refused.push(format!("{} : {}", r.cue, r.reason));
+    }
+}
+
+/// The README's `setup`, character for character.
+fn setup_as_written(
+    mut cue_table: ResMut<CueTable>,
+    mut sounds: ResMut<SirenSounds>,
+    assets: Res<AssetServer>,
+) {
+    // A cue with two variants: the picker never plays the same one twice in a row.
+    cue_table.insert(Cue {
+        sounds: vec![SoundSlot::new("step_01"), SoundSlot::new("step_02")],
+        ..Cue::new("footstep.grass")
+    });
+    sounds.load_table(&assets, &cue_table, "audio");
+}
+
+/// The same, with the one change a reader has to make to hear anything: the keys are the files' names.
+fn setup_with_extensions(
+    mut cue_table: ResMut<CueTable>,
+    mut sounds: ResMut<SirenSounds>,
+    assets: Res<AssetServer>,
+) {
+    cue_table.insert(Cue {
+        sounds: vec![SoundSlot::new("step_01.ogg"), SoundSlot::new("step_02.ogg")],
+        ..Cue::new("footstep.grass")
+    });
+    sounds.load_table(&assets, &cue_table, "audio");
+}
+
+/// The README's `walk` plays every frame and is never scheduled; this plays every twentieth frame so a run has something to read.
+fn walk(mut play: MessageWriter<Play>, mut frame: Local<u32>) {
+    *frame += 1;
+    if *frame % 20 == 1 {
+        play.write(Play::cue("footstep.grass"));
+    }
+}
+
+fn quick(variant: &str) {
+    prepare();
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        AssetPlugin { file_path: ROOT.into(), ..default() },
+        AudioPlugin::default(),
+        SirenPlugin,
+    ));
+    app.init_resource::<Seen>();
+    match variant {
+        "as-written" => app.add_systems(Startup, setup_as_written),
+        _ => app.add_systems(Startup, setup_with_extensions),
+    };
+    app.add_systems(Update, walk).add_systems(PostUpdate, tally);
+    for _ in 0..100 {
+        app.update();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let world = app.world_mut();
+    let sinks = world.query_filtered::<(), With<AudioSink>>().iter(world).count();
+    let seen = world.resource::<Seen>();
+    println!("played   ({:>2}) = {:?}", seen.played.len(), seen.played);
+    println!("refused  ({:>2}) = {:?}", seen.refused.len(), &seen.refused[..seen.refused.len().min(2)]);
+    println!("sinks created by Bevy while it ran: voices alive with a sink now = {sinks}");
+    let table = world.resource::<CueTable>().clone();
+    let server = world.resource::<AssetServer>().clone();
+    println!(
+        "SirenSounds::failed = {:?}; missing = {:?}",
+        world.resource::<SirenSounds>().failed(&server, &table),
+        world.resource::<SirenSounds>().missing(&table)
+    );
+    for entry in world.resource::<SirenLog>().iter().take(4) {
+        println!("log      : {}", entry.line());
+    }
+}
+
+fn headless_app() -> (App, Handle<AudioSource>) {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+        .init_asset::<AudioSource>()
+        .add_plugins(SirenPlugin);
+    app.world_mut().remove_resource::<Output>();
+    app.init_resource::<Seen>().add_systems(PostUpdate, tally);
+    app.insert_resource(CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("s")],
+        mode: Mode::Loop,
+        ..Cue::new("engine")
+    }]));
+    let handle =
+        app.world_mut().resource_mut::<Assets<AudioSource>>().add(AudioSource { bytes: Arc::from(TONE) });
+    app.world_mut().resource_mut::<SirenSounds>().insert("s", handle.clone());
+    (app, handle)
+}
+
+fn report(app: &mut App, what: &str) {
+    let world = app.world_mut();
+    let voices: Vec<(Entity, bool)> =
+        world.query::<(Entity, Has<ChildOf>, &Voice)>().iter(world).map(|(e, owned, _)| (e, owned)).collect();
+    let on_effects = world.resource::<SirenMix>().voices_on("Effects");
+    let seen = world.resource::<Seen>();
+    println!("[{what}] played = {:?}  refused = {:?}", seen.played, seen.refused);
+    println!(
+        "[{what}] voice entities = {} (with a ChildOf: {})  counted on Effects = {on_effects}",
+        voices.len(),
+        voices.iter().filter(|v| v.1).count()
+    );
+    for entry in world.resource::<SirenLog>().iter() {
+        println!("[{what}] log: {}", entry.line());
+    }
+}
+
+fn owner_bevy() {
+    let (mut app, _) = headless_app();
+    // A live owner, for the control: the voice is the owner's child and goes with it.
+    let live = app.world_mut().spawn_empty().id();
+    app.world_mut().write_message(Play::cue("engine").on(live));
+    for _ in 0..3 {
+        app.update();
+    }
+    println!("-- control: a live owner");
+    report(&mut app, "live");
+    app.world_mut().despawn(live);
+    for _ in 0..3 {
+        app.update();
+    }
+    println!("-- control: the owner despawned afterwards");
+    report(&mut app, "live, then despawned");
+
+    // The state under test: the owner is gone before the play is answered.
+    let (mut app, _) = headless_app();
+    let gone = app.world_mut().spawn_empty().id();
+    app.world_mut().despawn(gone);
+    app.world_mut().write_message(Play::cue("engine").on(gone));
+    for _ in 0..30 {
+        app.update();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    println!("-- the owner was already gone when the play was answered, 30 frames later");
+    report(&mut app, "gone");
+}
+
+#[cfg(feature = "mixer")]
+mod fake {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use bevy_siren::output::AudioOutput;
+
+    #[derive(Clone, Default)]
+    pub struct Counting {
+        pub played: Arc<AtomicUsize>,
+        pub stopped: Arc<AtomicUsize>,
+        pub refuse: bool,
+        /// Whether `decode_error` tells the crate beforehand what `play` will do (the contract `AudioOutput` now documents).
+        pub says: bool,
+    }
+
+    impl AudioOutput for Counting {
+        fn set_bus_db(&mut self, _: &str, _: f32) {}
+        fn set_voice_db(&mut self, _: &str, _: usize, _: f32) {}
+        fn stop_voice(&mut self, _: &str, _: usize) {
+            self.stopped.fetch_add(1, Ordering::SeqCst);
+        }
+        fn decode_error(&self, _: &Arc<[u8]>) -> Option<String> {
+            (self.refuse && self.says).then(|| "the fake backend cannot decode these bytes".to_owned())
+        }
+        fn play(&mut self, _: &str, _: &Arc<[u8]>, _: f32, _: f32, _: bool) -> Option<usize> {
+            if self.refuse { None } else { Some(self.played.fetch_add(1, Ordering::SeqCst)) }
+        }
+        fn finished(&self, _: &str, _: usize) -> bool {
+            false
+        }
+    }
+}
+
+#[cfg(feature = "mixer")]
+fn owner_mixer() {
+    use bevy_siren::output::{Backend, Output};
+    let (mut app, _) = headless_app();
+    let counting = fake::Counting::default();
+    app.insert_resource(Output(Box::new(counting.clone())));
+    app.insert_resource(Backend(true));
+    let gone = app.world_mut().spawn_empty().id();
+    app.world_mut().despawn(gone);
+    app.world_mut().write_message(Play::cue("engine").on(gone));
+    for _ in 0..30 {
+        app.update();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    println!("-- the crate's own mixer, the owner already gone");
+    report(&mut app, "gone, mixer");
+    println!(
+        "[gone, mixer] the output was asked to play {} voice(s) and to stop {}",
+        counting.played.load(std::sync::atomic::Ordering::SeqCst),
+        counting.stopped.load(std::sync::atomic::Ordering::SeqCst)
+    );
+}
+
+#[derive(Component)]
+struct Tag;
+
+#[cfg(feature = "mixer")]
+fn tag_refused(says: bool) {
+    use bevy_siren::output::{Backend, Output};
+    std::panic::set_hook(Box::new(|info| eprintln!("PANIC HOOK: {info}")));
+    let (mut app, _) = headless_app();
+    // Placeholder bytes the crate's mixer cannot decode: `play` answers None, as `rodio` does for bytes it refuses.
+    let counting = fake::Counting { refuse: true, says, ..Default::default() };
+    app.insert_resource(Output(Box::new(counting)));
+    app.insert_resource(Backend(true));
+    // A game that hangs its own data on the voice, as `Played::entity` documents ("for a game that hangs its own data on it").
+    app.add_systems(
+        Update,
+        (|mut played: MessageReader<Played>, mut commands: Commands| {
+            for p in played.read() {
+                commands.entity(p.entity).insert(Tag);
+            }
+        })
+        .after(SirenSystems::Play),
+    );
+    app.world_mut().write_message(Play::cue("engine"));
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        for _ in 0..3 {
+            app.update();
+        }
+    }));
+    println!(
+        "-- a refusing backend (decode_error says beforehand: {says}), and a game system tagging Played::entity after SirenSystems::Play"
+    );
+    report(&mut app, "tag");
+    match result {
+        Ok(()) => println!("[tag] RESULT: survived 3 frames"),
+        Err(payload) => {
+            let message = payload
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+                .unwrap_or_default();
+            println!("[tag] RESULT: PANIC — {message}");
+        }
+    }
+}
+
+#[cfg(feature = "mixer")]
+fn read_file(path: &str) -> Vec<u8> {
+    std::fs::read(path).unwrap_or_else(|error| panic!("{path}: {error}"))
+}
+
+/// Every kind of file the iteration cares about, by the name it is stored under.
+#[cfg(feature = "mixer")]
+fn probe_files() -> Vec<(&'static str, Vec<u8>)> {
+    let lfs = b"version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 1234567\n";
+    vec![
+        ("good.ogg", TONE.to_vec()),
+        ("good441.ogg", read_file("tests/fixtures/tone-441.ogg")),
+        ("good.mp3", read_file("tests/fixtures/tone.mp3")),
+        ("good.flac", read_file("tests/fixtures/tone.flac")),
+        ("s24.wav", read_file("/tmp/siren-agree/s24.wav")),
+        ("f32.wav", read_file("/tmp/siren-agree/f32.wav")),
+        ("mulaw.wav", read_file("/tmp/siren-agree/mulaw.wav")),
+        ("alaw.wav", read_file("/tmp/siren-agree/alaw.wav")),
+        ("adpcm.wav", read_file("tests/fixtures/adpcm.wav")),
+        ("opus.ogg", read_file("tests/fixtures/opus.ogg")),
+        ("lfs.ogg", lfs.to_vec()),
+        ("empty.ogg", Vec::new()),
+        ("cut.ogg", TONE[..40].to_vec()),
+        ("one-byte.ogg", vec![0x4f]),
+    ]
+}
+
+/// The full stack on the crate's own mixer — a real device, real files through the real asset server — and a game system that hangs data on every `Played::entity`.
+#[cfg(feature = "mixer")]
+fn real_undecodable() {
+    use bevy_siren::output::Backend;
+    std::panic::set_hook(Box::new(|info| eprintln!("PANIC HOOK: {info}")));
+    let dir = Path::new(ROOT).join("audio");
+    std::fs::create_dir_all(&dir).expect("dir");
+    let files = probe_files();
+    for (name, bytes) in &files {
+        std::fs::write(dir.join(name), bytes).expect("write probe file");
+    }
+    let names: Vec<&'static str> = files.iter().map(|(name, _)| *name).collect();
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        AssetPlugin { file_path: ROOT.into(), ..default() },
+        AudioPlugin::default(),
+        SirenPlugin,
+    ));
+    app.init_resource::<Seen>();
+    let table_names = names.clone();
+    app.add_systems(
+        Startup,
+        move |mut cue_table: ResMut<CueTable>, mut sounds: ResMut<SirenSounds>, assets: Res<AssetServer>| {
+            for name in &table_names {
+                cue_table
+                    .insert(Cue { sounds: vec![SoundSlot::new(*name)], ..Cue::new(format!("c.{name}")) });
+            }
+            sounds.load_table(&assets, &cue_table, "audio");
+        },
+    );
+    let fire_names = names.clone();
+    app.add_systems(Update, move |mut play: MessageWriter<Play>, mut frame: Local<u32>| {
+        *frame += 1;
+        if *frame == 40 {
+            for name in &fire_names {
+                play.write(Play::cue(format!("c.{name}")));
+            }
+        }
+    });
+    app.add_systems(
+        Update,
+        (|mut played: MessageReader<Played>, mut commands: Commands| {
+            for p in played.read() {
+                commands.entity(p.entity).insert(Tag);
+            }
+        })
+        .after(SirenSystems::Play),
+    );
+    app.add_systems(PostUpdate, tally);
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        for _ in 0..140 {
+            app.update();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }));
+    let world = app.world_mut();
+    println!(
+        "-- the full stack, the crate's own mixer (Backend = {}), {} files, one play of each, a game system tagging every Played::entity",
+        world.resource::<Backend>().0,
+        names.len()
+    );
+    match result {
+        Ok(()) => println!("RESULT: 140 frames, no panic"),
+        Err(_) => println!("RESULT: PANIC (see the hook line above)"),
+    }
+    let seen = world.resource::<Seen>();
+    println!("played  ({:>2}) = {:?}", seen.played.len(), seen.played);
+    println!("refused ({:>2})", seen.refused.len());
+    for line in &seen.refused {
+        println!("  refused: {line}");
+    }
+    println!("voices alive at the end = {}", world.query::<&Voice>().iter(world).count());
+    println!(
+        "SirenSounds::failed = {:?}",
+        world
+            .resource::<SirenSounds>()
+            .failed(&world.resource::<AssetServer>().clone(), &world.resource::<CueTable>().clone())
+    );
+    for entry in world.resource::<SirenLog>().iter() {
+        println!("log      : {}", entry.line());
+    }
+}
+
+/// Bevy's decoder builder against the mixer's, file by file: do they agree? (`SirenSounds` keeps one memo per asker because they might not.)
+#[cfg(feature = "mixer")]
+fn agree() {
+    use bevy::audio::Decodable;
+    use bevy_siren::mixer::MixerBackend;
+    use bevy_siren::output::AudioOutput;
+    let backend = MixerBackend::open();
+    println!("device: {}", if backend.is_some() { "yes" } else { "NO (the real backend column is empty)" });
+    let mut disagreements = 0;
+    for (name, bytes) in probe_files() {
+        let bytes: Arc<[u8]> = Arc::from(bytes.as_slice());
+        let source = AudioSource { bytes: Arc::clone(&bytes) };
+        let bevy = <AudioSource as Decodable>::Decoder::builder()
+            .with_byte_len(bytes.len() as u64)
+            .with_data(std::io::Cursor::new(source.clone()))
+            .build()
+            .err()
+            .map(|error| error.to_string());
+        let mixer = backend.as_ref().map(|backend| backend.decode_error(&bytes));
+        let agree = mixer.as_ref().is_none_or(|mixer| mixer.is_none() == bevy.is_none());
+        if !agree {
+            disagreements += 1;
+        }
+        println!(
+            "{name:<13} bevy={:<8} mixer={:<8} {}",
+            if bevy.is_none() { "decodes" } else { "REFUSES" },
+            match &mixer {
+                None => "-",
+                Some(None) => "decodes",
+                Some(Some(_)) => "REFUSES",
+            },
+            if agree { "agree" } else { "DISAGREE" }
+        );
+        if let (Some(b), Some(Some(m))) = (&bevy, &mixer) {
+            println!("{:<13}   bevy words:  {b}\n{:<13}   mixer words: {m}", "", "");
+        }
+    }
+    println!("disagreements: {disagreements}");
+}
+
+/// What the check costs, per file kind: `decode_error` (a decoder construction over the shared `Arc`) against `play` (a `to_vec` copy, a decoder, a player) on the real backend, and Bevy's builder.
+#[cfg(feature = "mixer")]
+fn cost() {
+    use std::time::Instant;
+
+    use bevy::audio::Decodable;
+    use bevy_siren::mixer::MixerBackend;
+    use bevy_siren::output::AudioOutput;
+    let Some(mut backend) = MixerBackend::open() else {
+        println!("no device");
+        return;
+    };
+    println!(
+        "{:<13} {:>9} {:>14} {:>14} {:>14}",
+        "file", "bytes", "decode_error", "bevy builder", "play(+stop)"
+    );
+    for (name, bytes) in probe_files() {
+        let bytes: Arc<[u8]> = Arc::from(bytes.as_slice());
+        let source = AudioSource { bytes: Arc::clone(&bytes) };
+        let n = 300;
+        let time = |f: &mut dyn FnMut()| {
+            for _ in 0..20 {
+                f();
+            }
+            let start = Instant::now();
+            for _ in 0..n {
+                f();
+            }
+            start.elapsed().as_secs_f64() * 1e6 / f64::from(n)
+        };
+        let check = time(&mut || {
+            std::hint::black_box(backend.decode_error(std::hint::black_box(&bytes)));
+        });
+        let bevy = time(&mut || {
+            std::hint::black_box(
+                <AudioSource as Decodable>::Decoder::builder()
+                    .with_byte_len(bytes.len() as u64)
+                    .with_data(std::io::Cursor::new(source.clone()))
+                    .build()
+                    .err(),
+            );
+        });
+        let play = time(&mut || {
+            if let Some(voice) = backend.play("Effects", std::hint::black_box(&bytes), -80.0, 1.0, false) {
+                backend.stop_voice("Effects", voice);
+            }
+        });
+        println!("{name:<13} {:>9} {check:>11.1} µs {bevy:>11.1} µs {play:>11.1} µs", bytes.len());
+    }
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
+        ["quick", variant] => quick(variant),
+        ["owner-bevy"] => owner_bevy(),
+        #[cfg(feature = "mixer")]
+        ["owner-mixer"] => owner_mixer(),
+        #[cfg(feature = "mixer")]
+        ["tag-refused"] => tag_refused(false),
+        #[cfg(feature = "mixer")]
+        ["tag-refused", "truthful"] => tag_refused(true),
+        #[cfg(feature = "mixer")]
+        ["real-undecodable"] => real_undecodable(),
+        #[cfg(feature = "mixer")]
+        ["agree"] => agree(),
+        #[cfg(feature = "mixer")]
+        ["cost"] => cost(),
+        _ => eprintln!(
+            "usage: quick <as-written|with-extensions> | owner-bevy | owner-mixer | tag-refused | real-undecodable | agree"
+        ),
+    }
+}

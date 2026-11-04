@@ -137,6 +137,28 @@ python3 docs/media/transcript_png.py docs/media/undecodable.txt docs/media/undec
 
 Tests: `tests/undecodable.rs` (no device needed: the crate's answer before Bevy's decode could run, and that it refuses exactly what `AudioSource::decoder()` panics on) and `src/sounds.rs::tests`.
 
+## `one-answer.png` — a refused sound is one answer, and a game that hangs data on `Played::entity` does not crash (iteration 118)
+
+![A fake output refusing bytes on the crate's own mixer, before: Played then Refused in one frame, the entity despawned and a panic in bevy_ecs's command handler; then the real mixer and a real device with fourteen real files, after: eight Played, six Refused at the play with the decoder's words and what the file is, and 140 frames without a panic](one-answer.png)
+
+`one-answer.txt` is two verbatim **excerpts**, each naming its evidence file. **Before**, a scratch program on iteration 117's tree: the crate's own mixer behind an output whose `play` answers `None` (what `rodio` does for bytes it refuses) and a game system after
+`SirenSystems::Play` that does `commands.entity(played.entity).insert(Tag)`, the use the field's doc names — `Played`, then `Refused` in the same frame, the entity despawned in it, and a **panic in `bevy_ecs`'s command handler** that names the game's system
+and not the file (the registry path is abbreviated to `…/`). **After**, the full stack on the crate's own mixer with a real device and the real asset server, fourteen real files, one play of each, and the same game system: **eight `Played` and eight live voices, six `Refused`
+at the play** with the decoder's words and — for an Ogg Opus file, a Git LFS pointer and an empty file — what the file is, and 140 frames without a panic. (The `Refused` message a game prints still reads the one `MissingSound` sentence; the cause is in the log —
+`needs-decision/undecodable-sound.md`, option 4.) The program is `runs/2026-11-04-118/evidence/after/front-door.rs.txt`; its `tag-refused` mode (an output that does not say beforehand) reproduces the *before* on any tree, and `real-undecodable` is the *after*:
+
+```sh
+cp docs/loop/runs/2026-11-04-118/evidence/after/front-door.rs.txt examples/scratch_front_door.rs     # it is not kept in examples/
+mkdir -p /tmp/siren-agree && cd /tmp/siren-agree                                                      # four of the program's files are made by ffmpeg (this one has no libvorbis)
+for c in pcm_mulaw:mulaw pcm_alaw:alaw pcm_s24le:s24 pcm_f32le:f32; do ffmpeg -f lavfi -i "sine=frequency=440:duration=0.1" -c:a ${c%%:*} ${c##*:}.wav; done
+cd - && cargo run --release --features mixer --example scratch_front_door -- real-undecodable
+cargo run --release --features mixer --example scratch_front_door -- tag-refused truthful
+rm examples/scratch_front_door.rs
+python3 docs/media/transcript_png.py docs/media/one-answer.txt docs/media/one-answer.png              # needs Pillow and macOS's Menlo
+```
+
+Tests: `tests/one_answer.rs` (no device needed) and `tests/mixer.rs::the_real_mixers_decode_error_agrees_with_its_play` (needs one).
+
 ## No clip: iteration 115, an Ogg loop sounds, and is as long as the stream says
 
 No clip: the change is **what a loop of an Ogg Vorbis file sounds like**, on Bevy's path and on the `mixer` backend, and `examples/render` renders no Ogg, so every rendered cue is byte-identical (21 of 21) and the

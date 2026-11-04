@@ -16,15 +16,16 @@ use bevy::audio::{AudioSource, Decodable};
 use bevy::prelude::*;
 
 use crate::cue::CueTable;
+use crate::output::Output;
 
 /// The keys a project's cues name, and the handles they resolve to.
 ///
 /// It also remembers, per asset, **what the decoder said about the bytes** (`Verdicts`): one decoder construction for a sound however often it is played and however many of the crate's systems ask, behind a `Mutex` so those
-/// systems hold the map as a `Res`. A clone starts with an empty memory — it is a cache, not data.
+/// systems hold the map as a `Res` — one memo for Bevy's decoder and one for the crate's own mixer's, so the answer is always the asker's. A clone starts with an empty memory — it is a cache, not data.
 #[derive(Resource, Default)]
 pub struct SirenSounds {
     handles: BTreeMap<String, Handle<AudioSource>>,
-    verdicts: Mutex<Verdicts>,
+    verdicts: Mutex<(Verdicts, Verdicts)>,
 }
 
 impl Clone for SirenSounds {
@@ -151,13 +152,23 @@ pub(crate) fn load_error(server: &AssetServer, handle: &Handle<AudioSource>) -> 
 /// and the first 16 bytes (a format's magic) close the one hole an address alone leaves: a buffer freed and another of the same length put where it was, with a different header. A design default.
 type BytesKey = (usize, usize, [u8; 16]);
 
-/// **The decoder's answer for each asset the crate has asked about**: the buffer it was asked about, and `None` for bytes the decoder reads or the decoder's own words for bytes it refuses. Held by [`SirenSounds`] and made
-/// of std and Bevy types only, so that nothing crate-private reaches `play_requests`'s public signature (iteration 116's `private_interfaces` lesson).
+/// **The decoder's answer for each asset one asker has been asked about**: the buffer it was asked about, and `None` for bytes the decoder reads or the decoder's own words for bytes it refuses. Held by [`SirenSounds`], one map
+/// per asker (Bevy's decoder; the crate's own mixer's), and made of std and Bevy types only, so that nothing crate-private reaches `play_requests`'s public signature (iteration 116's `private_interfaces` lesson).
 type Verdicts = HashMap<AssetId<AudioSource>, (BytesKey, Option<Arc<str>>)>;
 
 /// **What the crate asks the asset server and the asset table about a sound's file**, as one system parameter — `play_requests` is at Bevy's sixteen, and a tuple is one parameter that adds no type to its public signature. Both
 /// are optional: a world with no `AssetPlugin` has no server and no table, and then no file can have failed and there is nothing to decode.
 pub(crate) type Files<'w> = (Option<Res<'w, AssetServer>>, Option<Res<'w, Assets<AudioSource>>>);
+
+/// **Who would decode these bytes**, and so who is asked whether they can be decoded.
+pub(crate) enum Decode<'a> {
+    /// Nobody is asked: the crate's own mixer owns a voice that is still waiting for its start, which `start_pending` answers for.
+    Skip,
+    /// Bevy's `AudioSource::decoder`, which unwraps (`bevy_audio-0.20.1/src/audio_source.rs:96-101`): bytes it refuses are a panic in `PostUpdate`.
+    Bevy,
+    /// The crate's own mixer, asked through the output: bytes its `play` would refuse after `Played` was written.
+    Output(&'a Output),
+}
 
 /// **Why a sound cannot be played**, and what the log says about it.
 pub(crate) enum Unplayable {
@@ -185,22 +196,22 @@ impl Unplayable {
 /// *The file failed to load* and there is nothing to play: the asset server says so (iteration 116). A **reload** that fails — an edited file half-way through saving — leaves the server's state `Failed` and the *previous* bytes in
 /// `Assets` (a failed reload removes nothing), and a sound whose bytes are there can be played, so it is not refused for its file.
 ///
-/// *The bytes are there and the decoder refuses them* — **asked only when `bevy_decodes`**, which is when Bevy's path owns the voice (`AudioSource::decoder` is `….build().unwrap()`, `bevy_audio-0.20.1/src/audio_source.rs:96-101`: a
-/// panic in `PostUpdate`). With the crate's own mixer the bytes are decoded in `start_pending`, which refuses them without a panic, so the mixer stays the authority there.
+/// *The bytes are there and the decoder refuses them* — asked of **whoever will decode them** (`decode`): Bevy's `AudioSource::decoder` is `….build().unwrap()` (`bevy_audio-0.20.1/src/audio_source.rs:96-101`), so a voice handed such bytes
+/// panics the game in `PostUpdate` (iteration 117); the crate's own mixer refuses them in `start_pending`, **after `Played`** — a second answer to one play, and an entity despawned in the frame it was announced (iteration 118).
 pub(crate) fn cannot_play(
     files: &Files,
     sounds: &SirenSounds,
     handle: &Handle<AudioSource>,
-    bevy_decodes: bool,
+    decode: &Decode,
 ) -> Option<Unplayable> {
     let (server, assets) = files;
     if let Some(assets) = assets.as_deref()
         && let Some(source) = assets.get(handle)
     {
-        if !bevy_decodes {
+        if matches!(decode, Decode::Skip) {
             return None;
         }
-        let error = sounds.verdict(assets, handle.id(), source)?;
+        let error = sounds.verdict(assets, handle.id(), source, decode)?;
         return Some(Unplayable::Undecodable { error, hint: explain(&source.bytes) });
     }
     load_error(server.as_deref()?, handle).map(Unplayable::FailedToLoad)
@@ -263,16 +274,23 @@ fn bytes_key(bytes: &Arc<[u8]>) -> BytesKey {
 }
 
 impl SirenSounds {
-    /// **The decoder's answer for these bytes, asked once per buffer.** A buffer the crate has already asked about is answered from the memo; an edited asset is a new buffer and is asked again. The memo is pruned (ids no longer
-    /// in `Assets` dropped) when it outgrows twice the asset count plus 16, so a game that makes and drops audio does not grow it — both numbers design defaults.
+    /// **The decoder's answer for these bytes, asked once per buffer and per asker.** A buffer the crate has already asked about is answered from the memo; an edited asset is a new buffer and is asked again. A memo is pruned (ids no
+    /// longer in `Assets` dropped) when it outgrows twice the asset count plus 16, so a game that makes and drops audio does not grow it — both numbers design defaults.
     fn verdict(
         &self,
         assets: &Assets<AudioSource>,
         id: AssetId<AudioSource>,
         source: &AudioSource,
+        decode: &Decode,
     ) -> Option<Arc<str>> {
-        let mut verdicts = self.verdicts.lock().unwrap_or_else(PoisonError::into_inner);
-        verdict_with(&mut verdicts, assets, id, source, decoder_error)
+        let mut memos = self.verdicts.lock().unwrap_or_else(PoisonError::into_inner);
+        match decode {
+            Decode::Skip => None,
+            Decode::Bevy => verdict_with(&mut memos.0, assets, id, source, decoder_error),
+            Decode::Output(output) => {
+                verdict_with(&mut memos.1, assets, id, source, |source| output.0.decode_error(&source.bytes))
+            }
+        }
     }
 }
 

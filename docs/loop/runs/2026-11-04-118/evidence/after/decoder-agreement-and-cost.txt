@@ -1,0 +1,57 @@
+Iteration 118 — release build, a real audio device, this machine (Apple M-series, macOS 25.6). Three measurements, verbatim.
+
+== 1. `scratch_front_door agree` — does Bevy's decoder builder (with_byte_len) agree with the mixer's `Decoder::new` on fourteen kinds of file?
+(the real backend's `MixerBackend::decode_error` is the second column)
+
+device: yes
+good.ogg      bevy=decodes  mixer=decodes  agree
+good441.ogg   bevy=decodes  mixer=decodes  agree
+good.mp3      bevy=decodes  mixer=decodes  agree
+good.flac     bevy=decodes  mixer=decodes  agree
+s24.wav       bevy=decodes  mixer=decodes  agree
+f32.wav       bevy=decodes  mixer=decodes  agree
+mulaw.wav     bevy=decodes  mixer=decodes  agree
+alaw.wav      bevy=decodes  mixer=decodes  agree
+adpcm.wav     bevy=REFUSES  mixer=REFUSES  agree
+                bevy words:  The format of the data has not been recognized.
+                mixer words: The format of the data has not been recognized.
+opus.ogg      bevy=REFUSES  mixer=REFUSES  agree
+                bevy words:  The format of the data has not been recognized.
+                mixer words: The format of the data has not been recognized.
+lfs.ogg       bevy=REFUSES  mixer=REFUSES  agree
+                bevy words:  The format of the data has not been recognized.
+                mixer words: The format of the data has not been recognized.
+empty.ogg     bevy=REFUSES  mixer=REFUSES  agree
+                bevy words:  The format of the data has not been recognized.
+                mixer words: The format of the data has not been recognized.
+cut.ogg       bevy=REFUSES  mixer=REFUSES  agree
+                bevy words:  The format of the data has not been recognized.
+                mixer words: The format of the data has not been recognized.
+one-byte.ogg  bevy=REFUSES  mixer=REFUSES  agree
+                bevy words:  The format of the data has not been recognized.
+                mixer words: The format of the data has not been recognized.
+disagreements: 0
+
+== 2. `scratch_front_door cost` — the first sight of a sound on the mixer path (µs, mean of 300 runs after 20 warm-up runs)
+
+file              bytes   decode_error   bevy builder    play(+stop)
+good.ogg           5764       658.3 µs       634.5 µs       650.1 µs
+good441.ogg        4512       633.7 µs       628.5 µs       632.9 µs
+good.mp3           4460        10.5 µs        10.4 µs        11.2 µs
+good.flac         16819        21.9 µs        21.5 µs        22.8 µs
+s24.wav           13332        15.9 µs        16.0 µs        16.9 µs
+f32.wav           17732        21.3 µs        20.7 µs        21.8 µs
+mulaw.wav          4502         7.0 µs         7.0 µs         7.7 µs
+alaw.wav           4502         7.3 µs         7.3 µs         8.1 µs
+adpcm.wav          2172         3.1 µs         3.0 µs         3.1 µs
+opus.ogg           1490         3.6 µs         3.6 µs         3.6 µs
+lfs.ogg             132         1.1 µs         1.0 µs         1.1 µs
+empty.ogg             0         0.8 µs         0.7 µs         0.7 µs
+cut.ogg              40         0.9 µs         0.8 µs         0.8 µs
+one-byte.ogg          1         0.7 µs         0.7 µs         0.7 µs
+
+== 3. a temporary `#[ignore]` unit test in src/sounds.rs (removed before the commit) — the memoised hit, `cargo test --release --lib`, 5 000 000 calls each
+
+verdict hit, Bevy asker : 24.5 ns
+verdict hit, Output asker: 20.7 ns
+verdict hit, Skip        : 5.1 ns

@@ -164,6 +164,11 @@ impl AudioOutput for MixerBackend {
         }
     }
 
+    /// The decoder `play` builds, asked without a copy of the file (`Cursor` over the shared `Arc`) and without starting anything: the answer `play_requests` needs to refuse a play **before** a voice exists.
+    fn decode_error(&self, bytes: &Arc<[u8]>) -> Option<String> {
+        rodio::Decoder::new(std::io::Cursor::new(Arc::clone(bytes))).err().map(|error| error.to_string())
+    }
+
     fn play(&mut self, bus: &str, bytes: &Arc<[u8]>, db: f32, speed: f32, looping: bool) -> Option<usize> {
         let decoder = rodio::Decoder::new(std::io::Cursor::new(bytes.to_vec())).ok()?;
         let gain = Arc::new(AtomicU32::new(crate::model::db_to_gain(db).to_bits()));

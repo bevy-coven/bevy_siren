@@ -1,0 +1,27 @@
+BEFORE — iteration 117's tree; an excerpt of evidence/before/front-door-probe-on-the-unchanged-tree.txt. The crate's own mixer behind an output whose play()
+answers None, as rodio does for bytes it refuses, and a game system after SirenSystems::Play that does  commands.entity(played.entity).insert(Tag)  — the use Played::entity documents.
+
+PANIC HOOK: panicked at …/bevy_ecs-0.20.1/src/error/handler.rs:128:1:
+Encountered an error in command `<Enable the debug feature to see the name>`: Entity despawned: The entity with ID 45v0 is invalid; its index now has generation 1.
+[tag] voice entities = 0 (with a ChildOf: 0)  counted on Effects = 0
+[tag] log: 0.00s played `engine` (s) on Effects at 0.00 dB
+[tag] log: 0.00s refused `engine`: no handle or undecodable bytes for sound `s`
+[tag] RESULT: PANIC
+
+AFTER — this change; an excerpt of evidence/after/real-mixer-undecodable-files.txt. The full stack on the crate's own mixer (Backend = true, a real audio device), the real AssetServer,
+fourteen real files, one play of each, and the same game system tagging every Played::entity. The played list is shortened to the sound names and the first six played log lines are elided.
+
+-- the full stack, the crate's own mixer (Backend = true), 14 files, one play of each, a game system tagging every Played::entity
+RESULT: 140 frames, no panic
+played  ( 8) = [good.ogg, good441.ogg, good.mp3, good.flac, s24.wav, f32.wav, mulaw.wav, alaw.wav]
+refused ( 6)
+voices alive at the end = 8
+[…]
+log      : 1.41s played `c.mulaw.wav` (mulaw.wav) on Effects at 0.00 dB
+log      : 1.41s played `c.alaw.wav` (alaw.wav) on Effects at 0.00 dB
+log      : 1.41s refused `c.adpcm.wav`: the bytes of sound `adpcm.wav` cannot be decoded: The format of the data has not been recognized.
+log      : 1.41s refused `c.opus.ogg`: the bytes of sound `opus.ogg` cannot be decoded: The format of the data has not been recognized. — an Ogg Opus file, and this build decodes Ogg Vorbis, not Opus
+log      : 1.41s refused `c.lfs.ogg`: the bytes of sound `lfs.ogg` cannot be decoded: The format of the data has not been recognized. — a Git LFS pointer, not the audio file
+log      : 1.41s refused `c.empty.ogg`: the bytes of sound `empty.ogg` cannot be decoded: The format of the data has not been recognized. — the file has no bytes
+log      : 1.41s refused `c.cut.ogg`: the bytes of sound `cut.ogg` cannot be decoded: The format of the data has not been recognized.
+log      : 1.41s refused `c.one-byte.ogg`: the bytes of sound `one-byte.ogg` cannot be decoded: The format of the data has not been recognized.

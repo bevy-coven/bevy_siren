@@ -36,6 +36,15 @@ pub trait AudioOutput: Send + Sync + 'static {
     /// there is no device.
     fn play(&mut self, bus: &str, bytes: &Arc<[u8]>, db: f32, speed: f32, looping: bool) -> Option<usize>;
 
+    /// **Why `bytes` cannot be decoded by this backend's `play`**, or `None` when they can — asked **before** a voice exists, so a refusal is the play's one answer and not a `Played` followed, in the same frame, by a despawn.
+    ///
+    /// The default is `None`: a backend that decodes nothing (a test's fake) has nothing to refuse. A backend whose `play` can return `None` for bytes it cannot decode **must override this** to say so — one that answers `None`
+    /// here and then refuses in `play` is announced as played and refused in one frame, and the entity `Played` named is despawned before the frame ends (`tests/one_answer.rs`). `&self` and **no copy of the bytes**: `play`
+    /// copies the file on every play, and a check asked once per sound must not.
+    fn decode_error(&self, _bytes: &Arc<[u8]>) -> Option<String> {
+        None
+    }
+
     /// True when a voice's sample has ended or it was stopped.
     fn finished(&self, bus: &str, voice: usize) -> bool;
 }
