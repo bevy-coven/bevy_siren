@@ -217,6 +217,44 @@ fn the_explanation_matches_the_search_breakdown() {
     }
 }
 
+/// **An explanation uses the weighting that ranked the pair.** `explain_match` was hard-wired to the music weights, so a
+/// result of `compatible_sfx` — scored under the *effects* weights — was explained with different weights and a different
+/// score: the numbers were individually right and did not add up to what the search returned. Found by reading the first
+/// real session through `siren-tools`, where one pair showed `acoustic` at 1.2 in the search and 0.5 in its explanation.
+#[test]
+fn an_effect_is_explained_under_the_effects_weighting() {
+    let index = index();
+    let tools = Toolset::default();
+    let mut session = Session::new();
+    session.set_anchor(&index, 1).expect("an anchor");
+    let answer = tools.compatible_sfx(&index, &session, None, None, 4).expect("a search");
+    assert!(!answer.results.is_empty(), "the search ranked something");
+
+    for found in &answer.results {
+        let with = tools.explain_match_with(&index, 1, found.hash, &tools.effects).expect("an explanation");
+        assert_eq!(with.breakdown, found.breakdown, "the weighting that ranked it reproduces the search");
+        assert_eq!(with.score, found.score);
+
+        // The default is the music weighting, and under it the same pair is a different number: the defect.
+        let music = tools.explain_match(&index, 1, found.hash).expect("an explanation");
+        assert_ne!(
+            music.breakdown, found.breakdown,
+            "the music weighting does not explain an effects ranking"
+        );
+        assert_eq!(music, tools.explain_match_with(&index, 1, found.hash, &tools.music).expect("the same"));
+    }
+}
+
+/// The tally is a sentence an agent reads, so a count of one is not plural.
+#[test]
+fn the_tally_sentence_is_singular_for_one_variant() {
+    use bevy_siren::semantic::tools::Tally;
+    let one = Tally { returned: 1, variants: vec![(2, 1)], ..Tally::default() };
+    assert_eq!(one.describe(), "1 returned, 1 near-identical variant");
+    let two = Tally { returned: 1, variants: vec![(2, 1), (3, 1)], ..Tally::default() };
+    assert_eq!(two.describe(), "1 returned, 2 near-identical variants");
+}
+
 /// **`#44` criterion 2: the sentence names the strongest positive and the strongest negative.**
 #[test]
 fn the_sentence_names_both_directions() {

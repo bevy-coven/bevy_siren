@@ -1,0 +1,14 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"transcript","version":"1"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/list"}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"search_music","arguments":{"description":"footsteps on gravel","k":3}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"find_compatible_sfx","arguments":{"k":3}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"set_anchor","arguments":{"asset_id":"0000000000001001"}}}
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"find_compatible_sfx","arguments":{"k":3,"category":"kenney"}}}
+{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"explain_match","arguments":{"asset_id":"0000000000001002","anchor":"0000000000001001"}}}
+{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"find_compatible_music","arguments":{"k":0}}}
+{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"set_anchor","arguments":{"asset_id":"ffffffffffffffff"}}}
+{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"audition","arguments":{"asset_id":"0000000000001001"}}}
+{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"no_such_tool","arguments":{}}}
+{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"find_compatible_music","arguments":{"k":2,"colour":"red"}}}
+{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"explain_match","arguments":{"asset_id":"0000000000001002","anchor":"0000000000001001","weighting":"effects"}}}

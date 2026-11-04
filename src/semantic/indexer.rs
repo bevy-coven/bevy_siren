@@ -407,7 +407,7 @@ pub const INDEX_TARGET_CLIPS: usize = 5_000;
 
 /// **Write a built index beside its library**, so the next run can load it instead of rebuilding.
 ///
-/// The path is `<root>/siren-index.txt`. A caller that wants it elsewhere writes `index.to_text()` itself; this exists
+/// The path is `<root>/`[`INDEX_FILE`] (`siren-index`, with no extension — the bytes say which format it is). A caller that wants it elsewhere writes `index.to_text()` itself; this exists
 /// so the ordinary case is one call.
 pub fn write(root: &Path, index: &Index) -> Result<PathBuf, String> {
     let path = root.join(INDEX_FILE);

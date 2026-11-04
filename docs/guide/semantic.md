@@ -392,6 +392,46 @@ the top twelve, and a caller still learns there were twelve.
 **No anchor is a refusal with a remedy**: *"no anchor is set. Call `set_anchor(asset_id)` first, or pass one
 explicitly"*.
 
+## The tool server: `siren-tools`
+
+The same calls, for an agent: an **MCP server over stdio**, in this crate behind `semantic`
+([ADR 0006](../adr/0006-plugin-and-tool-server.md) for where it lives, [ADR 0007](../adr/0007-tool-surface.md) for the
+tools, [ADR 0008](../adr/0008-tool-host.md) for the transport and the error mapping).
+
+```sh
+cargo run --release --features semantic --bin siren-tools -- <library-dir> [--model <file.onnx> --vocab <tokenizer.json>]
+```
+
+`<library-dir>` holds the index the indexer wrote (`indexer::INDEX_FILE`). With `--model` **and** `--vocab`, `search_music`
+embeds a description with that graph; without them it answers `unavailable` and names the two flags, and the tools that need
+only the index work either way. A client lists it like any stdio server:
+
+```json
+{ "mcpServers": { "siren": { "command": "siren-tools", "args": ["/path/to/library", "--model", "clap-text.onnx", "--vocab", "tokenizer.json"] } } }
+```
+
+| tool | does | idempotent |
+|---|---|---|
+| `search_music(description, k = 3, anchor?)` | rank the library by a description; a pure read, it **never** reads the session's anchor | yes |
+| `set_anchor(asset_id)` | choose the asset the next questions are about; returns what the library knows of it | yes |
+| `find_compatible_music(anchor?, k = 3)` | music that fits the anchor, with what was excluded and why | yes |
+| `find_compatible_sfx(anchor?, category?, k = 6)` | effects from the same world; near-duplicates reported, not repeated | yes |
+| `explain_match(asset_id, anchor, weighting = "music")` | every signal's raw value, weight and contribution for one pair; pass `"effects"` to explain a `find_compatible_sfx` result, or the weights will not add up to its score | yes |
+| `audition(asset_id, bus = "Effects")` | **`unavailable`**: it needs a running app, and the server never owns playback | **no** |
+
+**Every failure of a tool is a result a model can read**, not a protocol error it never sees: `{"error": {"code",
+"message", "retryable"}}` with `isError: true`. `bad_argument` is `retryable: true` (the call was wrong; fix it and ask
+again), and `refused`, `unavailable` and `internal` are `false` (the *state* must change, so retrying unchanged fails
+identically). A bad call names **every** problem at once. `k` is a bound from 1 to 100, never a page.
+
+**One server is one session**: the anchor belongs to the connection and is lost when it closes. The index is read once at
+start-up and held in memory, so a long-lived process is the expectation — measured at **34 ms and 20.5 MB** for 10 000 assets,
+then **0.02 ms** for `set_anchor` and `explain_match`, **5.3 ms** for a search (before the text encode) and **18 ms** for
+`find_compatible_*`, which scores every candidate ([ADR 0008](../adr/0008-tool-host.md) has the table and the command).
+
+The protocol is in `semantic::server`, so a host or a test drives it without a pipe: `Host::new(index, stamp, embedder)`,
+then `host.handle(line)` for one JSON-RPC line in and at most one out.
+
 ## Ask: one call from a description to a ranked answer
 
 ```rust

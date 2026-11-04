@@ -36,10 +36,19 @@ use std::path::{Path, PathBuf};
 ///   object. It earns the entry by agreeing with `ffmpeg`'s reference to **0.01 LU** on every clip long enough to have
 ///   a 400 ms gating block, and its disagreement on shorter ones is why `semantic::loudness` carries a block count.
 ///   BS.1770's K-weighting and gating are not worth reimplementing to get a number a standard already fixes.
+/// - `serde_json` — the tool host's wire format, behind `semantic`: `docs/adr/0006-plugin-and-tool-server.md` puts the MCP
+///   server in this crate as a `[[bin]]` behind that feature and says its dependencies are *"argued for … like any
+///   other"*, and this is the argument. MCP is JSON-RPC 2.0 and the spec's stdio transport is one JSON object per line, so
+///   a JSON codec is the one thing the server cannot do without; it names no engine and no game. **It is the smallest
+///   choice that works**, measured in `runs/2026-11-03-109/research.md`: `serde_json` alone is **6 crates** in a probe
+///   (`itoa`, `memchr`, `serde_core`, `serde_json`, `zmij`, and the probe), where the org's other server stack —
+///   `rmcp` with `tokio` and `schemars`, as `bevy_grimoire`'s own server uses — is **58**, a full async runtime around a
+///   host whose work (ONNX inference, an index scan) is synchronous and one request at a time. The protocol is five
+///   methods, so the framing is written here and tested against the specification's own examples.
 ///
 /// Adding a name here is a design decision, not a convenience: the sentence above is the argument, and it belongs in
 /// the same commit as the entry.
-const ALLOWED_DEPS: &[&str] = &["bevy", "serde", "ron", "rodio", "ort", "rubato", "ebur128"];
+const ALLOWED_DEPS: &[&str] = &["bevy", "serde", "ron", "rodio", "ort", "rubato", "ebur128", "serde_json"];
 
 /// Crate and type names that would mean the boundary has been crossed: a physics engine, the editor, a particular
 /// game, or a particular game's camera.
@@ -152,7 +161,7 @@ fn no_source_file_reaches_for_an_engine() {
     );
 }
 
-/// Only the four dependencies the crate argues for, and nothing that is a game or the editor.
+/// Only the dependencies `ALLOWED_DEPS` argues for, and nothing that is a game or the editor.
 #[test]
 fn the_dependency_list_stays_closed() {
     let manifest =

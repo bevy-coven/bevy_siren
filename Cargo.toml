@@ -48,6 +48,18 @@ required-features = ["semantic"]
 name = "audition"
 required-features = ["semantic"]
 
+# #28's cost statement: start-up and per-call, kept apart for the reason `querybench` keeps its halves apart.
+[[example]]
+name = "hostbench"
+required-features = ["semantic"]
+
+# ADR 0006's tool server: one `[[bin]]` in this crate, behind `semantic`. `required-features` is what makes
+# `cargo build` without the feature build no binary (`#28`'s fourth criterion), asserted by `tests/semantic_server.rs`.
+[[bin]]
+name = "siren-tools"
+path = "src/bin/siren-tools.rs"
+required-features = ["semantic"]
+
 [features]
 default = []
 # `serde` on the cue table, the mix table and the music score, plus `from_ron`/`to_ron`: a project saves
@@ -71,7 +83,13 @@ readme-example = []
 # `rodio` is here because the feature must **decode**, and the crate already has a decoder it trusts: the one the mixer
 # uses. Reusing it means an asset that plays is the same asset that indexes, and it brings no new dependency — only the
 # one the `mixer` feature already enables.
-semantic = ["dep:ort", "dep:rodio", "dep:rubato", "dep:ebur128"]
+#
+# `serde_json` is the tool host's wire format (`semantic::server`, and the `siren-tools` binary): MCP is JSON-RPC 2.0, and
+# the spec's stdio transport is one JSON object per line. ADR 0006 puts the server in this crate behind this feature; the
+# argument for the dependency is in `tests/leaf.rs`. It is **not** `rmcp`, which `bevy_grimoire`'s own server uses: measured,
+# `rmcp` + `tokio` + `schemars` + `serde_json` is 58 crates in a probe and `serde_json` alone is 6, and this feature's work
+# is synchronous (`docs/loop/runs/2026-11-03-109/research.md`).
+semantic = ["dep:ort", "dep:rodio", "dep:rubato", "dep:ebur128", "dep:serde_json"]
 # #19's device path, and the honest state of it: `ort` 2.0-rc.15 has **no CUDA feature**, and this crate does not build
 # its own runtime. So there is no CUDA path to enable, and `Device::available()` says so rather than offering a choice it
 # cannot honour.
@@ -109,6 +127,8 @@ rubato = { version = "0.16", default-features = false, features = ["fft_resample
 # the reference C for conformance comparison — stays off. Measured: a clean build takes 1.66 s and produces no C object.
 # It agrees with `ffmpeg`'s reference to 0.01 LU on every clip long enough to have a gating block.
 ebur128 = { version = "0.1.11", default-features = false, optional = true }
+# The tool host's wire format, behind `semantic`. Pure Rust; its own dependencies are `itoa`, `memchr`, `serde_core` and `zmij`.
+serde_json = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 ron = { version = "0.12", optional = true }
 # The `mixer` backend only. Same version as `bevy_audio`'s own, so the graph has one rodio.

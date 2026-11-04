@@ -1,0 +1,47 @@
+# The official MCP Inspector (TypeScript SDK) client, over stdio, against the real siren-tools binary
+# npx -y @modelcontextprotocol/inspector --cli <siren-tools> /tmp/siren-demo-lib ...
+
+## --method tools/list (names only)
+  search_music | required ['description'] | props ['anchor', 'description', 'k']
+  set_anchor | required ['asset_id'] | props ['asset_id']
+  find_compatible_music | required [] | props ['anchor', 'k']
+  find_compatible_sfx | required [] | props ['anchor', 'category', 'k']
+  explain_match | required ['asset_id', 'anchor'] | props ['anchor', 'asset_id', 'weighting']
+  audition | required ['asset_id'] | props ['asset_id', 'bus']
+
+## --method tools/call --tool-name set_anchor --tool-arg asset_id=0000000000001001
+ isError: False
+{
+ "anchor": {
+  "asset_id": "0000000000001001",
+  "dimension": 512,
+  "features": {
+   "key": null,
+   "loudness": {
+    "integrated_lufs": -24,
+    "sample_peak_dbfs": -1.5,
+    "true_peak_dbtp": -1
+   },
+   "spectral": null,
+   "tempo": null
+  },
+  "provenance": {
+   "author": null,
+   "licence": "CC0-1.0",
+   "source": "pack:Kenney Footsteps"
+  }
+ }
+}
+
+## --method tools/call --tool-name find_compatible_music (no anchor in this fresh session)
+ isError: True
+{
+ "error": {
+  "code": "refused",
+  "message": "no anchor is set. Call `set_anchor(asset_id)` first, or pass one explicitly",
+  "retryable": false
+ }
+}
+
+## --method tools/call --tool-name explain_match, weighting=effects
+ isError: False | weighting: effects | acoustic weight: 1.2

@@ -7,6 +7,85 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 109 — 2026-11-03 — the tool host, which was never blocked
+
+**Change.** `#28`: **`siren-tools`**, an MCP server over stdio, in this crate behind `semantic` — `semantic::server` (the host,
+as a library, so a test drives it with no process), `src/bin/siren-tools.rs` (the loop around it), `serde_json` behind
+`semantic` with its `leaf.rs` row, and **six tools listed** (ADR 0007): five wired, `audition` `unavailable` as the ADR says.
+**One table, `SPECS`, draws the listing, the schema and the validation**, so what a client reads and what its call meets cannot
+disagree. A bad call is a **tool result a model can read** (`isError: true`, ADR 0007's `{code, message, retryable}`), not a
+protocol error it never sees; a notification is never answered or executed; a line over 1 MiB is drained so the stream stays
+aligned. ADR 0008 records the transport and every place ADR 0007 was silent.
+
+**Rationale — and the mistake that made it wait seven iterations.** Iteration 108's closing found that ADR 0006 (**accepted**)
+already decided *"one `[[bin]]` behind `semantic`, a workspace rejected"*, and that my `needs-decision/mcp-tool-surface.md`
+(iteration 102) re-asked it, recommended the rejected option, and listed `#28`–`#31` as blocked. `needs-decision/README.md` says
+only the public API, the message types and the definitions-file schema belong there; a feature-gated binary is none of the
+three, and its dependency is a `leaf.rs` row the ADR says to argue *"like any other"*. So this iteration built it. The
+iterations between were real work — 103–105 found real defects — and then three drift guards, while the one open issue with a
+clear path sat unbuilt.
+
+**The one real decision: hand-written stdio, not `rmcp`.** `bevy_grimoire`'s server uses `rmcp` + `tokio` + `schemars`, the
+org's convention, and I looked at it first. Measured with two probe crates: **`serde_json` alone is 6 crates, that stack is
+58.** The work here is synchronous and the protocol is five methods, so a runtime would be a thread pool around a loop that
+reads a line and writes a line. The cost is owning the framing, which is why it is tested against the specification's own rules,
+against 13 hostile lines, and by a client that is not mine.
+
+**Proved by breaking it.** Schema loosened to 101 while the check stops at 100 → `search_music.k refused its own maximum`.
+A handler arm renamed → `SPECS and its handler disagree`. The handler ignoring `weighting` → *"under the weighting that ranked
+it, the explanation is the result"*. And one that fired unasked: `weights_json` first compiled without `Weights::compatibility`
+and the exhaustive destructure refused it (**`E0027`**) — a field my own grep had missed.
+
+**The first real session found a defect no test had.** Reading `evidence/before/session.txt`, the transcript of the real binary:
+`find_compatible_sfx` scored a pair with `acoustic` at **1.2** and `explain_match` of the **same pair** said **0.5** — the
+library's explanation was hard-wired to the music weights, so an effect's explanation did not add up to its own score. Fixed:
+`Toolset::explain_match_with(…, &Weights)` and an optional `weighting: "music" | "effects"` on the tool. The same read found
+*"1 near-identical variants"* (fixed) and, in the process test, that **`indexer::INDEX_FILE` is `siren-index`, not the
+`siren-index.txt` two docs said** (fixed).
+
+**`#28`'s pitfall, answered.** `examples/hostbench`: **34 ms and 20.5 MB to start** at 10 000 assets, then 0.02 ms for
+`set_anchor` and `explain_match`, 5.3 ms for a search before the encode, **18 ms** for `find_compatible_*` — over the 10 ms
+budget `search_ranked` meets, because it scores every candidate before truncating. **A long-lived server is the expectation.**
+Not measured: the 501 MB graph, which is not on this machine.
+
+**Interop.** The **official MCP Inspector (TypeScript SDK)** connected over stdio to the real binary, listed the six tools and
+called three: `evidence/after/interop.txt`. One third-party client is not every client, and the review says so.
+
+**Before/after.** No audio changed: **all 21 rendered wavs byte-identical** to iteration 108's, master **−21.5 LUFS, −7.5 dBFS
+true peak**. `cargo tree` default **413 lines / 149 crates, unchanged**; with `semantic` 482 → 487 lines, 177 → 181 crates.
+Per-frame cost 0.059–0.063 / 0.323–0.444 / 0.543–1.129 µs at 8 / 64 / 256 voices on a load average of 13–15 — inside the
+recorded bands but for one 64-voice sample at 0.444; no claim.
+
+**Verdicts.** Function **GREAT**, zoom **GREAT**, fresh eyes **GREAT**. The zoom read `footstep-grass.png` (a 27 ms broadband
+attack ending on a sharp edge near −90 dBFS, three sustained partials, a −90 dBFS tail, no click or hole) and the whole wire
+transcript, before and after. **Fresh eyes found a design gap the tests cannot see because every test supplies the ids:** a
+server with no model has no tool that returns an `asset_id`, so an agent cannot start. Filed as
+`needs-decision/headless-discovery.md` (a seventh tool is a public-surface change) with a recommendation.
+
+**Recorded, not fixed.** `find_compatible_*` at 18 ms (exact speedups probably exist and were not tried); ADR 0007's stale
+*"cannot be built yet"* paragraph (corrected); `AGENTS.md`' four-name dependency list (corrected to `ALLOWED_DEPS`).
+
+**Evidence.** [`runs/2026-11-03-109/`](runs/2026-11-03-109/) — `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/after/` (the render set, `session.txt`, `interop.txt`), `evidence/before/session.txt`, `evidence/spectrograms/`.
+
+**No clip:** the change is a protocol, and its picture is the transcript. The tests are `tests/semantic_server.rs` (41) and
+`tests/semantic_tools.rs`.
+
+**Baseline:** nothing red — 199 / 208 serde / 209 mixer / 109 lib + **436 semantic** / **460 all-features** / 6 doc. After:
+**479 semantic / 503 all-features**; clippy and fmt each caught one thing of mine, fixed.
+
+**Top 5 remaining.**
+
+1. **`needs-decision/headless-discovery.md`** — a model-free `siren-tools` cannot be started by an agent. Option 1, a bounded
+   `list_assets(category?, k)`, is recommended.
+2. **`search_music` against the real CLAP graph.** It has run only against a 16 KB fixture; the 501 MB graph is not on this Mac
+   and `big` has no checkout. That run also gives the model-load and encode figures `hostbench` could not.
+3. **`#35` golden set**, **`#32`–`#34`/`#38`** (the editor, in `bevy_grimoire`), **`#39`** (a music encoder and a licence audit) —
+   each waits on a person, another repository, or an asset.
+4. **`find_compatible_*` speed** — 18 ms at 10 000 assets against a 10 ms budget; exact speedups (feature lookups, per-candidate
+   breakdowns) were not tried.
+5. **The cross-process audition hop** (ADR 0006's step 3), and iteration 105's **`#[non_exhaustive]`** decision.
+
 ## Iteration 108 — 2026-11-03 — a guard that fired, and a variant that got through anyway
 
 **Change.** `problems_names_each_mistake` — the test whose job is *every problem a table can have is named, in a sentence* —

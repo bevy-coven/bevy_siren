@@ -46,6 +46,8 @@ mod semantic_resample;
 #[cfg(feature = "semantic")]
 mod semantic_search;
 #[cfg(feature = "semantic")]
+mod semantic_server;
+#[cfg(feature = "semantic")]
 mod semantic_session;
 #[cfg(feature = "semantic")]
 mod semantic_tokenizer;

@@ -1,0 +1,337 @@
+A scripted client session against the real `siren-tools` binary, library of 6 assets, `--model`/`--vocab` given.
+The model is the repository's 16 KB fixture graph with CLAP's interface, not CLAP: similarities are arbitrary.
+
+-> {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "transcript", "version": "1"}}}
+<- PROTOCOL {"id": 1, "jsonrpc": "2.0", "result": {"capabilities": {"tools": {"listChanged": false}}, "instructions": "Tools for choosing audio from an indexed library. Describe what you want with `search_music` (it needs a model), pick one result, `set_anchor` it, then ask `find_compatible_music` or `find_compatible_sfx` for what belongs beside it and `explain_match` for why something ranked where it did. An `asset_id` is the 16-character content hash a result returned, never a path. The anchor belongs to this connection and is lost when it closes. `k` is a bound from 1 to 100, not a page: ask for a larger `k` to see more.", "protocolVersion": "2025-06-18", "serverInfo": {"name": "siren-tools", "title": "bevy_siren audio tools", "version": "0.1.0"}}}
+
+-> {"jsonrpc": "2.0", "method": "notifications/initialized"}
+   (a notification: no reply, and nothing is executed)
+
+-> {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}
+<- search_music           required=['description'] readOnly=True idempotent=True
+<- set_anchor             required=['asset_id'] readOnly=False idempotent=True
+<- find_compatible_music  required=[] readOnly=True idempotent=True
+<- find_compatible_sfx    required=[] readOnly=True idempotent=True
+<- explain_match          required=['asset_id', 'anchor'] readOnly=True idempotent=True
+<- audition               required=['asset_id'] readOnly=False idempotent=False
+
+-> {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "search_music", "arguments": {"description": "footsteps on gravel", "k": 3}}}
+<- ok
+{
+  "results": [
+    {
+      "asset_id": "0000000000001001",
+      "breakdown": {
+        "parts": [
+          {
+            "contribution": 1.0,
+            "missing": false,
+            "raw": 1.0,
+            "signal": "semantic",
+            "weight": 1.0
+          },
+          {
+            "contribution": 0.0,
+            "missing": true,
+            "raw": null,
+            "signal": "acoustic",
+            "weight": 0.5
+          },
+          {
+            "contribution": 0.0,
+            "missing": true,
+            "raw": null,
+            "signal": "tempo",
+            "weight": 0.35
+          },
+          {
+            "contribution": 0.0,
+            "missing": true,
+            "raw": null,
+            "signal": "key",
+            "weight": 0.35
+          }
+        ]
+      },
+      "explain": "semantic carried it (+1.000 from 1 raw at weight 1); no value for acoustic, tempo, key",
+      "provenance": {
+        "author": null,
+        "licence": "CC0-1.0",
+        "source": "pack:Kenney Footsteps"
+      },
+      "score": 1.0,
+      "similarity": 1.0
+    },
+    {
+      "asset_id": "0000000000001002",
+      "breakdown": {
+        "parts": [
+          {
+            "contribution": 1.0,
+            "missing": false,
+            "raw": 1.0,
+            "signal": "semantic",
+            "weight": 1.0
+          },
+          {
+            "contribution": 0.0,
+            "missing": true,
+            "raw": null,
+            "signal": "acoustic",
+            "weight": 0.5
+          },
+          {
+            "contribution": 0.0,
+            "missing": true,
+            "raw": null,
+            "signal": "tempo",
+            "weight": 0.35
+          },
+          {
+            "contribution": 0.0,
+            "missing": true,
+            "raw": null,
+            "signal": "key",
+            "weight": 0.35
+          }
+        ]
+      },
+      "explain": "semantic carried it (+1.000 from 1 raw at weight 1); no value for acoustic, tempo, key",
+      "provenance": {
+        "author": null,
+        "licence": "CC0-1.0",
+        "source": "pack:Kenney Footsteps"
+      },
+      "score": 1.0,
+      "similarity": 1.0
+    },
+    {
+      "asset_id": "0000000000001003",
+      "breakdown": {
+        "parts": [
+          {
+            "contribution": 1.0,
+            "missing": false,
+            "raw": 1.0,
+            "signal": "semantic",
+            "weight": 1.0
+  
+
+-> {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "find_compatible_sfx", "arguments": {"k": 3}}}
+<- ERROR RESULT
+{
+  "error": {
+    "code": "refused",
+    "message": "no anchor is set. Call `set_anchor(asset_id)` first, or pass one explicitly",
+    "retryable": false
+  }
+}
+
+-> {"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "set_anchor", "arguments": {"asset_id": "0000000000001001"}}}
+<- ok
+{
+  "anchor": {
+    "asset_id": "0000000000001001",
+    "dimension": 512,
+    "features": {
+      "key": null,
+      "loudness": {
+        "integrated_lufs": -24.0,
+        "sample_peak_dbfs": -1.5,
+        "true_peak_dbtp": -1.0
+      },
+      "spectral": null,
+      "tempo": null
+    },
+    "provenance": {
+      "author": null,
+      "licence": "CC0-1.0",
+      "source": "pack:Kenney Footsteps"
+    }
+  }
+}
+
+-> {"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "find_compatible_sfx", "arguments": {"k": 3, "category": "kenney"}}}
+<- ok
+{
+  "results": [
+    {
+      "asset_id": "0000000000001002",
+      "breakdown": {
+        "parts": [
+          {
+            "contribution": 1.0,
+            "missing": false,
+            "raw": 1.0,
+            "signal": "semantic",
+            "weight": 1.0
+          },
+          {
+            "contribution": 0.0,
+            "missing": true,
+            "raw": null,
+            "signal": "acoustic",
+            "weight": 1.2
+          },
+          {
+            "contribution": 0.0,
+            "missing": true,
+            "raw": null,
+            "signal": "tempo",
+            "weight": 0.0
+          },
+          {
+            "contribution": 0.0,
+            "missing": true,
+            "raw": null,
+            "signal": "key",
+            "weight": 0.0
+          }
+        ]
+      },
+      "explain": "semantic carried it (+1.000 from 1 raw at weight 1); no value for acoustic, tempo, key",
+      "provenance": {
+        "author": null,
+        "licence": "CC0-1.0",
+        "source": "pack:Kenney Footsteps"
+      },
+      "score": 1.0,
+      "similarity": 1.0
+    }
+  ],
+  "summary": "1 returned, 1 near-identical variants, 3 outside the category",
+  "tally": {
+    "below_floor": 0,
+    "excluded": 0,
+    "returned": 1,
+    "variants": [
+      {
+        "asset_id": "0000000000001003",
+        "resembles": "0000000000001002"
+      }
+    ],
+    "wrong_category": 3
+  },
+  "weights": {
+    "acoustic": 1.2,
+    "compatibility": {
+      "clash_penalty": 0.5,
+      "parallel_penalty": 0.85
+    },
+    "drop_fraction": 0.0,
+    "key": 0.0,
+    "loudness_tolerance_db": 6.0,
+    "min_similarity": 0.0,
+    "noise_floor_tolerance_db": 12.0,
+    "semantic": 1.0,
+    "tempo": 0.0,
+    "tempo_tolerance_bpm": 4.0
+  }
+}
+
+-> {"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "explain_match", "arguments": {"asset_id": "0000000000001002", "anchor": "0000000000001001"}}}
+<- ok
+{
+  "result": {
+    "asset_id": "0000000000001002",
+    "breakdown": {
+      "parts": [
+        {
+          "contribution": 1.0,
+          "missing": false,
+          "raw": 1.0,
+          "signal": "semantic",
+          "weight": 1.0
+        },
+        {
+          "contribution": 0.0,
+          "missing": true,
+          "raw": null,
+          "signal": "acoustic",
+          "weight": 0.5
+        },
+        {
+          "contribution": 0.0,
+          "missing": true,
+          "raw": null,
+          "signal": "tempo",
+          "weight": 0.35
+        },
+        {
+          "contribution": 0.0,
+          "missing": true,
+          "raw": null,
+          "signal": "key",
+          "weight": 0.35
+        }
+      ]
+    },
+    "explain": "semantic carried it (+1.000 from 1 raw at weight 1); no value for acoustic, tempo, key",
+    "provenance": {
+      "author": null,
+      "licence": "CC0-1.0",
+      "source": "pack:Kenney Footsteps"
+    },
+    "score": 1.0,
+    "similarity": 1.0
+  },
+  "weights": {
+    "acoustic": 0.5,
+    "compatibility": {
+      "clash_penalty": 0.5,
+      "parallel_penalty": 0.85
+    },
+    "drop_fraction": 0.0,
+    "key": 0.35,
+    "loudness_tolerance_db": 6.0,
+    "min_similarity": 0.0,
+    "noise_floor_tolerance_db": 12.0,
+    "semantic": 1.0,
+    "tempo": 0.35,
+    "tempo_tolerance_bpm": 4.0
+  }
+}
+
+-> {"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {"name": "find_compatible_music", "arguments": {"k": 0}}}
+<- ERROR RESULT
+{
+  "error": {
+    "code": "bad_argument",
+    "message": "k must be between 1 and 100, and 0 is not. A k of 0 asks for nothing",
+    "retryable": true
+  }
+}
+
+-> {"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "set_anchor", "arguments": {"asset_id": "ffffffffffffffff"}}}
+<- ERROR RESULT
+{
+  "error": {
+    "code": "refused",
+    "message": "the anchor ffffffffffffffff is not in this index: build it, or index the file",
+    "retryable": false
+  }
+}
+
+-> {"jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": {"name": "audition", "arguments": {"asset_id": "0000000000001001"}}}
+<- ERROR RESULT
+{
+  "error": {
+    "code": "unavailable",
+    "message": "`audition` plays through a running app, and this server has none: it never owns playback. Audition from a host that has an app, which calls the same library function in-process",
+    "retryable": false
+  }
+}
+
+-> {"jsonrpc": "2.0", "id": 11, "method": "tools/call", "params": {"name": "no_such_tool", "arguments": {}}}
+<- PROTOCOL {"error": {"code": -32602, "message": "Unknown tool: no_such_tool"}, "id": 11, "jsonrpc": "2.0"}
+
+-> {"jsonrpc": "2.0", "id": 12, "method": "tools/call", "params": {"name": "find_compatible_music", "arguments": {"k": 2, "colour": "red"}}}
+<- ERROR RESULT
+{
+  "error": {
+    "code": "bad_argument",
+    "message": "`colour` is not an argument of `find_compatible_music`, which takes `anchor`, `k`",
+    "retryable": true
+  }
+}
+

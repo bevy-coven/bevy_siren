@@ -214,8 +214,8 @@ fn a_symlink_that_leaves_the_root_is_refused_not_followed() {
 // The `semantic` feature's boundary, pinned.
 // ---------------------------------------------------------------------------------------------------------------
 
-/// **The `semantic` feature adds no dependency.** That is its entire contract: a user who wants retrieval gets
-/// retrieval, and a user who does not gets the graph `0.1.0` shipped.
+/// **The `semantic` feature's dependencies are exactly the five argued for in `tests/leaf.rs`.** A user who wants retrieval
+/// gets retrieval, and a user who does not gets the graph `0.1.0` shipped.
 ///
 /// This is asserted against the manifest rather than `cargo tree` because a test may not shell out to Cargo, and the
 /// thing that would actually regress is a dependency added to the feature without the argument `S-09` requires.
@@ -228,7 +228,7 @@ fn the_semantic_feature_declares_no_dependency_of_its_own() {
         .find(|l| l.trim_start().starts_with("semantic ="))
         .expect("the semantic feature is declared");
     let rhs = line.split('=').nth(1).expect("a feature has a value").trim();
-    // The feature names exactly four dependencies, and each has its argument in `tests/leaf.rs`:
+    // The feature names exactly these dependencies, and each has its argument in `tests/leaf.rs`:
     //   ort     — the inference runtime (ADR 0002).
     //   rodio   — the decoder the crate already trusts, which costs no new crate: `bevy_audio` resolves rodio 0.22.2
     //             in the default graph already, so this entry turns on this crate's own decoder features and adds
@@ -238,11 +238,14 @@ fn the_semantic_feature_declares_no_dependency_of_its_own() {
     //   ebur128 — loudness and true peak (ADR 0003). **Pure Rust** despite the name: with `default-features = false`
     //             its `c-tests` build script — the only thing that invokes `cc` — stays off. Measured: a clean build
     //             takes 1.66 s and produces no C object, and it agrees with `ffmpeg`'s reference to 0.01 LU.
+    //   serde_json — the tool host's wire format (ADR 0006's `siren-tools`), the smallest choice that works: 6 crates in a
+    //             probe, against 58 for `rmcp` with `tokio` and `schemars`. The binary's dependencies are argued for in
+    //             `tests/leaf.rs`, as ADR 0006 says.
     assert_eq!(
-        rhs, "[\"dep:ort\", \"dep:rodio\", \"dep:rubato\", \"dep:ebur128\"]",
-        "the semantic feature pulls the inference runtime, the decoder, the resampler and the loudness analyser, and \
-         nothing else: `{line}`.\nAnything more is a design decision: add it to ALLOWED_DEPS in tests/leaf.rs with the \
-         sentence that argues for it, in the same commit."
+        rhs, "[\"dep:ort\", \"dep:rodio\", \"dep:rubato\", \"dep:ebur128\", \"dep:serde_json\"]",
+        "the semantic feature pulls the inference runtime, the decoder, the resampler, the loudness analyser and the tool \
+         host's wire format, and nothing else: `{line}`.\nAnything more is a design decision: add it to ALLOWED_DEPS in \
+         tests/leaf.rs with the sentence that argues for it, in the same commit."
     );
 }
 

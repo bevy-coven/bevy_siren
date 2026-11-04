@@ -1,0 +1,48 @@
+//! TEMPORARY: writes a small demo library for the iteration-109 session transcript. Deleted after use.
+use bevy_siren::semantic::index::{Index, ModelStamp};
+use bevy_siren::semantic::indexer;
+use bevy_siren::semantic::key::{Estimate, Key};
+use bevy_siren::semantic::loudness::Loudness;
+use bevy_siren::semantic::model::Model;
+use bevy_siren::semantic::provenance::{Provenance, Source};
+use bevy_siren::semantic::query::Query;
+use bevy_siren::semantic::tempo::Tempo;
+use bevy_siren::semantic::tokenizer::Vocabulary;
+
+fn main() {
+    let root = std::path::PathBuf::from(std::env::args().nth(1).expect("an output directory"));
+    std::fs::create_dir_all(&root).expect("a directory");
+    let manifest = env!("CARGO_MANIFEST_DIR");
+    let text = std::fs::read_to_string(format!("{manifest}/tests/fixtures/clap-tokenizer.json")).expect("vocab");
+    let vocabulary = Vocabulary::from_json(&text).expect("parses");
+    let mut model = Model::load(&format!("{manifest}/tests/fixtures/tiny-text.onnx")).expect("loads");
+    let mut index = Index::new(ModelStamp::measured_clap());
+    let assets: [(u64, &str, &str, &str, f32, Option<(f32, u8, bool)>); 6] = [
+        (0x1001, "footsteps on gravel", "CC0-1.0", "Kenney Footsteps", -24.0, None),
+        (0x1002, "footsteps on wet gravel", "CC0-1.0", "Kenney Footsteps", -25.0, None),
+        (0x1003, "a wooden door creaks open", "CC0-1.0", "Kenney Impact", -22.0, None),
+        (0x2001, "slow ambient pad", "CC-BY-4.0", "Free Music Archive", -20.0, Some((72.0, 2, false))),
+        (0x2002, "tense string drone", "CC-BY-4.0", "Free Music Archive", -19.0, Some((68.0, 9, false))),
+        (0x2003, "bright upbeat chiptune", "CC-BY-NC-4.0", "Free Music Archive", -14.0, Some((140.0, 0, true))),
+    ];
+    for (hash, phrase, licence, pack, lufs, music) in assets {
+        let query = Query::new(phrase).expect("a description");
+        let ids: Vec<i64> = query.tokenize(&vocabulary).expect("tokenises").into_iter().map(i64::from).collect();
+        let embedding = model.embed_text(&ids, &vec![1i64; ids.len()]).expect("embeds");
+        index.insert(hash, embedding).expect("inserts");
+        index.provenance.insert(
+            hash,
+            Provenance { licence: Some(licence.into()), source: Some(Source::Pack(pack.into())), author: None },
+        );
+        index.loudness.insert(
+            hash,
+            Loudness { integrated: Some(lufs), true_peak: -1.0, sample_peak: -1.5, blocks: 20, blocks_possible: 20 },
+        );
+        if let Some((bpm, tonic, major)) = music {
+            index.tempo.insert(hash, Tempo { bpm: Some(bpm), confidence: 0.8, octave_ambiguous: false });
+            index.key.insert(hash, Estimate { key: Key { tonic: Some(tonic), major }, confidence: 0.6 });
+        }
+    }
+    let path = indexer::write(&root, &index).expect("written");
+    println!("{} assets -> {}", index.len(), path.display());
+}

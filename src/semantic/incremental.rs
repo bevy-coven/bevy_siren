@@ -27,7 +27,7 @@
 //!
 //! # Why this is a function and not a file operation
 //!
-//! [`indexer::write`](super::indexer::write) already writes `<root>/siren-index.txt`, and
+//! [`indexer::write`](super::indexer::write) already writes `<root>/siren-index` ([`indexer::INDEX_FILE`](super::indexer::INDEX_FILE)), and
 //! [`indexer::stale`](super::indexer::stale) and [`indexer::vanished`](super::indexer::vanished) already answer *"what
 //! changed?"* from the disk. This module is the **composition** those three were waiting for: it takes the index a
 //! previous run wrote, asks it what changed, embeds only the adds, drops only the removals, and hands back the index

@@ -152,7 +152,9 @@ the first 32 footsteps and quietly stole or refused every one after that.
   [semantic-config](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic-config.md).
   **The crate does not ship the model.** A project loads an ONNX export of `laion/clap-htsat-fused` (MIT) itself, and the
   index records which export made its vectors so a mismatch is refused rather than ranked; the export this crate measured
-  is `transformers-5.22.1/torch-2.15.0/opset-17`.
+  is `transformers-5.22.1/torch-2.15.0/opset-17`. **An agent can drive all of it**: `siren-tools` is an MCP server over
+  stdio — six tools, one error shape, and a bad call is a result a model can read, not a protocol error it never sees —
+  built with `--features semantic` and nothing else, in [the guide](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md#the-tool-server-siren-tools).
 - **Ship the sound as data, and edit it in the Cauldron** — with `serde`, the cue table, the mix table and the score
   are RON files; `bevy_grimoire`'s audio panel edits this crate's own types in
   `<project>/family/bevy_siren.ron`, never a second schema:

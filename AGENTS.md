@@ -18,6 +18,7 @@ labelled `consumer` and `consumer:<project>`; it is never patched into the consu
 cargo build                                   # the trimmed feature list a consumer gets
 cargo test                                    # one `all` binary, including tests/leaf.rs
 cargo test --features serde                   # the RON round trips
+cargo test --features semantic                # retrieval, the tool host, and `siren-tools` as a process
 cargo test --features mixer                   # the mixer backend's own code paths
 cargo test --doc                              # nextest skips doctests; this does not
 cargo test --features readme-example --test all readme::
@@ -53,6 +54,9 @@ every Bevy feature and a hole in its own `[dependencies]` list cannot fail.
   systems `start_layers`, `adopt_layers`, `move_layers`, `play_stingers`.
 - `src/sounds.rs` — `SirenSounds`: the key → handle map, `load_table`, `missing`, `failed`.
 - `src/log.rs` — `SirenLog` (256 entries) and `Entry`.
+- `src/semantic/server.rs` — behind `semantic`: the MCP tool host (`Host`, `SPECS`, `read_message`) as a library, so a test
+  drives it with no process. `src/bin/siren-tools.rs` is the loop around it (ADR 0006, 0008); `serde_json` is its one
+  dependency.
 - `src/lib.rs` — the plugins, `SirenSystems::{Choose, Play, Mix}`, the re-exports, the quick start doctest.
 
 ## The loop, as a skill
@@ -80,7 +84,8 @@ function between frames; a duck takes time since it fired; a gain curve is a lin
 - **No `unwrap()`/`expect()` on caller data** in `src/`. A table that cannot parse is a `String`; a distance that is
   `NaN` is at the listener's feet.
 - **No game vocabulary in `src/`.** `tests/leaf.rs` forbids a game, the editor and a physics engine by name, and the
-  dependency list is closed at `bevy`, `serde`, `ron`, `rodio`.
+  dependency list is closed at `ALLOWED_DEPS` in that file: adding a name takes the sentence that argues for it, in the
+  same commit (the file says so, and so does the build loop).
 
 ## Traps paid for
 

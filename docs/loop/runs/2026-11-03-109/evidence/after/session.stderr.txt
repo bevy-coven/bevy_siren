@@ -1,0 +1,1 @@
+siren-tools: 6 assets indexed from `/tmp/siren-demo-lib`; search_music is on; reading JSON-RPC from stdin

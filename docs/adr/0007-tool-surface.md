@@ -35,7 +35,7 @@ Six, and each names the Rust call it wraps.
 | `set_anchor` | `tools::Session::set_anchor` | `asset_id: string` |
 | `find_compatible_music` | `tools::Toolset::compatible_music` | `anchor: string?`, `k: integer = 3` |
 | `find_compatible_sfx` | `tools::Toolset::compatible_sfx` | `anchor: string?`, `category: string?`, `k: integer = 6` |
-| `explain_match` | `tools::Toolset::explain_match` | `asset_id: string`, `anchor: string` |
+| `explain_match` | `tools::Toolset::explain_match_with` | `asset_id: string`, `anchor: string`, `weighting: "music" \| "effects" = "music"` |
 | `audition` | a `Play` message | `asset_id: string`, `bus: string = "Effects"` |
 
 **`anchor` omitted on the two `find_*` tools means the session's anchor.** That is the only stateful behaviour, and it is
@@ -162,9 +162,11 @@ commands.write(Play::cue("footstep.stone"));
 
 - **A tool's parameters are a semver surface.** Adding an optional parameter with a default is compatible; renaming one
   or changing a default is not.
-- **The server cannot be built in this crate yet.** It needs a JSON codec, and `tests/leaf.rs` enforces a closed
-  dependency list. That is filed as `docs/loop/needs-decision/mcp-tool-surface.md` with three options, and it is a
-  dependency decision rather than a design one — this ADR fixes the *surface*, which does not change with the answer.
+- **The server is built.** `siren-tools` is a `[[bin]]` behind `semantic` ([ADR 0006](0006-plugin-and-tool-server.md)), with
+  `serde_json` as its one added dependency, argued for in `tests/leaf.rs`; its transport, its error mapping and every place
+  this ADR was silent are in [ADR 0008](0008-tool-host.md). **An earlier version of this paragraph said the server could not
+  be built here and pointed at a decision file** (`needs-decision/mcp-tool-surface.md`). That was wrong: ADR 0006 had already
+  decided the layout and said the dependency is argued in a `leaf.rs` row, so nothing was waiting on anyone.
 - **`audition` needs a running `App`.** [ADR 0006](0006-plugin-and-tool-server.md) already states the in-process hop is
   the first implementation; with no `App` the tool returns `unavailable` rather than pretending.
 - **Six tools, not sixteen.** Every additional tool is a schema an agent must be told about and a name that can never

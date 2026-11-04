@@ -152,7 +152,10 @@ impl Tally {
             parts.push(format!("{} below the similarity floor", self.below_floor));
         }
         if !self.variants.is_empty() {
-            parts.push(format!("{} near-identical variants", self.variants.len()));
+            // **A count of one is not plural**: the wire form's `summary` is the sentence an agent reads, and
+            // *"1 near-identical variants"* is the first thing a real session showed.
+            let n = self.variants.len();
+            parts.push(format!("{n} near-identical variant{}", if n == 1 { "" } else { "s" }));
         }
         if self.wrong_category > 0 {
             parts.push(format!("{} outside the category", self.wrong_category));
@@ -387,11 +390,31 @@ impl Toolset {
         Ok(Answer { results: kept, tally, weights })
     }
 
-    /// **Why `candidate` scored what it did against `anchor`** — `#44`, and the tool that makes a bad ranking diagnosable.
+    /// **Why `candidate` scored what it did against `anchor`** — `#44`, and the tool that makes a bad ranking diagnosable —
+    /// under the **music** weighting.
     ///
     /// The breakdown is built by the same [`super::ensemble::breakdown`] a search uses, so its numbers **are** the
-    /// numbers `#40` produced for that pair; a test asserts that rather than assuming it.
+    /// numbers `#40` produced for that pair; a test asserts that rather than assuming it. **That holds for a pair a music
+    /// search ranked.** A pair [`Toolset::compatible_sfx`] ranked was scored under the *effects* weighting, so explaining it
+    /// here gives different weights and a different score — the first real session through `siren-tools` showed `1.2` for
+    /// `acoustic` in the search and `0.5` in the explanation of the same pair. [`Toolset::explain_match_with`] takes the
+    /// weighting the search used.
     pub fn explain_match(&self, index: &Index, anchor: u64, candidate: u64) -> Result<Found, ToolProblem> {
+        self.explain_match_with(index, anchor, candidate, &self.music)
+    }
+
+    /// **Explain a pair under the weighting that ranked it**: `&self.music` for [`Toolset::compatible_music`] and
+    /// `search_music`, `&self.effects` for [`Toolset::compatible_sfx`].
+    ///
+    /// An explanation that uses different weights from the search it explains is worse than none: its numbers are
+    /// individually right and do not add up to the score the caller saw.
+    pub fn explain_match_with(
+        &self,
+        index: &Index,
+        anchor: u64,
+        candidate: u64,
+        weights: &Weights,
+    ) -> Result<Found, ToolProblem> {
         let anchor_embedding = index.records.get(&anchor).ok_or(ToolProblem::AnchorNotIndexed { anchor })?;
         let vector =
             index.records.get(&candidate).ok_or(ToolProblem::AnchorNotIndexed { anchor: candidate })?;
@@ -402,13 +425,13 @@ impl Toolset {
         })?;
         let anchor_features = features_of(index, anchor);
         let candidate_features = features_of(index, candidate);
-        let judgement = super::filter::evaluate(&anchor_features, &candidate_features, &self.music);
+        let judgement = super::filter::evaluate(&anchor_features, &candidate_features, weights);
         let breakdown = super::ensemble::breakdown(
             similarity,
             &candidate_features,
             &anchor_features,
             &judgement,
-            &self.music,
+            weights,
         );
         Ok(Found {
             hash: candidate,

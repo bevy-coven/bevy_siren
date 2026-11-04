@@ -7,6 +7,22 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **`explain_match` explained an effect with the wrong weights.** It was hard-wired to the music weighting, so a pair
+  `find_compatible_sfx` had ranked — under the *effects* weighting — came back with a different score and different weights:
+  numbers individually right that did not add up to what the search returned. The first real session through
+  `siren-tools` showed it plainly, `acoustic` at **1.2** in the search and **0.5** in the explanation of the same pair.
+  `Toolset::explain_match_with(…, &Weights)` takes the weighting that ranked the pair (`explain_match` keeps its signature
+  and the music default), and the tool gains an optional `weighting: "music" | "effects"`. Proved by making the handler
+  ignore it: `explaining_an_effect_uses_the_weighting_that_ranked_it` fails at *"under the weighting that ranked it, the
+  explanation is the result"*.
+- **Four statements that were false, in documents a reader trusts.** `indexer::write`'s doc and `incremental`'s said the
+  index is `siren-index.txt`; `INDEX_FILE` is `siren-index`, with no extension, one name for both formats — a person looking
+  for the file by its documented name would not find it. ADR 0007 said the tool server *"cannot be built in this crate yet"*
+  and pointed at a decision file, but ADR 0006 had already decided the layout and said the dependency is argued in a
+  `leaf.rs` row, so nothing was waiting on anyone (`needs-decision/mcp-tool-surface.md` now says so). `AGENTS.md` listed the
+  closed dependency set as four names while `ALLOWED_DEPS` held seven. And `tests/library.rs` and `tests/leaf.rs` each
+  carried a count in prose (*"exactly four"*, *"only the four"*) beside the list it described — the drift iterations 106–108
+  were about.
 - **The table test covered six of `CueProblem`'s seven variants and stayed green.** `InertAvoidRepeat` was tested on its own
   (`tests/play.rs`, `tests/model.rs`) but no fixture cue in `problems_names_each_mistake` produced it, so the test whose job
   is *every problem prints as a sentence naming its cue* never reached it. The compiler had already demanded an arm for it
@@ -53,6 +69,18 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`siren-tools` — the tool surface, for an agent** (`#28`). An **MCP server over stdio**, in this crate behind `semantic`
+  as ADR 0006 decided: `cargo run --release --features semantic --bin siren-tools -- <library-dir> [--model … --vocab …]`.
+  Six tools (ADR 0007), one error shape, and **a bad call is a tool result a model can read** (`isError: true`,
+  `{"error": {"code", "message", "retryable"}}`) rather than a protocol error it never sees. The protocol lives in
+  `semantic::server` so a test drives it with no process; **one table, `SPECS`, draws the listing, the schema and the
+  validation**, so what a client reads and what its call meets cannot disagree — proved by loosening the schema by one and
+  watching `the_schema_is_what_the_call_enforces` fail. Hand-written JSON-RPC with `serde_json` as the only new dependency:
+  **6 crates in a probe against 58** for `rmcp` + `tokio` + `schemars`, for a host whose work is synchronous
+  ([ADR 0008](docs/adr/0008-tool-host.md)). Measured by the new `examples/hostbench`: **34 ms and 20.5 MB to start** at
+  10 000 assets, then 0.02 ms for `set_anchor`, 5.3 ms for a search (before the text encode) and 18 ms for
+  `find_compatible_*`. `cargo build` without the feature builds no binary. 40 tests, including the binary as a process:
+  stdout carries only messages, a missing index exits 1 with nothing on stdout, and stdin closing ends it with status 0.
 - **A busy GPU is waited out, bounded and visible** — `#37`. `budget::Deferral { wait_s: 30.0, poll_s: 0.5 }` (both
   **design defaults**, and bounded because the source requires bounded latency), `budget::WaitState` (the value a panel
   renders as *"waiting for the GPU (2 of 60)"*), and `budget::defer`, which measures, waits and either returns the attempt
