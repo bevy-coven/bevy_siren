@@ -1,0 +1,63 @@
+# The second golden library's text queries (Kenney's CC0 game audio): what a developer would type, and what a right answer is.
+#
+# Columns (tab-separated, in this order, header required):
+#   class        the class whose members are the right answers (golden/kenney/labels.csv), or `-` for a query that should find NOTHING
+#   description  the words a person types. This file is the MAINTAINER'S wording: written with the class list in view, so it may use a
+#                class's own words. `queries-paraphrase.tsv` asks for the same classes without them
+#   rationale    one line: which files are the right answers and why, or what the nearest confound is
+#
+# **Written before the model had run on this library.** The class list, the manifest and both query files were committed first (the commit is
+# `golden: the second library's labels and queries, frozen before the model ran`); every later change is a new row, never an edit, because a
+# recorded number is about the old question. The expected confounds named in the no-answer rows are guesses made at the same time.
+#
+# A positive query's right answers are **every** file of its class. A class is the *author's own file names, grouped* — never a listener's
+# judgement of what a sound is — so a label is only as good as Kenney's naming, and a confusable pair (`laser`, `phaser`, `electric_zap`)
+# is a pair a developer browsing the pack would see too. `docs/guide/golden-set.md` has the whole procedure.
+class	description	rationale
+footstep	footsteps walking on the ground	RPG pack `footstep00`-`footstep09`: ten takes of one step, the author's own name for the sound.
+door	a wooden door opening and closing	RPG pack `doorOpen_1`-`2` and `doorClose_1`-`4`; `sci_fi_door` is a different class and a wrong answer here.
+book	a book being opened, closed and set down	RPG pack `bookOpen`, `bookClose`, `bookFlip1`-`3`, `bookPlace1`-`3`.
+cloth	cloth rustling	RPG pack `cloth1`-`cloth4`; `leather` is a different class and a wrong answer here.
+knife	a knife being drawn and slicing	RPG pack `drawKnife1`-`3`, `knifeSlice` and `knifeSlice2`.
+metal_pot	a metal pot clanging	RPG pack `metalPot1`-`3`; `metal_impact` (sci-fi) is a different class.
+leather	leather being handled	RPG pack `dropLeather`, `handleSmallLeather`, `handleSmallLeather2`; `cloth` is a different class.
+playing_cards	playing cards being shuffled and dealt	Casino pack, 23 files: `card-fan`, `card-place`, `card-shove`, `card-shuffle`, `card-slide`, `cards-pack-open`, `cards-pack-take-out`.
+poker_chips	poker chips clinking and stacking	Casino pack, 19 files: `chip-lay`, `chips-collide`, `chips-handle`, `chips-stack`; `dice` is a different class.
+dice	dice being shaken and thrown	Casino pack, 12 files: `dice-grab`, `dice-shake`, `dice-throw`, `die-throw`.
+chiptune	an 8-bit chiptune jingle	Jingles pack `jingles_NES00`-`16` (the page calls the group "8-bit"); the other three instrument groups are different classes.
+saxophone	a short saxophone jingle	Jingles pack `jingles_SAX00`-`16`.
+steel_drum	a short steel drum jingle	Jingles pack `jingles_STEEL00`-`16`.
+pizzicato	a short pizzicato strings jingle	Jingles pack `jingles_PIZZA00`-`16`.
+mouse_click	a mouse click	UI SFX pack `click1`-`5`, `mouseclick1`, `mouserelease1` (WAV) and Interface pack `click_001`-`005` (Ogg): twelve takes in two formats.
+error_beep	an error beep	Interface pack `error_001`-`008`; `confirmation_chime` is the opposite message and a wrong answer here.
+confirmation_chime	a confirmation chime	Interface pack `confirmation_001`-`004`; `error_beep` is a different class.
+scrolling	scrolling through a menu	Interface pack `scroll_001`-`005`.
+laser	a laser blast	Digital pack `laser1`-`9` (MP3) and Sci-fi pack `laserLarge`, `laserRetro`, `laserSmall` (`_000`-`004`): 24 files; `phaser` and `electric_zap` are different classes.
+power_up	a power-up sound	Digital pack `powerUp1`-`12` (MP3); the page counts "12 power-ups".
+electric_zap	an electric zap	Digital pack `zap1`, `zap2`, `zapTwoTone`, `zapTwoTone2`, `zapThreeToneUp`, `zapThreeToneDown` (MP3); the page counts "6 zaps".
+phaser	a sci-fi phaser shot	Digital pack `phaserUp1`-`7`, `phaserDown1`-`3`, `phaseJump1`-`5` (MP3); the page counts "15 phasers"; `laser` is a different class.
+explosion	an explosion	Sci-fi pack `explosionCrunch_000`-`004` and `lowFrequency_explosion_000`-`001`.
+force_field	a force field humming	Sci-fi pack `forceField_000`-`004`.
+sci_fi_door	a sci-fi door opening and closing	Sci-fi pack `doorOpen_000`-`002` and `doorClose_000`-`002`; the RPG `door` is a different class.
+engine	a spaceship engine humming	Sci-fi pack `spaceEngine`, `spaceEngineLarge`, `spaceEngineLow`, `spaceEngineSmall` and `engineCircular`: 24 files; `thruster` is a different class.
+thruster	a rocket thruster firing	Sci-fi pack `thrusterFire_000`-`004`; `engine` is a different class.
+computer_noise	a computer processing noise	Sci-fi pack `computerNoise_000`-`003`.
+metal_impact	a metal impact	Sci-fi pack `impactMetal_000`-`004`; `metal_pot` is a different class.
+-	a dog barking	No animal is in this library; the nearest short percussive sounds are guessed to be `metal_impact` and `knife`.
+-	rain falling on a roof	No weather is in this library; the nearest steady noises are guessed to be `engine` and `computer_noise`.
+-	a crowd cheering at a stadium	No voices (the voice-over packs are not in the set); `cloth` is the guessed nearest broadband rustle.
+-	a person laughing	No voices; the guessed nearest is `saxophone`, a melodic line with a human-like contour.
+-	a baby crying	No voices; the guessed nearest sustained, pitched sound is `saxophone`.
+-	ocean waves crashing on a beach	No water; `engine` and `thruster` are the guessed nearest wide-band roars.
+-	a car horn honking	No road vehicles; `error_beep` is the guessed nearest sustained electronic tone.
+-	a helicopter flying overhead	No aircraft; `engine` and `thruster` are the guessed nearest, and the likeliest to get past a floor.
+-	thunder rumbling	No weather; `explosion` (the low-frequency ones) is the guessed nearest, and a likely one to get past a floor.
+-	a telephone ringing	No telephone; `confirmation_chime` and `error_beep` are the guessed nearest rings.
+-	a cat meowing	No animal; nothing here is guessed to resemble it.
+-	birds singing in the morning	No animal; `chiptune` and `pizzicato` are the guessed nearest bright, quick melodies.
+-	a person speaking	No speech (the voice-over packs are not in the set); nothing here is guessed to resemble it.
+-	a gunshot	No firearm; `explosion` and `laser` are the guessed nearest, and the likeliest to get past a floor.
+-	a distorted rock guitar solo	No guitar; `saxophone` and `chiptune` are the guessed nearest lead-instrument melodies.
+-	a piano playing a melody	No piano; `steel_drum` and `pizzicato` are the guessed nearest tuned, struck or plucked notes.
+-	a vacuum cleaner running	No appliance; `engine` is the guessed nearest, and a likely one to get past a floor.
+-	applause	No audience; `playing_cards` and `cloth` are the guessed nearest noisy clatter.

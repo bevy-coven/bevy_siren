@@ -1,0 +1,58 @@
+# The second golden library's text queries in a STRANGER'S wording: the same 29 classes asked for without their names, and the same 18
+# no-answer queries as `queries.tsv`. Index and model are unchanged between the two files; only the questions differ.
+#
+# Columns (tab-separated, in this order, header required):
+#   class        the class whose members are the right answers (golden/kenney/labels.csv), or `-` for a query that should find NOTHING
+#   description  the words a person who has not seen the class list would type — `tests/semantic_golden.rs` checks that none of the
+#                class's own words (a name's parts of four letters or more) appears in it
+#   rationale    one line: which class this asks for, and what is deliberately left out of the words
+#
+# Written at the same time as `queries.tsv`, before the model had run on this library; see its header. Never edit a row in place.
+class	description	rationale
+footstep	boots hitting the ground one after another	Class `footstep` (RPG pack `footstep00`-`09`), without its name: the repeated impact of a step.
+door	a heavy wooden panel swinging on its hinges	Class `door` (RPG pack `doorOpen`, `doorClose`), without its name: the panel and its hinges.
+book	pages turning and a heavy cover thudding shut	Class `book` (RPG pack `bookOpen`, `bookClose`, `bookFlip`, `bookPlace`), without its name: pages and a cover.
+cloth	fabric being rubbed and rustled	Class `cloth` (RPG pack `cloth1`-`4`), without its name: a synonym.
+knife	a blade scraping out of a scabbard	Class `knife` (RPG pack `drawKnife`, `knifeSlice`), without its name: the blade and where it lives.
+metal_pot	cookware ringing as it is knocked about	Class `metal_pot` (RPG pack `metalPot1`-`3`), without its name: what a pot is.
+leather	stiff hide creaking in someone's hands	Class `leather` (RPG pack `dropLeather`, `handleSmallLeather`), without its name: the material by another name.
+playing_cards	a deck being riffled and dealt out on a table	Class `playing_cards` (Casino pack, 23 files), without its name: a deck and what is done to it.
+poker_chips	gambling tokens clacking against each other	Class `poker_chips` (Casino pack, 19 files), without its name: the tokens of the game.
+dice	small cubes tumbling across a tabletop	Class `dice` (Casino pack, 12 files), without its name: the shape and the motion.
+chiptune	a retro console fanfare	Class `chiptune` (Jingles pack `jingles_NES`), without its name: the console the group is named for.
+saxophone	a smooth reed-instrument riff	Class `saxophone` (Jingles pack `jingles_SAX`), without its name: the family of instrument.
+steel_drum	a tropical tuned-percussion tune	Class `steel_drum` (Jingles pack `jingles_STEEL`), without its name: where it is played and what it is.
+pizzicato	a quick tune on plucked violins	Class `pizzicato` (Jingles pack `jingles_PIZZA`), without its name: the technique described.
+mouse_click	a quick press of a button on a pointing device	Class `mouse_click` (UI SFX and Interface packs, 12 files), without its name: the device and the action.
+error_beep	a harsh negative buzz telling you that you did it wrong	Class `error_beep` (Interface pack `error_001`-`008`), without its name: the message it carries.
+confirmation_chime	a pleasant rising ding that says it worked	Class `confirmation_chime` (Interface pack `confirmation_001`-`004`), without its name: the message it carries.
+scrolling	a long list sliding by under your finger	Class `scrolling` (Interface pack `scroll_001`-`005`), without its name: the gesture.
+laser	a futuristic ray gun firing	Class `laser` (Digital and Sci-fi packs, 24 files), without its name: the weapon.
+power_up	an arcade bonus pickup, rising and sparkling	Class `power_up` (Digital pack `powerUp1`-`12`), without its name: the event in a game.
+electric_zap	a sharp crackle of static discharge	Class `electric_zap` (Digital pack `zap`, `zapTwoTone`, `zapThreeTone`), without its name: the phenomenon.
+phaser	a sweeping energy pulse from a starship weapon	Class `phaser` (Digital pack `phaserUp`, `phaserDown`, `phaseJump`), without its name: the weapon and the sweep.
+explosion	something blowing up with a low rumble	Class `explosion` (Sci-fi pack `explosionCrunch`, `lowFrequency_explosion`), without its name: the event and its low end.
+force_field	an energy barrier shimmering around a ship	Class `force_field` (Sci-fi pack `forceField_000`-`004`), without its name: what it does.
+sci_fi_door	an automatic gateway hissing open on a starship	Class `sci_fi_door` (Sci-fi pack `doorOpen`, `doorClose`), without its name: the place and the motion.
+engine	the steady drone of a starship's drive	Class `engine` (Sci-fi pack, 24 files), without its name: a drive is an engine.
+thruster	a jet of burning propellant roaring	Class `thruster` (Sci-fi pack `thrusterFire_000`-`004`), without its name: what it does.
+computer_noise	old computing equipment chirping as it works	Class `computer_noise` (Sci-fi pack `computerNoise_000`-`003`), without its name: the machine and its sounds.
+metal_impact	a heavy clang of steel struck against steel	Class `metal_impact` (Sci-fi pack `impactMetal_000`-`004`), without its name: the material and the blow.
+-	a dog barking	No animal is in this library; the nearest short percussive sounds are guessed to be `metal_impact` and `knife`.
+-	rain falling on a roof	No weather is in this library; the nearest steady noises are guessed to be `engine` and `computer_noise`.
+-	a crowd cheering at a stadium	No voices (the voice-over packs are not in the set); `cloth` is the guessed nearest broadband rustle.
+-	a person laughing	No voices; the guessed nearest is `saxophone`, a melodic line with a human-like contour.
+-	a baby crying	No voices; the guessed nearest sustained, pitched sound is `saxophone`.
+-	ocean waves crashing on a beach	No water; `engine` and `thruster` are the guessed nearest wide-band roars.
+-	a car horn honking	No road vehicles; `error_beep` is the guessed nearest sustained electronic tone.
+-	a helicopter flying overhead	No aircraft; `engine` and `thruster` are the guessed nearest, and the likeliest to get past a floor.
+-	thunder rumbling	No weather; `explosion` (the low-frequency ones) is the guessed nearest, and a likely one to get past a floor.
+-	a telephone ringing	No telephone; `confirmation_chime` and `error_beep` are the guessed nearest rings.
+-	a cat meowing	No animal; nothing here is guessed to resemble it.
+-	birds singing in the morning	No animal; `chiptune` and `pizzicato` are the guessed nearest bright, quick melodies.
+-	a person speaking	No speech (the voice-over packs are not in the set); nothing here is guessed to resemble it.
+-	a gunshot	No firearm; `explosion` and `laser` are the guessed nearest, and the likeliest to get past a floor.
+-	a distorted rock guitar solo	No guitar; `saxophone` and `chiptune` are the guessed nearest lead-instrument melodies.
+-	a piano playing a melody	No piano; `steel_drum` and `pizzicato` are the guessed nearest tuned, struck or plucked notes.
+-	a vacuum cleaner running	No appliance; `engine` is the guessed nearest, and a likely one to get past a floor.
+-	applause	No audience; `playing_cards` and `cloth` are the guessed nearest noisy clatter.
