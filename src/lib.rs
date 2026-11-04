@@ -90,6 +90,7 @@ pub mod model;
 pub mod music;
 mod ogg;
 pub mod output;
+mod owner;
 pub mod play;
 pub mod playback;
 pub mod sounds;
@@ -111,7 +112,7 @@ pub use music::{MUSIC_CHECKS, MusicLayer, MusicLayers, MusicScore, MusicState, M
 pub use output::{AudioOutput, Backend, Output};
 pub use play::{
     Compensation, Completes, MixerVoice, Play, Played, Refusal, Refused, Samples, SirenChoices, StopCue,
-    StopVoice, Voice,
+    StopVoice, Voice, VoiceOwner,
 };
 pub use playback::start_pending;
 pub use sounds::SirenSounds;
@@ -182,6 +183,8 @@ impl Plugin for SirenPlugin {
                     play::seed_choices.in_set(SirenSystems::Choose),
                     (
                         play::play_requests,
+                        // **Straight after the requests**, so a voice on an owner that is already gone is despawned before `start_pending` can start it, and a placed voice is at its owner's side from its first frame.
+                        owner::end_and_follow,
                         playback::start_pending,
                         playback::trim_ogg_loops,
                         playback::refuse_unplayable_voices,
@@ -191,10 +194,6 @@ impl Plugin for SirenPlugin {
                     (mix::update_mix, mix::apply_stopping, mix::retire_voices, mix::stop_requests)
                         .chain()
                         .in_set(SirenSystems::Mix),
-                    // **After everything that may despawn a voice**, so the removal it reports is this frame's. `Mix` is
-                    // where the crate's own despawns are commanded; Bevy applies them before the next frame's `Update`,
-                    // which is when this reads them.
-                    mix::log_despawned_voices.after(SirenSystems::Mix),
                 ),
             );
 

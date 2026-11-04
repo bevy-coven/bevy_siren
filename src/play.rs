@@ -25,13 +25,14 @@ use crate::model::{
     Candidate, Rng, SILENT_DB, VariantPicker, backend_spatial_gain, chain_db, distance_gain, finite_or,
     gain_to_db, semitones_to_ratio, steal,
 };
+use crate::owner::{OwnerState, state_of};
 use crate::sounds::{Decode, Files, SirenSounds, cannot_play};
 
 /// Ask for a cue to play.
 ///
-/// Build it with [`Play::cue`] and refine it: [`on`](Play::on) attaches the play to an entity (a footstep
-/// belongs to the foot), [`at`](Play::at) places it in the world, [`gain`](Play::gain) and
-/// [`pitch`](Play::pitch) adjust it for this play only.
+/// Build it with [`Play::cue`] and refine it: [`on`](Play::on) hangs the play from an entity (a footstep
+/// belongs to the foot: it ends when the foot is despawned, and a placed one follows it), [`at`](Play::at) places it at a
+/// **world** position, [`gain`](Play::gain) and [`pitch`](Play::pitch) adjust it for this play only.
 ///
 /// ```no_run
 /// # use bevy::prelude::*;
@@ -46,9 +47,10 @@ use crate::sounds::{Decode, Files, SirenSounds, cannot_play};
 pub struct Play {
     /// The cue to play, by name.
     pub cue: String,
-    /// The entity the sound belongs to: a footstep's foot, an engine's vehicle.
+    /// The entity the sound belongs to: a footstep's foot, an engine's vehicle. The voice ends when it is despawned — in the frame the voice was played, if it was already gone — and the log says `owner despawned`; a placed voice (a
+    /// spatial cue **and** a position) follows it. An owner that is spawned in the same frame as the play (`Commands::spawn`) is waited for. The voice is not its child: see [`VoiceOwner`].
     pub target: Option<Entity>,
-    /// Where in the world the sound is, for a spatial cue.
+    /// Where in the world the sound is, for a spatial cue — a **world** position, whatever [`target`](Play::target) is: the crate's own distance law, its compensation for the backend's panner and the panner itself all see this place.
     pub position: Option<Vec3>,
     /// A gain for this play only, added to the cue's.
     pub gain_db: Option<f32>,
@@ -62,13 +64,13 @@ impl Play {
         Self { cue: name.into(), target: None, position: None, gain_db: None, pitch: None }
     }
 
-    /// The sound belongs to `entity`.
+    /// The sound belongs to `entity`: it ends when `entity` is despawned, and a placed sound follows it ([`VoiceOwner`]).
     pub fn on(mut self, entity: Entity) -> Self {
         self.target = Some(entity);
         self
     }
 
-    /// The sound is at `position` in the world.
+    /// The sound is at `position` in the world — a world position, even when the play is [`on`](Play::on) an entity.
     pub fn at(mut self, position: Vec3) -> Self {
         self.position = Some(position);
         self
@@ -95,8 +97,8 @@ impl Play {
 pub struct Played {
     /// The voice entity, for [`StopVoice`] or for a game that hangs its own data on it.
     ///
-    /// It exists when this message is written. **A voice goes** when it is stopped, stolen, ended, refused after a load, or its owner despawns — and a voice stolen by a later request in the frame it was announced, or stopped by a
-    /// [`StopCue`] in it, never sounded and is despawned in that frame, with a `stopped` line in the log. So a game that keeps this `Entity` past the frame treats it as any entity that can be despawned: `get_entity`, or
+    /// It exists when this message is written. **A voice goes** when it is stopped, stolen, ended, refused after a load, or its owner despawns — and a voice stolen by a later request in the frame it was announced, stopped by a
+    /// [`StopCue`] in it, or played on an owner that is already gone ([`VoiceOwner`]), never sounded and is despawned in that frame, with a `stopped` line in the log. So a game that keeps this `Entity` past the frame treats it as any entity that can be despawned: `get_entity`, or
     /// `try_insert` where `insert` would panic in Bevy's command handler.
     pub entity: Entity,
     /// The cue that was asked for.
@@ -211,6 +213,13 @@ pub struct Compensation {
     /// The dB to add to the voice's own gain.
     pub db: f32,
 }
+
+/// **The entity a [`Play::on`] hung a voice from.** The voice ends when that entity is despawned — in the frame it is, or in the frame the voice was played if the owner was already gone — and the log says `stopped: owner despawned`.
+///
+/// **Not a parent.** The voice is not a `ChildOf` of its owner: no hierarchy hook runs (it panicked for an owner not spawned yet), no transform is inherited (`Play::at` is a *world* position), and a game that despawns the voice is not blamed on the owner.
+/// A placed voice on Bevy's path follows its owner's `GlobalTransform` instead; see the `owner` module. To move a voice yourself, give it no owner.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VoiceOwner(pub Entity);
 
 /// The sample a voice plays, so whichever backend owns playback can start it — Bevy through the `AudioPlayer`
 /// spawned beside it, the crate's mixer through [`start_pending`](crate::playback::start_pending) once the bytes
@@ -442,8 +451,9 @@ pub fn play_requests(
     real: Res<Time<Real>>,
     listener: Query<(&GlobalTransform, &SpatialListener)>,
     voices: Query<(Entity, &Voice, Option<&crate::music::MusicVoice>), Without<Stopping>>,
-    backend: Res<crate::output::Backend>,
-    output: Option<Res<crate::output::Output>>,
+    host: (Res<crate::output::Backend>, Option<Res<crate::output::Output>>),
+    // **What an owner is** — spawned, pending (allocated, its spawn command still queued) or gone — which `ChildOf` could not say, and which decides whether a play on it takes anything from the budget (`owner::state_of`).
+    entities: &bevy::ecs::entity::Entities,
     // **What the crate asks about a picked file** — whether the asset server says it failed to load, and whether the bytes the asset table holds are bytes the decoder refuses (what the decoder said is remembered in `SirenSounds`). One
     // parameter, because this is the sixteenth, Bevy's maximum for a system; the server and the table are optional inside it, so a world with no `AssetPlugin` has no load to fail and nothing to decode.
     files: Files,
@@ -452,6 +462,7 @@ pub fn play_requests(
     mut commands: Commands,
 ) {
     let now = real.elapsed_secs_f64();
+    let (backend, output) = host;
     // **A picker belongs to a cue, and a cue the table no longer has has no history worth keeping.** `pickers` is
     // keyed by cue name and an entry is created on a cue's first play, so without this a project that generates names —
     // or reloads a table with different ones — kept one `VariantPicker` per name it had ever played. Measured at 200
@@ -493,39 +504,47 @@ pub fn play_requests(
             now,
         ) {
             Ok(started) => {
-                for (victim, cap) in &started.stolen {
-                    // **Which cap took the voice, not only who asked.** A `footstep.grass` request can take a voice
-                    // because the *cue* is at `max_instances` or because its *bus* is at `max_voices`, and the two want
-                    // different edits from an author — raise the cue's x2, or the bus's budget. The old sentence said
-                    // `stolen by footstep.grass` for both, so a step that took three voices logged two identical
-                    // lines and neither said which number to change.
-                    let why = format!("stolen by {} ({})", request.cue, cap.as_str());
-                    commands.entity(*victim).insert(Stopping { since_s: now, why: why.clone() });
-                    if let Some(voice) = live.iter().find(|v| v.entity == *victim) {
-                        log.push(Entry::Stopped { at_s: now, cue: voice.cue.clone(), why });
+                // **A sound whose owner is already gone is answered and ended, and takes nothing from anyone.** `owner::end_and_follow` despawns it directly after this system, so it must not steal a voice that is playing, hold a slot against
+                // the next request in this frame, or fire a duck for a sound that will never be heard. (It is still answered: `Played` is the play's one answer, and the entity it names exists when the message is written.)
+                let doomed =
+                    request.target.is_some_and(|owner| state_of(entities, owner) == OwnerState::Gone);
+                if !doomed {
+                    for (victim, cap) in &started.stolen {
+                        // **Which cap took the voice, not only who asked.** A `footstep.grass` request can take a voice
+                        // because the *cue* is at `max_instances` or because its *bus* is at `max_voices`, and the two want
+                        // different edits from an author — raise the cue's x2, or the bus's budget. The old sentence said
+                        // `stolen by footstep.grass` for both, so a step that took three voices logged two identical
+                        // lines and neither said which number to change.
+                        let why = format!("stolen by {} ({})", request.cue, cap.as_str());
+                        commands.entity(*victim).insert(Stopping { since_s: now, why: why.clone() });
+                        if let Some(voice) = live.iter().find(|v| v.entity == *victim) {
+                            log.push(Entry::Stopped { at_s: now, cue: voice.cue.clone(), why });
+                        }
+                        live.retain(|v| v.entity != *victim);
                     }
-                    live.retain(|v| v.entity != *victim);
                 }
                 let entity = spawn_voice(&mut commands, request, &started, now, mixer_owns);
-                // This frame's own voice counts against the next request in the list.
-                live.push(Live {
-                    entity,
-                    cue: request.cue.clone(),
-                    bus: started.bus.clone(),
-                    priority: started.priority,
-                    start_s: now,
-                    // A play written this frame has not been adopted by the music plugin yet, so it cannot be a layer.
-                    unstealable: started.priority >= UNSTEALABLE_PRIORITY,
-                });
-                if settings.ducks.iter().any(|d| d.source == started.bus) {
-                    clock.fire_all(&settings, &started.bus, now);
-                    for duck in settings.ducks.iter().filter(|d| d.source == started.bus) {
-                        log.push(Entry::Ducked {
-                            at_s: now,
-                            bus: duck.target.clone(),
-                            by_db: duck.by_db,
-                            by: request.cue.clone(),
-                        });
+                if !doomed {
+                    // This frame's own voice counts against the next request in the list.
+                    live.push(Live {
+                        entity,
+                        cue: request.cue.clone(),
+                        bus: started.bus.clone(),
+                        priority: started.priority,
+                        start_s: now,
+                        // A play written this frame has not been adopted by the music plugin yet, so it cannot be a layer.
+                        unstealable: started.priority >= UNSTEALABLE_PRIORITY,
+                    });
+                    if settings.ducks.iter().any(|d| d.source == started.bus) {
+                        clock.fire_all(&settings, &started.bus, now);
+                        for duck in settings.ducks.iter().filter(|d| d.source == started.bus) {
+                            log.push(Entry::Ducked {
+                                at_s: now,
+                                bus: duck.target.clone(),
+                                by_db: duck.by_db,
+                                by: request.cue.clone(),
+                            });
+                        }
                     }
                 }
                 // **A number the crate had to rewrite is said out loud.** The behaviour is right — a non-finite gain is
@@ -845,7 +864,11 @@ fn spawn_voice(
         spawned.insert(Transform::from_translation(at));
     }
     if let Some(target) = request.target {
-        spawned.insert(ChildOf(target));
+        spawned.insert(VoiceOwner(target));
+        // A placed voice follows its owner on Bevy's path; the crate's mixer does not pan and applies the distance law once, at the play.
+        if started.spatial && !mixer_owns {
+            spawned.insert(crate::owner::Follows::default());
+        }
     }
     spawned.id()
 }

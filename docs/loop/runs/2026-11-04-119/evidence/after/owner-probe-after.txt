@@ -1,0 +1,66 @@
+Iteration 119, AFTER the change. The same `examples/scratch_owner.rs` (evidence/after/owner-probe.rs.txt), release, headless, Bevy's path, TransformPlugin, a spatial loop cue `c`, a SpatialListener at the origin, one run per mode.
+The BEFORE output of every mode is evidence/before/owner-probe-on-the-unchanged-tree.txt. Verbatim.
+
+=== scratch_owner placement
+the listener is at the origin; the world position asked for is (100.0, 0.0, 0.0)
+-- control: .at(world), no owner
+[no owner] voice 48v0 `c`: ChildOf = none, local = (100.0, 0.0, 0.0), global = (100.0, 0.0, 0.0), compensation = 80.00 dB
+[no owner] 1 voice(s), 1 counted on Effects; played = ["c -> s at -27.96 dB"]
+[no owner] log: 0.00s played `c` (s) on Effects at -27.96 dB
+-- .on(owner).at(world): the owner is AT (100.0, 0.0, 0.0) (its own Transform), spawned two frames earlier
+[owner at the place] voice 49v0 `c`: ChildOf = none, local = (100.0, 0.0, 0.0), global = (100.0, 0.0, 0.0), compensation = 80.00 dB
+[owner at the place] 1 voice(s), 1 counted on Effects; played = ["c -> s at -27.96 dB"]
+[owner at the place] log: 0.00s played `c` (s) on Effects at -27.96 dB
+-- .on(owner).at(world): the owner is a bare entity with no Transform
+[owner without a transform] voice 49v0 `c`: ChildOf = none, local = (100.0, 0.0, 0.0), global = (100.0, 0.0, 0.0), compensation = 80.00 dB
+[owner without a transform] 1 voice(s), 1 counted on Effects; played = ["c -> s at -27.96 dB"]
+[owner without a transform] log: 0.00s played `c` (s) on Effects at -27.96 dB
+
+=== scratch_owner same-frame unordered
+-- the owner is spawned through Commands in the system that writes the play (unordered); three frames later
+[after 3 frames] voice 49v0 `c`: ChildOf = none, local = none, global = none, compensation = 0.00 dB
+[after 3 frames] 1 voice(s), 1 counted on Effects; played = ["c -> s at 0.00 dB"]
+[after 3 frames] log: 0.00s played `c` (s) on Effects at 0.00 dB
+-- the owner despawned; three frames later
+[owner despawned] 0 voice(s), 0 counted on Effects; played = ["c -> s at 0.00 dB"]
+[owner despawned] log: 0.00s played `c` (s) on Effects at 0.00 dB
+[owner despawned] log: 0.00s stopped `c`: owner despawned
+
+=== scratch_owner same-frame before
+-- the owner is spawned through Commands in the system that writes the play (before); three frames later
+[after 3 frames] voice 50v0 `c`: ChildOf = none, local = none, global = none, compensation = 0.00 dB
+[after 3 frames] 1 voice(s), 1 counted on Effects; played = ["c -> s at 0.00 dB"]
+[after 3 frames] log: 0.00s played `c` (s) on Effects at 0.00 dB
+-- the owner despawned; three frames later
+[owner despawned] 0 voice(s), 0 counted on Effects; played = ["c -> s at 0.00 dB"]
+[owner despawned] log: 0.00s played `c` (s) on Effects at 0.00 dB
+[owner despawned] log: 0.00s stopped `c`: owner despawned
+
+=== scratch_owner vanished
+-- the owner was gone before the play was answered; 30 frames later
+[vanished owner] 0 voice(s), 0 counted on Effects; played = ["c -> s at 0.00 dB"]
+[vanished owner] log: 0.00s played `c` (s) on Effects at 0.00 dB
+[vanished owner] log: 0.00s stopped `c`: owner despawned
+
+=== scratch_owner pending
+-- the owner 48v0 is allocated and not spawned when the play is answered
+RESULT after the first frame: no panic
+[owner spawned] voice 49v0 `c`: ChildOf = none, local = none, global = none, compensation = 0.00 dB
+[owner spawned] 1 voice(s), 1 counted on Effects; played = ["c -> s at 0.00 dB"]
+[owner spawned] log: 0.00s played `c` (s) on Effects at 0.00 dB
+-- the owner despawned
+[owner despawned] 0 voice(s), 0 counted on Effects; played = ["c -> s at 0.00 dB"]
+[owner despawned] log: 0.00s played `c` (s) on Effects at 0.00 dB
+[owner despawned] log: 0.00s stopped `c`: owner despawned
+
+=== scratch_owner despawn-voice
+-- the game despawned the voice itself; the owner is alive
+[voice despawned by the game] 0 voice(s), 0 counted on Effects; played = ["c -> s at 0.00 dB"]
+[voice despawned by the game] log: 0.00s played `c` (s) on Effects at 0.00 dB
+
+Reading it, against the four defects of evidence/before/:
+ 1. the owner allocated and not yet spawned (`unordered`, `pending`): no panic; the voice waits, lives while its owner does, and ends with it, once, with its reason;
+ 2. `.on(owner).at(world)`: the voice's global position is (100, 0, 0) — `at` — for an owner at the place AND for an owner with no Transform (it was (200, 0, 0) and (0, 0, 0)); no ChildOf; the level the crate wrote (-27.96 dB,
+    +80.00 dB compensation) is for the place the panner now sees;
+ 3. an owner already gone (`vanished`): 0 voices and 0 counted after the first frame, `played` then `stopped: owner despawned` (it was 1 voice, for ever, one line);
+ 4. a voice the game despawned while its owner lives (`despawn-voice`): no `owner despawned` line (it was a false one).

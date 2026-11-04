@@ -129,7 +129,9 @@ the first 32 footsteps and quietly stole or refused every one after that.
   ducks the music it plays over: [music](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/music.md).
 - **Place a sound in the world** — `Play::cue("bang").at(position)` attenuates by the cue's `Attenuation`
   (`Inverse` at 4 m and rolloff 1 by default), refusing with `SpatiallyMute` when there is no `SpatialListener`
-  rather than guessing: [spatial](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/spatial.md).
+  rather than guessing. `.on(entity)` hangs the sound from an entity — it ends when the entity does, and a placed one
+  follows it — and `.at(position)` stays a world position whatever the entity is:
+  [spatial](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/spatial.md).
 - **Describe a sound and find it, behind `semantic`** — a folder of audio becomes an index keyed by content, a
   description becomes a ranked answer through CLAP's own tokeniser and spectrogram, and every result carries the score
   that explains it. The spectrogram is **CLAP's, to 0.0545 dB**, and the audio tower's embedding matches

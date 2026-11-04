@@ -1,0 +1,13 @@
+Iteration 119 — what `owner::end_and_follow` costs a frame. A temporary `#[ignore]` unit test inside `src/owner.rs` (removed before the commit): a bare `World`, one `Schedule` with Bevy's SINGLE-THREADED executor
+(`SingleThreadedExecutor::new()`: the default multi-threaded one reads 7 – 8 µs of setup at zero voices, iteration 117's lesson), only this system, 200 warm-up runs and 20 000 timed, `cargo test --release --lib`, three runs
+on a shared machine. Voices: `Voice` and, where owned, `VoiceOwner`; placed ones also `Follows` and a `Transform`; every owner has a `Transform` and a `GlobalTransform`, so a placed voice follows every frame.
+
+end_and_follow, µs a frame
+                                    run 1    run 2    run 3
+  256 voices, none owned            0.058    0.047    0.044     (the archetype filter skips them: the system's own overhead)
+  8 owned, placed                   0.189    0.110    0.099
+  64 owned, placed                  0.509    0.425    0.446
+  256 owned, placed                 1.507    1.627    1.641     (about 6 ns a voice: an `Entities` lookup, a `GlobalTransform` lookup, one affine transform)
+  256 owned, not placed             1.139    1.163    1.195     (about 4.5 ns a voice)
+
+Prediction P8 (≤ 2 µs at 256 owned, placed voices; nothing measurable with none): held — 1.5 – 1.6 µs, and 0.05 µs with none owned. For scale, `update_mix` at 256 voices is 0.4 – 1.3 µs in `perfcheck` (the same machine, evidence/after/perfcheck.txt).

@@ -1,0 +1,25 @@
+BEFORE — iteration 118's tree; an excerpt of evidence/before/owner-probe-on-the-unchanged-tree.txt. A spatial loop cue, a listener at the origin; Play::on(owner).at((100, 0, 0)) where the owner is placed three ways, then an owner that is
+allocated and not spawned (world.entity_allocator().alloc(), what Commands::spawn returns before its command applies).
+
+-- .on(owner).at(world): the owner is AT (100.0, 0.0, 0.0), spawned two frames earlier
+[owner at the place] voice 49v0 `c`: ChildOf = 48v0, local = (100.0, 0.0, 0.0), global = (200.0, 0.0, 0.0), compensation = 80.00 dB
+-- .on(owner).at(world): the owner is a bare entity with no Transform
+[owner without a transform] voice 49v0 `c`: ChildOf = 48v0, local = (100.0, 0.0, 0.0), global = (0.0, 0.0, 0.0), compensation = 80.00 dB
+-- the owner 48v0 is allocated and not spawned when the play is answered
+thread 'main' panicked at …/bevy_ecs-0.20.1/src/error/handler.rs:128:1:
+Encountered an error in command `<Enable the debug feature to see the name>`: Entity not yet spawned: The entity with ID 48v0 is not spawned
+RESULT after the first frame: PANIC (see above)
+-- the owner was gone before the play was answered; 30 frames later
+[vanished owner] 1 voice(s), 1 counted on Effects; played = ["c -> s at 0.00 dB"]
+
+AFTER — this change; an excerpt of evidence/after/owner-probe-after.txt. The same probe.
+
+-- .on(owner).at(world): the owner is AT (100.0, 0.0, 0.0), spawned two frames earlier
+[owner at the place] voice 49v0 `c`: ChildOf = none, local = (100.0, 0.0, 0.0), global = (100.0, 0.0, 0.0), compensation = 80.00 dB
+-- .on(owner).at(world): the owner is a bare entity with no Transform
+[owner without a transform] voice 49v0 `c`: ChildOf = none, local = (100.0, 0.0, 0.0), global = (100.0, 0.0, 0.0), compensation = 80.00 dB
+-- the owner 48v0 is allocated and not spawned when the play is answered
+RESULT after the first frame: no panic
+-- the owner was gone before the play was answered; 30 frames later
+[vanished owner] 0 voice(s), 0 counted on Effects; played = ["c -> s at 0.00 dB"]
+[vanished owner] log: 0.00s stopped `c`: owner despawned

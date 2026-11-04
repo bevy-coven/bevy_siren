@@ -47,8 +47,8 @@ pub fn start_pending(
     // [`MixerVoice`] and the query above skips it.
     playing: Query<(Entity, &MixerVoice, &Voice)>,
     // **The starts this system handed out, kept where the entity cannot take them with it.** A voice's mixer number
-    // lives in a component on the voice entity, so despawning that entity — which is what happens when a game despawns
-    // the parent a `Play::on` sound belongs to — destroys the number and leaves the `rodio` player sounding with its slot
+    // lives in a component on the voice entity, so despawning that entity — which `owner::end_and_follow` does when a game
+    // despawns the owner a `Play::on` sound belongs to — destroys the number and leaves the `rodio` player sounding with its slot
     // held for ever. Measured: one voice started, the owner despawned, `stop_voice` **never called**.
     mut starts: Local<Vec<(Entity, String, usize)>>,
     mut refused: MessageWriter<Refused>,
@@ -58,13 +58,10 @@ pub fn start_pending(
     let (Some(mut output), Some(assets)) = (output, assets) else {
         return;
     };
-    // **Stop whatever the world has taken.** A start whose entity is not among `playing` was despawned by its owner;
-    // its slot must be freed, exactly as `retire_voices` frees one whose sample ended. One retain over the starts this
-    // system made, and no per-frame allocation beyond the list it already keeps.
-    // **The slot is freed here; the *sentence* is not written here.** The mixer number lives in a component on the voice
-    // entity, so a despawned owner destroys it and `stop_voice` is never called — measured before iteration 7. One
-    // despawn, one line: `log_despawned_voices` covers **both** backends, and writing it in this `retain` too put
-    // `owner despawned` in the log twice on the mixer, which the iteration-43 test caught.
+    // **Stop whatever the world has taken.** A start whose entity is not among `playing` was despawned — by `owner::end_and_follow` when its owner went, or by the game; its slot must be freed, exactly as `retire_voices`
+    // frees one whose sample ended. One retain over the starts this system made, and no per-frame allocation beyond the list it already keeps.
+    // **The slot is freed here; the *sentence* is not written here.** The mixer number lives in a component on the voice entity, so a despawned voice destroys it and `stop_voice` is never called — measured before iteration 7.
+    // One despawn, one line: `owner::end_and_follow` writes `owner despawned` for **both** backends, and writing it in this `retain` too put it in the log twice on the mixer, which the iteration-43 test caught.
     starts.retain(|(entity, bus, index)| {
         if playing.get(*entity).is_ok() {
             return true;

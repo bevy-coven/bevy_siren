@@ -137,6 +137,14 @@ one line a game would write and run it through the scenarios that **end** the th
 (`tests/one_answer.rs`: *each play is answered once, and a `Played` entity that is gone is explained by a `stopped` line*) — the first form, *"a `Played` entity exists when the frame ends"*, was red for an **intended** behaviour (a voice stolen in the frame it
 was announced never sounded and is despawned in it), so the promise was narrowed and the exception written where a game reads it (`Played::entity`'s doc). **Mutate the guard to see which test notices** (hook ignored, answer ignored, one memo for two askers, no
 memo, the real backend's check always `None`): five switches, each reddened the tests that guard it and no others needed.
+
+**A relationship is three things at once — a lifetime, a transform and a hook — and a crate that wants one of them gets the other two.** Iteration 119: `Play::on` made the voice a `ChildOf` of its owner to get *"ends with the owner"*, and running the documented use across
+the **states the owner can be in** (spawned; allocated and not yet spawned; gone; no `Transform`; at the place asked for) found four defects from that one line: a **panic** (the hook queues a command on an entity that does not exist yet — every `Commands::spawn` returns one),
+a sound at **owner ∘ `at`** (12 dB under the law, or **+52 dB over the sample** for an owner with no `Transform`: Bevy never propagates a child of a parent that has none, so the crate's +80 dB panner compensation stood where the panner did nothing), a **loop that lived for ever**, and a
+**false log line**. `grep -n "ChildOf\|add_child\|with_child\|set_parent" src` and ask of each use which of the three it wants. `Entities::get_spawned` tells **alive, pending and gone** apart in a plain system (`&Entities` is a `SystemParam`), and `world.entity_allocator().alloc()`
+then `world.spawn_at(id, ..)` builds the pending state deterministically for a test — an unordered system in a probe reproduces it too, but only by the luck of a topological order. **Ousterhout's *define errors out of existence* (§10.3) and Hunt and Thomas's *crash early* (tip 38)
+are the pair**: crash for what was supposed to be impossible, define away what is merely unusual; a pending owner is the ordinary state of every entity in the frame it is created. And **a sound that will never be heard must take nothing from one that is** — the first cut let a play on a
+gone owner steal a playing voice before it ended (`doomed` in `play_requests` is the fix; the test for it is red when the exemption is switched off and no other is).
 **Run `cargo fmt && cargo clippy --all-targets --all-features -- -D warnings` after every edit, before any test and before the matrix** — it was the first red of the matrix in iterations 115 and 116, and the cargo output a tool summarises shows `Finished`
 and hides the warning that becomes the error.
 

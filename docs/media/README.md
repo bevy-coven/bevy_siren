@@ -159,6 +159,25 @@ python3 docs/media/transcript_png.py docs/media/one-answer.txt docs/media/one-an
 
 Tests: `tests/one_answer.rs` (no device needed) and `tests/mixer.rs::the_real_mixers_decode_error_agrees_with_its_play` (needs one).
 
+## `owner.png` — a sound belongs to its owner without being its child (iteration 119)
+
+![Play::on(owner).at(world) before and after: the voice at (200, 0, 0) for an owner at the place and at the listener for an owner with no Transform, a panic in bevy_ecs's command handler for an owner allocated and not yet spawned, and a loop that lives for ever for an owner already gone; then the voice at (100, 0, 0) in both arrangements, no panic, and the loop ended with a stopped: owner despawned line](owner.png)
+
+`owner.txt` is two verbatim **excerpts**, each naming its evidence file. **Before**, iteration 118's tree: a spatial loop cue and a listener at the origin; `Play::on(owner).at((100, 0, 0))` — the use `Play`'s own doc example writes — with the owner at the place (the voice is at **(200, 0, 0)**: it was a `ChildOf`, so
+Bevy composed the owner's transform with `at`), with an owner that has no `Transform` (the voice is at **(0, 0, 0)**, the listener, because Bevy never propagates a child of a parent that has none; the crate's +80.00 dB compensation stands where the panner does nothing, **+52.04 dB written to the sink**), with
+an owner **allocated and not yet spawned** (`world.entity_allocator().alloc()`, what `Commands::spawn` returns before its command applies: **a panic** in Bevy's command handler), and with an owner already gone (one voice, **for ever**). **After**, the same probe: the voice at **(100, 0, 0)** in both placements, no
+panic, and the loop for a gone owner ended with `stopped: owner despawned`. (The registry path of the panic is abbreviated to `…/` and its trailing hint dropped.) The program is `runs/2026-11-04-119/evidence/after/owner-probe.rs.txt`:
+
+```sh
+cp docs/loop/runs/2026-11-04-119/evidence/after/owner-probe.rs.txt examples/scratch_owner.rs     # it is not kept in examples/
+cargo run --release --example scratch_owner -- placement
+cargo run --release --example scratch_owner -- pending       # and: vanished, despawn-voice, same-frame <unordered|before|pre|post>
+rm examples/scratch_owner.rs
+python3 docs/media/transcript_png.py docs/media/owner.txt docs/media/owner.png              # needs Pillow and macOS's Menlo
+```
+
+Tests: `tests/owner.rs` — no device needed.
+
 ## No clip: iteration 115, an Ogg loop sounds, and is as long as the stream says
 
 No clip: the change is **what a loop of an Ogg Vorbis file sounds like**, on Bevy's path and on the `mixer` backend, and `examples/render` renders no Ogg, so every rendered cue is byte-identical (21 of 21) and the

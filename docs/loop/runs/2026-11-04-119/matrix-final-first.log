@@ -1,0 +1,42 @@
+(first final matrix of this tree, before one more test was added to tests/owner.rs — kept because the counts are the 8-test form; matrix-final.log is the last)
+(started clean of this crate's artifacts; free 4.7 GB)
+=== cargo build   [free 4.7 GB, 03:09:24]
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.93s
+   exit: 0
+=== cargo test   [free 4.7 GB, 03:09:26]
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning
+   1 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+   1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 225 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.72s
+   exit: 0
+=== cargo test --features serde   [free 4.7 GB, 03:09:42]
+   1 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+   1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 234 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+   exit: 0
+=== cargo test --features semantic   [free 4.7 GB, 03:09:58]
+   1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 543 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.70s
+   1 test result: ok. 118 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.18s
+   exit: 0
+=== cargo test --features mixer   [free 4.7 GB, 03:11:03]
+   1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 240 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.75s
+   1 test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+   exit: 0
+=== cargo test --all-features   [free 4.7 GB, 03:11:22]
+   1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 571 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.61s
+   1 test result: ok. 129 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.11s
+   exit: 0
+=== cargo test --doc   [free 4.6 GB, 03:12:31]
+   1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   exit: 0
+=== cargo test --features readme-example --test all readme::   [free 4.6 GB, 03:12:36]
+   1 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   exit: 0
+=== cargo build --examples / --all-features: exit 0 (the one `example "mixer"` linker warning)
+=== cargo clippy --all-targets --all-features -- -D warnings: exit 0
+=== cargo fmt --check: exit 0
+=== cargo doc --no-deps --all-features: exit 0
+=== matrix done 03:13:13

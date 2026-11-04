@@ -56,6 +56,23 @@ The same rule runs the other way: **a cue that is not spatial is never placed**,
 non-spatial cue with `.at(..)` is flat — the position is ignored — because the crate applies no distance law a project
 did not write, and applying the backend's own was a bug that made a "flat" cue 38 dB down while the log said 0 dB.
 
+## A sound that belongs to an entity
+
+```rust
+play.write(Play::cue("engine").on(vehicle).at(vehicle_position));
+```
+
+`.at(position)` is **always a world position**, and `.on(entity)` says whose the sound is. The crate's distance law, its compensation for the backend's panner and the panner itself all read that one place — so the level a player
+hears is the level the cue's `Attenuation` says at `position`, whatever the owner's transform is, and an owner with **no** `Transform` is fine. (The voice used to be a child of its owner, so it sat at *owner ∘ position*: 12 dB under the
+law for an owner at the place, and 52 dB over the sample for an owner with no `Transform` — Bevy never propagates a child of a parent that has none.)
+
+On Bevy's path a placed sound then **follows** its owner: the first frame the owner's `GlobalTransform` has been propagated the crate fixes the sound's offset in the owner's space, and every frame after, the sound's `Transform` is the owner's
+`GlobalTransform` applied to that offset — so a turned owner turns the offset, and the pan follows. The lag is the owner's previous-frame transform, at most one frame. The distance *law* does not track a moving owner (the compensation
+is fixed at the play, as it is for the `mixer` feature); the pan does.
+
+The sound ends when the owner is despawned, with `stopped: owner despawned` in the log. An owner spawned through `Commands` in the same frame as the play is waited for; one that is already gone ends the sound in its frame, and takes
+no voice from one that is playing. A spatial cue played `.on(owner)` with **no** `.at(..)` is still flat — it is placed only where it was asked to be.
+
 ## The two backends
 
 With Bevy's `AudioPlayer` (the default), a spatial voice goes through Bevy's two-ear `SpatialPlayer`, which pans by the

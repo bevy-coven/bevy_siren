@@ -1,0 +1,23 @@
+Iteration 119, `cargo run --release --example perfcheck`, three runs in one session on a shared machine, verbatim. `update_mix`'s cost per frame — which this change does not touch; the new system's own cost is in owner-system-cost.txt.
+
+== perfcheck run 1
+voices      us/frame        us/voice
+     8         0.062          0.0078
+    64         0.359          0.0056
+   256         1.225          0.0048
+
+upper bound: every voice is costed, including the ones update_mix skips because their gain did not move
+== perfcheck run 2
+voices      us/frame        us/voice
+     8         0.057          0.0072
+    64         0.322          0.0050
+   256         1.169          0.0046
+
+upper bound: every voice is costed, including the ones update_mix skips because their gain did not move
+== perfcheck run 3
+voices      us/frame        us/voice
+     8         0.057          0.0072
+    64         0.304          0.0047
+   256         1.053          0.0041
+
+upper bound: every voice is costed, including the ones update_mix skips because their gain did not move

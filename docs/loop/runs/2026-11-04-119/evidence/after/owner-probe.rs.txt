@@ -1,0 +1,214 @@
+//! SCRATCH (iteration 119): what `Play::on(owner)` does, run the way a game would use it. Headless, Bevy's path, `TransformPlugin` so a voice's `GlobalTransform` is what Bevy's panner would read.
+//!
+//! `scratch_owner placement`            `.at(world)` alone; `.on(owner).at(world)` with an owner AT that world position; with an owner that has no `Transform`
+//! `scratch_owner same-frame <where>`   an owner spawned through `Commands` in the system that writes `Play::on(owner)` (`unordered`, `before`, `pre`, `post`), then the owner despawned
+//! `scratch_owner vanished`             an owner despawned before the play is answered, a loop
+
+use std::sync::Arc;
+
+use bevy::asset::AssetPlugin;
+use bevy::audio::{AudioSource, SpatialListener};
+use bevy::prelude::*;
+use bevy::transform::TransformPlugin;
+use bevy_siren::*;
+
+const TONE: &[u8] = include_bytes!("../tests/fixtures/tone.ogg");
+const WORLD: Vec3 = Vec3::new(100.0, 0.0, 0.0);
+
+#[derive(Resource, Default)]
+struct Seen {
+    played: Vec<String>,
+}
+
+fn tally(mut played: MessageReader<Played>, mut seen: ResMut<Seen>) {
+    for p in played.read() {
+        seen.played.push(format!("{} -> {} at {:.2} dB", p.cue, p.sound, p.gain_db));
+    }
+}
+
+fn base(spatial: bool) -> App {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default(), TransformPlugin))
+        .init_asset::<AudioSource>()
+        .add_plugins(SirenPlugin);
+    app.world_mut().remove_resource::<Output>();
+    app.init_resource::<Seen>().add_systems(PostUpdate, tally);
+    app.insert_resource(CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("s")],
+        mode: Mode::Loop,
+        spatial,
+        ..Cue::new("c")
+    }]));
+    let handle =
+        app.world_mut().resource_mut::<Assets<AudioSource>>().add(AudioSource { bytes: Arc::from(TONE) });
+    app.world_mut().resource_mut::<SirenSounds>().insert("s", handle);
+    app.world_mut().spawn((SpatialListener::new(0.2), Transform::default(), GlobalTransform::default()));
+    app
+}
+
+fn fmt(v: Vec3) -> String {
+    format!("({:.1}, {:.1}, {:.1})", v.x, v.y, v.z)
+}
+
+fn frames(app: &mut App, n: usize) {
+    for _ in 0..n {
+        app.update();
+    }
+}
+
+fn report(app: &mut App, what: &str) {
+    let world = app.world_mut();
+    let mut voices = world.query::<(
+        Entity,
+        &Voice,
+        Option<&ChildOf>,
+        Option<&Transform>,
+        Option<&GlobalTransform>,
+        Option<&Compensation>,
+    )>();
+    let mut n = 0;
+    for (entity, voice, parent, local, global, compensation) in voices.iter(world) {
+        n += 1;
+        println!(
+            "[{what}] voice {entity:?} `{}`: ChildOf = {}, local = {}, global = {}, compensation = {}",
+            voice.cue,
+            parent.map_or("none".to_owned(), |p| format!("{:?}", p.parent())),
+            local.map_or("none".to_owned(), |t| fmt(t.translation)),
+            global.map_or("none".to_owned(), |g| fmt(g.translation())),
+            compensation.map_or("none".to_owned(), |c| format!("{:.2} dB", c.db)),
+        );
+    }
+    println!(
+        "[{what}] {n} voice(s), {} counted on Effects; played = {:?}",
+        world.resource::<SirenMix>().voices_on("Effects"),
+        world.resource::<Seen>().played
+    );
+    for entry in world.resource::<SirenLog>().iter() {
+        println!("[{what}] log: {}", entry.line());
+    }
+}
+
+fn placement() {
+    println!("the listener is at the origin; the world position asked for is {}", fmt(WORLD));
+
+    let mut app = base(true);
+    app.world_mut().write_message(Play::cue("c").at(WORLD));
+    frames(&mut app, 3);
+    println!("-- control: .at(world), no owner");
+    report(&mut app, "no owner");
+
+    let mut app = base(true);
+    let owner = app.world_mut().spawn(Transform::from_translation(WORLD)).id();
+    frames(&mut app, 2);
+    app.world_mut().write_message(Play::cue("c").on(owner).at(WORLD));
+    frames(&mut app, 3);
+    println!(
+        "-- .on(owner).at(world): the owner is AT {} (its own Transform), spawned two frames earlier",
+        fmt(WORLD)
+    );
+    report(&mut app, "owner at the place");
+
+    let mut app = base(true);
+    let owner = app.world_mut().spawn_empty().id();
+    frames(&mut app, 2);
+    app.world_mut().write_message(Play::cue("c").on(owner).at(WORLD));
+    frames(&mut app, 3);
+    println!("-- .on(owner).at(world): the owner is a bare entity with no Transform");
+    report(&mut app, "owner without a transform");
+}
+
+#[derive(Resource)]
+struct TheOwner(Entity);
+
+fn spawn_and_play(mut commands: Commands, mut play: MessageWriter<Play>, mut done: Local<bool>) {
+    if *done {
+        return;
+    }
+    *done = true;
+    let owner = commands.spawn(Transform::from_translation(WORLD)).id();
+    commands.insert_resource(TheOwner(owner));
+    play.write(Play::cue("c").on(owner));
+}
+
+fn same_frame(place: &str) {
+    let mut app = base(false);
+    match place {
+        "before" => app.add_systems(Update, spawn_and_play.before(SirenSystems::Choose)),
+        "pre" => app.add_systems(PreUpdate, spawn_and_play),
+        "post" => app.add_systems(PostUpdate, spawn_and_play),
+        _ => app.add_systems(Update, spawn_and_play),
+    };
+    frames(&mut app, 3);
+    println!(
+        "-- the owner is spawned through Commands in the system that writes the play ({place}); three frames later"
+    );
+    report(&mut app, "after 3 frames");
+    let owner = app.world().resource::<TheOwner>().0;
+    app.world_mut().despawn(owner);
+    frames(&mut app, 3);
+    println!("-- the owner despawned; three frames later");
+    report(&mut app, "owner despawned");
+}
+
+fn vanished() {
+    let mut app = base(false);
+    let owner = app.world_mut().spawn_empty().id();
+    app.world_mut().despawn(owner);
+    app.world_mut().write_message(Play::cue("c").on(owner));
+    frames(&mut app, 30);
+    println!("-- the owner was gone before the play was answered; 30 frames later");
+    report(&mut app, "vanished owner");
+}
+
+/// The state the same-frame spawn is in when the play is answered, built deterministically: an entity id that is allocated and not yet spawned — what `Commands::spawn` hands back before its command is applied.
+fn pending() {
+    let mut app = base(false);
+    let owner = app.world().entity_allocator().alloc();
+    app.world_mut().write_message(Play::cue("c").on(owner));
+    println!("-- the owner {owner:?} is allocated and not spawned when the play is answered");
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| frames(&mut app, 1)));
+    println!(
+        "RESULT after the first frame: {}",
+        if result.is_ok() { "no panic" } else { "PANIC (see above)" }
+    );
+    if result.is_ok() {
+        app.world_mut()
+            .spawn_at(owner, Transform::from_translation(WORLD))
+            .expect("the reserved id takes its entity");
+        frames(&mut app, 2);
+        report(&mut app, "owner spawned");
+        app.world_mut().despawn(owner);
+        frames(&mut app, 2);
+        println!("-- the owner despawned");
+        report(&mut app, "owner despawned");
+    }
+}
+
+/// A game that despawns a voice it was told about, while the owner lives: the log should not say the owner despawned.
+fn despawn_voice() {
+    let mut app = base(false);
+    let owner = app.world_mut().spawn_empty().id();
+    frames(&mut app, 1);
+    app.world_mut().write_message(Play::cue("c").on(owner));
+    frames(&mut app, 2);
+    let voice =
+        app.world_mut().query_filtered::<Entity, With<Voice>>().iter(app.world()).next().expect("a voice");
+    app.world_mut().despawn(voice);
+    frames(&mut app, 2);
+    println!("-- the game despawned the voice itself; the owner is alive");
+    report(&mut app, "voice despawned by the game");
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
+        ["placement"] => placement(),
+        ["same-frame", place] => same_frame(place),
+        ["vanished"] => vanished(),
+        ["pending"] => pending(),
+        ["despawn-voice"] => despawn_voice(),
+        _ => eprintln!(
+            "usage: placement | same-frame <unordered|before|pre|post> | vanished | pending | despawn-voice"
+        ),
+    }
+}

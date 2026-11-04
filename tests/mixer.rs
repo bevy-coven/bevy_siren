@@ -478,7 +478,7 @@ fn the_real_mixers_decode_error_agrees_with_its_play() {
 /// **A voice whose entity is despawned frees its mixer slot.**
 ///
 /// The mixer's number for a voice lives in a component on the voice entity, so despawning that entity — which is what
-/// happens when a game despawns the parent a `Play::on` sound belongs to — destroyed the number and left the `rodio`
+/// happens when a game despawns the owner a `Play::on` sound belongs to — destroyed the number and left the `rodio`
 /// player sounding with its slot held **for ever**. Measured before this: one voice started, the owner despawned,
 /// `stop_voice` **never called**. Bevy's path was never affected (the sink is a component on the same entity, so it dies
 /// with it); this is the two-backend divergence the crate promises not to have.
@@ -543,11 +543,11 @@ fn a_despawned_voices_mixer_slot_is_freed() {
     assert_eq!(why, "owner despawned", "the reason names the mechanism, not the game's `stop`");
 }
 
-/// **A parented voice says it stopped on the backend that has no slot to free.** `Start` in `start_pending` notices a
-/// despawned owner only where the mixer owns playback; the voice entity itself dies with its owner, so a system that
-/// queries voices sees nothing and writes nothing. `retire_voices` now reads the `ChildOf` a `Play::on` inserts and, on
-/// the frame the owner is gone but the voice is still readable, writes the same `owner despawned` line — so the two
-/// backends answer identically, which is the crate's rule.
+/// **An owned voice says it stopped on the backend that has no slot to free.** `start_pending` notices a
+/// despawned owner only where the mixer owns playback, and on Bevy's path the voice has no mixer slot to free at all.
+/// `owner::end_and_follow` reads each owned voice's owner on **both** backends and, on the frame the owner is gone, writes
+/// the same `owner despawned` line and despawns the voice — so the two backends answer identically, which is the crate's
+/// rule. (Before iteration 119 the voice was the owner's `ChildOf` and `log_despawned_voices` read the relationship.)
 #[test]
 fn a_despawned_owner_is_logged_once() {
     use bevy_siren::SirenMix;

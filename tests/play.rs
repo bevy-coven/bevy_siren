@@ -732,8 +732,8 @@ fn pick_without_keys_still_avoids_indices() {
     assert!(!index_picks.windows(2).any(|w| w[0] == w[1]), "{index_picks:?}");
 }
 
-/// **A sound on a despawned owner says it stopped, on both backends.** `Play::on` inserts `ChildOf(owner)`, so
-/// despawning the owner despawns the voice — the ordinary end of a sound on a vehicle or a torch. Before this, neither
+/// **A sound on a despawned owner says it stopped, on both backends.** `Play::on` gives the voice a `VoiceOwner`, so
+/// despawning the owner ends the voice — the ordinary end of a sound on a vehicle or a torch. Before this, neither
 /// backend logged it: the crate's mixer freed the slot silently in `start_pending`, and Bevy's path had no entity left
 /// for `retire_voices` to see. The log's last word about such a sound stayed `played` while the mix counted one fewer
 /// voice, which is the one end path that had no line against `"ended"`, `"stop"`, `"cue stopped"` and `"stolen by …"`.
@@ -748,7 +748,7 @@ fn a_despawned_owner_stops_its_sound_and_says_so() {
         ..Cue::new("engine")
     }]);
     let mut app = app_with(table, sounds(&["engine"]));
-    // A parented voice needs a parent that can hold a child, and a `GlobalTransform` so it can be placed.
+    // An owner is any entity; one with a `Transform` and a `GlobalTransform` is one a placed sound can follow.
     let owner = app.world_mut().spawn((Transform::default(), GlobalTransform::default())).id();
     app.update();
     app.world_mut().write_message(Play::cue("engine").on(owner));

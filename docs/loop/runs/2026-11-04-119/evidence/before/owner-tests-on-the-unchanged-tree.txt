@@ -1,0 +1,67 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.53s
+     Running tests/all.rs (target/debug/deps/all-bef009fc5a82eb4f)
+
+running 6 tests
+test owner::an_owner_that_is_not_spawned_yet_does_not_crash_the_game ... FAILED
+test owner::a_gone_owners_voice_is_never_started_on_the_crates_mixer ... FAILED
+test owner::a_sound_on_an_owner_that_is_already_gone_ends_in_its_frame_and_says_so ... FAILED
+test owner::a_sound_is_where_it_was_asked_to_be_whatever_its_owner_is ... FAILED
+test owner::a_game_that_despawns_a_voice_is_not_told_the_owner_did ... FAILED
+test owner::a_placed_sound_follows_its_owner ... FAILED
+
+failures:
+
+---- owner::an_owner_that_is_not_spawned_yet_does_not_crash_the_game stdout ----
+
+thread 'owner::an_owner_that_is_not_spawned_yet_does_not_crash_the_game' (13007564) panicked at /Users/rebekahbrittain/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_ecs-0.20.1/src/error/handler.rs:128:1:
+Encountered an error in command `<Enable the debug feature to see the name>`: Entity not yet spawned: The entity with ID 47v0 is not spawned; enable `track_location` feature for more details.
+Note that interacting with a not-yet-spawned entity is the most common cause of this error but there are others
+
+    If you were attempting to apply a command to this entity,
+    and want to handle this error gracefully, consider using `EntityCommands::queue_handled` or `queue_silenced`.
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- owner::a_gone_owners_voice_is_never_started_on_the_crates_mixer stdout ----
+
+thread 'owner::a_gone_owners_voice_is_never_started_on_the_crates_mixer' (13007560) panicked at tests/owner.rs:260:5:
+assertion `left == right` failed: a gone owner's voice is not started: ["0.00s played `engine` (engine) on Effects at 0.00 dB", "0.00s stopped `engine`: stolen by engine (cue)", "0.00s played `engine` (engine) on Effects at 0.00 dB", "0.00s stopped `engine`: owner despawned"]
+  left: 2
+ right: 1
+
+---- owner::a_sound_on_an_owner_that_is_already_gone_ends_in_its_frame_and_says_so stdout ----
+
+thread 'owner::a_sound_on_an_owner_that_is_already_gone_ends_in_its_frame_and_says_so' (13007563) panicked at tests/owner.rs:97:5:
+assertion `left == right` failed: a loop on an owner that is gone does not live for ever
+  left: 1
+ right: 0
+
+---- owner::a_sound_is_where_it_was_asked_to_be_whatever_its_owner_is stdout ----
+
+thread 'owner::a_sound_is_where_it_was_asked_to_be_whatever_its_owner_is' (13007562) panicked at tests/owner.rs:150:9:
+an owner at the place: the voice is at [200, 0, 0], asked for [100, 0, 0]
+
+---- owner::a_game_that_despawns_a_voice_is_not_told_the_owner_did stdout ----
+
+thread 'owner::a_game_that_despawns_a_voice_is_not_told_the_owner_did' (13007559) panicked at tests/owner.rs:211:5:
+assertion `left == right` failed: the owner is alive, and the log does not say it despawned: ["0.00s played `engine` (engine) on Effects at 0.00 dB", "0.00s stopped `engine`: owner despawned"]
+  left: 1
+ right: 0
+
+---- owner::a_placed_sound_follows_its_owner stdout ----
+
+thread 'owner::a_placed_sound_follows_its_owner' (13007561) panicked at tests/owner.rs:175:5:
+the owner moved by (10, 0, 0) and the voice is at [210, 0, 0]
+
+
+failures:
+    owner::a_game_that_despawns_a_voice_is_not_told_the_owner_did
+    owner::a_gone_owners_voice_is_never_started_on_the_crates_mixer
+    owner::a_placed_sound_follows_its_owner
+    owner::a_sound_is_where_it_was_asked_to_be_whatever_its_owner_is
+    owner::a_sound_on_an_owner_that_is_already_gone_ends_in_its_frame_and_says_so
+    owner::an_owner_that_is_not_spawned_yet_does_not_crash_the_game
+
+test result: FAILED. 0 passed; 6 failed; 0 ignored; 0 measured; 217 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `--test all`

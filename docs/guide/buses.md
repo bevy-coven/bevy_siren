@@ -111,8 +111,17 @@ stops voices to make room in this order: the cue's own polyphony, its bus's cap,
   says 32 voices gets 32 rather than 33 with a warning.
 - **A sound `Play::on` hung from an entity stops when that entity is despawned, and says so.** The line is
   `stopped \`engine.idle\`: owner despawned`, alongside `ended` (the sample finished), `stop` and `cue stopped` (the
-  game asked) and `stolen by <cue> (<cap>)` (the budget). A game that despawns a voice it never parented gets no line:
-  `Play::on` is the only path that parents, so it is the only path where a vanished voice is the *owner's* doing.
+  game asked) and `stolen by <cue> (<cap>)` (the budget). The voice **belongs** to its owner and is **not its child**
+  (`VoiceOwner`, not `ChildOf`): an owner spawned through `Commands` in the same frame as the play is waited for, not
+  a crash; an owner that is already gone ends the sound in the frame it was played — `played`, then `stopped … owner
+  despawned`, taking no voice from one that is playing; and a game that despawns a voice itself, owner alive, gets no
+  line, because the only thing that writes `owner despawned` is the owner's own end.
+- **`Play::at` is a world position, and a placed sound follows its owner.** `.on(foot).at(world)` puts the sound at
+  `world` whatever the foot's transform is — the crate's distance law, its compensation for the backend's panner and the
+  panner all see the same place — and, on Bevy's path, keeps it at the same offset in the foot's space as the foot
+  moves and turns, with a lag of at most one frame. An owner with no `Transform` has nothing to follow: its sound stays
+  where it was put. (Before this, the voice was a child, so it sat at *owner ∘ position*: 12 dB under the law for an
+  owner at the place, and 52 dB over the sample for an owner with no `Transform`.)
 - **A steal says which cap took the voice.** Where the refusal names its bus, a *steal* names the budget:
   `stolen by footstep.grass (cue)` when the cue's `max_instances` was full, `(bus)` for its bus's `max_voices`, `(table)`
   for the whole mix's. Three numbers, three edits — raise the cue's `x2`, the bus's budget, or the table's.

@@ -1,0 +1,77 @@
+Iteration 119, the tree at a71a264 (= origin/main). `examples/scratch_owner.rs` (kept as evidence/after/owner-probe.rs.txt), release, headless, Bevy's path, `TransformPlugin` added so a voice's
+GlobalTransform is what Bevy's panner reads. A spatial loop cue `c` (default Inverse attenuation, 4 m, rolloff 1), a SpatialListener at the origin. Output verbatim, one run per mode.
+
+=== scratch_owner placement
+the listener is at the origin; the world position asked for is (100.0, 0.0, 0.0)
+-- control: .at(world), no owner
+[no owner] voice 48v0 `c`: ChildOf = none, local = (100.0, 0.0, 0.0), global = (100.0, 0.0, 0.0), compensation = 80.00 dB
+[no owner] 1 voice(s), 1 counted on Effects; played = ["c -> s at -27.96 dB"]
+[no owner] log: 0.00s played `c` (s) on Effects at -27.96 dB
+-- .on(owner).at(world): the owner is AT (100.0, 0.0, 0.0) (its own Transform), spawned two frames earlier
+[owner at the place] voice 49v0 `c`: ChildOf = 48v0, local = (100.0, 0.0, 0.0), global = (200.0, 0.0, 0.0), compensation = 80.00 dB
+[owner at the place] 1 voice(s), 1 counted on Effects; played = ["c -> s at -27.96 dB"]
+[owner at the place] log: 0.00s played `c` (s) on Effects at -27.96 dB
+-- .on(owner).at(world): the owner is a bare entity with no Transform
+[owner without a transform] voice 49v0 `c`: ChildOf = 48v0, local = (100.0, 0.0, 0.0), global = (0.0, 0.0, 0.0), compensation = 80.00 dB
+[owner without a transform] 1 voice(s), 1 counted on Effects; played = ["c -> s at -27.96 dB"]
+[owner without a transform] log: 0.00s played `c` (s) on Effects at -27.96 dB
+
+=== scratch_owner same-frame unordered   (a game system spawns the owner through Commands and writes Play::on(owner) in the same system, unordered against the crate's sets)
+
+thread 'main' (12999451) panicked at /Users/rebekahbrittain/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_ecs-0.20.1/src/error/handler.rs:128:1:
+Encountered an error in command `<Enable the debug feature to see the name>`: Entity not yet spawned: The entity with ID 48v0 is not spawned; enable `track_location` feature for more details.
+Note that interacting with a not-yet-spawned entity is the most common cause of this error but there are others
+
+    If you were attempting to apply a command to this entity,
+    and want to handle this error gracefully, consider using `EntityCommands::queue_handled` or `queue_silenced`.
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+=== scratch_owner same-frame before    (the same system ordered `.before(SirenSystems::Choose)`: Bevy inserts a sync point, the owner exists when the play is answered)
+-- the owner is spawned through Commands in the system that writes the play (before); three frames later
+[after 3 frames] voice 50v0 `c`: ChildOf = 48v0, local = none, global = none, compensation = 0.00 dB
+[after 3 frames] 1 voice(s), 1 counted on Effects; played = ["c -> s at 0.00 dB"]
+[after 3 frames] log: 0.00s played `c` (s) on Effects at 0.00 dB
+-- the owner despawned; three frames later
+[owner despawned] 0 voice(s), 0 counted on Effects; played = ["c -> s at 0.00 dB"]
+[owner despawned] log: 0.00s played `c` (s) on Effects at 0.00 dB
+[owner despawned] log: 0.00s stopped `c`: owner despawned
+
+=== scratch_owner same-frame pre       (PreUpdate: the commands are applied before Update)
+(the same output as `before`: ChildOf = 48v0; after the despawn, "stopped `c`: owner despawned")
+
+=== scratch_owner same-frame post      (PostUpdate: the message is read next frame, by when the owner exists)
+(the same output as `before`)
+
+=== scratch_owner vanished
+-- the owner was gone before the play was answered; 30 frames later
+[vanished owner] voice 49v0 `c`: ChildOf = none, local = none, global = none, compensation = 0.00 dB
+[vanished owner] 1 voice(s), 1 counted on Effects; played = ["c -> s at 0.00 dB"]
+[vanished owner] log: 0.00s played `c` (s) on Effects at 0.00 dB
+
+=== scratch_owner pending      (the same state as the unordered spawn, built deterministically: `world.entity_allocator().alloc()`, not yet spawned)
+-- the owner 48v0 is allocated and not spawned when the play is answered
+
+thread 'main' (13004168) panicked at /Users/rebekahbrittain/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_ecs-0.20.1/src/error/handler.rs:128:1:
+Encountered an error in command `<Enable the debug feature to see the name>`: Entity not yet spawned: The entity with ID 48v0 is not spawned; enable `track_location` feature for more details.
+Note that interacting with a not-yet-spawned entity is the most common cause of this error but there are others
+
+    If you were attempting to apply a command to this entity,
+    and want to handle this error gracefully, consider using `EntityCommands::queue_handled` or `queue_silenced`.
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+RESULT after the first frame: PANIC (see above)
+
+=== scratch_owner despawn-voice   (the game despawns the voice entity itself while its owner is alive)
+-- the game despawned the voice itself; the owner is alive
+[voice despawned by the game] 0 voice(s), 0 counted on Effects; played = ["c -> s at 0.00 dB"]
+[voice despawned by the game] log: 0.00s played `c` (s) on Effects at 0.00 dB
+[voice despawned by the game] log: 0.00s stopped `c`: owner despawned
+
+Reading it: four defects, one cause — `Play::on` parents the voice with `ChildOf(owner)`.
+ 1. A PANIC in Bevy's command handler when the owner is allocated and not yet spawned (`unordered`, `pending`): the relationship hook queues a command on an entity that does not exist yet.
+ 2. A placed sound is at the owner's transform composed with `.at(world)`: (200, 0, 0) for an owner at (100, 0, 0), and (0, 0, 0) — the listener's own position — for an owner with no Transform.
+    The crate's level is computed for 100 m: Played.gain_db -27.96 dB and a compensation of +80.00 dB that divides out the panner's min(1, 1/d^2) at 100 m (rodio-0.22.2 source/spatial.rs:63). The panner sees 200 m — 12.04 dB quieter than
+    the crate meant (20 log10((100/200)^2), by arithmetic from the measured positions) — or ~0 m, where min(1, 1/d^2) is 1 and the +80 dB stands: the sink is written -27.96 + 80.00 = +52.04 dB, 400 times the sample, where the law says -27.96 dB.
+ 3. An owner that was gone before the play: a voice with no ChildOf, a loop that lives for ever, the log saying only `played`.
+ 4. A log line that is false: the game despawned the voice, the owner is alive, the log says `owner despawned`.
