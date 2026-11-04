@@ -7,6 +7,91 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 110 — 2026-11-03 — the first real run, and what 109 tests could not say
+
+**Change.** `#38`: **`examples/semantic`** — index a folder, describe a sound, read the top results with the reason for each, and
+hear one through `SirenPlugin`'s own `Play` — and **`tools/export_clap_onnx.py`**, which makes the two graphs, the tokenizer and an
+export-version line from the weights in a Hugging Face cache, checking each wrapper against the model before it writes.
+`ModelStamp::clap(version)` and `--model-version` (on `siren-tools` and the example) let an index name the export that made it.
+`docs/media/semantic.png` is the example's verbatim output, drawn.
+
+**Rationale — the weights were on this Mac the whole time.** Iteration 109's closing said a real run *"cannot [be had] on this
+Mac: that needs the CLAP audio and text graphs"* and that `search_music` *"has run only against a 16 KB fixture; the 501 MB graph is
+not on this Mac"*. Both were read off a directory listing, not from looking for the weights: `~/.cache/huggingface` holds
+`laion/clap-htsat-fused`, and torch, transformers and onnx are in the system Python. The export takes **6 s**. So `#38` was never
+waiting on a GPU host or on `#33`, and item 3 of that list came free with it.
+
+**The first real run found what 109 tests could not.** (1) **0 of 14 files indexed** — ORT: `Reshape_2` … *"Input shape
+{0,96,64,3,21}, requested {0,96,64,-1}"*. HF's extractor marks one clip of every fused batch `is_longer = True`, even a lone
+one-second clip, which switches on HTSAT's local-mel fusion branch; the trace baked that branch in, and the crate sends `false`
+(it chunks past ten seconds), which ran it on an empty batch. `get_audio_features` and the path the crate runs differ by cosine
+**0.72–0.83**. The script now traces `is_longer = false` and keeps it a real input — the exporter drops an unused one, which was
+a second failure (*"Invalid input name: is_longer"*). (2) **The example had written an empty index** and then answered *"nothing
+matched"*, blaming the description for a graph that could not run; it now refuses to write one.
+
+**Proved against the reference.** 5 phrases × 14 real files, `transformers` computed pair by pair: largest difference
+**4.89 × 10⁻⁴** (the example prints three decimals), the same ranking order on every phrase (`evidence/after/parity.txt`). A real
+played run: `Played audition.89f4c994c2850cba on the Music bus at +0.0 dB, variant Sosumi.wav`, then the voice ended and the run
+exited 0. `siren-tools` driven with the real text graph: start-up **0.9 s**, `search_music` **4.6–5.6 ms**, the first hit's score
+the example's to eight digits.
+
+**Two documented claims the run falsified.** The README said *"a 5 000-clip library costs seconds, not minutes"*; indexing 280 clips
+with the real tower is **16.6 clips/s — 60 ms a clip — so about five minutes for 5 000**. Of the 60 ms, **35 ms is the tower and 26 ms
+is this crate's own mel spectrogram**: I had written *"the tower is nearly all of it"* before timing it. And the README and the
+guide said `cargo tree` reads *"the same 413 lines"* with and without `semantic`; it is 413 and **487**. Both are corrected where
+they were said.
+
+**Fresh eyes found more.** `--k 101` printed *"A k of 0 asks for nothing"* — `ToolProblem::BadK`, the message an agent over
+`siren-tools` reads — fixed, with a test that **fails on the old message**. An empty description was refused only after the 501 MB
+text graph had loaded; it is now checked first. The script's docstring called `onnx` optional, and the other Python on this Mac
+disproved it (*"Module onnx is not installed!"*).
+
+**Recorded, not fixed.** The example **rebuilds whole** when the folder changes: `incremental::update` takes a closure and the
+library has no model-backed form of it. The mel stage is 42 % of a clip and runs in series with the tower. A GPU figure (`#36`):
+no GPU here. The script has run in **one** environment (Python 3.9, torch 2.8.0, transformers 4.57.6, onnx 1.19.1) and not on
+transformers 5.x. **No test runs the example or the script** — CI has no model — so a regression is caught by the next person who
+runs them. A person has not heard the played result; the evidence is `Played` and a voice that ended with no *"no audio device"*
+warning.
+
+**Assumed decision (`#38`, second criterion).** *"No GPU prints what is missing and exits non-zero"* is read as *a run that cannot
+work says why and exits non-zero*: a missing model is the failure. This build has no CUDA path (`Device::available()` is `Cpu`,
+unconditionally), so a no-GPU error would be every run; the first line says the run is CPU fp32.
+
+**Evidence.** [`runs/2026-11-03-110/`](runs/2026-11-03-110/) — `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`;
+`evidence/after/` (the render set, `refusal-no-model.txt`, `first-real-run.txt`, `parity.txt`, `parity.py`, `play-real.txt`,
+`edge-cases.txt`, `siren-tools-real-model.txt`, `drive_siren_tools.py`, `throughput-280.txt`), `evidence/before/`,
+`evidence/spectrograms/`.
+
+**No clip:** the program prints text, and the still is that transcript drawn (`docs/media/semantic.png`, regenerated by the commands
+in `docs/media/README.md`). Tests: `a_stamp_names_the_export_that_made_the_vectors`,
+`an_index_from_another_export_is_served_once_its_version_is_given` (a real `siren-tools` process) and
+`a_bad_k_is_explained_by_its_own_case`.
+
+**Baseline:** red on **disk** — 4.6 GB free, the skill's first rank; `cargo clean -p bevy_siren` (1 329 files, 15.0 GiB, provenance
+checked: nothing older than today) → 18 GB. Then green: 199 / 208 / 209 / 109 + 479 / 109 + 503 / 6 doc. After: 199 / 208 / 209 /
+109 lib + **482** semantic / **506** all-features / 6 doc; clippy, fmt and rustdoc clean. **Render: 21 of 21 WAVs byte-identical** to
+109's, −21.5 LUFS, −7.5 dBFS true peak. Per-frame cost 0.018–0.063 / 0.114–0.364 / 0.408–0.765 µs at 8 / 64 / 256 voices, inside the
+recorded bands. **The Cauldron's panel test was not run**: the skill's 14 GB target directory does not fit in the 3.9 GB left, and
+nothing the panel reads changed.
+
+**Verdicts.** Function **GREAT** (after four claims that had outrun their evidence were fixed), zoom **GREAT**, fresh eyes **GREAT**
+(after three fixes). **Commit** `111a900`.
+
+**Top 5 remaining.**
+
+1. **A model-backed incremental update** — `update_from_model`, the filled seam beside `build_from_model` (additive). At 60 ms a clip,
+   one new file in a 5 000-clip library costs five minutes through the example and 60 ms through `incremental::update` with a
+   closure; the example and any host would use it.
+2. **The mel stage: 26 ms of a 60 ms clip, in series with the tower.** Measure first whether it can be cheaper at the same 0.0545 dB
+   agreement, or overlapped with the tower, and whether `fusion_channels` computes four spectrograms for a window the graph reads
+   one of. It is the cheapest cut to a five-minute index.
+3. **`needs-decision/headless-discovery.md`** — a model-free `siren-tools` cannot be started by an agent; the recommended bounded
+   `list_assets` is a public-surface change, so it waits for the owner.
+4. **Waiting on a person, another repository or hardware:** `#35` (a person judges at least 50 pairs and writes 20 queries),
+   `#32`/`#33`/`#34` (the editor panel, in `bevy_grimoire`), `#39` (a music encoder and its licence audit), and `#36`'s GPU figure.
+5. `find_compatible_*` speed (18 ms at 10 000 assets against a 10 ms budget), the cross-process audition hop (ADR 0006's step 3),
+   iteration 105's `#[non_exhaustive]` decision, and **the CI gap** — nothing runs `examples/semantic` or the export script.
+
 ## Iteration 109 — 2026-11-03 — the tool host, which was never blocked
 
 **Change.** `#28`: **`siren-tools`**, an MCP server over stdio, in this crate behind `semantic` — `semantic::server` (the host,
