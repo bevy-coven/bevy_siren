@@ -1,0 +1,16 @@
+Iteration 120 - mutations. Each switch applied to the FINAL tree (the tests green), the named tests run, then the switch put back (the tree green again).
+`cargo test --test all -- quick_start:: model::` (and, for M3, `--features readme-example` with `readme::`).
+
+| # | switch | red | green on purpose |
+|---|---|---|---|
+| M1 | `main` stops adding `walk` (`.add_systems(Update, report)`) | `quick_start::the_quick_start_adds_every_system_it_defines` (names `walk`), `quick_start::the_crate_root_doc_is_the_example` (the example now differs from src/lib.rs) | the two console tests stay GREEN: they wire the systems themselves, which is exactly why the static check exists - a block that never adds `walk` would otherwise pass every behavioural test |
+| M2 | the first key loses its extension in the example (`SoundSlot::new("step_01")`) | `quick_start::the_quick_start_plays_both_recordings_and_the_console_says_so` (four plays, all `step_02.ogg`; the console says ``refused `footstep.grass`: the file for sound `step_01` failed to load: Path not found: .../assets/audio/step_01``), `the_crate_root_doc_is_the_example` | `a_key_without_its_extension_is_named_on_the_console` (it brings its own old keys) |
+| M3 | a comment line of the README block edited | `readme::the_readme_quick_start_is_the_example` only | everything else |
+| M4 | the same line of the crate-root doc block edited | `quick_start::the_crate_root_doc_is_the_example` only | everything else |
+| M5 | `since` skips the entry numbered exactly `mark` (`<= mark`) | `model::a_reader_with_a_mark_reads_every_entry_once_across_the_ring`, `model::the_count_survives_a_clear_and_a_stale_mark_gets_what_is_left`, and both console tests (the first line of the console is skipped) | `since_is_exact_when_the_ring_evicts_an_entry_after_the_mark` (its mark is an evicted entry's number) |
+| M6 | `since` goes by position - the last `pushed() - mark` entries - instead of by push number | `model::since_is_exact_when_the_ring_evicts_an_entry_after_the_mark` ONLY: `left: ["r254", "c2"]  right: ["c2"]` | all the others, including the 1 000-entry ring-wrap test (every entry there is routine, so position and number agree) |
+| M7 | `report` never moves its mark (no `*seen = log.pushed()`) | `quick_start::the_quick_start_plays_both_recordings_and_the_console_says_so` (the first form panicked on a slice index out of range; it now says "the console printed N lines for a log of M: something was printed twice"), `the_crate_root_doc_is_the_example` | `a_key_without_its_extension_is_named_on_the_console` (it only needs the first refusal line) |
+| M8 | `clear` rewinds the count (`self.pushed = 0`) | `model::the_count_survives_a_clear_and_a_stale_mark_gets_what_is_left` ONLY: `left: (0, 0)  right: (0, 5)` | everything else |
+
+What the table says: every guard has a test that reddens for it and for few others; **M6 is the one the sequence number exists for** and only one test sees it; **M1 is the one a behavioural test cannot see**, and the static check does.
+A second finding of M7: the first form of the console test indexed `lines[..said.len()]` and panicked with a slice error when the console printed more lines than the log held; the check "said.len() <= lines.len()" with a sentence was added.

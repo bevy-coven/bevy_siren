@@ -1,0 +1,26 @@
+Pass 3 (fresh eyes), a temporary test module (tests/scratch_fresh.rs, deleted after this run) that `include!`s examples/quick_start.rs for its REAL `walk` and `report`, and changes everything else:
+  - a DIFFERENT ASSET DIRECTORY: AssetPlugin { file_path: "/tmp/siren-fresh-120/assets" } holding copies of step_01.ogg and step_02.ogg and tests/fixtures/tone.ogg as step_03.ogg;
+  - a DIFFERENT CUE: three variants, gain_db -4.0, pitch -1..+1 semitone (the quick start has two, 0 dB, no pitch);
+  - FIVE SEEDS: SirenSettings { seed, .. } for 1, 7, 42, 99, 123456;
+  - eight seconds of 100 ms frames after the files had loaded.
+`cargo test --test all -- scratch_fresh:: --nocapture`
+
+== fresh_eyes (passed; asserts: >= 14 plays, 0 refused, never the same sound twice running, all three sounds heard)
+FRESH seed      1: 16 plays, 0 refused: [01, 03, 02, 03, 01, 02, 01, 03, 01, 02, 03, 01, 03, 01, 02, 03] (cue gain Some(-4.0) dB)
+FRESH seed      7: 16 plays, 0 refused: [01, 03, 01, 02, 03, 02, 03, 01, 02, 03, 02, 03, 02, 03, 02, 01]
+FRESH seed     42: 16 plays, 0 refused: [01, 03, 01, 03, 02, 01, 02, 03, 01, 02, 01, 03, 02, 01, 02, 01]
+FRESH seed     99: 16 plays, 0 refused: [01, 02, 03, 01, 02, 03, 01, 03, 01, 02, 01, 03, 02, 03, 01, 02]
+FRESH seed 123456: 16 plays, 0 refused: [01, 02, 01, 02, 03, 01, 02, 03, 02, 01, 03, 01, 03, 02, 01, 02]
+(sounds abbreviated from step_0N.ogg; the run printed them in full.) The block holds under every one: the sequences differ from seed to seed, none repeats a recording back to back, none is refused.
+
+== what it surfaced: ALL FIVE SEEDS BEGIN WITH step_01.ogg (the odds of that by chance are (1/3)^4 = 1.2 %), so a second test asked the real play path for ONE play, sixty seeds:
+FIRST-PICK over seeds 1..=60 (three variants, pitch -1..+1 semitone):
+   {"step_01.ogg": 60}        <- the first recording a three-variant cue picks, for each of the seeds 1..=60: 60 of 60 are the FIRST variant (an even draw gives about 20 of each)
+   first detune ratio (semitone offset, -1..+1), seeds 1..10: [-0.87499285, -0.74998504, -0.6249768, -0.49996942, -0.37496084, -0.2499533, -0.12494597, 6.191364e-5, 0.12506902, 0.25007707]
+   i.e. -1 + 0.125 x seed: THE FIRST DRAW IS A LINEAR FUNCTION OF THE SEED. Over the sixty seeds the first detune spans -0.9999 .. 0.8754.
+
+Cause (read, not yet fixed): src/model.rs:305-308 `Rng::new(seed)` uses the seed AS the xorshift64 state, unscrambled, and `next_u32` (:317-324) returns the TOP 32 bits of the state after one xorshift step; for a seed far below 2^60 those bits are
+a small multiple of the seed, so the first draw is ~ seed/16 and the first pick (`floor(draw x variants)`) is variant 0. The README's *"two seeds are two streams from the first play"* holds for the stream and not for its first play: every small seed - the natural thing to
+write: `seed: 42` - starts on the first variant at a pitch the seed sets. The default seed (0x5EED_51AE_0000_0001) is a large constant and unaffected.
+
+NOT FIXED HERE (one build per iteration; and the fix changes every seeded sound the crate makes - the 21 rendered WAVs, a saved project's replay - so it needs its own research, `needs-decision` and a re-baseline). Carried as the first item of the next iteration.

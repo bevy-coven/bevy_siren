@@ -2,9 +2,11 @@
 //!
 //! A ring buffer, not a log file: the last [`SirenLog::CAPACITY`] decisions, each with the real time it
 //! happened. A panel shows the tail; a test asserts the head; an agent that asks "why is the music quiet"
-//! finds the `Ducked`/`Played`/`Refused` lines that answer it.
+//! finds the `Ducked`/`Played`/`Refused` lines that answer it; and a game that prints them reads with a mark —
+//! [`SirenLog::since`] the number [`SirenLog::pushed`] gave last time — as the README's quick start does.
 //!
-//! Nothing here is a `println!`. A crate that prints is a crate a game cannot silence.
+//! Nothing here is a `println!`. A crate that prints is a crate a game cannot silence: the game prints the log, and
+//! the quick start shows the six lines that do it.
 
 use std::collections::VecDeque;
 
@@ -101,9 +103,15 @@ impl Entry {
 }
 
 /// A ring buffer of the crate's recent decisions.
+///
+/// **Read it with a mark to print each decision once**: [`since`](Self::since) the number [`pushed`](Self::pushed) gave last time. A position is not a mark — the ring drops its oldest *routine* entry when full, not its oldest
+/// — and neither is `len()`, which stops moving the moment the ring is full.
 #[derive(Resource, Clone, Debug)]
 pub struct SirenLog {
-    entries: VecDeque<Entry>,
+    /// Each entry with the number it was pushed as, ascending: the number is what a reader's mark means, because an eviction in the middle of the ring moves positions and not numbers.
+    entries: VecDeque<(u64, Entry)>,
+    /// How many entries have ever been pushed, which is the next entry's number. It never goes down.
+    pushed: u64,
 }
 
 impl SirenLog {
@@ -113,7 +121,7 @@ impl SirenLog {
 
     /// An empty log.
     pub fn new() -> Self {
-        Self { entries: VecDeque::with_capacity(Self::CAPACITY) }
+        Self { entries: VecDeque::with_capacity(Self::CAPACITY), pushed: 0 }
     }
 
     /// Adds `entry`, dropping one once the buffer is full.
@@ -129,7 +137,7 @@ impl SirenLog {
     /// changes.
     pub fn push(&mut self, entry: Entry) {
         if self.entries.len() == Self::CAPACITY {
-            match self.entries.iter().position(|e| !matches!(e, Entry::Refused { .. })) {
+            match self.entries.iter().position(|(_, e)| !matches!(e, Entry::Refused { .. })) {
                 Some(routine) => {
                     self.entries.remove(routine);
                 }
@@ -138,17 +146,44 @@ impl SirenLog {
                 }
             }
         }
-        self.entries.push_back(entry);
+        self.entries.push_back((self.pushed, entry));
+        self.pushed += 1;
     }
 
     /// The newest `n` entries, newest first.
     pub fn recent(&self, n: usize) -> impl Iterator<Item = &Entry> {
-        self.entries.iter().rev().take(n)
+        self.entries.iter().rev().take(n).map(|(_, entry)| entry)
     }
 
     /// Every entry, oldest first.
     pub fn iter(&self) -> impl Iterator<Item = &Entry> {
-        self.entries.iter()
+        self.entries.iter().map(|(_, entry)| entry)
+    }
+
+    /// How many entries have ever been pushed — a count that **never goes down**: [`clear`](Self::clear) empties the ring and leaves it, so a reader's mark stays valid.
+    ///
+    /// Take it after reading, and give it to [`since`](Self::since) next time.
+    pub fn pushed(&self) -> u64 {
+        self.pushed
+    }
+
+    /// The entries pushed **at or after** `mark` (a value of [`pushed`](Self::pushed)) that the ring still holds, oldest first: what is new since a reader last looked.
+    ///
+    /// ```
+    /// # use bevy_siren::{Entry, SirenLog};
+    /// let mut log = SirenLog::new();
+    /// log.push(Entry::Refused { at_s: 0.0, cue: "typo".to_owned(), reason: "no cue of that name".to_owned() });
+    /// let mark = log.pushed();
+    /// log.push(Entry::Stopped { at_s: 0.5, cue: "step".to_owned(), why: "ended".to_owned() });
+    /// let new: Vec<String> = log.since(mark).map(Entry::line).collect();
+    /// assert_eq!(new, ["0.50s stopped `step`: ended"]);
+    /// ```
+    ///
+    /// **Exact, not approximate**: the answer goes by the number each entry was pushed as, so an eviction from the middle of the ring cannot make a read repeat an entry or hand back an older one in place of a lost one.
+    /// An entry the ring has already dropped is gone; `pushed() - mark` larger than what this returns says how many a slow reader missed. A `mark` ahead of the count (a log that was replaced by a shorter one) returns nothing.
+    pub fn since(&self, mark: u64) -> impl Iterator<Item = &Entry> {
+        let first = self.entries.partition_point(|(number, _)| *number < mark);
+        self.entries.iter().skip(first).map(|(_, entry)| entry)
     }
 
     /// How many entries are held.

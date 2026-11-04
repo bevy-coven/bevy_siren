@@ -1,0 +1,92 @@
+CARGO_INCREMENTAL=0 bash docs/loop/runs/2026-11-03-112/matrix.sh   (the final tree; started 03:53, 3.7 GB free)
+
+free: 3 GB
+(started clean of this crate's artifacts; free 3.7 GB)
+=== cargo build   [free 3.7 GB, 03:53:46]
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.82s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 3.7 GB)
+=== cargo test   [free 3.7 GB, 03:53:48]
+   1 warning: `bevy_siren` (example "quick_start") generated 1 warning
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning (1 duplicate)
+   1 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 233 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.79s
+   1     Finished `test` profile [unoptimized + debuginfo] target(s) in 11.79s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 3.7 GB)
+=== cargo test --features serde   [free 3.7 GB, 03:54:07]
+   1 warning: `bevy_siren` (example "quick_start") generated 1 warning
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning (1 duplicate)
+   1 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 242 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+   1     Finished `test` profile [unoptimized + debuginfo] target(s) in 13.24s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 3.7 GB)
+=== cargo test --features semantic   [free 3.7 GB, 03:54:27]
+   1 warning: `bevy_siren` (example "quick_start") generated 1 warning
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning (1 duplicate)
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 551 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.55s
+   1 test result: ok. 118 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.94s
+   1 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   1     Finished `test` profile [unoptimized + debuginfo] target(s) in 38.76s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 3.6 GB)
+=== cargo test --features mixer   [free 3.6 GB, 03:55:40]
+   1 warning: `bevy_siren` (example "quick_start") generated 1 warning
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning (1 duplicate)
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 248 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.79s
+   1 test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+   1     Finished `test` profile [unoptimized + debuginfo] target(s) in 12.98s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 3.6 GB)
+=== cargo test --all-features   [free 3.6 GB, 03:56:00]
+   1 warning: `bevy_siren` (example "quick_start") generated 1 warning
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning (1 duplicate)
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 579 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.16s
+   1 test result: ok. 129 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.81s
+   1 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   1     Finished `test` profile [unoptimized + debuginfo] target(s) in 40.05s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 3.6 GB)
+=== cargo test --doc   [free 3.6 GB, 03:57:16]
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.75s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 3.6 GB)
+=== cargo test --features readme-example --test all readme::   [free 3.6 GB, 03:57:21]
+   1 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 233 filtered out; finished in 0.00s
+   1     Finished `test` profile [unoptimized + debuginfo] target(s) in 4.47s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 3.6 GB)
+=== cargo build --examples   [free 3.6 GB, 03:57:27]
+   1 warning: `bevy_siren` (example "quick_start") generated 1 warning
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning (1 duplicate)
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.24s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 3.6 GB)
+=== cargo build --examples --all-features   [free 3.6 GB, 03:57:35]
+   1 warning: `bevy_siren` (example "quick_start") generated 1 warning
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning (1 duplicate)
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 18.91s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 3.6 GB)
+=== cargo clippy --all-targets --all-features -- -D warnings   [free 3.6 GB, 03:57:55]
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.65s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 3.6 GB)
+=== cargo fmt --check   [free 3.6 GB, 03:58:00]
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 3.6 GB)
+=== cargo doc --no-deps --all-features   [free 3.6 GB, 03:58:00]
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.00s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 3.6 GB)
+=== matrix done 03:58:04
+
+The two `warning: bevy_siren (example ...) generated 1 warning` lines are the same macOS linker message for a Bevy debug binary - `ld: __eh_frame section too large (max 16MB) to encode dwarf unwind offsets in compact unwind table` - that
+`example "mixer"` has always had; `example "quick_start"` (a DefaultPlugins example) has it too. Clippy, which does not link, is clean under -D warnings.

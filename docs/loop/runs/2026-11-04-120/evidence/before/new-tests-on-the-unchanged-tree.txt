@@ -1,0 +1,153 @@
+   Compiling bevy_siren v0.1.0 (/Users/rebekahbrittain/bevy_siren)
+error[E0599]: no method named `since` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:452:33
+    |
+452 |                 read.extend(log.since(mark).map(|entry| entry.cue().to_owned()));
+    |                                 ^^^^^ method not found in `bevy_siren::SirenLog`
+
+error[E0599]: no method named `pushed` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:453:28
+    |
+453 |                 mark = log.pushed();
+    |                            ^^^^^^
+    |
+help: there is a method `push` with a similar name, but with different arguments
+   --> src/log.rs:130:5
+    |
+130 |     pub fn push(&mut self, entry: Entry) {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `since` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:456:25
+    |
+456 |         read.extend(log.since(mark).map(|entry| entry.cue().to_owned()));
+    |                         ^^^^^ method not found in `bevy_siren::SirenLog`
+
+error[E0599]: no method named `pushed` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:458:24
+    |
+458 |         assert_eq!(log.pushed(), 1000);
+    |                        ^^^^^^
+    |
+help: there is a method `push` with a similar name, but with different arguments
+   --> src/log.rs:130:5
+    |
+130 |     pub fn push(&mut self, entry: Entry) {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `since` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:459:24
+    |
+459 |         assert_eq!(log.since(log.pushed()).count(), 0, "and nothing new after the last read");
+    |                        ^^^^^ method not found in `bevy_siren::SirenLog`
+
+error[E0599]: no method named `pushed` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:459:34
+    |
+459 |         assert_eq!(log.since(log.pushed()).count(), 0, "and nothing new after the last read");
+    |                                  ^^^^^^
+    |
+help: there is a method `push` with a similar name, but with different arguments
+   --> src/log.rs:130:5
+    |
+130 |     pub fn push(&mut self, entry: Entry) {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `pushed` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:477:20
+    |
+477 |     let mark = log.pushed();
+    |                    ^^^^^^
+    |
+help: there is a method `push` with a similar name, but with different arguments
+   --> src/log.rs:130:5
+    |
+130 |     pub fn push(&mut self, entry: Entry) {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `since` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:482:31
+    |
+482 |     let cues: Vec<&str> = log.since(mark).map(Entry::cue).collect();
+    |                               ^^^^^ method not found in `bevy_siren::SirenLog`
+
+error[E0599]: no method named `pushed` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:484:20
+    |
+484 |     assert_eq!(log.pushed() - mark, 2, "and pushed() - mark says two were pushed, so the reader knows one is gone");
+    |                    ^^^^^^
+    |
+help: there is a method `push` with a similar name, but with different arguments
+   --> src/log.rs:130:5
+    |
+130 |     pub fn push(&mut self, entry: Entry) {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `pushed` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:498:32
+    |
+498 |     assert_eq!((log.len(), log.pushed()), (0, 5), "cleared, and still the fifth push");
+    |                                ^^^^^^
+    |
+help: there is a method `push` with a similar name, but with different arguments
+   --> src/log.rs:130:5
+    |
+130 |     pub fn push(&mut self, entry: Entry) {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `since` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:499:20
+    |
+499 |     assert_eq!(log.since(0).count(), 0, "nothing held, nothing to read");
+    |                    ^^^^^ method not found in `bevy_siren::SirenLog`
+
+error[E0599]: no method named `since` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:501:20
+    |
+501 |     assert_eq!(log.since(5).map(|entry| entry.cue().to_owned()).collect::<Vec<_>>(), ["c5"], "a mark taken before the clear still r...
+    |                    ^^^^^ method not found in `bevy_siren::SirenLog`
+
+error[E0599]: no method named `since` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:502:20
+    |
+502 |     assert_eq!(log.since(99).count(), 0, "a mark ahead of the count reads nothing");
+    |                    ^^^^^ method not found in `bevy_siren::SirenLog`
+
+error[E0599]: no method named `since` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:508:30
+    |
+508 |     let got: Vec<&str> = log.since(0).map(|entry| entry.cue()).collect();
+    |                              ^^^^^ method not found in `bevy_siren::SirenLog`
+
+error[E0599]: no method named `pushed` found for struct `bevy_siren::SirenLog` in the current scope
+   --> tests/model.rs:511:20
+    |
+511 |     assert_eq!(log.pushed(), 600);
+    |                    ^^^^^^
+    |
+help: there is a method `push` with a similar name, but with different arguments
+   --> src/log.rs:130:5
+    |
+130 |     pub fn push(&mut self, entry: Entry) {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `since` found for struct `bevy::bevy_ecs::change_detection::Res<'_, bevy_siren::SirenLog>` in the current scope
+  --> tests/../examples/quick_start.rs:33:22
+   |
+33 |     for entry in log.since(*seen) {
+   |                      ^^^^^ method not found in `bevy::bevy_ecs::change_detection::Res<'_, bevy_siren::SirenLog>`
+
+error[E0599]: no method named `pushed` found for struct `bevy::bevy_ecs::change_detection::Res<'_, bevy_siren::SirenLog>` in the current scope
+   --> tests/../examples/quick_start.rs:36:17
+    |
+ 36 |     *seen = log.pushed();
+    |                 ^^^^^^
+    |
+help: there is a method `push` with a similar name, but with different arguments
+   --> src/log.rs:130:5
+    |
+130 |     pub fn push(&mut self, entry: Entry) {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `bevy_siren` (test "all") due to 17 previous errors

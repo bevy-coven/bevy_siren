@@ -12,35 +12,44 @@
 //! use bevy_siren::*;
 //!
 //! fn main() {
-//!     App::new().add_plugins((DefaultPlugins, SirenPlugin)).add_systems(Startup, setup).run();
+//!     App::new()
+//!         .add_plugins((DefaultPlugins, SirenPlugin))
+//!         .add_systems(Startup, setup)
+//!         .add_systems(Update, (walk, report))
+//!         .run();
 //! }
 //!
 //! fn setup(mut cue_table: ResMut<CueTable>, mut sounds: ResMut<SirenSounds>, assets: Res<AssetServer>) {
 //!     // A cue with two variants: the picker never plays the same one twice in a row.
+//!     // A sound key is a file's name under `assets/audio/`, extension included.
 //!     cue_table.insert(Cue {
-//!         sounds: vec![SoundSlot::new("step_01"), SoundSlot::new("step_02")],
+//!         sounds: vec![SoundSlot::new("step_01.ogg"), SoundSlot::new("step_02.ogg")],
 //!         ..Cue::new("footstep.grass")
 //!     });
 //!     sounds.load_table(&assets, &cue_table, "audio");
 //! }
 //!
-//! fn walk(mut play: MessageWriter<Play>) {
-//!     play.write(Play::cue("footstep.grass"));
-//! }
-//!
-//! fn hear(mut played: MessageReader<Played>, mut log: ResMut<SirenLog>) {
-//!     for answer in played.read() {
-//!         // Which recording the player heard, and why it was chosen.
-//!         log.push(Entry::Played {
-//!             at_s: 0.0,
-//!             cue: answer.cue.clone(),
-//!             sound: answer.sound.clone(),
-//!             bus: answer.bus.clone(),
-//!             gain_db: answer.gain_db,
-//!         });
+//! // A footstep every half second.
+//! fn walk(mut play: MessageWriter<Play>, time: Res<Time>, mut elapsed: Local<f32>) {
+//!     *elapsed += time.delta_secs();
+//!     if *elapsed >= 0.5 {
+//!         *elapsed -= 0.5;
+//!         play.write(Play::cue("footstep.grass"));
 //!     }
 //! }
+//!
+//! // What the crate decided, once each, in its own words: which recording played, or why nothing did.
+//! fn report(log: Res<SirenLog>, mut seen: Local<u64>) {
+//!     for entry in log.since(*seen) {
+//!         info!("{}", entry.line());
+//!     }
+//!     *seen = log.pushed();
+//! }
 //! ```
+//!
+//! The keys name files under `assets/audio/` (`cargo run --example quick_start` in a clone plays the two it ships), and
+//! `report` prints the crate's own log: `` played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB ``, or why a play
+//! did not happen — a key with no file reads `` failed to load: Path not found: …/assets/audio/step_03.ogg ``.
 //!
 //! # The pieces
 //!

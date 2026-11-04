@@ -178,6 +178,25 @@ python3 docs/media/transcript_png.py docs/media/owner.txt docs/media/owner.png  
 
 Tests: `tests/owner.rs` — no device needed.
 
+## `quick-start.png` — the README's quick start plays a sound, and says why when it cannot (iteration 120)
+
+![The README's quick start pasted verbatim, before: a compiler warning that walk and hear are never used, seven seconds of a window with no sound and Bevy's Path not found as the only console line; then examples/quick_start.rs after: played and stopped lines for two alternating footsteps; and the old keys through the same report, a refusal that names the key and the path](quick-start.png)
+
+`quick-start.txt` is verbatim console output from this Mac (a real window and output device), each part naming its evidence file; the ISO timestamp of each line is dropped. **Before**, the README's block pasted as an example: the compiler says
+`function walk is never used` and `function hear is never used`, and seven seconds of a window play nothing and print nothing from this crate — Bevy's own `Path not found: …/assets/audio/step_01` is the only line. **After**, the block as the README has it
+(`examples/quick_start.rs`): ten alternating footsteps, each `played` and `stopped: ended` a clip's length later, every line the crate's own sentence, once. The last two lines are the old keys (no extension) through the same `report`: the cue, the key, why, and the
+path that was looked for. Nothing in the picture is composed. The files are `assets/audio/step_01.ogg` and `step_02.ogg` (`assets/README.md` has their `ffmpeg` commands); the before probe is `runs/2026-11-04-120/evidence/before/readme-quick-start.rs.txt`.
+
+```sh
+cargo run --example quick_start                      # a window; Ctrl-C after a few steps; the console is the picture's AFTER block
+# the before: put the old block back as an example and run it
+git show 0a0e359:README.md | sed -n '38,69p' > examples/scratch_readme.rs      # the old block, as it stood at 0a0e359 (not kept in examples/)
+cargo run --example scratch_readme; rm examples/scratch_readme.rs
+python3 docs/media/transcript_png.py docs/media/quick-start.txt docs/media/quick-start.png      # needs Pillow and macOS's Menlo
+```
+
+Tests: `tests/quick_start.rs` — no device needed: the block's own `setup`, `walk` and `report` on the real asset server, Bevy's own audio loader and these two files, with the console captured.
+
 ## No clip: iteration 115, an Ogg loop sounds, and is as long as the stream says
 
 No clip: the change is **what a loop of an Ogg Vorbis file sounds like**, on Bevy's path and on the `mixer` backend, and `examples/render` renders no Ogg, so every rendered cue is byte-identical (21 of 21) and the

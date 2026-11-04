@@ -1,0 +1,37 @@
+What the quick start's own `report` printed, captured by `tests/quick_start.rs` through a tracing layer (the events whose target is the test module, where `report`'s `info!` expands). Both runs: the REAL asset server over
+`assets/`, Bevy's real `AudioLoader`, the two files `assets/audio/step_01.ogg` and `step_02.ogg`, 100 ms frames, headless (no output device), on the final tree. Printed by a temporary `eprintln!` (removed after this run):
+`cargo test --test all -- quick_start::the_quick_start_plays quick_start::a_key_without --nocapture --test-threads=1`
+
+=== the_quick_start_plays_both_recordings_and_the_console_says_so (the block as written; keys `step_01.ogg`, `step_02.ogg`) - 15 lines
+0.50s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+1.00s stopped `footstep.grass`: stolen by footstep.grass (cue)
+1.00s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+1.50s stopped `footstep.grass`: stolen by footstep.grass (cue)
+1.50s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+2.00s stopped `footstep.grass`: stolen by footstep.grass (cue)
+2.00s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+2.50s stopped `footstep.grass`: stolen by footstep.grass (cue)
+2.50s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+3.00s stopped `footstep.grass`: stolen by footstep.grass (cue)
+3.00s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+3.50s stopped `footstep.grass`: stolen by footstep.grass (cue)
+3.50s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+4.00s stopped `footstep.grass`: stolen by footstep.grass (cue)
+4.00s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+
+  - eight steps, alternating, none refused; the first at 0.50 s (the files had loaded: `walk` accumulates).
+  - the `stolen by footstep.grass (cue)` lines are the HEADLESS artifact: with no output device a voice never gets a sink and `retire_voices` does not treat "no sink" as "ended" (AGENTS.md, the traps), so the cue's default
+    `max_instances` of one takes the previous step back. With a device the 0.22 s step has ended long before the next: see evidence/after/quick-start-real-run.txt.
+
+=== a_key_without_its_extension_is_named_on_the_console (the OLD block's keys `step_01`, `step_02`) - 8 lines
+0.50s refused `footstep.grass`: the file for sound `step_02` failed to load: Path not found: /Users/rebekahbrittain/bevy_siren/assets/audio/step_02
+1.00s refused `footstep.grass`: the file for sound `step_01` failed to load: Path not found: /Users/rebekahbrittain/bevy_siren/assets/audio/step_01
+1.50s refused `footstep.grass`: the file for sound `step_02` failed to load: Path not found: /Users/rebekahbrittain/bevy_siren/assets/audio/step_02
+2.00s refused `footstep.grass`: the file for sound `step_01` failed to load: Path not found: /Users/rebekahbrittain/bevy_siren/assets/audio/step_01
+2.50s refused `footstep.grass`: the file for sound `step_02` failed to load: Path not found: /Users/rebekahbrittain/bevy_siren/assets/audio/step_02
+3.00s refused `footstep.grass`: the file for sound `step_01` failed to load: Path not found: /Users/rebekahbrittain/bevy_siren/assets/audio/step_01
+3.50s refused `footstep.grass`: the file for sound `step_02` failed to load: Path not found: /Users/rebekahbrittain/bevy_siren/assets/audio/step_02
+4.00s refused `footstep.grass`: the file for sound `step_01` failed to load: Path not found: /Users/rebekahbrittain/bevy_siren/assets/audio/step_01
+
+  - the cue, the key, why, and the path that was looked for; the same sentence every step, so a reader cannot miss it. On the unchanged tree the same mistake printed, from this crate, nothing at all
+    (evidence/before/readme-as-written.txt).

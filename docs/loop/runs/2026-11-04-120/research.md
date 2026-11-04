@@ -1,0 +1,45 @@
+# Iteration 120 — research: the first code a reader copies
+
+**The question.** A crate's README quick start is the one piece of code every adopter runs before anything else. Run verbatim (`evidence/before/readme-as-written.txt`) it plays nothing, prints nothing from this crate, and warns the reader that two of its own functions are dead. What does the literature say that a front door must do, and what is the cheapest check that would have caught all four defects?
+
+## Sources
+
+| source | what it reports | how it is used here |
+|---|---|---|
+| Gias Uddin and Martin P. Robillard, **"How API Documentation Fails"**, *IEEE Software* 32(4), 2015, DOI [10.1109/ms.2014.80](https://doi.org/10.1109/ms.2014.80) (abstract read through home-still, `paper_get`; the paper itself was not downloaded) | two surveys of **323** professional developers and an analysis of **179** API documentation units; **10** common documentation problems; *"the three severest problems were **ambiguity, incompleteness, and incorrectness** of content"*; **six of the ten** were named by respondents as **"blockers" that forced them to use another API** | the front door's four defects are *incorrectness* (a guide sentence that names the wrong file; a block that does not do what it says) and *incompleteness* (it never schedules the functions it defines; it never says where the files go). A blocker is exactly what a pasted block that plays nothing is |
+| Martin P. Robillard and Robert DeLine, **"A field study of API learning obstacles"**, *Empirical Software Engineering* 16:703–732, 2011, DOI [10.1007/s10664-010-9150-8](https://doi.org/10.1007/s10664-010-9150-8) (metadata only: **not read**; cited as the basis of the claim below by Alam, Serebrenik, Uddin et al., *Empirical Software Engineering* 2022, DOI 10.1007/s10664-022-10156-z, which says *"software official documentation is often found to be incomplete, incorrect and obsolete (Uddin and Robillard 2015; Robillard and DeLine 2011)"*) | the second study the claim rests on | corroboration only; no number is taken from it |
+| Andrew Hunt and David Thomas, ***The Pragmatic Programmer***, 20th anniversary ed., **Tip 13 "Build Documentation In, Don't Bolt It On"** and the closing of that topic: *"Keep code and documentation together"* (home-still, `hunt_pragmatic_programmer_20th`) | documentation is held with the code and obeys the same principles; two copies of one fact are a DRY violation (*"now there are two things to update when you make a change"*) | the Quick start exists as **three copies** (README, the crate-root doc, and nothing that runs); the fix is **one file the reader copies, run by a test, with the others compared to it** |
+| the same book, **"Pragmatic Starter Kit"** and **"Ruthless and Continuous Testing"**: *"Manual procedures leave consistency up to chance; repeatability isn't guaranteed"*; *"Many developers test gently, subconsciously knowing where the code will break and avoiding the weak spots. Pragmatic Programmers … are driven to find our bugs now, so we don't have to endure the shame of others finding our bugs later"* | a procedure that matters is automatic and repeatable, and a test goes where the author would not | `tests/readme.rs` compared the README with a copy of itself, and only under a feature nobody enables; the weak spot (*does the pasted block play a sound?*) was exactly where the author did not look |
+| the crate's own source: `src/sounds.rs:84-96` (`load_table` asks for `format!("{dir}/{key}")`), `bevy_asset-0.20.1` (a missing file is `Path not found: <absolute path>`), `bevy_audio-0.20.1/src/audio_source.rs:39-60` (`pub struct AudioLoader`, the loader `AudioPlugin` registers, extensions from Bevy's features), `bevy_log-0.20.1/src/lib.rs:46-51` (`pub use tracing, tracing_subscriber`) | the key is the path under the directory, extension included; the loader a headless test can register is the real one; a test can capture the console through Bevy's own re-export with no new dependency | the design below |
+
+## The technique, in the sources' terms
+
+1. **One source of truth for the block** (Hunt and Thomas, DRY): the code a reader copies is a file in this repository that **compiles on every `cargo build --examples`** and **runs on every `cargo test`**; the README block and the crate-root doctest are *derived* — compared to that file by a test, so the three cannot drift (not *"two copies compared to each other"*).
+2. **Run what the reader runs, and read what the reader reads** (Uddin and Robillard: *incorrectness* is found by running): the test installs the file's own `setup`, `walk` and `report` on the **real asset server, the real `AudioLoader` and the real files** under `assets/`, and **captures the console** the way a person reading the terminal would; the assertion is on the lines, not on a count.
+3. **A negative control for the mistake the old text taught**: the keys with no extension. Reproduced through the same `report`, the console must say *which file was not found*, because the defect that cost a reader an afternoon is a silent one (Bevy's `ERROR … Path not found` names a path, not this crate, a cue or a key).
+4. **Wiring is part of the text**: a block that defines a system its `main` does not add is wrong whatever it compiles to (the compiler said so twice and nobody read it). A test reads the file and asks of every `fn` it defines but `main`: *does `main` name it?*
+
+## Parameters the sources report, and the ones that are design defaults
+
+| quantity | value | source |
+|---|---|---|
+| developers surveyed / documentation units analysed / problems / severest / blockers | 323 / 179 / 10 / 3 (ambiguity, incompleteness, incorrectness) / 6 | Uddin and Robillard 2015 |
+| the quick start's step cadence | **0.5 s** (two steps a second, a walking pace) | **design default**: a demo value a reader replaces |
+| the two footstep assets | brown noise, high-passed at 90 / 70 Hz and low-passed at **1 700 / 1 300 Hz**, **4 / 5 ms** fade in, an exponential fade out over 208 / 246 ms, **0.2206 s / 0.2612 s** long, **peak −6.16 / −6.10 dBFS**, 44.1 kHz stereo (the same signal on both channels: `ffmpeg 9`'s native Vorbis encoder refuses mono) | **design default**: placeholders made for this repository (CC0), chosen to be audibly two different steps, short enough not to overlap at 0.5 s, and quiet enough not to startle a reader who runs the example with the volume up; `assets/README.md` has the command |
+| the log cursor | a counter that never goes down, `SirenLog::pushed()`, and `since(mark)` | **design default**; recorded in `needs-decision/log-cursor.md` (`Local<usize>` over `len()` stalls once the 256-entry ring is full, measured below) |
+
+## What good sounds like
+
+Two soft, noise-like thuds, no tone and no hiss above about 2 kHz; each starts at once but without a click (a 4–5 ms fade in) and decays smoothly to silence inside about 0.2 s, so at one a half second the next arrives on silence; the second is audibly **darker and slightly longer** than the first; at −6 dBFS peak and about −24 dB RMS they are quiet enough that two of them looped read well under the −14 LUFS of a master. In a spectrogram: broadband energy under 2 kHz that falls away within the first 200 ms, no vertical line at the onset or the end, nothing above 4 kHz.
+
+## Predictions (written before the build; scored in `review.md`, wrong ones first)
+
+1. **P1** — the new block, run on the real asset server over `assets/`, plays **both** files, alternating (`AvoidRepeat { avoid: 1 }` with two variants), in four seconds of 100 ms frames: **at least 6** plays, **zero** refusals, and the console shows `played` lines naming `step_01.ogg` and `step_02.ogg`.
+2. **P2** — the old keys (no extension), through the same `report`, give a console line that contains **`failed to load`** and **`assets/audio/step_01`**, and no play sounds.
+3. **P3** — a `Local<usize>` cursor over `log.len()` — the obvious way to print each entry once — **stops printing once the ring holds 256 entries** (a stall, not a crash); a monotonic counter does not. (Measured in the test that replaces it.)
+4. **P4** — `SirenLog::since` is **exact** across evictions, including the unusual one (the ring full of refusals, a routine entry pushed after the mark and evicted before the read): each entry is read once, none twice.
+5. **P5** — the whole new test takes **under one second** (two 6 KB files) and does not flake in 20 consecutive runs, at one test thread and at the default.
+6. **P6** — it passes unchanged under `--features mixer` (the output is removed so Bevy's path owns every voice) and `--features semantic`.
+7. **P7** — `perfcheck` stays inside its 10 % band (`SirenLog::push` gains an 8-byte sequence number and a counter).
+8. **P8** — each guard reddens its own test and nothing else: the example without `walk` in `main`; a key with its extension dropped; the README block edited; the lib.rs block edited; `since` off by one.
+9. **P9** — the footsteps measure as in the table above and the spectrogram shows no onset click.

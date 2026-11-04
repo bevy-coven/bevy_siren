@@ -7,6 +7,19 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The README's Quick start never played a sound, and nothing ran it: `main` never added `walk`, the keys had no extension, `hear` corrupted the log, and a guide sentence sent a reader to the wrong file.** Found by pasting the block verbatim as an
+  example and running it for seven seconds on a real window and this Mac's output device (`docs/loop/runs/2026-11-04-120/evidence/before/readme-as-written.txt`): the compiler said `function walk is never used` and `function hear is never used`, nothing played, and
+  the one console line was Bevy's own `ERROR bevy_asset::server: Path not found: …/assets/audio/step_01` — it names neither this crate, a cue nor a key. **Four defects, one cause for all four surviving.** (1) `main` added `setup` and neither `walk`
+  nor `hear`. (2) The keys were `step_01` and `step_02`, and `load_table` asks the asset server for `<dir>/<key>` — `audio/step_01`, not the file `step_01.ogg` (since iteration 116 every play was refused with the cause in the log, which the block never
+  showed). (3) `hear` copied what the crate had already written into the crate's own log with `at_s: 0.0`: **one play, two entries — `0.30s played …` and `0.00s played …`** — and printed nothing. (4) `docs/guide/cues.md` said a refusal naming `step_03`
+  *"sends you to `audio/step_03.wav`"*; the crate asks for `audio/step_03`. The cause: **`tests/readme.rs` compared the README with a copy of itself, and only under `--features readme-example`** — no test ran the block, so none of the four could fail one.
+  **Now `examples/quick_start.rs` is the block**, character for character in the README and the crate-root doc, with the two files it plays (`assets/audio/step_01.ogg` and `step_02.ogg`, synthesized for this repository, CC0, `assets/README.md`): keys
+  that are file names, a `walk` that steps every half second and is added, and a `report` that prints the crate's own log once each. **`tests/quick_start.rs` runs it** — the block's own `setup`, `walk` and `report` on the real asset server over `assets/`,
+  Bevy's real `AudioLoader` and the real files, with the **console captured** through a `tracing` layer — and asserts on the lines: eight steps in four seconds, `step_01.ogg` and `step_02.ogg` alternating, none refused, the console the crate's log in order
+  and each line once; the old keys through the same `report` print ``refused `footstep.grass`: the file for sound `step_02` failed to load: Path not found: …/assets/audio/step_02``; every function the block defines is added by its `main`; the crate-root doc
+  is the example in a plain `cargo test`. **Measured** on the real device: ten steps, `played` then `stopped: ended` a clip's length later (`evidence/after/quick-start-real-run.txt`); eight mutations each reddened their own tests
+  (`evidence/before/mutations.txt`). The two footsteps were read as spectrograms (no click at either end, nothing audible above 2 kHz, −6.2 dBFS peak, −24.0 LUFS for eight seconds of the walk). The only existing test changed is `tests/readme.rs`, which now holds
+  the README to the example. `docs/guide/cues.md` says what `load_table` asks for and drops the false sentence; `docs/media/quick-start.png` is the before and after.
 - **`Play::on` made the voice a child of its owner, and a child is the wrong tool: a panic, a sound at the wrong place and level, a loop that never ended, and a false log line — from one line.** `spawn_voice` inserted `ChildOf(owner)`;
   run as a game would run it (`docs/loop/runs/2026-11-04-119/evidence/before/`), the states an owner can be in gave four defects. **(1) A panic** in Bevy's command handler (*"Entity not yet spawned"*, `handler.rs:128`) for an owner that is
   allocated and not yet spawned — the state every `Commands::spawn` returns — because the relationship hook queues a command on an entity that does not exist yet: a game that spawns a projectile and plays its sound in one system, unordered
@@ -35,7 +48,7 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   in that frame (it never sounded), with a `stopped` line in the log — so a game that keeps the `Entity` uses `get_entity` or `try_insert`. `tests/one_answer.rs` (each play answered once and a vanished voice explained; the question asked once per buffer;
   the verdict the asker's own) and `tests/mixer.rs::the_real_mixers_decode_error_agrees_with_its_play` (needs a device) hold it; with the backend never asked, three of the four new tests fail, including the panic. **Found by the same probe and not fixed
   here** (`docs/loop/log.md`): the README and crate-root quick start does not play a sound as written (keys are used as paths with no extension, and `walk` and `hear` are never scheduled), and `Play::on` for an owner that is already gone leaves an
-  ownerless loop on both backends — **fixed in the entry above (iteration 119)**; the quick start is still open.
+  ownerless loop on both backends — **fixed in the entry below (iteration 119)**; the quick start is **fixed in the first entry of this section (iteration 120)**.
 - **Bytes that load and cannot be decoded panicked the game on Bevy's path — the default build — and four sentences said the crate refused them.** Bevy's `AudioSource::decoder` is `….build().unwrap()`
   (`bevy_audio-0.20.1/src/audio_source.rs:96-101`) and `play_queued_audio_system` calls it in `PostUpdate` for every voice with an `AudioPlayer`; the asset loader returns a file's bytes and stops, so a file that loads and is not
   audio the build decodes is `Played` and then **panics in the same frame**, naming no file. Probed on the real `AudioPlugin` (this Mac's device), the real `AssetServer`, one process per file: a **Git LFS pointer**, an empty
@@ -240,6 +253,10 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`SirenLog::pushed()` and `SirenLog::since(mark)`** — read the log with a mark, to print each decision once. Each entry now carries the number it was pushed as, because the ring drops its oldest *routine* entry, not its oldest, so neither a position
+  nor `len()` is a cursor: **`seen = log.len()` printed 256 of 600 entries and went quiet for good** (`docs/loop/runs/2026-11-04-120/evidence/before/len-cursor-stalls.txt`). `pushed()` never goes down (`clear` leaves it); `since(mark)` returns the entries
+  pushed at or after `mark`, oldest first and **exactly** — including when an entry after the mark was evicted from the middle of a ring otherwise full of refusals, which a positional cursor gets wrong (`["r254", "c2"]` for `["c2"]`). +8 bytes an entry; a
+  push costs about 3 – 5 ns on top of building the entry, `since` about 11 ns a frame (release). Additive; `docs/loop/needs-decision/log-cursor.md`.
 - **A second golden library — 303 game sounds from Kenney's CC0 packs — and `goldenbench --set`.** `golden/kenney/` holds a manifest pinning seven archives and 303 files by
   SHA-256, the labels (the author's own file names, grouped into 29 classes by a rule fixed before measuring), and **two files of 47 queries** — 29 with right answers, 18
   that should find nothing — written and committed *before the model ran*, with eight predictions; `tools/fetch_kenney.py <dir>` fetches the seven archives from

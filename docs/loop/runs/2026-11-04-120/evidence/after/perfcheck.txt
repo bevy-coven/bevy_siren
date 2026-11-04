@@ -1,0 +1,22 @@
+cargo run --release --example perfcheck   (Apple M4 Pro, load average 1.3 - 1.9; the final tree)
+
+== run 1
+voices      us/frame        us/voice
+     8         0.061          0.0077
+    64         0.322          0.0050
+   256         1.152          0.0045
+upper bound: every voice is costed, including the ones update_mix skips because their gain did not move
+== run 2
+voices      us/frame        us/voice
+     8         0.062          0.0078
+    64         0.328          0.0051
+   256         0.837          0.0033
+upper bound: every voice is costed, including the ones update_mix skips because their gain did not move
+== run 3
+voices      us/frame        us/voice
+     8         0.062          0.0078
+    64         0.357          0.0056
+   256         0.951          0.0037
+upper bound: every voice is costed, including the ones update_mix skips because their gain did not move
+
+Iteration 119's three runs, for the comparison: 0.057 - 0.062 / 0.304 - 0.359 / 1.053 - 1.225 us per frame.

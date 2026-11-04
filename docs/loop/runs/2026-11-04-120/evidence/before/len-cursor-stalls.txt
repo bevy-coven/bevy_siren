@@ -1,0 +1,9 @@
+Prediction P3 (research.md): "a `Local<usize>` cursor over `log.len()` - the obvious way to print each entry once - stops printing once the ring holds 256 entries".
+Throwaway program (examples/scratch_len_cursor.rs, deleted after this run), release-independent, 600 pushes into one `SirenLog`, a reader that after every push prints what it has not seen
+(`for entry in log.iter().skip(seen) { print }; seen = log.len();`):
+
+    pushed 600 entries; a cursor of `seen = log.len()` printed 256 of them, the last one `c255`
+    the ring holds 256 (CAPACITY 256); entries 256..599 were never printed
+
+So the console would go silent for good after the 256th decision, with nothing wrong: at the quick start's rate (a play and a stop every half second = 2 entries) that is after about 64 s.
+`SirenLog::pushed()` / `since(mark)` is the cursor that does not stall (tests/model.rs::a_reader_with_a_mark_reads_every_entry_once_across_the_ring: 1 000 entries, five read cadences, each entry once).

@@ -20,6 +20,7 @@ mod ogg_loops;
 mod one_answer;
 mod owner;
 mod play;
+mod quick_start;
 mod readme;
 mod render_shapes;
 #[cfg(feature = "semantic")]

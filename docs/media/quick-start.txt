@@ -1,0 +1,28 @@
+BEFORE — the README's Quick start pasted verbatim as an example (evidence/before/readme-as-written.txt), run on a real window and output device for seven seconds. The ISO timestamp of each console line is dropped.
+
+$ cargo build --example scratch_readme
+warning: function `walk` is never used
+warning: function `hear` is never used
+$ cargo run --example scratch_readme
+ INFO bevy_winit::system: Creating new window scratch_readme (67v0)
+ERROR bevy_asset::server: Path not found: /Users/rebekahbrittain/bevy_siren/assets/audio/step_02
+ERROR bevy_asset::server: Path not found: /Users/rebekahbrittain/bevy_siren/assets/audio/step_01
+(seven seconds: no sound, and not one line from bevy_siren)
+
+AFTER — examples/quick_start.rs, the block as the README has it now (evidence/after/quick-start-real-run.txt): the same machine, the files in assets/audio/.
+
+$ cargo run --example quick_start
+ INFO bevy_winit::system: Creating new window quick_start (67v0)
+ INFO quick_start: 2.06s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+ INFO quick_start: 2.47s stopped `footstep.grass`: ended
+ INFO quick_start: 2.73s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+ INFO quick_start: 2.97s stopped `footstep.grass`: ended
+ INFO quick_start: 3.22s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+ INFO quick_start: 3.48s stopped `footstep.grass`: ended
+ INFO quick_start: 3.72s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+ INFO quick_start: 3.97s stopped `footstep.grass`: ended
+
+AFTER, with the mistake the old block taught — the keys without their extension (tests/quick_start.rs::a_key_without_its_extension_is_named_on_the_console, evidence/after/quick-start-console-in-the-tests.txt). The same report, the real asset server:
+
+ INFO quick_start: 0.50s refused `footstep.grass`: the file for sound `step_02` failed to load: Path not found: …/assets/audio/step_02
+ INFO quick_start: 1.00s refused `footstep.grass`: the file for sound `step_01` failed to load: Path not found: …/assets/audio/step_01

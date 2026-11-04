@@ -80,8 +80,8 @@ serde = ["dep:serde", "dep:ron"]
 # Our own mixer on rodio: true per-bus summing, where a bus's gain is one number the frame writes.
 # Without it the crate plays through Bevy's `AudioPlayer` and applies bus gain per voice.
 mixer = ["dep:rodio"]
-# Nothing enables this in normal use. `tests/readme.rs` checks the README's quick start against the
-# crate-root doctest, so the two cannot drift.
+# Nothing enables this in normal use. `tests/readme.rs` checks the README's quick start against `examples/quick_start.rs`,
+# the file `tests/quick_start.rs` runs, so the README cannot drift from the code that plays.
 readme-example = []
 # Semantic selection: describe a sound in words, get candidates back, and find the sounds that fit a chosen one.
 # Off by default; a user who does not enable it sees no change at all, in the dependency graph or in the binary

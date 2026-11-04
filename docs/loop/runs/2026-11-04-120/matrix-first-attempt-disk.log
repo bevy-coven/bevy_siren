@@ -1,0 +1,23 @@
+The FIRST final matrix of this iteration (before the walk local was renamed and before the Cargo.toml comment was corrected), started 03:47 with 2.7 GB free and incremental caches on.
+Two commands failed with `linking with cc failed`: the two with the large `ort`-linked test binary. **[INFERENCE] That was the disk**: the same commands linked at 3.5 GB free (the baseline) and at 3.7 GB with incremental caches off (matrix-final.log), the script's summary
+keeps no line of `ld`'s message (so `errno=28` was not seen), and the machine had 2.7 GB free with this session's release builds of `render`, `perfcheck` and three scratch examples still in target/release (the matrix script's own clean removes this crate's DEBUG artifacts only).
+It was addressed by `cargo clean --release -p bevy_siren` (235 files, 1.6 GiB, this crate's own artifacts) and by running the final matrix with CARGO_INCREMENTAL=0 (matrix-final.log). Everything else in this run was green: 9 + 233 + 7 doc, serde 9 + 242, mixer 20 + 248,
+doc 7, readme 1, build --examples, clippy, fmt, rustdoc.
+=== cargo test --features semantic   [free 2.7 GB, 03:48:13]
+   2 error: linking with `cc` failed: exit status: 1
+   1 warning: `bevy_siren` (example "quick_start") generated 1 warning
+   1 error: could not compile `bevy_siren` (test "all") due to 1 previous error
+   1 error: could not compile `bevy_siren` (example "mixer") due to 1 previous error
+   exit: 101
+=== cargo test --all-features   [free 2.7 GB, 03:49:16]
+   3 error: linking with `cc` failed: exit status: 1
+   1 warning: `bevy_siren` (example "quick_start") generated 1 warning
+   1 error: could not compile `bevy_siren` (test "all") due to 1 previous error
+   1 error: could not compile `bevy_siren` (example "render") due to 1 previous error
+   1 error: could not compile `bevy_siren` (example "mixer") due to 1 previous error
+   exit: 101
+=== cargo build --examples --all-features   [free 2.7 GB, 03:50:16]
+   1 warning: `bevy_siren` (example "quick_start") generated 1 warning
+   1 error: linking with `cc` failed: exit status: 1
+   1 error: could not compile `bevy_siren` (example "mixer") due to 1 previous error
+   exit: 101

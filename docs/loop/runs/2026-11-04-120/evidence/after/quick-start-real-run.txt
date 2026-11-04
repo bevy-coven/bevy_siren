@@ -1,0 +1,41 @@
+Run: examples/quick_start.rs on the FINAL tree (the block as in the README), a real window and this Mac's real output device (Apple M4 Pro, Metal), the assets in assets/audio/, left running 8 s and killed.
+Command: BEVY_ASSET_ROOT=$PWD ./target/debug/examples/quick_start     (what `cargo run --example quick_start` runs; cargo sets the asset root itself)
+The first launch of the freshly linked 520 MB binary printed nothing in nine seconds (a first-execution delay of the OS, not the code); the second, below, is complete.
+
+2026-11-04T09:41:47.339984Z  INFO bevy_diagnostic::system_information_diagnostics_plugin::internal: SystemInfo { os: "macOS 26.6.2 Tahoe", kernel: "25.6.0", cpu: "Apple M4 Pro", core_count: "14", memory: "48.0 GiB" }
+2026-11-04T09:41:47.384191Z  INFO bevy_render::renderer: AdapterInfo { name: "Apple M4 Pro", vendor: 0, device: 0, device_type: IntegratedGpu, device_pci_bus_id: "", driver: "", driver_info: "", backend: Metal, subgroup_min_size: 4, subgroup_max_size: 64, transient_saves_memory: Some(true), limit_bucket: None }
+2026-11-04T09:41:47.563347Z  INFO bevy_pbr::cluster: GPU clustering is supported on this device.
+2026-11-04T09:41:47.563431Z  INFO bevy_render::batching::gpu_preprocessing: GPU preprocessing is fully supported on this device.
+2026-11-04T09:41:47.584227Z  INFO bevy_winit::system: Creating new window quick_start (67v0)
+2026-11-04T09:41:49.717233Z  INFO quick_start: 2.06s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+2026-11-04T09:41:50.109526Z  INFO quick_start: 2.47s stopped `footstep.grass`: ended
+2026-11-04T09:41:50.404758Z  INFO quick_start: 2.73s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+2026-11-04T09:41:50.654032Z  INFO quick_start: 2.97s stopped `footstep.grass`: ended
+2026-11-04T09:41:50.901253Z  INFO quick_start: 3.22s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+2026-11-04T09:41:51.153374Z  INFO quick_start: 3.48s stopped `footstep.grass`: ended
+2026-11-04T09:41:51.391018Z  INFO quick_start: 3.72s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+2026-11-04T09:41:51.641464Z  INFO quick_start: 3.97s stopped `footstep.grass`: ended
+2026-11-04T09:41:51.909209Z  INFO quick_start: 4.23s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+2026-11-04T09:41:52.206202Z  INFO quick_start: 4.53s stopped `footstep.grass`: ended
+2026-11-04T09:41:52.386658Z  INFO quick_start: 4.73s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+2026-11-04T09:41:52.654967Z  INFO quick_start: 4.98s stopped `footstep.grass`: ended
+2026-11-04T09:41:52.903872Z  INFO quick_start: 5.24s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+2026-11-04T09:41:53.204541Z  INFO quick_start: 5.52s stopped `footstep.grass`: ended
+2026-11-04T09:41:53.395505Z  INFO quick_start: 5.72s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+2026-11-04T09:41:53.626002Z  INFO quick_start: 5.95s stopped `footstep.grass`: ended
+2026-11-04T09:41:53.901353Z  INFO quick_start: 6.22s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+2026-11-04T09:41:54.182097Z  INFO quick_start: 6.52s stopped `footstep.grass`: ended
+2026-11-04T09:41:54.405444Z  INFO quick_start: 6.73s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+2026-11-04T09:41:54.639069Z  INFO quick_start: 6.97s stopped `footstep.grass`: ended
+2026-11-04T09:41:54.892575Z  INFO quick_start: 7.22s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+2026-11-04T09:41:55.169574Z  INFO quick_start: 7.51s stopped `footstep.grass`: ended
+--- still running after 8 s: killing
+
+What this shows
+ 1. The block, pasted and run, PLAYS: ten steps alternate step_02.ogg / step_01.ogg, each `played` then `stopped: ended` a clip's length later (step_01.ogg is 0.221 s: 2.73 -> 2.97 = 0.24 s; step_02.ogg is 0.261 s: 3.22 -> 3.48 = 0.26 s),
+    and every line is the crate's own sentence, once. On the unchanged tree: a dead-code warning, silence, and Bevy's `Path not found` (evidence/before/readme-as-written.txt).
+ 2. The first step is at 2.06 s of real time, not 0.5 s: the first frames of a window are slow (pipelines compile) and `Time<Virtual>` clamps a frame to 250 ms, so `walk`'s half second of virtual time took two real seconds to pass.
+    Afterwards the cadence is the block's: 0.49 - 0.51 s between steps (2.73, 3.22, 3.72, 4.23, 4.73, 5.24, 5.72, 6.22, 6.73, 7.22).
+ 3. `ended` arrives one frame after the clip's last sample, which is what `retire_voices` does with a sink that reports empty. The headless tests show `stolen by footstep.grass (cue)` instead (no device, no sink, the voice never ends): a different path, said so in
+    evidence/after/quick-start-console-in-the-tests.txt.
+ 4. Whether it SOUNDS right was not heard by a person (nothing here can); the level and spectrum of the two files were measured (evidence/spectrograms/, review.md).

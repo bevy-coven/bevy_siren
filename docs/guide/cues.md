@@ -65,9 +65,13 @@ A cue's `sound` is an opaque key. `SirenSounds` maps keys to loaded handles:
 
 ```rust
 sounds.insert("step_01", assets.load("audio/step_01.ogg"));
-// or, when a key and a file share one name under one directory:
+// or, when a key is a file's name under one directory — `step_01.ogg` is `audio/step_01.ogg`:
 let asked = sounds.load_table(&assets, &table, "audio");
 ```
+
+**`load_table` asks the asset server for `<dir>/<key>` and nothing else**: the key is the file's name, **extension included**, so
+the key `step_01` is the path `audio/step_01` — not a file when the recording is `step_01.ogg`. The old README's quick start made
+exactly that mistake, and the refusal names it (below). The README's quick start is now run by `tests/quick_start.rs`.
 
 Nothing in the crate opens a path it guessed. A key is data, a file is the project's business, and the mapping is one
 place — so a delivered recording replaces another without touching the table, and a cue table can be written before an
@@ -146,7 +150,8 @@ round trip is a test.
 
 A `MissingSound` names the **sound key** a project maps to a file, never the cue — for all three of its causes: a key with
 no handle, a key whose bytes the decoder refused, and **a key whose file failed to load**. ``no handle or undecodable bytes
-for sound `step_03` `` sends you to `audio/step_03.wav`, which is the file to fix.
+for sound `step_03.ogg` `` sends you to `audio/step_03.ogg` when the keys came from `load_table` (a key is a file's name
+under the directory it was given), and to wherever your own mapping points when they did not.
 
 **A file that failed to load is refused, with the cause in the log.** Type `step_3.wav` for `step_03.wav` and the asset
 server knows the load failed and says why; the crate asks it where it decides, so the first play reads

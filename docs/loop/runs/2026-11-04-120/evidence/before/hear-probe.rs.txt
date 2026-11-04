@@ -1,0 +1,47 @@
+// scratch: the README's `hear`, verbatim, wired the way its doc comment implies (deleted before the commit; a copy is kept in evidence/before).
+use std::time::Duration;
+
+use bevy::audio::AudioSource;
+use bevy::prelude::*;
+use bevy::time::TimeUpdateStrategy;
+use bevy_siren::*;
+
+fn hear(mut played: MessageReader<Played>, mut log: ResMut<SirenLog>) {
+    for answer in played.read() {
+        // Which recording the player heard, and why it was chosen.
+        log.push(Entry::Played {
+            at_s: 0.0,
+            cue: answer.cue.clone(),
+            sound: answer.sound.clone(),
+            bus: answer.bus.clone(),
+            gain_db: answer.gain_db,
+        });
+    }
+}
+
+fn main() {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+        .init_asset::<AudioSource>()
+        .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(100)))
+        .add_plugins(SirenPlugin)
+        .insert_resource(CueTable::new(vec![Cue { sounds: vec![SoundSlot::new("s")], ..Cue::new("footstep.grass") }]))
+        .add_systems(Update, hear);
+    let handle = app
+        .world_mut()
+        .resource_mut::<Assets<AudioSource>>()
+        .add(AudioSource { bytes: include_bytes!("../tests/fixtures/tone.ogg").to_vec().into() });
+    app.world_mut().resource_mut::<SirenSounds>().insert("s", handle);
+    for _ in 0..3 {
+        app.update();
+    }
+    app.world_mut().write_message(Play::cue("footstep.grass"));
+    for _ in 0..3 {
+        app.update();
+    }
+    let log = app.world().resource::<SirenLog>();
+    println!("one play; the log holds {} entries:", log.len());
+    for entry in log.iter() {
+        println!("  {}", entry.line());
+    }
+}

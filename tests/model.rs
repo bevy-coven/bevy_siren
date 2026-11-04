@@ -425,6 +425,101 @@ fn entries_stay_in_order_after_an_eviction() {
     assert_eq!(times.first().copied(), Some(2.0), "and the first play (`c1`, at 1.0) is the one dropped");
 }
 
+/// A routine entry whose cue says which push it was.
+fn pushed_as(i: u32) -> bevy_siren::Entry {
+    bevy_siren::Entry::Played {
+        at_s: f64::from(i),
+        cue: format!("c{i}"),
+        sound: "s".to_owned(),
+        bus: "Effects".to_owned(),
+        gain_db: 0.0,
+    }
+}
+
+/// **A reader that keeps a mark reads every entry once, across the ring's wrap.** The quick start prints the log with a cursor, and the obvious cursor — how many entries the reader has seen, against `len()` — stops
+/// moving the moment the ring holds `CAPACITY` entries, so a game's console would go quiet after 256 decisions with nothing wrong. `pushed()` counts every push and never goes down.
+#[test]
+fn a_reader_with_a_mark_reads_every_entry_once_across_the_ring() {
+    use bevy_siren::SirenLog;
+
+    let want: Vec<String> = (0..1000).map(|i| format!("c{i}")).collect();
+    for cadence in [1u32, 3, 7, 64, 200] {
+        let mut log = SirenLog::new();
+        let (mut mark, mut read) = (0u64, Vec::new());
+        for i in 0..1000u32 {
+            log.push(pushed_as(i));
+            if (i + 1) % cadence == 0 {
+                read.extend(log.since(mark).map(|entry| entry.cue().to_owned()));
+                mark = log.pushed();
+            }
+        }
+        read.extend(log.since(mark).map(|entry| entry.cue().to_owned()));
+        assert_eq!(read, want, "every entry once and in order, reading every {cadence} pushes");
+        assert_eq!(log.pushed(), 1000);
+        assert_eq!(log.since(log.pushed()).count(), 0, "and nothing new after the last read");
+    }
+}
+
+/// **`since` is exact when the ring evicts an entry the reader has not read yet.** The ring drops its oldest *routine* entry, which is not the oldest entry: with 255 refusals and one play held, the next two plays
+/// evict the play before them — and the second of those was pushed **after** the reader's mark. A cursor that takes "the last `pushed() - mark` entries by position" would hand back the newest refusal in its place; a
+/// sequence number cannot.
+#[test]
+fn since_is_exact_when_the_ring_evicts_an_entry_after_the_mark() {
+    use bevy_siren::{Entry, SirenLog};
+
+    let refusal =
+        |i: u32| Entry::Refused { at_s: f64::from(i), cue: format!("r{i}"), reason: "r".to_owned() };
+    let mut log = SirenLog::new();
+    for i in 0..(SirenLog::CAPACITY as u32 - 1) {
+        log.push(refusal(i));
+    }
+    log.push(pushed_as(0));
+    assert_eq!(log.len(), SirenLog::CAPACITY, "the ring is full: 255 refusals and one play");
+    let mark = log.pushed();
+
+    log.push(pushed_as(1)); // evicts c0, the play before the mark
+    log.push(pushed_as(2)); // evicts c1, which was pushed after it
+
+    let cues: Vec<&str> = log.since(mark).map(Entry::cue).collect();
+    assert_eq!(cues, ["c2"], "only what is still held and was pushed after the mark");
+    assert_eq!(
+        log.pushed() - mark,
+        2,
+        "and pushed() - mark says two were pushed, so the reader knows one is gone"
+    );
+}
+
+/// **`clear` empties the ring and does not rewind the count**, so a reader's mark stays valid; **a mark from the future reads nothing** (a log that was replaced by a shorter one); **a mark older than the ring gets what
+/// is left**, and `pushed() - mark` is how many it missed.
+#[test]
+fn the_count_survives_a_clear_and_a_stale_mark_gets_what_is_left() {
+    use bevy_siren::SirenLog;
+
+    let mut log = SirenLog::new();
+    for i in 0..5 {
+        log.push(pushed_as(i));
+    }
+    log.clear();
+    assert_eq!((log.len(), log.pushed()), (0, 5), "cleared, and still the fifth push");
+    assert_eq!(log.since(0).count(), 0, "nothing held, nothing to read");
+    log.push(pushed_as(5));
+    assert_eq!(
+        log.since(5).map(|entry| entry.cue().to_owned()).collect::<Vec<_>>(),
+        ["c5"],
+        "a mark taken before the clear still reads what came after"
+    );
+    assert_eq!(log.since(99).count(), 0, "a mark ahead of the count reads nothing");
+
+    let mut log = SirenLog::new();
+    for i in 0..600 {
+        log.push(pushed_as(i));
+    }
+    let got: Vec<&str> = log.since(0).map(|entry| entry.cue()).collect();
+    assert_eq!(got.len(), SirenLog::CAPACITY, "a reader 600 behind gets everything the ring still holds");
+    assert_eq!(got[0], "c344", "from the oldest it kept: 600 - 256 = 344 were dropped");
+    assert_eq!(log.pushed(), 600);
+}
+
 /// **A played gain is written so a distance law can be read off it.** `cues.yaml` case 14 asserts that
 /// `Attenuation::Inverse { near_m: 4, rolloff: 1 }` gives −6.02 dB at twice its near radius, and iteration 41 put that
 /// number on the panel's cue row. `Entry::line` wrote one decimal, so the log said `-6.0` beside the row's `-6.02` —
