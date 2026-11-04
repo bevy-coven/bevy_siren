@@ -7,13 +7,35 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The documented basis for the similarity floor was false on real recordings.** `Floor::default()` is `0.0`, justified as *"a
+  measurement, not timidity"*: six synthetic clips whose right and wrong score bands overlapped, so *"no single threshold separates
+  them"* and *"a floor of 0.5 would reject every correct match"*. The first run of the golden set — **2 000 real recordings, 50
+  descriptions** — measured the opposite: right answers' median **0.468** against the wrong answers' **0.070**; the bands overlap
+  only in their tails (right p05 0.273, wrong p95 0.277); the weakest *top result* of any description scores **0.492** (**0.405** when
+  the same sounds are described in a stranger's words, `queries-paraphrase.tsv`); a floor on the top result separates a description
+  the library can answer from one it cannot with an **AUC of 0.963** (0.885 paraphrased); and a floor of **0.35** keeps every
+  description's top result in both wordings, returns 55–66 results a query at ~50 % precision (not 1 318–1 440 at 3 %) and silences 4
+  of 16 descriptions of sounds the library lacks — while **0.45, the knee in the maintainer's wording, already drops two paraphrased
+  answers**. The six synthetic tones' *best* match (0.429) is below the real median — synthetic audio understates a real match, so a
+  floor calibrated on it was calibrated on nothing. The claim is corrected where it was made (`rank.rs`, `weights.rs` ×3,
+  `ensemble.rs`, the guide's banner, floor and weights sections, `semantic-config.md`). **The default itself is unchanged** and is now
+  `docs/loop/needs-decision/default-floor.md`, with the table and a recommendation (0.35).
+  **Four tests that pinned the old story are deleted**: `the_measured_bands_overlap_which_is_why_the_default_floor_keeps_everything`
+  (a compile-time assert on two constants, and a pin of the default), `an_intuitive_floor_would_have_rejected_every_correct_match` and
+  `a_floor_at_the_measured_boundary_keeps_the_best_and_drops_the_worst_miss` (arithmetic on literals, the first concluding something
+  now false), and `the_default_floor_keeps_everything_because_no_labelled_set_exists_yet` (a labelled set exists).
+  `a_floor_inside_the_overlap_deletes_right_answers_measured_on_the_real_model` is now `a_floor_drops_a_right_answer_that_scores_under_it`,
+  an arithmetic test with no narrative. Also: `semantic/mod.rs`'s stage table still said *"index and query: not yet"*; it is now a true
+  module map.
 - **Two claims about the semantic layer that its first real run falsified.** The README said *"a 5 000-clip library costs
   seconds, not minutes"*, and the README and the guide said `cargo tree` reads *"the same 413 lines"* with and without
   `semantic`. Run end to end on the real CLAP graphs for the first time, the audio tower indexed **280 clips at 16.6 clips/s**
   on an M4 CPU — **60 ms a clip, 35 ms of it the tower and 26 ms this crate's own mel spectrogram** — so 5 000 clips take
   about **five minutes**; the 750 clips/s figure is decoding alone. And `semantic` takes the graph from **413 to 487 lines**
   (149 crates to 181), which was true only of the build that does not enable it. Both are corrected where they were said,
-  with the measurement, and `indexer`'s throughput doc gained the CPU-inference row it lacked.
+  with the measurement, and `indexer`'s throughput doc gained the CPU-inference row it lacked. **And the five minutes was for
+  one-second clips**: 2 000 five-second 44.1 kHz recordings cost **105 ms** a clip (9.5 clips/s, under load), about nine minutes for
+  5 000 — a clip's cost is not constant, and the extra 45 ms is not yet decomposed.
 - **A `k` above the cap was told *"a k of 0 asks for nothing"*.** `ToolProblem::BadK`'s message ended in one sentence for both
   of its cases, so a caller that had asked for **101** — an agent over `siren-tools`, where the message is all it reads — got
   advice about zero. Found by running `examples/semantic --k 101`. The message now explains the case it is (*"k is a bound, not a
@@ -82,6 +104,26 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`#35`'s golden set — recall, precision and the floor, measured on 2 000 recordings people labelled.** `golden/esc50/` holds a
+  manifest (SHA-256 of every file at a pinned commit), **two files of 66 text queries** — 50 with right answers and 16 that should find
+  nothing, each with a one-line rationale; one in the maintainer's words and one paraphrased to avoid the class names — and a recorded
+  baseline; `tools/fetch_esc50.py <dir>` fetches the 2 000 clips **file by file, 16 at a time, each
+  checked against the manifest as it arrives** (79 s; the one-archive route measured two hours) and writes `labels.csv` and the
+  `licences.csv` sidecar the crate already reads — failing unless every clip has a licence row. `semantic::golden::GoldenSet::parse`
+  refuses a mistake **by line** (no rationale, a repeated description, a class no file is in, a header that names no columns);
+  `semantic::eval` gains set-valued relevance (`ScoredCase`, `hit`/`precision`/`reciprocal_rank`/`average_precision`, `score_cases`,
+  `floor_curve`, `score_bands`) — all additive. `examples/goldenbench` indexes the set with the real audio graph and prints the paper's
+  zero-shot accuracy, retrieval hit@1/3/10, precision@10, MRR, mAP@10, the score bands, the floor curve, which sound each no-answer
+  query found instead, that `search_music` returns the same ten as the raw ranking, and a baseline compare. **Results:** zero-shot
+  **87.8 %** (the paper: 88.0 – 91.0 % on an overlap-excluded subset) — and an independent `transformers` run on the same 44.1 kHz audio
+  gets **87.8 %** too; in the maintainer's words hit@1 **90 %**, hit@3 **100 %**, hit@10 100 %, precision@10 88.8 %, MRR 0.950, mAP@10
+  0.857 — and **in a stranger's words 72 % / 84 % / 92 %, 73.6 %, 0.791, 0.676**; the crate's 232 000
+  similarities differ from the reference's by 8 × 10⁻⁴ on average and 0.089 at worst (resampler against resampler; the one that
+  matches the model's training pipeline is unmeasured). On the real sidecar the crate's provenance reads **1 770 licences that permit
+  commercial use, 170 that do not, 60 unknown** — unknown never shown as permissive. **Not met, and not a machine's:** `#35`'s third
+  criterion, anchor pairs judged by a person. ADR 0009, `docs/guide/golden-set.md` (including what it cannot say: ESC-50 overlaps the
+  model's training data, one library, no music), `tests/semantic_golden.rs` (19: the metric arithmetic, the loader's refusals, and the
+  checked-in set's own invariants).
 - **`examples/semantic` and `tools/export_clap_onnx.py` — the semantic layer, run end to end on real files** (`#38`).
   `cargo run --release --features semantic --example semantic -- <folder> "<description>"` builds (or reuses) the index,
   embeds the description, prints the top results **with the reason each one ranked**, and plays one through `SirenPlugin`'s

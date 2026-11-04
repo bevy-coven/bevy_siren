@@ -146,8 +146,9 @@ the first 32 footsteps and quietly stole or refused every one after that.
   atonal asset reporting *no key* rather than a confident wrong one; a build produces both without a caller supplying
   them. The whole index is **binary, 10.28 MB for 5 000 clips** against 31.88 MB as text. Decoding a clip runs at
   **~750 clips/s**, but **inference is the bound**: the real audio tower, run end to end for the first time in iteration
-  110, indexed 280 clips at **16.6 clips/s on an M4 CPU** — 60 ms a clip, so a 5 000-clip library is **about five
-  minutes**. `incremental::update` pays only for what changed; `examples/semantic` rebuilds whole. Off by default: a
+  110, indexed 280 one-second clips at **16.6 clips/s on an M4 CPU** — 60 ms a clip, **about five minutes** for 5 000 — and 2 000
+  five-second recordings at **9.5 clips/s, 105 ms a clip** (about nine minutes for 5 000, measured under load).
+  `incremental::update` pays only for what changed; `examples/semantic` rebuilds whole. Off by default: a
   build that does not enable it is unchanged at **413 lines** of `cargo tree --edges normal`, and with it that is
   **487**. The pipeline and its rules are in
   [semantic](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md); every authored number — each
@@ -159,6 +160,13 @@ the first 32 footsteps and quietly stole or refused every one after that.
   **Try it on your own files**: `tools/export_clap_onnx.py` makes both graphs from the weights in your Hugging Face cache,
   and `examples/semantic` indexes a folder, takes a description, prints the best three with the reason for each and plays
   one — [the guide](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md#try-it-examplessemantic).
+  **It is measured against recordings people labelled**: on 2 000 ESC-50 clips, fifty descriptions written by the maintainer reach
+  **hit@1 90 %, hit@3 100 %** — and **72 % and 84 %** when the same sounds are described in a stranger's words — and the pipeline
+  reproduces `transformers`' zero-shot accuracy on the same audio to four places (**87.8 %**). The first run overturned a documented
+  claim — the right and wrong score bands do *not* overlap much on real recordings, and a similarity floor of about 0.35 keeps every
+  description's top result in both wordings while shrinking a result list ~22× and silencing a quarter of the descriptions of sounds
+  the library lacks — which is why the default floor is now [a decision](https://github.com/bevy-coven/bevy_siren/blob/main/docs/loop/needs-decision/default-floor.md)
+  rather than a number. One library of environmental sounds, partly seen in the model's training: [what it cannot say](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/golden-set.md#what-it-cannot-say).
   **An agent can drive all of it**: `siren-tools` is an MCP server over
   stdio — six tools, one error shape, and a bad call is a result a model can read, not a protocol error it never sees —
   built with `--features semantic` and nothing else, in [the guide](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md#the-tool-server-siren-tools).

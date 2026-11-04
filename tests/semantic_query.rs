@@ -4,7 +4,7 @@
 
 use bevy_siren::semantic::index::{Index, ModelStamp};
 use bevy_siren::semantic::query::{Query, QueryProblem};
-use bevy_siren::semantic::rank::{Floor, MEASURED_MATCH_FLOOR, MEASURED_MISS_CEILING, top_k};
+use bevy_siren::semantic::rank::{Floor, top_k};
 use bevy_siren::semantic::{EMBEDDING_DIM, MAX_TEXT_TOKENS, TEXT_EMBEDDING_DIM};
 
 #[test]
@@ -46,43 +46,6 @@ fn a_description_longer_than_the_model_accepts_names_both_numbers() {
 fn the_token_limit_is_the_one_the_model_card_states() {
     assert_eq!(MAX_TEXT_TOKENS, 77);
     assert_eq!(TEXT_EMBEDDING_DIM, EMBEDDING_DIM, "text and audio must be the same width to be compared");
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// The floor, calibrated against the measurement rather than against intuition.
-// ---------------------------------------------------------------------------------------------------------------
-
-#[test]
-fn the_measured_bands_overlap_which_is_why_the_default_floor_keeps_everything() {
-    // This test exists to stop someone "tidying" the default floor up to a number that feels right. The measurement
-    // says a correct match can score lower than an incorrect one, so no single threshold separates them.
-    // Two constants, so this is decided when the crate is compiled rather than when the test runs: if a later
-    // measurement finds the bands separated, this stops the build and forces the default to be reconsidered.
-    const {
-        assert!(
-            MEASURED_MATCH_FLOOR < MEASURED_MISS_CEILING,
-            "the measured correct band starts below the incorrect band's ceiling: they overlap, so no floor separates them"
-        )
-    };
-    assert_eq!(Floor::default().min_score, 0.0, "so the default keeps everything");
-}
-
-#[test]
-fn an_intuitive_floor_would_have_rejected_every_correct_match() {
-    // The number a person reaches for is 0.5. Measured: the best correct match scored 0.429.
-    let intuitive = Floor { min_score: 0.5 };
-    let correct_matches = [0.126f32, 0.133, 0.217, 0.218, 0.429];
-    let kept = correct_matches.iter().filter(|s| **s >= intuitive.min_score).count();
-    assert_eq!(kept, 0, "a 0.5 floor keeps none of the five correct matches");
-}
-
-#[test]
-fn a_floor_at_the_measured_boundary_keeps_the_best_and_drops_the_worst_miss() {
-    // Not a recommendation — a demonstration that the numbers behave. At 0.15 the weakest correct match is dropped and
-    // the strongest miss is kept, which is exactly the overlap the default avoids committing to.
-    let f = Floor { min_score: MEASURED_MISS_CEILING };
-    assert!(0.126 < f.min_score, "the weakest correct match falls below it");
-    assert!(0.150 >= f.min_score, "and the strongest miss sits at it");
 }
 
 #[test]

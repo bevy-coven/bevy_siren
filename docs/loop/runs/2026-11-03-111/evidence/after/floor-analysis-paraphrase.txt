@@ -1,0 +1,18 @@
+answerable queries: 50, unanswerable: 16
+
+               answ min answ med   none med none max   AUC (answerable above unanswerable)
+s1               +0.405   +0.574     +0.431   +0.593   0.885
+s1 - s10         +0.022   +0.080     +0.093   +0.144   0.461
+s1 - median      +0.386   +0.509     +0.393   +0.536   0.925
+
+an absolute floor on s1 — how many of each group still get an answer:
+ floor   answerable   unanswerable
+  0.30        50/50          16/16
+  0.35        50/50          12/16
+  0.40        50/50           9/16
+  0.45        48/50           7/16
+  0.50        41/50           5/16
+  0.55        30/50           1/16
+  0.60        19/50           0/16
+
+the floor that maximises (answerable answered - unanswerable answered): 0.455 (net 41)

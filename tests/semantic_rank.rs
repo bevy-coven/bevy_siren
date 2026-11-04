@@ -133,18 +133,6 @@ fn a_floor_drops_what_is_below_it() {
     assert_eq!(kept[0].hash, 0x01);
 }
 
-#[test]
-fn the_default_floor_keeps_everything_because_no_labelled_set_exists_yet() {
-    // Design default, stated as such: a floor that hides the right answer is worse than a long list while `V-01`'s
-    // labelled set does not exist.
-    assert_eq!(Floor::default().min_score, 0.0);
-    let mut idx = index();
-    idx.insert(0x01, axis(0)).expect("insert");
-    idx.insert(0x02, axis(1)).expect("insert");
-    let all = top_k(&idx, &axis(0), 5).expect("rank");
-    assert_eq!(Floor::default().apply(all).len(), 2);
-}
-
 /// **`#47`: the measured ranking is inside its stated budget**, so the constant cannot drift from the code.
 ///
 /// This is a real timing test rather than a tautology, and it is sized to be stable on a shared machine: the budget is

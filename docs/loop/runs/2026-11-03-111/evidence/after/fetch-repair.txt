@@ -1,0 +1,19 @@
+$ rm audio/1-100032-A-0.wav; printf x >> audio/1-100038-A-14.wav; cp audio/1-100210-A-36.wav audio/stray.wav
+$ python3 tools/fetch_esc50.py /tmp/esc50      # a stray file is refused, and nothing is downloaded over anything
+  audio/stray.wav
+fetch_esc50: 1 files in audio/ are not part of the set (they would change every number); remove them
+exit: 1
+
+$ rm audio/stray.wav; python3 tools/fetch_esc50.py /tmp/esc50      # the missing and the corrupted file are fetched again, verified on arrival
+fetching 2 of 2002 files from https://raw.githubusercontent.com/karolpiczak/ESC-50/33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6/
+  2 / 2 files
+esc50 @ 33c8ce9e: 2000 clips verified against the manifest (set id c612470bbc42)
+  classes: 50; licences: CC-BY 901, CC-BY-NC 170, CC-Sampling+ 60, CC0 869
+  wrote /tmp/esc50/labels.csv and /tmp/esc50/licences.csv
+exit: 0
+
+$ python3 tools/fetch_esc50.py /tmp/esc50      # nothing left to do
+esc50 @ 33c8ce9e: 2000 clips verified against the manifest (set id c612470bbc42)
+  classes: 50; licences: CC-BY 901, CC-BY-NC 170, CC-Sampling+ 60, CC0 869
+  wrote /tmp/esc50/labels.csv and /tmp/esc50/licences.csv
+exit: 0

@@ -379,7 +379,7 @@ pub const INDEX_FILE: &str = "siren-index";
 /// | **decode target** | **700 clips/s** — the crate's own work: open, downmix, resample, loudness, spectral, tempo, key |
 /// | measured | **748 clips/s** at 400 clips on this Mac (`cargo run --release --features semantic --example indexbench -- <dir> 400`), and 750 at 300 in iteration 95 |
 /// | **what a "clip" is** | **0.5 s** of 48 kHz mono, which is what `indexbench` generates. The figure is **per clip**, so it is proportional to duration: a 4 s clip measures about **83 clips/s** on the same machine. Comparing a rate against this constant without matching the duration is comparing two different measurements — which is what a first draft of the test did |
-/// | **inference, on a CPU** | **16.6 clips/s** end to end with the real audio tower — `examples/semantic` over 280 distinct ~1 s clips, M4, fp32, batch 1, decode included — so **60 ms a clip** and 5 000 clips take about **five minutes**. A measurement, not a target. Of the 60 ms, **35 ms is the tower and 26 ms is this crate's own mel spectrogram** (30 repetitions on one clip; the two run one after the other) |
+/// | **inference, on a CPU** | **16.6 clips/s** end to end with the real audio tower — `examples/semantic` over 280 distinct ~1 s clips, M4, fp32, batch 1, decode included — so **60 ms a clip** and 5 000 clips take about **five minutes**; and **9.5 clips/s, 105 ms a clip** for 2 000 five-second 44.1 kHz recordings (`examples/goldenbench`, under a load average of 6.5), about **nine minutes** for 5 000. A measurement, not a target. Of the 60 ms, **35 ms is the tower and 26 ms is this crate's own mel spectrogram** (30 repetitions on one clip; the two run one after the other) |
 /// | **inference target** | **not set** — the GPU figure needs the ONNX graph on a GPU host, which this repository's CI does not have |
 /// | peak VRAM | **not measured**, for the same reason |
 ///
@@ -400,7 +400,7 @@ pub const INDEX_FILE: &str = "siren-index";
 /// # What that implies
 ///
 /// At 748 clips/s the crate's own work for 5 000 clips is **7 s**; with the real tower on a CPU the same library is about
-/// **five minutes** (60 ms a clip, measured end to end). The projection on a GPU needs the measurement that does not exist
+/// **five to nine minutes** (60 ms a clip for one-second clips, 105 ms for five-second ones, measured end to end). The projection on a GPU needs the measurement that does not exist
 /// here, and stating *"3 s"* or *"30 min"* for it without that number would be the aspiration `#36` forbids.
 pub const INDEX_TARGET_CLIPS_PER_SEC: f64 = 700.0;
 

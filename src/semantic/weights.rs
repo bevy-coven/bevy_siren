@@ -51,10 +51,11 @@ pub struct Weights {
 
     /// How much acoustic agreement contributes — loudness, brightness and the noise floor together.
     ///
-    /// **Design default: `0.5`.** Measured in the crate's own end-to-end run, the correct and incorrect semantic bands
-    /// **overlap** (0.126–0.429 against −0.104–0.150), so the semantic signal alone cannot separate them. Half its
-    /// weight is the smallest amount that lets production differences break a near-tie without overriding the words a
-    /// person typed.
+    /// **Design default: `0.5`** — half the semantic weight, so production differences (loudness, brightness, noise floor) can break
+    /// a near-tie between candidates the words cannot tell apart, without overriding what a person typed. Not tuned: it predates the
+    /// golden set, which shows one class's right answers spanning **0.27 – 0.63** in semantic score (5th to 95th percentile) — wide
+    /// enough for a half-weighted acoustic term to reorder them, and silent on whether it reorders them *well*, which needs `#35`'s
+    /// anchor judgements.
     #[cfg_attr(feature = "serde", serde(default = "Weights::default_acoustic"))]
     pub acoustic: f32,
 
@@ -117,9 +118,10 @@ pub struct Weights {
     /// **The cosine below which a candidate is dropped before it is scored**, for the tool surface.
     ///
     /// **Design default: `0.0`**, which is [`Floor::min_score`](super::rank::Floor)'s existing default moved onto a named
-    /// field rather than a second policy. `0.0` keeps everything, and that is a **measurement**, not timidity: the correct
-    /// and incorrect semantic bands **overlap** (0.126–0.429 against −0.104–0.150), so any positive default would reject
-    /// correct answers — a floor of 0.5 would have rejected every one of them.
+    /// field rather than a second policy. `0.0` keeps everything, and **that is under review**: it was chosen from six synthetic
+    /// clips, and 2 000 real recordings say a floor of about 0.35 keeps every description's top result — in the maintainer's wording
+    /// and in a stranger's — while shrinking a result list ~22× (`Floor::min_score` has the numbers;
+    /// `docs/loop/needs-decision/default-floor.md` has the decision).
     ///
     /// It exists because `tools::Toolset` hardcoded `Floor::default()` at its filter site: `Tally::below_floor` was
     /// documented, rendered in `describe()`, and **could never be non-zero**, and a caller had no way to set a stricter
@@ -173,8 +175,7 @@ impl Weights {
         1.0
     }
 
-    /// **Design default: `0.5`** — half the semantic weight, because the semantic bands overlap and production
-    /// differences are what breaks a near-tie.
+    /// **Design default: `0.5`** — half the semantic weight, so production differences can break a near-tie (see `acoustic`).
     pub fn default_acoustic() -> f32 {
         0.5
     }
@@ -212,8 +213,8 @@ impl Weights {
         0.0
     }
 
-    /// **Design default: `0.0`** — `Floor::min_score`'s default, and the measured reason it cannot be positive is in
-    /// [`Weights::min_similarity`]'s doc.
+    /// **Design default: `0.0`** — `Floor::min_score`'s default, which is **under review** (see [`Weights::min_similarity`]'s doc
+    /// and `docs/loop/needs-decision/default-floor.md`).
     pub fn default_min_similarity() -> f32 {
         0.0
     }

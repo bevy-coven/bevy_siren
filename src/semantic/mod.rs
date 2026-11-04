@@ -4,18 +4,23 @@
 //! queried by description, by another sound, or by both — and it does so without changing anything a user who only
 //! wants playback builds.
 //!
-//! # What is here now, and what is not
+//! # What is here
 //!
-//! The pipeline is built in dependency order, so this module is deliberately thin: the pieces that need no model
-//! exist and are tested, and the pieces that need one are added behind it. Nothing here is a stub — a function either
-//! does its job or is not exported yet.
+//! The pipeline was built in dependency order, so most of it needs no model: only `model` (this module's, not [`crate::model`])
+//! touches `ort`, and everything else takes an embedding as a slice and is tested with no device, no weights and no runtime.
+//! Nothing here is a stub — a function either does its job or is not exported.
 //!
-//! | Stage | State |
+//! | Stage | Modules |
 //! |---|---|
 //! | scan a directory into a manifest | [`crate::library`] — always available, no feature needed |
-//! | decode and resample to the model's rate | in progress |
-//! | embed with CLAP's audio tower | measured (`docs/adr/0002-inference-runtime.md`) |
-//! | index and query | not yet |
+//! | decode, downmix and resample to the model's rate | `decode`, `buffer`, `resample` |
+//! | the features the audio tower reads | `mel` (CLAP's log-mel, to 0.0545 dB of the reference), `chunk` (long tracks) |
+//! | embed a sound or a description | `model`, `tokenizer`, `query`, `ask` |
+//! | store, update, say where it came from | `index`, `indexer`, `incremental`, `provenance` |
+//! | rank, filter and weigh | `rank`, `search`, `filter`, `ensemble`, `weights` |
+//! | what the sound itself says | `loudness`, `spectral`, `tempo`, `key`, `reverb`, `analysis` |
+//! | the workflow as calls, and the MCP host that serves them | `tools`, `session`, `server` |
+//! | measure it | `eval`, `golden` (labelled sets), `budget` (the GPU budget) |
 //!
 //! # The one rule this module inherits
 //!
@@ -32,6 +37,7 @@ pub mod decode;
 pub mod ensemble;
 pub mod eval;
 pub mod filter;
+pub mod golden;
 pub mod incremental;
 pub mod index;
 pub mod indexer;

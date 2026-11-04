@@ -1,0 +1,51 @@
+
+$ goldenbench 
+goldenbench: one argument is required — the library directory — and 0 were given
+
+usage: goldenbench <library-dir> [--model clap-text.onnx --vocab tokenizer.json] [--audio-model clap-audio.onnx]
+                [--model-version <v>] [--queries golden/esc50/queries.tsv] [--bless] [--dump <file>]
+
+<library-dir> is what `python3 tools/fetch_esc50.py <library-dir>` made. Each model flag also reads SIREN_MODEL, SIREN_VOCAB,
+SIREN_AUDIO_MODEL and SIREN_MODEL_VERSION; the files are made once by `python3 tools/export_clap_onnx.py <dir>`.
+exit: 2
+
+$ goldenbench /tmp/does-not-exist
+goldenbench: `/tmp/does-not-exist` is not a directory
+
+usage: goldenbench <library-dir> [--model clap-text.onnx --vocab tokenizer.json] [--audio-model clap-audio.onnx]
+                [--model-version <v>] [--queries golden/esc50/queries.tsv] [--bless] [--dump <file>]
+
+<library-dir> is what `python3 tools/fetch_esc50.py <library-dir>` made. Each model flag also reads SIREN_MODEL, SIREN_VOCAB,
+SIREN_AUDIO_MODEL and SIREN_MODEL_VERSION; the files are made once by `python3 tools/export_clap_onnx.py <dir>`.
+exit: 2
+
+$ goldenbench /tmp/esc50-small
+goldenbench: the library is not the set — 1997 labelled files are absent (the first is `audio/1-100210-B-36.wav`), and 1 files nobody labelled are there (the first is `audio/stray.wav`).
+A partial or padded copy measures a different set, so nothing was run. `python3 tools/fetch_esc50.py /tmp/esc50-small` repairs it.
+exit: 2
+
+$ goldenbench /tmp/esc50 --queries /tmp/bad-queries.tsv
+goldenbench: the golden set is not loadable — queries, line 2: `a dog barking` has no rationale: every query says why its answer is right, or why nothing should match
+exit: 2
+
+$ goldenbench /tmp/esc50 --queries /Users/rebekahbrittain/bevy_siren/golden/esc50/queries-paraphrase.tsv --bless
+goldenbench: the baseline is for golden/esc50/queries.tsv, and `--bless` will not record another queries file's numbers over it
+exit: 2
+
+$ goldenbench /tmp/esc50
+goldenbench: cannot run — 2 file(s) missing:
+  --model        the CLAP text graph, clap-text.onnx — not given
+  --vocab        its tokenizer.json — not given
+
+Make them once with `python3 tools/export_clap_onnx.py <dir>`.
+exit: 2
+
+$ goldenbench /tmp/esc50 --frobnicate
+goldenbench: unknown option `--frobnicate`
+
+usage: goldenbench <library-dir> [--model clap-text.onnx --vocab tokenizer.json] [--audio-model clap-audio.onnx]
+                [--model-version <v>] [--queries golden/esc50/queries.tsv] [--bless] [--dump <file>]
+
+<library-dir> is what `python3 tools/fetch_esc50.py <library-dir>` made. Each model flag also reads SIREN_MODEL, SIREN_VOCAB,
+SIREN_AUDIO_MODEL and SIREN_MODEL_VERSION; the files are made once by `python3 tools/export_clap_onnx.py <dir>`.
+exit: 2

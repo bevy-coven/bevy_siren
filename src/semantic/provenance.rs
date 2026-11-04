@@ -274,7 +274,7 @@ impl Sidecar {
 
 /// Split one CSV line on commas, respecting double quotes. Not a general CSV reader: it handles the quoted-comma case a
 /// licence field like `"CC-BY-4.0, attribution required"` produces, and nothing beyond it.
-fn split_csv(line: &str) -> Vec<String> {
+pub(crate) fn split_csv(line: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut current = String::new();
     let mut quoted = false;

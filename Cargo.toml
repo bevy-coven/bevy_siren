@@ -59,6 +59,12 @@ required-features = ["semantic"]
 name = "semantic"
 required-features = ["semantic"]
 
+# #35's golden-set benchmark: recall, precision and the floor on recordings people labelled, with the real model. `semantic` is
+# required for the same reason as the other examples that load a model.
+[[example]]
+name = "goldenbench"
+required-features = ["semantic"]
+
 # ADR 0006's tool server: one `[[bin]]` in this crate, behind `semantic`. `required-features` is what makes
 # `cargo build` without the feature build no binary (`#28`'s fourth criterion), asserted by `tests/semantic_server.rs`.
 [[bin]]

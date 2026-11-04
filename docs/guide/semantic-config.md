@@ -39,7 +39,7 @@ came from the words"*.
 | field | default | effect at its extremes | why that default |
 |---|---|---|---|
 | `semantic` | `1.0` | `0.0` ranks by production alone — legitimate, and `problems()` permits it | the signal the feature is named for, so it is the unit the others are relative to |
-| `acoustic` | `0.5` | `0.0` ignores loudness, brightness and noise floor entirely | the correct and incorrect semantic bands **overlap** (0.126–0.429 against −0.104–0.150), so words alone cannot separate them; half the semantic weight is the smallest amount that breaks a near-tie without overriding what a person typed |
+| `acoustic` | `0.5` | `0.0` ignores loudness, brightness and noise floor entirely | half the semantic weight, so production differences can break a near-tie between candidates the words cannot tell apart without overriding what a person typed. **Not tuned:** it was first argued from a six-clip measurement the golden set superseded, and a person's judgement of fit (`#35`) is the evidence that would set it |
 | `tempo` | `0.35` | `0.0` ignores rhythmic clash in the score, though the **hard rule still excludes** beyond the tolerance | below `acoustic` because a tempo estimate carries a stated ±2 BPM floor and is absent for every effect — a signal with a hole in it earns less weight than one without |
 | `key` | `0.35` | `0.0` ignores key in the score | equal to `tempo` and for the same reason; equal rather than ranked because no measurement says which matters more |
 

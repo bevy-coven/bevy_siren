@@ -1,0 +1,82 @@
+# The golden set's text queries: what a developer would type, and what a right answer is.
+#
+# Columns (tab-separated, in this order, header required):
+#   target       the ESC-50 class number, or `-` for a query that should find NOTHING in this library
+#   class        the ESC-50 category name, or `-`
+#   description  the words a person types. Written as a game developer would, not copied from the class name
+#   rationale    one line: why the expected answer is right (or why nothing here should match)
+#
+# A positive query's right answers are **every** clip of its class (40 of them): a text encoder cannot tell twelve takes of one
+# bark apart, and a metric that demanded a particular one would measure the corpus's order rather than the ranking.
+# A negative query names a sound this corpus does not contain; it is how the similarity floor is shown to do its job — a result
+# set that can be empty — and its right answer is no result. A near-miss is a confound, and the rationale says which.
+#
+# To grow the set: add rows (never edit a recorded number's query in place — add a new row, the old figure stays about the old
+# one), keep descriptions unique, and give every row a rationale. `docs/guide/golden-set.md` has the whole procedure.
+target	class	description	rationale
+0	dog	a dog barking	ESC-50 class `dog`: the dataset's curators labelled all 40 of its clips, so all 40 are right answers.
+1	rooster	a rooster crowing at dawn	ESC-50 class `rooster`: a crow of a cockerel; `crow` (the bird) is class 9 and is a wrong answer here.
+2	pig	a pig grunting and squealing	ESC-50 class `pig`: grunts, squeals and snorts.
+3	cow	a cow mooing	ESC-50 class `cow`: lowing and mooing.
+4	frog	frogs croaking at a pond	ESC-50 class `frog`: croaks, singly and in choruses.
+5	cat	a cat meowing	ESC-50 class `cat`: meows, and also purrs and hisses in the dataset's clips.
+6	hen	a hen clucking	ESC-50 class `hen`: clucks and cackles; `rooster` is a wrong answer.
+7	insects	flies and insects buzzing	ESC-50 class `insects` (flying): flies, mosquitoes and bees buzzing; `crickets` is a different class.
+8	sheep	a sheep bleating	ESC-50 class `sheep`: bleats of sheep and goats.
+9	crow	a crow cawing	ESC-50 class `crow`: caws; `rooster` is a wrong answer.
+10	rain	rain falling steadily	ESC-50 class `rain`: steady rainfall; `thunderstorm` is a different class.
+11	sea_waves	ocean waves crashing on the shore	ESC-50 class `sea_waves`: surf and breaking waves.
+12	crackling_fire	a campfire crackling	ESC-50 class `crackling_fire`: crackle and pops of burning wood.
+13	crickets	crickets chirping at night	ESC-50 class `crickets`: a night-time chorus; `insects` is a different class.
+14	chirping_birds	birds chirping and singing	ESC-50 class `chirping_birds`: song and chirps; `crow` and `rooster` are different classes.
+15	water_drops	water dripping slowly	ESC-50 class `water_drops`: drips and plinks; `pouring_water` is a different class.
+16	wind	wind blowing	ESC-50 class `wind`: gusts and steady wind noise.
+17	pouring_water	water being poured into a glass	ESC-50 class `pouring_water`: a stream of water filling a vessel.
+18	toilet_flush	a toilet flushing	ESC-50 class `toilet_flush`: the flush and the refill.
+19	thunderstorm	thunder rumbling in a storm	ESC-50 class `thunderstorm`: thunder with rain; `rain` is a different class.
+20	crying_baby	a baby crying	ESC-50 class `crying_baby`: infant crying and wailing.
+21	sneezing	a person sneezing	ESC-50 class `sneezing`: single and repeated sneezes.
+22	clapping	people clapping their hands	ESC-50 class `clapping`: applause and hand claps.
+23	breathing	a person breathing heavily	ESC-50 class `breathing`: audible inhaling and exhaling.
+24	coughing	a person coughing	ESC-50 class `coughing`: coughs, single and in runs.
+25	footsteps	footsteps walking on a hard floor	ESC-50 class `footsteps`: walking and running steps on assorted surfaces.
+26	laughing	a person laughing	ESC-50 class `laughing`: laughter, from chuckles to roars.
+27	brushing_teeth	someone brushing their teeth	ESC-50 class `brushing_teeth`: the scrubbing of a toothbrush.
+28	snoring	a person snoring	ESC-50 class `snoring`: sleeping snores.
+29	drinking_sipping	someone sipping a drink through a straw	ESC-50 class `drinking_sipping`: sips, gulps and slurps.
+30	door_wood_knock	knocking on a wooden door	ESC-50 class `door_wood_knock`: knuckles on a door; `mouse_click` is a different class.
+31	mouse_click	a computer mouse clicking	ESC-50 class `mouse_click`: a click of a mouse button.
+32	keyboard_typing	typing on a computer keyboard	ESC-50 class `keyboard_typing`: keystrokes.
+33	door_wood_creaks	a wooden door creaking open	ESC-50 class `door_wood_creaks`: hinges and boards creaking; `door_wood_knock` is a different class.
+34	can_opening	a soda can being opened	ESC-50 class `can_opening`: a ring pull and the fizz.
+35	washing_machine	a washing machine running	ESC-50 class `washing_machine`: a wash cycle's drone; `vacuum_cleaner` is a different class.
+36	vacuum_cleaner	a vacuum cleaner running	ESC-50 class `vacuum_cleaner`: a motor's whine and airflow.
+37	clock_alarm	an alarm clock ringing	ESC-50 class `clock_alarm`: electronic and bell alarms.
+38	clock_tick	a clock ticking	ESC-50 class `clock_tick`: steady ticking.
+39	glass_breaking	glass shattering	ESC-50 class `glass_breaking`: breaks and the fall of shards.
+40	helicopter	a helicopter flying overhead	ESC-50 class `helicopter`: rotor beat; `airplane` is a different class.
+41	chainsaw	a chainsaw cutting	ESC-50 class `chainsaw`: a petrol saw at work; `hand_saw` is a different class.
+42	siren	a siren wailing	ESC-50 class `siren`: emergency sirens.
+43	car_horn	a car horn honking	ESC-50 class `car_horn`: honks.
+44	engine	a car engine running	ESC-50 class `engine`: idling and revving engines.
+45	train	a train passing on the tracks	ESC-50 class `train`: rolling stock and rail noise.
+46	church_bells	church bells ringing	ESC-50 class `church_bells`: tolling and peals.
+47	airplane	a jet airplane passing in the sky	ESC-50 class `airplane`: jets and propellers overhead; `helicopter` is a different class.
+48	fireworks	fireworks exploding	ESC-50 class `fireworks`: bangs and crackle of fireworks.
+49	hand_saw	a hand saw cutting wood	ESC-50 class `hand_saw`: manual sawing; `chainsaw` is a different class.
+-	-	a violin playing a slow melody	No ESC-50 class is music, so nothing here is a violin; the right answer is no result.
+-	-	a piano playing chords	No ESC-50 class is a piano; the corpus holds no music.
+-	-	an electric guitar riff	No ESC-50 class is a guitar; the corpus holds no music.
+-	-	a drum kit solo	No ESC-50 class is a drum kit; `clapping` is the nearest percussive sound and a confound.
+-	-	a choir singing in harmony	No ESC-50 class is singing; `laughing` is the nearest human sound and a confound.
+-	-	a person talking in conversation	ESC-50 is deliberately free of speech (its human classes are non-speech); `laughing` is a confound.
+-	-	a gunshot	No ESC-50 class is a gun; `fireworks` is the nearest impulsive bang and a confound.
+-	-	a laser blaster firing	A synthetic sci-fi effect; no ESC-50 class is synthesised.
+-	-	a cash register opening	No ESC-50 class is a till; `can_opening` and `mouse_click` are confounds.
+-	-	a trumpet fanfare	No ESC-50 class is a brass instrument; the corpus holds no music.
+-	-	a lion roaring	No ESC-50 class is a big cat; `cat` and `dog` are confounds.
+-	-	a horse galloping	No ESC-50 class is a horse; `footsteps` is a confound.
+-	-	a whale singing underwater	No ESC-50 class is a marine mammal; `sea_waves` is a confound.
+-	-	a printer printing a page	No ESC-50 class is office machinery beyond a keyboard and a mouse; `hand_saw` is a confound.
+-	-	a cartoon spring boing	A synthetic cartoon effect; no ESC-50 class is synthesised.
+-	-	a magic spell sparkle chime	A synthetic fantasy effect; `church_bells` and `clock_alarm` are confounds.

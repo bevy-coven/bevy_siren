@@ -183,22 +183,19 @@ fn the_order_of_the_rankings_does_not_change_the_metric() {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// The measurement this module exists for: what a floor does to the real numbers.
+// What a floor does to a recall figure.
 // ---------------------------------------------------------------------------------------------------------------
 
-/// **What each candidate floor does to recall, on the cosines the real CLAP model produced.**
-///
-/// The four rows are `evidence/ask-e2e.txt` from iteration 68 — the real model, four clips, four descriptions — so this
-/// is not a hypothetical set. The point is the shape of the answer: recall is **1.0 with no floor**, stays 1.0 at the
-/// measured floor, and falls to **0.0** at the number intuition reaches for.
-///
-/// That is why `Floor::default()` is `0.0` and says so in its own doc comment: every floor inside the overlap deletes
-/// right answers, and a long list a caller can weigh beats a short list that has silently dropped the answer.
-/// (description, expected hash, the cosines CLAP actually produced, best first)
+/// (description, expected hash, the cosines, best first)
 type Measured = (&'static str, u64, &'static [(u64, f32)]);
 
+/// **A floor drops a right answer that scores under it**, so recall falls as the floor rises: `1.0` with none, still `1.0` at a
+/// floor the weakest right answer *equals*, and `0.0` once every right answer is under it.
+///
+/// Four hand-written rows, chosen so each floor lands between two of them. They are plain fixtures: *which floor is right for real
+/// recordings* is a measurement over a golden set (`examples/goldenbench.rs`), not something four rows can say.
 #[test]
-fn a_floor_inside_the_overlap_deletes_right_answers_measured_on_the_real_model() {
+fn a_floor_drops_a_right_answer_that_scores_under_it() {
     let measured: &[Measured] = &[
         ("a low rumble", 0xa0, &[(0xa0, 0.217), (0xb0, 0.081), (0xc0, 0.058)]),
         ("a steady musical tone", 0xb0, &[(0xb0, 0.150), (0xc0, -0.003), (0xa0, -0.027)]),
@@ -212,22 +209,16 @@ fn a_floor_inside_the_overlap_deletes_right_answers_measured_on_the_real_model()
         scored.insert((*d).to_string(), rows.to_vec());
     }
 
-    let no_floor = at_floor(&labelled, &scored, 1, 0.0);
-    assert_eq!(no_floor.recall(), 1.0, "every description finds its answer with no floor");
-
-    let measured_floor = at_floor(&labelled, &scored, 1, 0.126);
-    assert_eq!(measured_floor.recall(), 1.0, "and still at the weakest correct match measured");
-
-    let intuitive = at_floor(&labelled, &scored, 1, 0.5);
-    assert_eq!(intuitive.kept, 0, "at 0.5, no description finds its answer at all");
-
-    // And the documented constants bracket the trap: the correct band starts BELOW the incorrect band's ceiling, which
-    // is decided when the crate is compiled rather than when this test runs.
-    use bevy_siren::semantic::rank::{MEASURED_MATCH_FLOOR, MEASURED_MISS_CEILING};
-    const {
-        assert!(
-            MEASURED_MATCH_FLOOR < MEASURED_MISS_CEILING,
-            "the correct band must start below the incorrect band's ceiling: they overlap"
-        )
-    };
+    assert_eq!(
+        at_floor(&labelled, &scored, 1, 0.0).recall(),
+        1.0,
+        "every description finds its answer with no floor"
+    );
+    assert_eq!(
+        at_floor(&labelled, &scored, 1, 0.126).recall(),
+        1.0,
+        "a right answer that scores exactly the floor is kept: the comparison is `>=`"
+    );
+    assert_eq!(at_floor(&labelled, &scored, 1, 0.2).kept, 2, "only 0.217 and 0.429 clear 0.2");
+    assert_eq!(at_floor(&labelled, &scored, 1, 0.5).kept, 0, "above every right answer, none is found");
 }

@@ -1,0 +1,70 @@
+# The fresh-eyes pass: the same 50 classes and 16 no-answer queries, but the descriptions avoid the class name and its obvious
+# synonym, the way a stranger who has not seen the class list would write them. If the floor's behaviour on golden/esc50/queries.tsv
+# were an artefact of friendly wording, it would not survive this.
+target	class	description	rationale
+0	dog	a furry pet yapping at the door	paraphrase of `dog`: no class word
+1	rooster	the loud morning call of a male farmyard bird	paraphrase of `rooster`: no class word
+2	pig	swine snorting around a farmyard	paraphrase of `pig`: no class word
+3	cow	a large farm animal lowing in a field	paraphrase of `cow`: no class word
+4	frog	amphibians calling beside the water at night	paraphrase of `frog`: no class word
+5	cat	a house pet crying to be fed	paraphrase of `cat`: no class word
+6	hen	poultry fussing in a coop	paraphrase of `hen`: no class word
+7	insects	small winged bugs droning past	paraphrase of `insects`: no class word
+8	sheep	a lamb calling out in a flock	paraphrase of `sheep`: no class word
+9	crow	a large black bird calling harshly	paraphrase of `crow`: no class word
+10	rain	water falling from the clouds onto a roof	paraphrase of `rain`: no class word
+11	sea_waves	surf rolling up a beach	paraphrase of `sea_waves`: no class word
+12	crackling_fire	burning logs snapping in a fireplace	paraphrase of `crackling_fire`: no class word
+13	crickets	summer evening chirping from the grass	paraphrase of `crickets`: no class word
+14	chirping_birds	songbirds greeting the sunrise	paraphrase of `chirping_birds`: no class word
+15	water_drops	a leaking tap in a quiet kitchen	paraphrase of `water_drops`: no class word
+16	wind	air rushing through bare trees	paraphrase of `wind`: no class word
+17	pouring_water	liquid flowing from a jug into a cup	paraphrase of `pouring_water`: no class word
+18	toilet_flush	a bathroom cistern emptying	paraphrase of `toilet_flush`: no class word
+19	thunderstorm	a distant storm rumbling and cracking	paraphrase of `thunderstorm`: no class word
+20	crying_baby	an infant wailing for its mother	paraphrase of `crying_baby`: no class word
+21	sneezing	ah-choo	paraphrase of `sneezing`: no class word
+22	clapping	an audience applauding a performance	paraphrase of `clapping`: no class word
+23	breathing	slow inhale and exhale in a quiet room	paraphrase of `breathing`: no class word
+24	coughing	someone clearing their throat harshly	paraphrase of `coughing`: no class word
+25	footsteps	someone walking steadily down a corridor	paraphrase of `footsteps`: no class word
+26	laughing	giggling and guffawing	paraphrase of `laughing`: no class word
+27	brushing_teeth	scrubbing sounds in the bathroom before bed	paraphrase of `brushing_teeth`: no class word
+28	snoring	a deep sleeper rattling the walls	paraphrase of `snoring`: no class word
+29	drinking_sipping	liquid being slurped through a straw	paraphrase of `drinking_sipping`: no class word
+30	door_wood_knock	rapping on timber	paraphrase of `door_wood_knock`: no class word
+31	mouse_click	a button tick on a computer pointing device	paraphrase of `mouse_click`: no class word
+32	keyboard_typing	fast fingers tapping on keys	paraphrase of `keyboard_typing`: no class word
+33	door_wood_creaks	old hinges groaning	paraphrase of `door_wood_creaks`: no class word
+34	can_opening	the pop and hiss of a fizzy drink tin	paraphrase of `can_opening`: no class word
+35	washing_machine	a laundry appliance spinning its drum	paraphrase of `washing_machine`: no class word
+36	vacuum_cleaner	a household cleaner humming across the carpet	paraphrase of `vacuum_cleaner`: no class word
+37	clock_alarm	a bedside buzzer going off at dawn	paraphrase of `clock_alarm`: no class word
+38	clock_tick	a mechanical timepiece beating	paraphrase of `clock_tick`: no class word
+39	glass_breaking	a window smashing into pieces	paraphrase of `glass_breaking`: no class word
+40	helicopter	rotor blades chopping the air	paraphrase of `helicopter`: no class word
+41	chainsaw	a petrol-powered cutting tool roaring	paraphrase of `chainsaw`: no class word
+42	siren	an emergency vehicle wail	paraphrase of `siren`: no class word
+43	car_horn	a vehicle beeping in traffic	paraphrase of `car_horn`: no class word
+44	engine	a motor idling and then revving	paraphrase of `engine`: no class word
+45	train	railway carriages clattering past	paraphrase of `train`: no class word
+46	church_bells	a bell tower tolling the hour	paraphrase of `church_bells`: no class word
+47	airplane	a plane roaring across the sky	paraphrase of `airplane`: no class word
+48	fireworks	rockets bursting in the night sky	paraphrase of `fireworks`: no class word
+49	hand_saw	a blade rasping through a plank	paraphrase of `hand_saw`: no class word
+-	-	a violin playing a slow melody	No ESC-50 class is music, so nothing here is a violin; the right answer is no result.
+-	-	a piano playing chords	No ESC-50 class is a piano; the corpus holds no music.
+-	-	an electric guitar riff	No ESC-50 class is a guitar; the corpus holds no music.
+-	-	a drum kit solo	No ESC-50 class is a drum kit; `clapping` is the nearest percussive sound and a confound.
+-	-	a choir singing in harmony	No ESC-50 class is singing; `laughing` is the nearest human sound and a confound.
+-	-	a person talking in conversation	ESC-50 is deliberately free of speech (its human classes are non-speech); `laughing` is a confound.
+-	-	a gunshot	No ESC-50 class is a gun; `fireworks` is the nearest impulsive bang and a confound.
+-	-	a laser blaster firing	A synthetic sci-fi effect; no ESC-50 class is synthesised.
+-	-	a cash register opening	No ESC-50 class is a till; `can_opening` and `mouse_click` are confounds.
+-	-	a trumpet fanfare	No ESC-50 class is a brass instrument; the corpus holds no music.
+-	-	a lion roaring	No ESC-50 class is a big cat; `cat` and `dog` are confounds.
+-	-	a horse galloping	No ESC-50 class is a horse; `footsteps` is a confound.
+-	-	a whale singing underwater	No ESC-50 class is a marine mammal; `sea_waves` is a confound.
+-	-	a printer printing a page	No ESC-50 class is office machinery beyond a keyboard and a mouse; `hand_saw` is a confound.
+-	-	a cartoon spring boing	A synthetic cartoon effect; no ESC-50 class is synthesised.
+-	-	a magic spell sparkle chime	A synthetic fantasy effect; `church_bells` and `clock_alarm` are confounds.

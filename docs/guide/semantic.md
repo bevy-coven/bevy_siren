@@ -6,8 +6,11 @@
 > **0.0545 dB** over 1001 × 64 values. The gap that iteration 76 closed was two constants: the right-hand reflect pad
 > (512 samples, not the distance to the last frame's end) and the FFT's precision (`f64`, as the reference promotes to).
 > The spectrogram is exact on a single window too, the tokeniser is exact against the model's, and the indexer is
-> complete. What is **not** yet measured is anything downstream of a correct embedding — recall against a labelled set is
-> still the design defaults (`V-01`). Read the rest with that in mind.
+> complete. **Recall is now measured**, on 2 000 labelled recordings ([the golden set](golden-set.md)): described in the maintainer's
+> words, every one of 50 descriptions finds a right answer in its first three; in a stranger's words, 84 % do. The crate reproduces
+> `transformers`' zero-shot accuracy on the same audio to four places (87.8 %). What is **not** yet measured is a person's judgement
+> of which sounds *fit* an anchor (`#35`'s third criterion), music, speech and game foley (ESC-50 has none), and the floor on any
+> library but that one.
 
 A game's sound library is thousands of files, most of them never named in a cue table. `bevy_siren`'s semantic layer
 lets a developer **describe** the sound they want, and finds the files that fit — and, once one is chosen, the others
@@ -53,7 +56,7 @@ in fp32 and the first line says so — so *no GPU* is not a failure; a missing f
 **The second run reads the index the first wrote**: *"14 assets, read from `siren-index` — current, so no audio graph was
 loaded"*. The example treats that file as a **cache**: a folder that gained or lost a file, or an index it cannot use
 (another export's, or a damaged one), is **rebuilt whole and written over**, saying so first — so adding one file to a
-5 000-clip library costs the full five minutes here, where `incremental::update` would embed one clip; the library has no
+5 000-clip library costs the full five to nine minutes here, where `incremental::update` would embed one clip; the library has no
 model-backed form of that yet, only the closure it takes. `--model-version` (or `SIREN_MODEL_VERSION`) names the export that
 made the vectors — the line `clap-export.txt` holds — so an index from your torch is labelled as yours rather than refused
 as the measured one's; `siren-tools` takes the same flag. `--k`, `--pick`, `--bus` and `--no-play` are in the example's own
@@ -76,7 +79,7 @@ prints three decimals, so that is the rounding — and the ranking order is iden
 **What it says about quality, honestly.** On fourteen macOS system sounds, "a short electronic beep" finds `Sosumi`
 (cosine 0.21) and "a frog croaking" does not find `Frog`: CLAP ranks it eleventh of fourteen, at −0.02, because it is a
 synthetic blip and not a frog. A cosine is a position on CLAP's own scale, and 0.2 is a good match
-([the floor](#the-floor-why-the-default-keeps-everything) has the measured bands); the three results are a short list for
+([the floor](#the-floor-what-2-000-real-recordings-say) has the measured bands); the three results are a short list for
 a person to choose from, which is what the paper measures — mAP@10 of 24.9 for text-to-audio on Freesound.
 
 ## The six steps, and what each one is
@@ -215,8 +218,11 @@ pipeline in two stages, because one number cannot name the bound: **decode** (sc
 inference, not decoding, is what a large library waits on. **Measured end to end with the real graph** (`examples/semantic`,
 M4 CPU, fp32, 280 distinct clips of about a second, decode included): **16.6 clips/s, 60 ms a clip** — **35 ms the tower
 and 26 ms this crate's own mel spectrogram**, run one after the other — so a 5 000-clip library is about **five minutes**,
-once. The graph's input is a fixed ten-second window, so a short clip costs what a ten-second one does and a longer one
-is chunked into several windows; a GPU's figure is still unmeasured (`#36`).
+once. **A clip's cost is not constant:** 2 000 five-second 44.1 kHz recordings (`examples/goldenbench`, under a load average of
+6.5) cost **105 ms** each, so the same library of those is about **nine minutes**; where the extra 45 ms goes — resampling and the
+loudness, spectral, tempo and key passes over five times the audio — was not decomposed. The graph's input is a fixed ten-second
+window, so a short clip costs what a ten-second one does and a longer one is chunked into several windows; a GPU's figure is still
+unmeasured (`#36`).
 
 `update` never writes. That is deliberate: `indexer::write` owns the file, so a caller composes the two and puts its own
 lock around the write — and a caller that only wants to preview a run writes nothing at all.
@@ -515,23 +521,31 @@ Every refusal is a sentence naming what to fix:
 - *"this index was built by a different model than the one loaded. Re-index the library with this model."*
 - *"the description needs 128 tokens and the model accepts 77. Shorten it, or split it into two searches."*
 
-## The floor: why the default keeps everything
+## The floor: what 2 000 real recordings say
 
-`Floor` drops results below a cosine. Its default is **0.0**, and that is a measurement rather than timidity.
+`Floor` drops results below a cosine. Its default is **0.0**, which keeps everything, and **that default is under review**
+(`docs/loop/needs-decision/default-floor.md`).
 
-The correct and incorrect bands **overlap**: a right answer scored **0.126 – 0.429** and a wrong one **−0.104 – +0.150**
-in this crate's own end-to-end run. So no single threshold separates them:
+It was chosen from six synthetic clips whose right and wrong score bands overlapped — *"no single threshold separates them; a floor
+of 0.5 rejects every correct match"*. **On real recordings that is false.** [The golden set](golden-set.md) ran 2 000 of them: the
+right answers' median is 0.468 against the wrong answers' 0.070, the bands overlap only in their tails, the weakest top result of any
+of 50 descriptions scores 0.492 (0.405 when the same sounds are described in a stranger's words), and a floor on the top result tells a
+description the library can answer from one it cannot with an AUC of 0.963 (0.885 in the stranger's):
 
-| floor | recall@1 |
-|---|---|
-| **0.000** | **100 %** |
-| 0.126 | **100 %** |
-| 0.150 | **75 %** |
-| **0.500** | **0 %** |
+| floor | top-1 kept | results per query (of 2 000) | precision | no-answer queries silenced |
+|---|---|---|---|---|
+| 0.00 (the default) | 90.0 % | 1 440.3 | 2.8 % | 0 of 16 |
+| 0.30 | 90.0 % | 106.9 | 34.6 % | 0 of 16 |
+| 0.40 | 90.0 % | 42.5 | 68.6 % | 7 of 16 |
+| **0.45** | 90.0 % | **27.7** | **81.6 %** | **9 of 16** |
+| 0.50 | 90.0 % | 16.5 | 90.4 % | 11 of 16 |
 
-A floor of 0.5 — the number intuition reaches for — rejects **every** correct match. A long list a caller can weigh
-beats a short list that has silently dropped the answer. This is a test, not a note:
-`a_floor_inside_the_overlap_deletes_right_answers_measured_on_the_real_model`.
+Read the table with its caveats. **It is the maintainer's wording**: in a stranger's, a floor of 0.45 already loses two top results and
+0.50 loses nine, so the largest floor that is safe in both is 0.40 by a margin of 0.005 and **0.35 is the one with room to spare**. One
+library of environmental recordings that overlaps the model's training data, no music, speech or game foley, sixteen no-answer queries —
+and the ones a floor cannot silence are the ones with a real neighbour (a gunshot finds `fireworks` at 0.59). The lesson that matters
+more than any number: **synthetic tones understated a real match by a wide margin, so a floor calibrated on them was calibrated on
+nothing.**
 
 ## The ensemble: a score that explains itself
 
@@ -551,8 +565,9 @@ appear in — `tests/all.rs` enforces it, and a second test asserts the ensemble
 ## Tuning, as data
 
 `semantic::weights::Weights` holds the six numbers the ensemble uses, each a **design default** with the argument for
-its value in its own doc comment. Two rest on this crate's measurements: `acoustic` at 0.5 because the bands overlap, and
-`drop_fraction` at 0.0 because a filter that hides the right answer is worse than a long list.
+its value in its own doc comment. None is tuned against a person's judgement of fit — `#35`'s anchor pairs would supply it — and two
+were argued from the six-clip measurement the golden set superseded (`acoustic` at 0.5, and the floor), so they are design defaults
+under review, not findings. `drop_fraction` is 0.0 because a filter that hides the right answer is worse than a long list.
 
 `Weights::problems()` reports what cannot mean anything — all weights zero, a negative weight, a `NaN`, a zero
 tolerance — while **allowing what is merely unusual**, such as a 40 dB tolerance for a stylised palette whose loudness

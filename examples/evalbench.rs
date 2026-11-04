@@ -14,14 +14,16 @@
 //!
 //! # The corpus, and why it is synthetic
 //!
-//! `#45` is blocked on `#35`'s golden set: labelled assets and human anchor judgements. There is no such set yet, so this
-//! harness runs on a **deterministic synthetic corpus** — four clusters of vectors, descriptions that name a cluster, and
-//! anchor judgements that say a cluster is cohesive. That is enough to prove the harness **detects a regression**, which
-//! is `#45`'s second criterion and the only one that can be proved without a labelled set: perturb the weighting and the
-//! metrics must fall.
+//! This harness is the **model-free** one: it needs no weights and no download, so it runs anywhere in a second, and what it proves
+//! is `#45`'s second criterion — that a regression is **detected**: perturb the weighting and the metrics must fall. Its corpus is
+//! a **deterministic synthetic** one — four clusters of vectors, descriptions that name a cluster, and anchor judgements that say
+//! a cluster is cohesive — because a measurement of *quality* needs real recordings and a real model.
 //!
-//! The corpus is a fixed seed, so the baseline file is comparable across runs. When `#35` lands, `corpus()` is the one
-//! function that changes; the metrics, the baseline format and the regression check do not.
+//! That half now exists. `#35`'s text half landed as `examples/goldenbench.rs`, which runs 2 000 human-labelled recordings through
+//! the real model and keeps its own baseline (`golden/esc50/baseline.txt`). What this harness still lacks is `#35`'s third
+//! criterion, a person's judgement of which neighbours *fit*: until pairs are judged there is nothing real for `agreement` to score.
+//!
+//! The corpus is a fixed seed, so the baseline file is comparable across runs.
 //!
 //! # The baseline
 //!

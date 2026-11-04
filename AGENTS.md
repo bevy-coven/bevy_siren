@@ -61,6 +61,11 @@ every Bevy feature and a hole in its own `[dependencies]` list cannot fail.
   them from a Hugging Face cache and checks itself against `transformers`; the example indexes a folder, ranks a
   description and plays the answer. CI has no model, so **no test runs them** (clippy compiles the example) —
   `docs/guide/semantic.md`, "Try it", is how to run them, and `docs/media/README.md` regenerates the picture.
+- `src/semantic/golden.rs`, `src/semantic/eval.rs`, `golden/esc50/`, `tools/fetch_esc50.py` and `examples/goldenbench.rs` — the
+  **golden set** (`#35`, ADR 0009): a labelled library fetched and verified against a manifest (never vendored — it is CC BY-NC),
+  the text queries with their rationales, the loader that refuses a mistake by line, the metrics, and the benchmark that puts the real
+  model through all of it. `tests/semantic_golden.rs` tests the metrics, the loader and the checked-in set's own invariants; **no test
+  runs the benchmark** (no model, no network in CI). `golden/esc50/baseline.txt` is what a ranking change is measured against.
 - `src/lib.rs` — the plugins, `SirenSystems::{Choose, Play, Mix}`, the re-exports, the quick start doctest.
 
 ## The loop, as a skill

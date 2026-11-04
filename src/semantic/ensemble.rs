@@ -31,9 +31,10 @@
 //!
 //! ## Why not a squashing function
 //!
-//! A sigmoid or a power would change the *order* of results, and this crate's measured semantic band overlaps the
-//! misses (0.126–0.429 against −0.104–0.150), so a transform that sharpens the top would sharpen the wrong thing. Both
-//! maps here are affine, so they change units only.
+//! A sigmoid or a power would change the *order* of results once other signals are added, and nothing measured says the semantic
+//! score is mis-scaled: on the golden set the top result is right for 72 – 90 % of descriptions (a stranger's wording to the
+//! maintainer's) and the weakest top result scores 0.41 – 0.49, so there is no evidence a transform would sharpen anything worth
+//! sharpening. Both maps here are affine, so they change units only.
 //!
 //! # A missing signal is not a disagreement
 //!

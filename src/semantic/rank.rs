@@ -172,34 +172,39 @@ pub fn top_k(index: &Index, query: &[f32], k: usize) -> Result<Vec<Match>, RankP
     Ok(scored)
 }
 
-/// The cosine a **correct** text-to-audio match scored in this crate's own measurement.
+/// The cosine a **correct** text-to-audio match scored in this crate's **first** measurement: six synthetic clips and five
+/// descriptions, where the right clip scored between **0.126** and **0.429** (`runs/2026-11-03-63/research.md` S3).
 ///
-/// Measured on six synthetic clips and five descriptions: the right clip scored between **0.126** and **0.429**
-/// (`runs/2026-11-03-63/research.md` S3).
+/// **Superseded.** On the golden set (`#35`: 2 000 real recordings, 50 descriptions) the right answers' median is **0.468** and
+/// their 5th percentile **0.273** — the best of the six synthetic matches (0.429) is below the real median. Synthetic tones
+/// understate what a real match scores, which is the lesson in `docs/guide/golden-set.md`. The constant stays because callers and
+/// tests use it as a number to clear, not because it is the measurement.
 pub const MEASURED_MATCH_FLOOR: f32 = 0.126;
 
-/// The cosine a **wrong** match scored in the same measurement: **−0.104** to **+0.150**.
+/// The cosine a **wrong** match scored in the same first measurement: **−0.104** to **+0.150**.
 ///
-/// **The bands overlap with [`MEASURED_MATCH_FLOOR`]**, which is the single most important fact this module's defaults
-/// are built around. A floor of 0.5 — the number intuition suggests — would reject every correct match.
+/// **Superseded** with [`MEASURED_MATCH_FLOOR`]. The six-clip bands overlapped; the real ones overlap only in their tails — the right
+/// answers' 5th percentile is 0.273 and the wrong answers' 95th is 0.277 — and an absolute floor on a query's *best* result tells a
+/// description the library can answer from one it cannot with an AUC of **0.963** (**0.885** when the same sounds are described in
+/// a stranger's words; `docs/guide/golden-set.md`).
 pub const MEASURED_MISS_CEILING: f32 = 0.150;
 
 /// **A similarity floor**, so a result set can be empty rather than full of unrelated assets.
 ///
-/// A cosine near zero between two tracks means they are close to orthogonal; returning it as a "match" wastes a
-/// developer's attention. The floor is a named field because the number that works depends on the model and the
-/// library, and `V-01`'s labelled set is what replaces it with a measurement.
+/// A cosine near zero between two tracks means they are close to orthogonal; returning it as a "match" wastes a developer's
+/// attention. The floor is a named field because the number that works depends on the model and the library.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Floor {
     /// Results below this cosine are dropped.
     ///
-    /// **Design default: `0.0`**, which keeps everything.
-    ///
-    /// The measurement says the correct and incorrect bands **overlap** ([`MEASURED_MATCH_FLOOR`] is *below*
-    /// [`MEASURED_MISS_CEILING`]), so no single threshold separates them: a floor that removes the wrong matches also
-    /// removes right ones. A long list with scores a caller can weigh beats a short list that has silently dropped the
-    /// answer. When `V-01`'s labelled set exists, this default becomes the threshold that maximises recall at an
-    /// acceptable precision, and the number will be recorded here with the measurement that chose it.
+    /// **Design default: `0.0`**, which keeps everything — and **that default is under review.** It was chosen from six synthetic
+    /// clips whose bands overlapped. The golden set measured 2 000 real recordings and the picture is different: the weakest *top
+    /// result* of any of its 50 descriptions scored **0.492** — **0.405** when the same sounds were described in a stranger's words —
+    /// so a floor of **0.35** keeps every description's top result in both wordings, returns 55–66 results a query at ~50 % precision
+    /// (not 1 300–1 440 at 3 %), and silences 4 of the 16 descriptions of sounds the library does not contain; **0.45** already loses
+    /// answers in the stranger's wording. The caveats are as real: one library of environmental recordings that partly overlaps the
+    /// model's training data (`docs/guide/golden-set.md`). A default every consumer inherits is the owner's to change;
+    /// `docs/loop/needs-decision/default-floor.md` has the table, the options and a recommendation.
     pub min_score: f32,
 }
 

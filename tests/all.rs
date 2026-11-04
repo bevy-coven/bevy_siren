@@ -30,6 +30,8 @@ mod semantic_decode;
 mod semantic_ensemble;
 mod semantic_eval;
 #[cfg(feature = "semantic")]
+mod semantic_golden;
+#[cfg(feature = "semantic")]
 mod semantic_incremental;
 #[cfg(feature = "semantic")]
 mod semantic_index;

@@ -1,8 +1,8 @@
 # Media
 
 Every file here was captured on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands below — from
-`examples/mixer`, except `semantic.png`, which is from `examples/semantic`. A media file a published README names is
-never moved; a re-capture replaces it in place.
+`examples/mixer`, except `semantic.png` and `golden.png`, which are from `examples/semantic` and `examples/goldenbench`. A media
+file a published README names is never moved; a re-capture replaces it in place.
 
 ## `semantic.png` — index a folder, describe a sound, hear it (iteration 110, `#38`)
 
@@ -42,6 +42,32 @@ python3 docs/media/transcript_png.py docs/media/semantic.txt docs/media/semantic
 The second query is a miss, kept on purpose: CLAP ranks the system sound named `Frog` eleventh of fourteen at a cosine of
 −0.02, below the floor, because it is a synthetic blip and not a frog. A picture of only the query that worked would say
 more about the library than the model has measured.
+
+## `golden.png` — the golden set on the real model (iteration 111, `#35`)
+
+![examples/goldenbench as a terminal transcript](golden.png)
+
+A terminal transcript, drawn as a still: **no clip**, because the program prints text and ends. `golden.txt` is `examples/goldenbench`'s
+verbatim output over the 2 000 ESC-50 clips with the index already built, and `transcript_png.py` draws it, so nothing in the picture
+is composed. Timings differ from run to run; every similarity, metric and the floor table do not — the baseline compare in the picture
+is how that is checked. **The picture is the maintainer's wording** (`golden/esc50/queries.tsv`); the same run with the paraphrased
+queries (`--queries golden/esc50/queries-paraphrase.tsv`) reads hit@1 72 %, hit@3 84 % and is in `docs/guide/golden-set.md`, §4.
+
+```sh
+python3 tools/fetch_esc50.py /tmp/esc50                       # 2 000 clips, each verified against golden/esc50/manifest.sha256
+HF_HUB_OFFLINE=1 python3 tools/export_clap_onnx.py /tmp/siren-clap
+export SIREN_MODEL=/tmp/siren-clap/clap-text.onnx SIREN_VOCAB=/tmp/siren-clap/tokenizer.json \
+       SIREN_AUDIO_MODEL=/tmp/siren-clap/clap-audio.onnx SIREN_MODEL_VERSION="$(cat /tmp/siren-clap/clap-export.txt)"
+cargo build --release --features semantic --example goldenbench
+./target/release/examples/goldenbench /tmp/esc50 >/dev/null    # the first run indexes the 2 000 clips (about 3.5 minutes)
+
+# the transcript: a later run, which reads the index back
+{ echo '$ cargo run --release --features semantic --example goldenbench -- /tmp/esc50'
+  ./target/release/examples/goldenbench /tmp/esc50 2>&1 | grep -v E:onnxruntime; } > docs/media/golden.txt
+
+# the still: needs Pillow and macOS's Menlo
+python3 docs/media/transcript_png.py docs/media/golden.txt docs/media/golden.png
+```
 
 ## No clip: iteration 28, a despawned voice frees its mixer slot
 

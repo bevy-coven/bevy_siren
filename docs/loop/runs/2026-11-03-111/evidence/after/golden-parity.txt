@@ -1,0 +1,42 @@
+metrics from the crate's scores, computed in Python:
+  zero_shot     0.8780
+  hit_1         0.9000
+  hit_3         1.0000
+  hit_10        1.0000
+  precision_10  0.8880
+  mrr           0.9500
+  map_10        0.8573
+Rust prints (rounded) vs Python: largest difference 0.0003 over 7 metrics -> agree to the printed precision
+  zero_shot     rust 0.8780  python 0.8780
+  hit_1         rust 0.9000  python 0.9000
+  hit_3         rust 1.0000  python 1.0000
+  hit_10        rust 1.0000  python 1.0000
+  precision_10  rust 0.8880  python 0.8880
+  mrr           rust 0.9500  python 0.9500
+  map_10        rust 0.8570  python 0.8573
+
+similarities over 2000 clips x 116 strings = 232000 pairs, crate (rubato) vs transformers (scipy resampling):
+  max |difference| 8.89e-02   mean 8.06e-04   99.9th percentile 3.00e-02
+
+per clip (mean |difference| over the 116 strings): median 3.4e-04, 99th percentile 8.3e-03, max 3.0e-02
+Spearman correlation of a clip's difference with its share of exactly-zero samples (digital silence): -0.21
+the ten clips the two pipelines disagree on most:
+  audio/2-104476-A-37.wav            mean |d| 0.030   zero samples    1 %   class clock_alarm
+  audio/3-155312-A-0.wav             mean |d| 0.028   zero samples    0 %   class dog
+  audio/3-148297-A-37.wav            mean |d| 0.020   zero samples   34 %   class clock_alarm
+  audio/2-134915-A-30.wav            mean |d| 0.019   zero samples   55 %   class door_wood_knock
+  audio/3-128512-B-47.wav            mean |d| 0.018   zero samples    0 %   class airplane
+  audio/4-175000-B-40.wav            mean |d| 0.018   zero samples    0 %   class helicopter
+  audio/4-188287-A-9.wav             mean |d| 0.015   zero samples   24 %   class crow
+  audio/5-117118-A-42.wav            mean |d| 0.013   zero samples    0 %   class siren
+  audio/5-117122-A-42.wav            mean |d| 0.013   zero samples    0 %   class siren
+  audio/4-204618-A-11.wav            mean |d| 0.013   zero samples    0 %   class sea_waves
+
+the same metrics from the reference's similarities (clips: 2000):
+  zero_shot     reference 0.8780   crate 0.8780   difference +0.0000
+  hit_1         reference 0.9200   crate 0.9000   difference -0.0200
+  hit_3         reference 1.0000   crate 1.0000   difference +0.0000
+  hit_10        reference 1.0000   crate 1.0000   difference +0.0000
+  precision_10  reference 0.8900   crate 0.8880   difference -0.0020
+  mrr           reference 0.9600   crate 0.9500   difference -0.0100
+  map_10        reference 0.8579   crate 0.8573   difference -0.0006
