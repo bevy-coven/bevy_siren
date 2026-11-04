@@ -1,0 +1,25 @@
+Iteration 118, `cargo run --release --example perfcheck`, three runs in one session on a shared machine, verbatim. `update_mix`'s cost per frame; this change does not touch it.
+
+== run 1
+voices      us/frame        us/voice
+     8         0.018          0.0023
+    64         0.112          0.0017
+   256         0.406          0.0016
+
+upper bound: every voice is costed, including the ones update_mix skips because their gain did not move
+
+== run 2
+voices      us/frame        us/voice
+     8         0.062          0.0078
+    64         0.371          0.0058
+   256         1.288          0.0050
+
+upper bound: every voice is costed, including the ones update_mix skips because their gain did not move
+
+== run 3
+voices      us/frame        us/voice
+     8         0.068          0.0085
+    64         0.443          0.0069
+   256         1.174          0.0046
+
+upper bound: every voice is costed, including the ones update_mix skips because their gain did not move
