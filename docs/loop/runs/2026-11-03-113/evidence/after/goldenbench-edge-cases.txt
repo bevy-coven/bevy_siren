@@ -1,0 +1,74 @@
+# goldenbench's refusals, run on the final build (iteration 113). Each is a way to be wrong that must end in one clear sentence and exit 2, before anything is read, built or written.
+# Fixtures: kenney-partial = 40 of the 303 files with all 303 labels; kenney-nolabels = 5 files, no labels.csv; kenney-padded = the whole set plus stray.ogg; kenney-wronglib = ESC-50's labels.csv alone.
+
+$ ./target/release/examples/goldenbench /tmp/kenney-lib --set nonesuch
+goldenbench: `--set nonesuch` names no golden set; this checkout has: esc50, kenney
+
+usage: goldenbench <library-dir> [--set esc50|kenney] [--model clap-text.onnx --vocab tokenizer.json] [--audio-model clap-audio.onnx]
+                [--model-version <v>] [--queries golden/<set>/queries.tsv] [--bless] [--per-query] [--dump <file>]
+
+<library-dir> is what `python3 tools/fetch_<set>.py <library-dir>` made (the default set is esc50). Each model flag also reads
+SIREN_MODEL, SIREN_VOCAB, SIREN_AUDIO_MODEL and SIREN_MODEL_VERSION; the files are made once by `python3 tools/export_clap_onnx.py <dir>`.
+[exit 2]
+
+$ ./target/release/examples/goldenbench /tmp/kenney-lib --set
+goldenbench: --set needs a set name
+
+usage: goldenbench <library-dir> [--set esc50|kenney] [--model clap-text.onnx --vocab tokenizer.json] [--audio-model clap-audio.onnx]
+                [--model-version <v>] [--queries golden/<set>/queries.tsv] [--bless] [--per-query] [--dump <file>]
+
+<library-dir> is what `python3 tools/fetch_<set>.py <library-dir>` made (the default set is esc50). Each model flag also reads
+SIREN_MODEL, SIREN_VOCAB, SIREN_AUDIO_MODEL and SIREN_MODEL_VERSION; the files are made once by `python3 tools/export_clap_onnx.py <dir>`.
+[exit 2]
+
+$ ./target/release/examples/goldenbench /tmp/kenney-lib --set kenney --bless --queries golden/kenney/queries-paraphrase.tsv
+goldenbench: the baseline is for golden/kenney/queries.tsv, and `--bless` will not record another queries file's numbers over it
+[exit 2]
+
+$ ./target/release/examples/goldenbench /tmp/kenney-lib --set kenney --queries golden/esc50/queries.tsv
+goldenbench: the golden set is not loadable — `a dog barking` expects class `dog` and no labelled file is in that class, so it would always miss and the miss would be blamed on the ranking
+[exit 2]
+
+$ ./target/release/examples/goldenbench /tmp/does-not-exist --set kenney
+goldenbench: `/tmp/does-not-exist` is not a directory
+
+usage: goldenbench <library-dir> [--set esc50|kenney] [--model clap-text.onnx --vocab tokenizer.json] [--audio-model clap-audio.onnx]
+                [--model-version <v>] [--queries golden/<set>/queries.tsv] [--bless] [--per-query] [--dump <file>]
+
+<library-dir> is what `python3 tools/fetch_<set>.py <library-dir>` made (the default set is esc50). Each model flag also reads
+SIREN_MODEL, SIREN_VOCAB, SIREN_AUDIO_MODEL and SIREN_MODEL_VERSION; the files are made once by `python3 tools/export_clap_onnx.py <dir>`.
+[exit 2]
+
+$ ./target/release/examples/goldenbench /tmp/kenney-nolabels --set kenney
+goldenbench: cannot read `/tmp/kenney-nolabels/labels.csv`: No such file or directory (os error 2)
+
+`labels.csv` is written by `python3 tools/fetch_kenney.py /tmp/kenney-nolabels`, which also downloads and verifies the clips.
+[exit 2]
+
+$ ./target/release/examples/goldenbench /tmp/kenney-partial --set kenney
+goldenbench: the library is not the set — 263 labelled files are absent (the first is `audio/casino/chips-stack-5.ogg`), and 0 files nobody labelled are there.
+A partial or padded copy measures a different set, so nothing was run. `python3 tools/fetch_kenney.py /tmp/kenney-partial` repairs it.
+[exit 2]
+
+$ ./target/release/examples/goldenbench /tmp/kenney-padded --set kenney
+goldenbench: the library is not the set — 0 labelled files are absent, and 1 file nobody labelled is there (the first is `stray.ogg`).
+A partial or padded copy measures a different set, so nothing was run. `python3 tools/fetch_kenney.py /tmp/kenney-padded` repairs it.
+[exit 2]
+
+$ ./target/release/examples/goldenbench /tmp/kenney-wronglib --set kenney
+goldenbench: the golden set is not loadable — `footsteps walking on the ground` expects class `footstep` and no labelled file is in that class, so it would always miss and the miss would be blamed on the ranking
+[exit 2]
+
+$ ./target/release/examples/goldenbench /tmp/kenney-lib --set kenney --nonsense
+goldenbench: unknown option `--nonsense`
+
+usage: goldenbench <library-dir> [--set esc50|kenney] [--model clap-text.onnx --vocab tokenizer.json] [--audio-model clap-audio.onnx]
+                [--model-version <v>] [--queries golden/<set>/queries.tsv] [--bless] [--per-query] [--dump <file>]
+
+<library-dir> is what `python3 tools/fetch_<set>.py <library-dir>` made (the default set is esc50). Each model flag also reads
+SIREN_MODEL, SIREN_VOCAB, SIREN_AUDIO_MODEL and SIREN_MODEL_VERSION; the files are made once by `python3 tools/export_clap_onnx.py <dir>`.
+[exit 2]
+
+$ ./target/release/examples/goldenbench /tmp/esc50 --set kenney
+goldenbench: the golden set is not loadable — `footsteps walking on the ground` expects class `footstep` and no labelled file is in that class, so it would always miss and the miss would be blamed on the ranking
+[exit 2]

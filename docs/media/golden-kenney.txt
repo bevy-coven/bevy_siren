@@ -1,0 +1,118 @@
+$ cargo run --release --features semantic --example goldenbench -- /tmp/kenney-lib --set kenney
+goldenbench: kenney @ v1 manifest 7445fb3de684cab7 queries 92e6476e9b7e663f — 303 clips, 29 classes, 29 queries and 18 that should find nothing
+             CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here; model transformers-4.57.6/torch-2.8.0/opset-17
+index:       303 clips, read from `siren-index` — current, so no audio graph was loaded
+licences:    303 permit commercial use, 0 do not, 0 unknown or not recognised — a person decides those
+text:        47 descriptions and 29 prompts embedded in 0.7 s
+ranking:     47 queries over 303 clips in 6.8 ms
+
+1. Zero-shot classification — the paper's protocol: each clip against "This is a sound of <class>.", top-1
+   accuracy  37.3 %   (113 of 303 clips)      no published figure for this set: the paper's prompt, applied to this set's class names
+   weakest classes: computer_noise 0 %, electric_zap 0 %, force_field 0 %, metal_impact 0 %, phaser 0 %
+   most confused:   pizzicato → power_up ×13, phaser → power_up ×10, engine → force_field ×9, power_up → confirmation_chime ×9, steel_drum → power_up ×9
+
+2. Text-to-audio retrieval — 29 descriptions, every clip ranked, a right answer is any clip of the class
+   hit@1  31.0 %   hit@3  51.7 %   hit@10  65.5 %   precision@10  26.9 %   MRR 0.442   mAP@10 0.258
+   precision@10 is bounded by class size: a perfect ranking of this library scores  73.8 % (a class of three files cannot fill ten places)
+   no right answer in the first 3 (14 descriptions):
+     footsteps walking on the ground                              first right answer at 14
+     a wooden door opening and closing                            first right answer at 5
+     leather being handled                                        first right answer at 47
+     a short saxophone jingle                                     first right answer at 5
+     a short pizzicato strings jingle                             first right answer at 38
+     an error beep                                                first right answer at 23
+     a confirmation chime                                         first right answer at 10
+     scrolling through a menu                                     first right answer at 17
+     a power-up sound                                             first right answer at 62
+     an electric zap                                              first right answer at 114
+     a sci-fi phaser shot                                         first right answer at 11
+     a force field humming                                        first right answer at 30
+     a computer processing noise                                  first right answer at 10
+     a metal impact                                               first right answer at 104
+   best result wrong (20 descriptions) — by precision@10, the worst eight:
+     a force field humming                                          0 %
+     a metal impact                                                 0 %
+     a power-up sound                                               0 %
+     a sci-fi phaser shot                                           0 %
+     a short pizzicato strings jingle                               0 %
+     an electric zap                                                0 %
+     an error beep                                                  0 %
+     footsteps walking on the ground                                0 %
+
+3. Scores — CLAP cosines, before any weighting
+                                  min     p05     p25  median     p75     p95     max        n
+   right answers               -0.187  -0.063  +0.072  +0.191  +0.310  +0.400  +0.475      303
+   wrong answers               -0.395  -0.212  -0.102  -0.023  +0.064  +0.217  +0.494     8484
+   best of the no-answer set   +0.204  +0.216  +0.262  +0.308  +0.330  +0.463  +0.490       18
+   the queries that should find nothing, by the best clip they found:
+     a helicopter flying overhead         +0.490  engine
+     thunder rumbling                     +0.463  thruster
+     ocean waves crashing on a beach      +0.422  engine
+     a vacuum cleaner running             +0.339  engine
+     a baby crying                        +0.330  engine
+     a crowd cheering at a stadium        +0.327  engine
+     rain falling on a roof               +0.314  engine
+     a telephone ringing                  +0.310  engine
+     a cat meowing                        +0.308  engine
+     a piano playing a melody             +0.291  steel_drum
+     a distorted rock guitar solo         +0.288  engine
+     applause                             +0.282  dice
+     a person laughing                    +0.265  engine
+     birds singing in the morning         +0.262  engine
+     a gunshot                            +0.228  engine
+     a car horn honking                   +0.216  metal_pot
+     a dog barking                        +0.216  engine
+     a person speaking                    +0.204  engine
+
+3b. Can a floor tell a description the library can answer from one it cannot? — each query's top score, 29 answerable against 18 that should find nothing
+                                     AUC   weakest answerable  strongest unanswerable   a floor?
+   the cosine itself               0.759               +0.261                  +0.490         no
+   less the query's own median     0.626               +0.287                  +0.515         no
+   (AUC: the chance a random answerable query's top score beats a random unanswerable one's — 0.5 is a coin. A floor exists when the
+    weakest answerable top score is above the strongest unanswerable one: then some floor keeps every answer and silences every miss)
+
+4. The floor — what each keeps of the right answers and silences of the wrong ones
+    floor  top-1 kept  hit@3 kept   returned   precision      silent
+    -0.10      31.0 %      51.7 %      227.8       4.4 %       0.0 %
+    -0.05      31.0 %      51.7 %      181.9       5.4 %       0.0 %
+    +0.00      31.0 %      51.7 %      132.9       6.9 %       0.0 %
+    +0.05      31.0 %      51.7 %       91.0       9.1 %       0.0 %
+    +0.10      31.0 %      51.7 %       59.5      11.6 %       0.0 %
+    +0.15      31.0 %      51.7 %       36.6      16.2 %       0.0 %
+    +0.20      31.0 %      51.7 %       22.6      21.9 %       0.0 %
+    +0.25      31.0 %      51.7 %       13.8      28.2 %      22.2 %
+    +0.30      31.0 %      44.8 %        7.0      38.7 %      50.0 %
+    +0.35      20.7 %      27.6 %        3.1      52.7 %      83.3 %
+    +0.40      17.2 %      24.1 %        1.1      50.0 %      83.3 %
+    +0.45      10.3 %      10.3 %        0.3      60.0 %      88.9 %
+    +0.50       0.0 %       0.0 %        0.0           —     100.0 %
+
+4b. The same on scores relative to each query's own median — a result must stand this far above that query's typical clip
+    floor  top-1 kept  hit@3 kept   returned   precision      silent
+    +0.00      31.0 %      51.7 %      152.0       6.2 %       0.0 %
+    +0.05      31.0 %      51.7 %      102.6       8.2 %       0.0 %
+    +0.10      31.0 %      51.7 %       65.6      11.3 %       0.0 %
+    +0.15      31.0 %      51.7 %       40.8      15.7 %       0.0 %
+    +0.20      31.0 %      51.7 %       23.9      20.7 %       0.0 %
+    +0.25      31.0 %      51.7 %       13.5      29.9 %       5.6 %
+    +0.30      27.6 %      41.4 %        7.8      36.9 %      27.8 %
+    +0.35      24.1 %      31.0 %        4.0      45.2 %      44.4 %
+    +0.40      17.2 %      20.7 %        2.2      46.9 %      83.3 %
+   (top-1 kept: descriptions whose best result is right and clears the floor; hit@3 kept: a right answer among the first three
+    that clear it; returned: results per query that clear the floor, of 303; precision: the share of those that are right;
+    silent: the share of the 18 no-answer queries that return nothing)
+
+5. The tool path — `search_music` returns the same ten, with the same similarities, as the raw ranking: 29 of 29 queries
+
+6. Anchor judgements — none yet. `#35`'s third criterion (at least 50 pairs, each judged by a person with a reason) is a
+   person's listening; nothing here pretends otherwise. `docs/guide/golden-set.md` says how to add them.
+
+baseline:                    recorded       now    change
+             zero_shot         0.3729    0.3729   +0.0000
+             hit_1             0.3103    0.3103   +0.0000
+             hit_3             0.5172    0.5172   +0.0000
+             hit_10            0.6552    0.6552   +0.0000
+             precision_10      0.2690    0.2690   +0.0000
+             mrr               0.4418    0.4418   +0.0000
+             map_10            0.2577    0.2577   +0.0000
+no regression (a fall of more than 0.005 is one)

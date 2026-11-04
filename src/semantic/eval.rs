@@ -28,7 +28,10 @@
 //! class has many members — a text encoder cannot tell twelve takes of one bark apart, and a metric that demanded a particular one
 //! would measure the corpus's order rather than the ranking. [`ScoredCase`] carries a query's whole ranking and its **set** of right
 //! answers, and [`score_cases`], [`floor_curve`] and [`score_bands`] are the three questions put to it: *did it find one*, *what
-//! would a floor keep and silence*, and *how far apart are the scores of the right answers and the wrong ones*.
+//! would a floor keep and silence*, and *how far apart are the scores of the right answers and the wrong ones*. A fourth,
+//! [`separation`], asks it of the **top score** alone — *can a floor tell a description the library can answer from one it cannot* —
+//! and [`centred`] moves every query's scores to its own median first, so the same functions answer the question for a floor
+//! *relative to the query*.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -490,5 +493,93 @@ pub fn score_bands(cases: &[ScoredCase]) -> Option<Bands> {
         right: ScoreBand::of(right)?,
         wrong: ScoreBand::of(wrong)?,
         negative_best: ScoreBand::of(best),
+    })
+}
+
+/// **A query's scores, relative to the query**: every score less the **median** of that query's own scores over the library, taken by
+/// nearest rank as [`ScoreBand`] takes its quantiles, so the median is a score that occurred. The order, the hashes, the right answers and the
+/// description are untouched; only the origin moves, so [`floor_curve`], [`score_bands`] and [`separation`] apply to the result exactly as they
+/// apply to the raw cases.
+///
+/// **Why.** A cosine is a position on the model's own scale, and the scale moves with the description: a query that every clip matches a
+/// little has a high *top* score for that reason alone. Querybank normalisation (Bogolin et al., CVPR 2022, DOI
+/// `10.1109/cvpr52688.2022.00513`) re-normalises a query's similarities for the same reason, against a bank of *other queries*; this takes the
+/// cheapest reference there is, the library itself. Whether it helps is a measurement, not a given: `docs/guide/golden-set.md` has it.
+///
+/// A case with no score to take a median of — empty, or all `NaN` — is returned as it is.
+pub fn centred(cases: &[ScoredCase]) -> Vec<ScoredCase> {
+    cases
+        .iter()
+        .map(|case| {
+            let Some(band) = ScoreBand::of(case.scored.iter().map(|(_, score)| *score).collect()) else {
+                return case.clone();
+            };
+            ScoredCase {
+                description: case.description.clone(),
+                right: case.right.clone(),
+                scored: case.scored.iter().map(|(hash, score)| (*hash, score - band.median)).collect(),
+            }
+        })
+        .collect()
+}
+
+/// **Can a floor on the top score tell a description the library can answer from one it cannot?**
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Separation {
+    /// Queries that have a right answer and a top score to read.
+    pub answerable: usize,
+    /// Queries that should find nothing and have a top score to read.
+    pub unanswerable: usize,
+    /// The chance that a random answerable query's top score is higher than a random unanswerable query's, **ties counting half**: `0.5` is
+    /// a coin, `1.0` is a floor that separates them. An **`f64`** because it is a ratio of counts, and an `f32` rounds an exact `0.9625`
+    /// to `0.962` where every other implementation prints `0.963` — a one-in-the-last-digit disagreement between a report and its own
+    /// cross-check, found by running ESC-50 through both.
+    pub auc: f64,
+    /// The lowest top score of any answerable query: **the largest floor that still gives every such query a result**.
+    pub weakest_answerable: f32,
+    /// The highest top score of any unanswerable query: **the smallest floor that silences every such query**.
+    pub strongest_unanswerable: f32,
+}
+
+impl Separation {
+    /// Whether **some** floor keeps every answerable query's top result and silences every unanswerable query: the weakest answerable top
+    /// score is above the strongest unanswerable one.
+    pub fn floor_exists(&self) -> bool {
+        self.weakest_answerable > self.strongest_unanswerable
+    }
+}
+
+/// **The separation of a set's two kinds of query by their top scores**, or `None` when either kind has no query with a top score to read.
+///
+/// What a floor reads is the **top score**, whoever it belongs to — an answerable query whose best result is *wrong* still has one — so this
+/// is a statement about the floor and not about retrieval, which [`score_cases`] covers. Apply it to [`centred`] cases for the same question
+/// about a floor *relative to the query*. A query with no ranking, or a `NaN` top score, is not counted. It reads `scored` as best first, the
+/// contract [`ScoredCase`] states.
+pub fn separation(cases: &[ScoredCase]) -> Option<Separation> {
+    let top =
+        |case: &ScoredCase| case.scored.first().map(|(_, score)| *score).filter(|score| !score.is_nan());
+    let answerable: Vec<f32> = cases.iter().filter(|c| !c.is_negative()).filter_map(top).collect();
+    let unanswerable: Vec<f32> = cases.iter().filter(|c| c.is_negative()).filter_map(top).collect();
+    if answerable.is_empty() || unanswerable.is_empty() {
+        return None;
+    }
+    let mut wins = 0.0f64;
+    for a in &answerable {
+        for u in &unanswerable {
+            wins += if a > u {
+                1.0
+            } else if a == u {
+                0.5
+            } else {
+                0.0
+            };
+        }
+    }
+    Some(Separation {
+        answerable: answerable.len(),
+        unanswerable: unanswerable.len(),
+        auc: wins / (answerable.len() * unanswerable.len()) as f64,
+        weakest_answerable: answerable.iter().copied().fold(f32::INFINITY, f32::min),
+        strongest_unanswerable: unanswerable.iter().copied().fold(f32::NEG_INFINITY, f32::max),
     })
 }

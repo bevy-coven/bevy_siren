@@ -49,3 +49,30 @@ Absolute statements — *can decode*, *is indexed*, *costs no*, *never fails*, *
 behaviour was read against a test. The decode, header, index and graph claims were the findings of iteration 112 and are fixed. What remains is
 either a rule with a test (`library.rs`: a symlink out of the root is refused; the sidecar is the only source of provenance) or a statement about
 arithmetic (`mix.rs`: the budget is a sample cost, not a headroom guarantee). **No new defect candidate outranks the second golden library.**
+
+## After (`matrix.log`, the same script on the final tree)
+
+Every command exits 0. The only change in the counts is the 12 tests this iteration added to `tests/semantic_golden.rs` (8 for `eval::centred` and `eval::separation`, 4 for the second set's
+checked-in files and the rule that every golden set has what `--set` needs); a run without `--features semantic` does not compile that module in.
+
+| command | before | after |
+|---|---|---|
+| `cargo build` | ok | ok |
+| `cargo test` | 6 doc + 200 | 6 doc + **200** |
+| `--features serde` | 209 | **209** |
+| `--features semantic` | 109 lib + 505 | 109 lib + **517** |
+| `--features mixer` | 210 | **210** |
+| `--all-features` | 109 lib + 529 | 109 lib + **541** |
+| `cargo test --doc` / `--features readme-example --test all readme::` | 6 / 1 | 6 / 1 |
+| `cargo build --examples` (default and `--all-features`) | ok | ok |
+| `cargo clippy --all-targets --all-features -- -D warnings` | clean | clean |
+| `cargo fmt --check` | clean | clean |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features` | clean | clean |
+
+After the matrix one doc comment (`Floor::min_score`) was corrected; `cargo fmt --check`, rustdoc with warnings denied and `cargo test --doc` were re-run and are clean.
+
+**The measurement this iteration was for** (`evidence/after/`, the guide's "The second library"): on 303 game sounds the model's zero-shot accuracy is **37.3 %** (ESC-50 87.8 %), hit@1 **31 %** (90 %), the right answers'
+median cosine **0.191** (0.468), and **13 of 29 descriptions have a best result under 0.35** (0 of 50). No floor separates the answerable from the unanswerable on either library. `0.35` is withdrawn; the default stays `0.0`.
+
+**Still open after this iteration**: the default-floor decision is the owner's (`needs-decision/default-floor.md`, recommendation unchanged in direction: keep `0.0`); `#35`'s third criterion (anchor pairs, a person's); `#32`–`#34` (the editor's); `#39`
+(decided not to ship). No `consumer` issue was filed against this crate.

@@ -5,8 +5,8 @@
 `Floor::default()` — and `Weights::min_similarity`, which `Toolset::default()`, `siren-tools` and every `Ranked` request inherit — is
 **`0.0`**, which keeps everything. It was documented as *"a measurement, not timidity"*: six synthetic clips whose right and wrong
 score bands overlapped, from which *"no single threshold separates them"* and *"a floor of 0.5 would reject every correct match"*
-were concluded. **2 000 real recordings say otherwise** (`docs/guide/golden-set.md`, iteration 111). Should the default become a
-positive number, and which?
+were concluded. **2 000 real recordings said otherwise** (`docs/guide/golden-set.md`, iteration 111), and **303 game sounds, measured in
+iteration 113, say otherwise again — in the other direction.** Should the default become a positive number, and which?
 
 This is a **public default**: every consumer that does not set a floor inherits it, and a shorter result list is a behaviour change a
 game can see. So the loop files it rather than changing it.
@@ -59,42 +59,85 @@ them scored above 0.256**:
 alert sounds, five casual descriptions, and a judgement of which result is right that is mine: a caveat, not a measurement. But it is the
 only second library this crate has run, it is the kind a game ships (synthetic UI sounds), and it points the opposite way from the table.
 
+## The second library, measured (iteration 113)
+
+**303 game sounds from seven of Kenney's CC0 packs**: 29 classes, and 47 descriptions in each of two wordings (29 with answers, 18 without), the same
+model and the same `goldenbench`. The queries were committed before the model ran, with a prediction (`docs/loop/runs/2026-11-03-113/research.md`).
+
+| | ESC-50 (maintainer's / stranger's) | Kenney (maintainer's / stranger's) |
+|---|---|---|
+| the right answers' median cosine | 0.468 / 0.402 | **0.191 / 0.193** |
+| the weakest top result of an answerable description | 0.492 / 0.405 | **0.261 / 0.238** |
+| the strongest top result of a description that should find nothing | 0.593 | **0.490** |
+| answerable descriptions whose best result is under 0.35 (Wilson 95 %) | 0 of 50 (0 – 7 %) | **13 / 6 of 29 (28 – 62 % / 10 – 38 %)** |
+| AUC of the top score (95 % interval over the descriptions, 4 000 resamples) | 0.963 / 0.885 (0.90 – 1.00 / 0.78 – 0.96) | 0.759 / 0.808 (0.59 – 0.90 / 0.65 – 0.94) |
+| hit@1 · hit@3 | 90 · 100 / 72 · 84 % | **31 · 52 / 31 · 38 %** |
+
+What each floor did on the second library (maintainer's / stranger's):
+
+| floor | results per query (of 303) | precision | no-answer queries silenced | hit@3 kept | top-1 kept |
+|---|---|---|---|---|---|
+| 0.00 (today) | 133 / 140 | 6.9 / 6.6 % | 0 of 18 | 51.7 / 37.9 % | 31.0 / 31.0 % |
+| 0.20 | 23 / 24 | 21.9 / 20.8 % | 0 | 51.7 / 37.9 % | 31.0 / 31.0 % |
+| 0.25 | 14 / 15 | 28.2 / 25.2 % | 4 | 51.7 / 34.5 % | 31.0 / 27.6 % |
+| 0.30 | 7 / 9 | 38.7 / 26.2 % | 9 | **44.8** / 34.5 % | 31.0 / 27.6 % |
+| **0.35** | 3 / 4 | 52.7 / 26.0 % | 15 | **27.6 / 31.0 %** | **20.7 / 24.1 %** |
+| 0.40 | 1 / 2 | 50.0 / 29.2 % | 15 | **24.1 / 13.8 %** | **17.2 / 13.8 %** |
+
+Read against ESC-50's table above: **the floors that were free there are not free here, and none silences a no-answer query without deleting an answer.**
+
+- **No floor exists on either library** (the weakest answerable top is below the strongest unanswerable one). On the second the AUC is 0.759 / 0.808
+  because **one class — `engine` — is the first result for 22 of the 47 descriptions**, a hub: thirty distinct files supply all 47 first results and 238
+  of the 303 files are in no description's top three. *A helicopter* finds an `engine` at 0.490, above the best result of 27 of the 29 answerable
+  descriptions; *a dog barking* finds one at 0.216.
+- **The largest floor that costs neither library an answer in either wording is 0.20** — and at 0.20 it silences **no** no-answer query on either. *The count behind it is 0 of 29 descriptions under 0.20
+  on Kenney, which a Wilson interval says is compatible with up to 12 % of a library's descriptions: the largest floor that cost nothing here, not a safe one.*
+- **A floor relative to the query is worse on Kenney**: centring each query on its own median (`eval::centred`) lowers the AUC from 0.759 to 0.626 (0.808 to 0.703) — outside the resampling noise in both
+  wordings (−0.13, interval −0.25 – −0.03; −0.11, −0.22 – −0.01) — where on ESC-50 it made no clear difference (0.963 → 0.968; 0.885 → 0.924, an interval of −0.001 – +0.09). **The AUC alone does not separate the
+  libraries** (the intervals overlap in the stranger's wording); the share of descriptions under 0.35 does, in both.
+- **A normalisation on the gallery side helped both libraries, in an exploratory test** (`evidence/after/normalisations.py`, Python on the crate's own
+  similarities): subtract from each file's score its mean similarity to the *other* descriptions of the set — Querybank Normalisation's idea (Bogolin et al.,
+  CVPR 2022, DOI `10.1109/cvpr52688.2022.00513`) in its simplest form. AUC: Kenney 0.759 → **0.925** and 0.808 → **0.910**, ESC-50 0.963 → 0.969 and 0.885 →
+  0.939; hit@1: Kenney 31 → 44.8 % (maintainer's), ESC-50 72 → 80 % (stranger's). **Caveats that matter**: the bank is the set's own other descriptions, so
+  it knows the kind of question that will be asked; there are 29 and 50 queries; and **no floor exists even then** (Kenney: the weakest answerable top is
+  +0.183, the strongest unanswerable +0.342). Not built.
+- **These are the model's numbers, not the crate's**: Python recomputes every figure the report prints and agrees, and against `transformers` the 48 kHz
+  files are identical and every retrieval metric agrees within a query.
+
 ## Options
 
-1. **Keep `0.0`.** Cost: a description the library cannot answer returns `k` results that look like answers (`a lion roaring` → `cow`,
-   similarity 0.53); an agent or a panel cannot tell, and the list a caller asks for with a large `k` is 97 % wrong. Benefit: no behaviour
-   change, no risk from library shift; a project that wants a floor sets one (`Weights::min_similarity`, `Ranked.floor`).
-2. **`0.30`.** Cost: at `k = 3` a person sees no difference and none of the 16 no-answer queries is silenced — it shortens a long list and
-   nothing else. Benefit: the safest positive number (a 0.105 margin under the weakest top result in either wording).
-3. **`0.35`.** Cost: a 0.055 margin on ESC-50 — and **the 14-UI-sound demo's right answer (0.206) would be silenced**; 12 of the 16 no-answer
-   queries still answer. Benefit: the list falls from ~1 300–1 440 results to 55–66 at ~50 % precision, 4 of 16 unanswerable descriptions
-   are told *"no result scored high enough; N were below the floor"* — the sentence `Answer::describe` already says — and **every
-   description keeps its top result in both wordings** *on ESC-50*.
-4. **`0.40`.** Cost: a **0.005** margin: the weakest top result of the stranger's wording is 0.405, so a third wording, or a library a
-   little less friendly than ESC-50, loses answers. Benefit: 7 of 16 silenced and lists of ~33–43.
-5. **`0.45`.** The knee in the maintainer's wording (every description keeps a right answer in its first three; 9 of 16 silenced; lists of
-   ~28 at 82 %). **Cost: in the stranger's wording two descriptions already get no result at all and hit@3 falls from 84 % to 80 %.** The
-   number the friendly measurement recommends is the number the second measurement refutes.
-6. **A per-library floor**, derived from the index itself (for example a percentile of the scores of descriptions that cannot match) so
-   it adapts to the library instead of to ESC-50. Cost: a new mechanism and a new public type, and it needs the second library below to be
-   designed against. Benefit: it removes the question.
+1. **Keep `0.0`.** Cost: a description the library cannot answer returns `k` results that look like answers (*a lion roaring* → `cow` 0.53; *a dog barking* →
+   a spaceship `engine` 0.22); an agent or a panel cannot tell, and the list a caller asks for with a large `k` is 93 – 97 % wrong. Benefit: no behaviour change
+   and **no risk from library shift** — the one property the second library showed matters; a project that wants a floor sets one (`Weights::min_similarity`,
+   `Ranked.floor`).
+2. **`0.20`.** The largest floor that costs neither library an answer in either wording (ESC-50 keeps everything to 0.40; Kenney to 0.25 in the maintainer's
+   wording and to 0.20 in the stranger's). Cost: a **0.038 margin** under the weakest top result anywhere (Kenney, stranger's, 0.238) — a third, less friendly
+   library loses answers — and it silences **none** of the 34 no-answer queries, so it only shortens a list (1 440 → 330 results a query on ESC-50, 140 → 24 on
+   Kenney). Benefit: it hides the negative-cosine tail, and no answer is lost on two libraries in two wordings.
+3. **`0.30` – `0.45`.** *Rejected by the second library.* `0.35`, iteration 111's recommendation, is free on ESC-50 and returns nothing at all for 13 of the 29
+   descriptions on Kenney (hit@3 51.7 → 27.6 %); `0.30` already loses 7 points of hit@3 there; `0.40` has a 0.005 margin on ESC-50's own stranger's wording and loses
+   about half of Kenney's top-1 hits (31.0 → 17.2 % and 13.8 %). Nothing that silences half of the no-answer queries keeps the answers of a game library.
+4. **A floor relative to the query** (each score less that query's median, `eval::centred`). *Measured and rejected*: AUC 0.626 against 0.759 on Kenney.
+5. **A per-library floor from a bank of no-answer descriptions** (a percentile of their top scores). *Rejected by the same data*: the strongest unanswerable top on
+   Kenney, 0.490, is above the top result of 27 of 29 answerable descriptions, so a floor that silences them deletes nearly every answer.
+6. **A gallery-side normalisation — a hubness correction**: at index time store, per file, its mean similarity to a bank of generic descriptions, and rank and
+   floor on the score less that mean. Cost: an index-format change and a bank (public API, and the stamp rules for an index apply), and an evaluation on a bank that is
+   *not* the questions asked. Benefit: in the exploratory test the only change that helped both libraries in both wordings, most where the hub is worst (Kenney's AUC
+   0.76 → 0.93). **Not built.**
 
 ## Recommendation
 
-**Revised in iteration 112: keep `0.0` for now (option 1), and decide when the second library has been measured — the next iteration's
-work.** Iteration 111 recommended `0.35`. That number still holds for a library like ESC-50 and the table above has not changed; what
-changed is that ESC-50 was the only library measured, and the repository's other one (fourteen macOS UI sounds, above) puts a correct top
-result at **0.206**.
+**Keep `0.0` (option 1). The second library turns iteration 112's "wait" into a decision the data makes, and withdraws iteration 111's `0.35` for good.** No positive
+absolute floor survives two libraries in two wordings except one that changes nothing a person sees; what would let a floor do its job — telling a description the library
+can answer from one it cannot — is not a number on the cosine at all.
 
-- **A floor that is too high is also a silent failure** for the library it silences: `Tally::below_floor` and `describe()` do say what was
-  dropped, but a game that never reads them sees an empty list. A default every consumer inherits has to survive the libraries the crate
-  was built for, and a game's UI sounds and synthesised effects are first among them.
-- **What would settle it:** a second library of game audio (UI, foley, sci-fi, jingles — `docs/loop/runs/2026-11-03-112/plan.md` names the
-  source, Kenney's CC0 packs, and the classes) with its own right-answer scores. If those sit near 0.2, the answer is option 6 (a floor
-  relative to the library) or no positive default; if they sit near ESC-50's, `0.35` stands, and nothing above is lost by waiting.
-- **If the owner would rather decide now, option 1 is safer than option 3.** The cost of `0.0` is a long list that looks like answers,
-  and the guide says so; the cost of `0.35` is an empty one for a kind of library this crate exists for.
-- **Why not `0.45`, if `0.35` is withdrawn?** Unchanged: on the stranger's wording `0.45` already deletes answers on ESC-50 itself.
+- **`0.20` (option 2) is the only positive default the evidence supports, and it is cosmetic**: it silences nothing. If the owner wants a shorter list by default that is the
+  value, and its margin (0.038) is the thinnest in this file.
+- **The next measured step is option 6**, with the hub as its target: an index-time statistic and a bank **held out from the evaluation**, tested on both libraries in both
+  wordings, with the success criterion stated in advance — *some* threshold on the normalised score that keeps every answerable description's top result and silences a real
+  share of the unanswerable ones. If that holds the floor becomes a number worth defaulting; if not, the floor stays a per-project setting and the guide says so.
+- **What would overturn this:** a third library of game audio whose right answers score near ESC-50's (the second library's answer would then be about Kenney's packs and not
+  about game audio), or a held-out-bank normalisation that does not survive the held-out bank.
 
 ## What is blocked
 

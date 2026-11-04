@@ -1,0 +1,26 @@
+################ kenney, queries.tsv
+kenney-lib: 303 files, 47 descriptions (29 answerable, 18 not)
+hubness: skewness of N3 (how often each file is in a description's top three) 4.78; 238 of 303 files are in no top three; the most-listed file is in 11
+         the top result is one of only 30 distinct files; the most common is audio/scifi/spaceEngineLarge_003.ogg, first for 5 of 47 descriptions
+         by class, the top result is: engine 22, steel_drum 4, playing_cards 3
+
+                                     hit@1   hit@3   hit@10    MRR   right median   AUC   weakest   strongest
+the cosine itself                    31.0%   51.7%    65.5%  0.442         +0.191 0.759    +0.261      +0.490
+query-centred (eval::centred)        31.0%   51.7%    65.5%  0.442         +0.189 0.626    +0.287      +0.515
+gallery-centred (QB-Norm's idea)     44.8%   62.1%    69.0%  0.557         +0.198 0.925    +0.183      +0.342
+gallery z-score                      44.8%   62.1%    72.4%  0.552         +1.790 0.862    +1.729      +3.903
+(AUC: an answerable description's top score above an unanswerable one's; weakest/strongest: lowest answerable top, highest unanswerable top)
+
+################ kenney, queries-paraphrase.tsv
+kenney-lib: 303 files, 47 descriptions (29 answerable, 18 not)
+hubness: skewness of N3 (how often each file is in a description's top three) 4.90; 245 of 303 files are in no top three; the most-listed file is in 12
+         the top result is one of only 28 distinct files; the most common is audio/scifi/spaceEngineLarge_003.ogg, first for 5 of 47 descriptions
+         by class, the top result is: engine 21, thruster 9, steel_drum 4
+
+                                     hit@1   hit@3   hit@10    MRR   right median   AUC   weakest   strongest
+the cosine itself                    31.0%   37.9%    48.3%  0.381         +0.193 0.808    +0.238      +0.490
+query-centred (eval::centred)        31.0%   37.9%    48.3%  0.381         +0.186 0.703    +0.221      +0.515
+gallery-centred (QB-Norm's idea)     31.0%   51.7%    65.5%  0.449         +0.227 0.910    +0.122      +0.309
+gallery z-score                      37.9%   55.2%    72.4%  0.505         +1.964 0.851    +1.088      +3.076
+(AUC: an answerable description's top score above an unanswerable one's; weakest/strongest: lowest answerable top, highest unanswerable top)
+

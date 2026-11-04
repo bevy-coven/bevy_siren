@@ -197,17 +197,16 @@ pub const MEASURED_MISS_CEILING: f32 = 0.150;
 pub struct Floor {
     /// Results below this cosine are dropped.
     ///
-    /// **Design default: `0.0`**, which keeps everything — and **that default is under review.** It was chosen from six synthetic
-    /// clips whose bands overlapped. The golden set measured 2 000 real recordings and the picture is different: the weakest *top
-    /// result* of any of its 50 descriptions scored **0.492** — **0.405** when the same sounds were described in a stranger's words —
-    /// so a floor of **0.35** keeps every description's top result in both wordings, returns 55–66 results a query at ~50 % precision
-    /// (not 1 300–1 440 at 3 %), and silences 4 of the 16 descriptions of sounds the library does not contain; **0.45** already loses
-    /// answers in the stranger's wording. The caveats are as real: one library of environmental recordings that partly overlaps the
-    /// model's training data (`docs/guide/golden-set.md`) — and **the one other library this crate has run, fourteen macOS UI sounds,
-    /// scored nothing above 0.256 for any of five descriptions** (its right answer to "a short electronic beep" was 0.206), which both
-    /// floors named above would have emptied. A default every consumer inherits is the owner's to change;
-    /// `docs/loop/needs-decision/default-floor.md` has the table, the options and a recommendation, which iteration 112 revised from
-    /// `0.35` to *keep `0.0` until a second library is measured*.
+    /// **Design default: `0.0`**, which keeps everything — **a measurement, not timidity, now on two libraries.** The golden set's first
+    /// library (2 000 recordings) says a floor of 0.35 costs nothing there; its second (303 game sounds from Kenney's CC0 packs) says the
+    /// same floor returns nothing at all for 13 of 29 descriptions and loses a fifth to a half of the hits (top-1 31 → 21 %, hit@3 52 →
+    /// 28 % in the maintainer's wording), because a game's right answers score a median of 0.191 where the first library's score 0.468
+    /// and the strongest top result of a description that should find
+    /// *nothing* (0.490) is above the best result of 27 of the 29 that should find something. **The largest floor that costs neither
+    /// library an answer, in either of two wordings, is 0.20, and it silences no description that should find nothing** — so no
+    /// positive default does what a floor is for, and a floor *relative to the query* (`eval::centred`) is worse on the second library
+    /// still. A default every consumer inherits is the owner's to change; `docs/loop/needs-decision/default-floor.md` has the tables, the
+    /// options and the recommendation: keep `0.0`.
     pub min_score: f32,
 }
 

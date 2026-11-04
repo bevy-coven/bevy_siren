@@ -1,7 +1,7 @@
 # Media
 
 Every file here was captured on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands below — from
-`examples/mixer`, except `semantic.png` and `golden.png`, which are from `examples/semantic` and `examples/goldenbench`. A media
+`examples/mixer`, except `semantic.png`, `golden.png` and `golden-kenney.png`, which are from `examples/semantic` and `examples/goldenbench`. A media
 file a published README names is never moved; a re-capture replaces it in place.
 
 ## `semantic.png` — index a folder, describe a sound, hear it (iteration 110, `#38`)
@@ -67,6 +67,30 @@ cargo build --release --features semantic --example goldenbench
 
 # the still: needs Pillow and macOS's Menlo
 python3 docs/media/transcript_png.py docs/media/golden.txt docs/media/golden.png
+```
+
+Re-captured in iteration 113 (`#35`): `goldenbench` gained sections **3b** (can a floor tell a description the library can answer from one it cannot) and **4b** (the floor on scores relative to each
+query's own median), so the still is longer; every number it had is unchanged and the baseline compare reads *no regression*.
+
+## `golden-kenney.png` — the second library, game audio (iteration 113, `#35`)
+
+![examples/goldenbench --set kenney as a terminal transcript](golden-kenney.png)
+
+The same kind of still for the second golden library — 303 game sounds from Kenney's CC0 packs, WAV, MP3 and Ogg Vorbis in one folder. `golden-kenney.txt` is `goldenbench --set kenney`'s verbatim
+output (the maintainer's wording, without `--per-query`, which adds a row per description and is in `docs/loop/runs/2026-11-03-113/evidence/after/goldenbench-kenney.txt`) and `transcript_png.py`
+draws it. It reads very differently from `golden.png`: zero-shot **37.3 %** against 87.8 %, hit@1 **31 %** against 90 %, the right answers' median similarity **0.191** against 0.468, and a section 3b whose
+AUC is **0.759** with *no floor exists*. The stranger's-wording run (`--queries golden/kenney/queries-paraphrase.tsv`) is in `docs/guide/golden-set.md`.
+
+```sh
+python3 tools/fetch_kenney.py /tmp/kenney-lib                  # 7 CC0 archives (11.9 MB) from opengameart.org; archives and files verified against golden/kenney/manifest.sha256
+# the graphs and the environment: as for golden.png above
+cargo build --release --features semantic --example goldenbench
+./target/release/examples/goldenbench /tmp/kenney-lib --set kenney >/dev/null    # the first run indexes the 303 clips; a later one reads the index back
+
+{ echo '$ cargo run --release --features semantic --example goldenbench -- /tmp/kenney-lib --set kenney'
+  ./target/release/examples/goldenbench /tmp/kenney-lib --set kenney 2>&1 | grep -v E:onnxruntime; } > docs/media/golden-kenney.txt
+
+python3 docs/media/transcript_png.py docs/media/golden-kenney.txt docs/media/golden-kenney.png    # needs Pillow and macOS's Menlo
 ```
 
 ## No clip: iteration 28, a despawned voice frees its mixer slot

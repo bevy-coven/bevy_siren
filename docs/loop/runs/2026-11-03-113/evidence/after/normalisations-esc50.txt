@@ -1,0 +1,26 @@
+################ esc50, queries.tsv
+esc50: 2000 files, 66 descriptions (50 answerable, 16 not)
+hubness: skewness of N3 (how often each file is in a description's top three) 3.82; 1823 of 2000 files are in no top three; the most-listed file is in 3
+         the top result is one of only 60 distinct files; the most common is audio/1-121951-A-8.wav, first for 3 of 66 descriptions
+         by class, the top result is: water_drops 5, sheep 3, siren 3
+
+                                     hit@1   hit@3   hit@10    MRR   right median   AUC   weakest   strongest
+the cosine itself                    90.0%  100.0%   100.0%  0.950         +0.467 0.963    +0.492      +0.593
+query-centred (eval::centred)        90.0%  100.0%   100.0%  0.950         +0.389 0.968    +0.407      +0.536
+gallery-centred (QB-Norm's idea)    100.0%  100.0%   100.0%  1.000         +0.396 0.969    +0.342      +0.416
+gallery z-score                     100.0%  100.0%   100.0%  1.000         +3.945 0.978    +3.439      +4.185
+(AUC: an answerable description's top score above an unanswerable one's; weakest/strongest: lowest answerable top, highest unanswerable top)
+
+################ esc50, queries-paraphrase.tsv
+esc50: 2000 files, 66 descriptions (50 answerable, 16 not)
+hubness: skewness of N3 (how often each file is in a description's top three) 3.65; 1820 of 2000 files are in no top three; the most-listed file is in 3
+         the top result is one of only 64 distinct files; the most common is audio/4-102871-A-42.wav, first for 2 of 66 descriptions
+         by class, the top result is: water_drops 5, wind 4, thunderstorm 3
+
+                                     hit@1   hit@3   hit@10    MRR   right median   AUC   weakest   strongest
+the cosine itself                    72.0%   84.0%    92.0%  0.791         +0.402 0.885    +0.405      +0.593
+query-centred (eval::centred)        72.0%   84.0%    92.0%  0.791         +0.347 0.925    +0.386      +0.536
+gallery-centred (QB-Norm's idea)     80.0%   84.0%    90.0%  0.832         +0.352 0.939    +0.313      +0.440
+gallery z-score                      82.0%   88.0%    92.0%  0.861         +3.151 0.936    +2.899      +4.097
+(AUC: an answerable description's top score above an unanswerable one's; weakest/strongest: lowest answerable top, highest unanswerable top)
+

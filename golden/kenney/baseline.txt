@@ -1,0 +1,12 @@
+# goldenbench's baseline. Regenerate with `cargo run --release --features semantic --example goldenbench -- <dir> --set kenney --bless`.
+# The set and the model are recorded because a metric compared against a baseline from a different corpus or a
+# different model is a number about nothing (`#35`'s own pitfall, and `#45`'s).
+set: kenney @ v1 manifest 7445fb3de684cab7 queries 92e6476e9b7e663f
+model: laion/clap-htsat-fused@transformers-4.57.6/torch-2.8.0/opset-17 48000Hz x512
+zero_shot: 0.372937
+hit_1: 0.310345
+hit_3: 0.517241
+hit_10: 0.655172
+precision_10: 0.268966
+mrr: 0.441842
+map_10: 0.257712

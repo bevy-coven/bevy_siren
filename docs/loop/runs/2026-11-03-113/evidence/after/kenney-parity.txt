@@ -1,0 +1,219 @@
+######## kenney, the maintainer's wording: metric code, transformers parity, padding experiment
+1. THE METRIC CODE — from the crate's scores, computed in Python
+   zero_shot     0.3729
+   hit_1         0.3103
+   hit_3         0.5172
+   hit_10        0.6552
+   precision_10  0.2690
+   mrr           0.4418
+   map_10        0.2577
+   separation, raw cosine:        AUC 0.759   weakest answerable +0.261   strongest unanswerable +0.490
+   separation, less query median: AUC 0.626   weakest answerable +0.287   strongest unanswerable +0.515
+   Rust's printed metrics vs Python: largest difference 0.0003 over 7 metrics -> agree
+   Rust's printed separation vs Python: largest difference 0.0004 (raw), 0.0004 (relative) -> agree
+   Rust's printed floor tables vs Python: 55 cells, 0 differ -> agree to the printed precision
+
+2. THE MODEL PATH — the crate against transformers (extractor's repeatpad), 303 clips x 76 strings = 23028 pairs
+   max |difference| 2.13e-01   mean 4.36e-03   99.9th percentile 8.39e-02
+   per clip (mean |d| over the strings): median 7.6e-04, 99th percentile 3.3e-02, max 4.9e-02
+   the five clips the two pipelines disagree on most:
+     audio/scifi/spaceEngineLow_002.ogg       mean |d| 0.049   5.00 s   class engine
+     audio/scifi/impactMetal_002.ogg          mean |d| 0.041   0.47 s   class metal_impact
+     audio/scifi/impactMetal_001.ogg          mean |d| 0.038   0.69 s   class metal_impact
+     audio/scifi/impactMetal_000.ogg          mean |d| 0.033   0.63 s   class metal_impact
+     audio/scifi/impactMetal_004.ogg          mean |d| 0.031   0.39 s   class metal_impact
+   where the difference is — mean |d| over the strings, by each file's own sample rate and length:
+     48 kHz files                                      39 files   median 1.8e-06   mean 2.4e-04   max 1.3e-03
+     44.1 kHz files (resampled by both, differently)  264 files   median 1.1e-03   mean 5.0e-03   max 4.9e-02
+     under 1 s                                        221 files   median 6.3e-04   mean 3.8e-03   max 4.1e-02
+     1 s or longer                                     82 files   median 1.1e-03   mean 5.8e-03   max 4.9e-02
+     44.1 kHz and under 1 s                           184 files   median 1.0e-03   mean 4.5e-03   max 4.1e-02
+     44.1 kHz and 1 s or longer                        80 files   median 1.2e-03   mean 6.0e-03   max 4.9e-02
+   the same metrics from transformers' similarities:
+     zero_shot     transformers 0.3663   crate 0.3729   difference +0.0066
+     hit_1         transformers 0.3103   crate 0.3103   difference +0.0000
+     hit_3         transformers 0.5172   crate 0.5172   difference +0.0000
+     hit_10        transformers 0.6207   crate 0.6552   difference +0.0345
+     precision_10  transformers 0.2759   crate 0.2690   difference -0.0069
+     mrr           transformers 0.4374   crate 0.4418   difference +0.0044
+     map_10        transformers 0.2668   crate 0.2577   difference -0.0091
+
+3. THE PADDING EXPERIMENT — the same clips, the same questions, the clip padded two ways (clips: 303, durations 0.01 - 5.00 s, median 0.62 s)
+   repeatpad (the model's own, and the crate's)
+     zero-shot 0.366   hit@1 0.310   hit@3 0.517   hit@10 0.621   MRR 0.437   mAP@10 0.267
+     right answers' median similarity +0.194;  separation: AUC 0.747 (weakest answerable +0.260, strongest unanswerable +0.492);  centred: AUC 0.613
+   pad (the clip once, then silence)
+     zero-shot 0.396   hit@1 0.276   hit@3 0.483   hit@10 0.586   MRR 0.381   mAP@10 0.252
+     right answers' median similarity +0.246;  separation: AUC 0.874 (weakest answerable +0.290, strongest unanswerable +0.465);  centred: AUC 0.778
+
+   first right answer's rank, query by query (the maintainer's wording):
+     description                                   repeatpad        pad
+     footsteps walking on the ground                      14         45
+     a wooden door opening and closing                     5          1
+     a book being opened, closed and set down              2          3
+     cloth rustling                                        3          3
+     a knife being drawn and slicing                       1          2
+     a metal pot clanging                                  1          1
+     leather being handled                                47        171
+     playing cards being shuffled and dealt                1          1
+     poker chips clinking and stacking                     1          3
+     dice being shaken and thrown                          1          1
+     an 8-bit chiptune jingle                              2          1
+     a short saxophone jingle                              9         35
+     a short steel drum jingle                             1          1
+     a short pizzicato strings jingle                     44         11
+     a mouse click                                         2          9
+     an error beep                                        22         32
+     a confirmation chime                                 16         24
+     scrolling through a menu                             18          7
+     a laser blast                                         1          1
+     a power-up sound                                     63         62
+     an electric zap                                     111        148
+     a sci-fi phaser shot                                 11         16
+     an explosion                                          1          3
+     a force field humming                                30         59
+     a sci-fi door opening and closing                     2         47
+     a spaceship engine humming                            2          2
+     a rocket thruster firing                              1          1
+     a computer processing noise                          10         10
+     a metal impact                                       76         89
+
+   clips under one second: 221 of 303. Their right-answer similarity, median: repeatpad +0.162, pad +0.233
+
+######## kenney, the stranger's wording (the model-path section is the same audio; the metric code and the padding experiment's ranks differ)
+1. THE METRIC CODE — from the crate's scores, computed in Python
+   zero_shot     0.3729
+   hit_1         0.3103
+   hit_3         0.3793
+   hit_10        0.4828
+   precision_10  0.2276
+   mrr           0.3809
+   map_10        0.2090
+   separation, raw cosine:        AUC 0.808   weakest answerable +0.238   strongest unanswerable +0.490
+   separation, less query median: AUC 0.703   weakest answerable +0.221   strongest unanswerable +0.515
+   Rust's printed metrics vs Python: largest difference 0.0004 over 7 metrics -> agree
+   Rust's printed separation vs Python: largest difference 0.0004 (raw), 0.0002 (relative) -> agree
+   Rust's printed floor tables vs Python: 55 cells, 0 differ -> agree to the printed precision
+
+2. THE MODEL PATH — the crate against transformers (extractor's repeatpad), 303 clips x 76 strings = 23028 pairs
+   max |difference| 2.13e-01   mean 4.66e-03   99.9th percentile 8.68e-02
+   per clip (mean |d| over the strings): median 1.2e-03, 99th percentile 3.2e-02, max 5.2e-02
+   the five clips the two pipelines disagree on most:
+     audio/scifi/spaceEngineLow_002.ogg       mean |d| 0.052   5.00 s   class engine
+     audio/scifi/impactMetal_002.ogg          mean |d| 0.037   0.47 s   class metal_impact
+     audio/scifi/impactMetal_001.ogg          mean |d| 0.036   0.69 s   class metal_impact
+     audio/scifi/impactMetal_000.ogg          mean |d| 0.032   0.63 s   class metal_impact
+     audio/scifi/impactMetal_004.ogg          mean |d| 0.031   0.39 s   class metal_impact
+   where the difference is — mean |d| over the strings, by each file's own sample rate and length:
+     48 kHz files                                      39 files   median 6.6e-04   mean 7.2e-04   max 2.1e-03
+     44.1 kHz files (resampled by both, differently)  264 files   median 1.4e-03   mean 5.2e-03   max 5.2e-02
+     under 1 s                                        221 files   median 1.2e-03   mean 4.1e-03   max 3.7e-02
+     1 s or longer                                     82 files   median 1.5e-03   mean 6.1e-03   max 5.2e-02
+     44.1 kHz and under 1 s                           184 files   median 1.4e-03   mean 4.8e-03   max 3.7e-02
+     44.1 kHz and 1 s or longer                        80 files   median 1.6e-03   mean 6.2e-03   max 5.2e-02
+   the same metrics from transformers' similarities:
+     zero_shot     transformers 0.3663   crate 0.3729   difference +0.0066
+     hit_1         transformers 0.3103   crate 0.3103   difference +0.0000
+     hit_3         transformers 0.3793   crate 0.3793   difference +0.0000
+     hit_10        transformers 0.4828   crate 0.4828   difference +0.0000
+     precision_10  transformers 0.2172   crate 0.2276   difference +0.0103
+     mrr           transformers 0.3817   crate 0.3809   difference -0.0008
+     map_10        transformers 0.2011   crate 0.2090   difference +0.0079
+
+3. THE PADDING EXPERIMENT — the same clips, the same questions, the clip padded two ways (clips: 303, durations 0.01 - 5.00 s, median 0.62 s)
+   repeatpad (the model's own, and the crate's)
+     zero-shot 0.366   hit@1 0.310   hit@3 0.379   hit@10 0.483   MRR 0.382   mAP@10 0.201
+     right answers' median similarity +0.194;  separation: AUC 0.805 (weakest answerable +0.238, strongest unanswerable +0.492);  centred: AUC 0.730
+   pad (the clip once, then silence)
+     zero-shot 0.396   hit@1 0.276   hit@3 0.379   hit@10 0.552   MRR 0.372   mAP@10 0.217
+     right answers' median similarity +0.197;  separation: AUC 0.803 (weakest answerable +0.220, strongest unanswerable +0.465);  centred: AUC 0.816
+
+   first right answer's rank, query by query (the maintainer's wording):
+     description                                   repeatpad        pad
+     boots hitting the ground one after another           21          8
+     a heavy wooden panel swinging on its hinges           1          2
+     pages turning and a heavy cover thudding shu          8          1
+     fabric being rubbed and rustled                      12         16
+     a blade scraping out of a scabbard                    1          1
+     cookware ringing as it is knocked about               7          2
+     stiff hide creaking in someone's hands               46        128
+     a deck being riffled and dealt out on a tabl          1          1
+     gambling tokens clacking against each other           2          2
+     small cubes tumbling across a tabletop                1          1
+     a retro console fanfare                               1          8
+     a smooth reed-instrument riff                        15         27
+     a tropical tuned-percussion tune                      1          1
+     a quick tune on plucked violins                       2          4
+     a quick press of a button on a pointing devi         11         23
+     a harsh negative buzz telling you that you d         15         20
+     a pleasant rising ding that says it worked           27          5
+     a long list sliding by under your finger             82        137
+     a futuristic ray gun firing                           1          1
+     an arcade bonus pickup, rising and sparkling          9          4
+     a sharp crackle of static discharge                 108        153
+     a sweeping energy pulse from a starship weap         75         88
+     something blowing up with a low rumble               19         79
+     an energy barrier shimmering around a ship           19         33
+     an automatic gateway hissing open on a stars         12         24
+     the steady drone of a starship's drive                1          1
+     a jet of burning propellant roaring                   1          1
+     old computing equipment chirping as it works         27         43
+     a heavy clang of steel struck against steel          69         78
+
+   clips under one second: 221 of 303. Their right-answer similarity, median: repeatpad +0.175, pad +0.181
+
+######## esc50, queries.tsv: the metric code only (--limit skips all but one clip of the model path)
+1. THE METRIC CODE — from the crate's scores, computed in Python
+   zero_shot     0.8780
+   hit_1         0.9000
+   hit_3         1.0000
+   hit_10        1.0000
+   precision_10  0.8880
+   mrr           0.9500
+   map_10        0.8573
+   separation, raw cosine:        AUC 0.963   weakest answerable +0.492   strongest unanswerable +0.593
+   separation, less query median: AUC 0.968   weakest answerable +0.407   strongest unanswerable +0.536
+   Rust's printed metrics vs Python: largest difference 0.0003 over 7 metrics -> agree
+   Rust's printed separation vs Python: largest difference 0.0005 (raw), 0.0005 (relative) -> agree
+   Rust's printed floor tables vs Python: 55 cells, 0 differ -> agree to the printed precision
+
+######## esc50, queries-paraphrase.tsv: the metric code only (--limit skips all but one clip of the model path)
+1. THE METRIC CODE — from the crate's scores, computed in Python
+   zero_shot     0.8780
+   hit_1         0.7200
+   hit_3         0.8400
+   hit_10        0.9200
+   precision_10  0.7360
+   mrr           0.7910
+   map_10        0.6755
+   separation, raw cosine:        AUC 0.885   weakest answerable +0.405   strongest unanswerable +0.593
+   separation, less query median: AUC 0.924   weakest answerable +0.386   strongest unanswerable +0.536
+   Rust's printed metrics vs Python: largest difference 0.0005 over 7 metrics -> agree
+   Rust's printed separation vs Python: largest difference 0.0003 (raw), 0.0003 (relative) -> agree
+   Rust's printed floor tables vs Python: 55 cells, 0 differ -> agree to the printed precision
+
+######## RE-RUN on the final code (the AUC is an f64 and the report was regenerated): check 1 only, all four runs. The sections above were produced with the f32 build.
+## kenney, queries.tsv
+   separation, raw cosine:        AUC 0.759   weakest answerable +0.261   strongest unanswerable +0.490
+   separation, less query median: AUC 0.626   weakest answerable +0.287   strongest unanswerable +0.515
+   Rust's printed metrics vs Python: largest difference 0.0003 over 7 metrics -> agree
+   Rust's printed separation vs Python: largest difference 0.0004 (raw), 0.0004 (relative) -> agree
+   Rust's printed floor tables vs Python: 55 cells, 0 differ -> agree to the printed precision
+## kenney, queries-paraphrase.tsv
+   separation, raw cosine:        AUC 0.808   weakest answerable +0.238   strongest unanswerable +0.490
+   separation, less query median: AUC 0.703   weakest answerable +0.221   strongest unanswerable +0.515
+   Rust's printed metrics vs Python: largest difference 0.0004 over 7 metrics -> agree
+   Rust's printed separation vs Python: largest difference 0.0004 (raw), 0.0002 (relative) -> agree
+   Rust's printed floor tables vs Python: 55 cells, 0 differ -> agree to the printed precision
+## esc50, queries.tsv
+   separation, raw cosine:        AUC 0.963   weakest answerable +0.492   strongest unanswerable +0.593
+   separation, less query median: AUC 0.968   weakest answerable +0.407   strongest unanswerable +0.536
+   Rust's printed metrics vs Python: largest difference 0.0003 over 7 metrics -> agree
+   Rust's printed separation vs Python: largest difference 0.0005 (raw), 0.0005 (relative) -> agree
+   Rust's printed floor tables vs Python: 55 cells, 0 differ -> agree to the printed precision
+## esc50, queries-paraphrase.tsv
+   separation, raw cosine:        AUC 0.885   weakest answerable +0.405   strongest unanswerable +0.593
+   separation, less query median: AUC 0.924   weakest answerable +0.386   strongest unanswerable +0.536
+   Rust's printed metrics vs Python: largest difference 0.0005 over 7 metrics -> agree
+   Rust's printed separation vs Python: largest difference 0.0003 (raw), 0.0003 (relative) -> agree
+   Rust's printed floor tables vs Python: 55 cells, 0 differ -> agree to the printed precision

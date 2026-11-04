@@ -1,0 +1,23 @@
+load before: 2.37, 2.51, 2.60
+--- run 1
+voices      us/frame        us/voice
+     8         0.064          0.0080
+    64         0.296          0.0046
+   256         1.061          0.0041
+
+upper bound: every voice is costed, including the ones update_mix skips because their gain did not move
+--- run 2
+voices      us/frame        us/voice
+     8         0.065          0.0081
+    64         0.343          0.0054
+   256         1.217          0.0048
+
+upper bound: every voice is costed, including the ones update_mix skips because their gain did not move
+--- run 3
+voices      us/frame        us/voice
+     8         0.064          0.0079
+    64         0.330          0.0052
+   256         1.044          0.0041
+
+upper bound: every voice is costed, including the ones update_mix skips because their gain did not move
+load after: 2.37, 2.51, 2.60

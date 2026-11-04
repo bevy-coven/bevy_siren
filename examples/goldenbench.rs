@@ -10,6 +10,10 @@
 //!
 //! The model flags also read `SIREN_MODEL`, `SIREN_VOCAB`, `SIREN_AUDIO_MODEL` and `SIREN_MODEL_VERSION`, as `examples/semantic` does.
 //!
+//! **`--set <name>`** (default `esc50`) selects which golden set: `golden/<name>/{manifest.sha256, queries.tsv, baseline.txt}` and the
+//! fetch command `tools/fetch_<name>.py`. The second set is `kenney` — game audio, `python3 tools/fetch_kenney.py /tmp/kenney`. Each set
+//! has its own baseline, and a baseline compares only against the set, queries and model it was recorded for.
+//!
 //! # What it prints
 //!
 //! 1. **The paper's zero-shot accuracy**, from the same embeddings: each clip against one prompt per class
@@ -18,8 +22,10 @@
 //! 2. **Text-to-audio retrieval**, which is what the crate is for: each description against every clip. Hit@1/3/10, precision@10,
 //!    MRR, mAP@10, and the queries that missed, by name.
 //! 3. **The scores**: the cosines of the right answers and of the wrong ones, and the best score of each query that should find
-//!    nothing.
-//! 4. **The floor curve**: what each floor keeps of the right answers and what it silences of the wrong ones.
+//!    nothing — and the **separation**: how well a floor on a query's top score tells a description the library can answer from one it
+//!    cannot, raw and relative to the query's own median (`eval::separation`, `eval::centred`).
+//! 4. **The floor curve**: what each floor keeps of the right answers and what it silences of the wrong ones, in cosines and again
+//!    relative to each query's own median. `--per-query` adds one row for each description.
 //! 5. That the **tool path** (`tools::search_music`, what `siren-tools` answers) returns the same ten as the raw ranking.
 //! 6. A **baseline** compare — `--bless` records one. It is refused when the set or the model differ from the baseline's, because a
 //!    metric compared against a baseline from a different corpus is a number about nothing.
@@ -50,6 +56,11 @@ use bevy_siren::semantic::tools::{self, Toolset};
 /// *"roughly zero to roughly .4"* for image–text — with a margin below zero to show what a negative cosine is, and above 0.4.
 const FLOORS: [f32; 13] = [-0.10, -0.05, 0.0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50];
 
+/// The floors the **relative** curve is read at: how far above a query's own median a result must stand. A **design default**: the
+/// centred scale starts at zero (*no better than that query's typical clip*) and the right answers of the libraries measured so far sit
+/// between about 0.2 and 0.7 above it.
+const RELATIVE_FLOORS: [f32; 9] = [0.0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40];
+
 /// How far a metric may fall below the baseline before it is a regression. A **design default**: a hit rate over 50 queries moves
 /// in steps of 0.02, so a real regression is at least one query, and this only absorbs floating-point differences between machines.
 const TOLERANCE: f32 = 0.005;
@@ -61,12 +72,15 @@ fn prompt(class: &str) -> String {
 
 struct Options {
     library: PathBuf,
+    /// Which golden set: a directory of `golden/`.
+    set: String,
     queries: PathBuf,
     text_model: Option<PathBuf>,
     vocab: Option<PathBuf>,
     audio_model: Option<PathBuf>,
     version: Option<String>,
     bless: bool,
+    per_query: bool,
     dump: Option<PathBuf>,
 }
 
@@ -75,10 +89,32 @@ fn repo(path: &str) -> PathBuf {
 }
 
 fn usage() -> &'static str {
-    "usage: goldenbench <library-dir> [--model clap-text.onnx --vocab tokenizer.json] [--audio-model clap-audio.onnx]\n\
-     \x20               [--model-version <v>] [--queries golden/esc50/queries.tsv] [--bless] [--dump <file>]\n\n\
-     <library-dir> is what `python3 tools/fetch_esc50.py <library-dir>` made. Each model flag also reads SIREN_MODEL, SIREN_VOCAB,\n\
-     SIREN_AUDIO_MODEL and SIREN_MODEL_VERSION; the files are made once by `python3 tools/export_clap_onnx.py <dir>`."
+    "usage: goldenbench <library-dir> [--set esc50|kenney] [--model clap-text.onnx --vocab tokenizer.json] [--audio-model clap-audio.onnx]\n\
+     \x20               [--model-version <v>] [--queries golden/<set>/queries.tsv] [--bless] [--per-query] [--dump <file>]\n\n\
+     <library-dir> is what `python3 tools/fetch_<set>.py <library-dir>` made (the default set is esc50). Each model flag also reads\n\
+     SIREN_MODEL, SIREN_VOCAB, SIREN_AUDIO_MODEL and SIREN_MODEL_VERSION; the files are made once by `python3 tools/export_clap_onnx.py <dir>`."
+}
+
+/// The golden sets this checkout holds: the directories of `golden/`, by name.
+fn sets() -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(repo("golden"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|entry| entry.path().is_dir())
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+/// A description cut to `width` characters, so a table's columns line up.
+fn clip(text: &str, width: usize) -> String {
+    if text.chars().count() <= width {
+        return text.to_owned();
+    }
+    let kept: String = text.chars().take(width.saturating_sub(1)).collect();
+    format!("{kept}…")
 }
 
 fn env(name: &str) -> Option<String> {
@@ -88,26 +124,31 @@ fn env(name: &str) -> Option<String> {
 fn parse(args: impl Iterator<Item = String>) -> Result<Options, String> {
     let mut options = Options {
         library: PathBuf::new(),
-        queries: repo("golden/esc50/queries.tsv"),
+        set: String::from("esc50"),
+        queries: PathBuf::new(),
         text_model: env("SIREN_MODEL").map(PathBuf::from),
         vocab: env("SIREN_VOCAB").map(PathBuf::from),
         audio_model: env("SIREN_AUDIO_MODEL").map(PathBuf::from),
         version: env("SIREN_MODEL_VERSION"),
         bless: false,
+        per_query: false,
         dump: None,
     };
+    let mut queries = None;
     let mut positional = Vec::new();
     let mut args = args;
     while let Some(arg) = args.next() {
         let mut value = |what: &str| args.next().ok_or_else(|| format!("{arg} needs {what}"));
         match arg.as_str() {
+            "--set" => options.set = value("a set name")?,
             "--model" => options.text_model = Some(PathBuf::from(value("a file")?)),
             "--vocab" => options.vocab = Some(PathBuf::from(value("a file")?)),
             "--audio-model" => options.audio_model = Some(PathBuf::from(value("a file")?)),
             "--model-version" => options.version = Some(value("a version string")?),
-            "--queries" => options.queries = PathBuf::from(value("a file")?),
+            "--queries" => queries = Some(PathBuf::from(value("a file")?)),
             "--dump" => options.dump = Some(PathBuf::from(value("a file")?)),
             "--bless" => options.bless = true,
+            "--per-query" => options.per_query = true,
             flag if flag.starts_with("--") => return Err(format!("unknown option `{flag}`")),
             other => positional.push(other.to_owned()),
         }
@@ -116,6 +157,15 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Options, String> {
         format!("one argument is required — the library directory — and {} were given", got.len())
     })?;
     options.library = PathBuf::from(library);
+    // A set is a directory of `golden/`, so a name that is not one — including one that climbs out of it — is refused, listing what is.
+    if !sets().contains(&options.set) {
+        return Err(format!(
+            "`--set {}` names no golden set; this checkout has: {}",
+            options.set,
+            sets().join(", ")
+        ));
+    }
+    options.queries = queries.unwrap_or_else(|| repo(&format!("golden/{}/queries.tsv", options.set)));
     Ok(options)
 }
 
@@ -146,20 +196,23 @@ fn short(message: &str) -> String {
     }
 }
 
-/// The set's identity: the commit its manifest pins, a hash of the manifest's bytes, and a hash of the queries it was asked — so a
-/// baseline says which set *and which questions* it is about. A different queries file is a different measurement.
-fn set_identity(queries: &str) -> Result<String, String> {
-    let path = repo("golden/esc50/manifest.sha256");
+/// The set's identity: the commit its manifest pins (or, for a set with no commit, its version), a hash of the manifest's bytes, and a hash
+/// of the queries it was asked — so a baseline says which set *and which questions* it is about. A different queries file is a different
+/// measurement. ESC-50's reads `esc50 @ 33c8ce9e manifest … queries …`, exactly as it did before there was a second set.
+fn set_identity(set: &str, queries: &str) -> Result<String, String> {
+    let path = repo(&format!("golden/{set}/manifest.sha256"));
     let text =
         std::fs::read_to_string(&path).map_err(|e| format!("cannot read `{}`: {e}", path.display()))?;
-    let commit = text
-        .lines()
-        .find_map(|line| line.strip_prefix("# commit:"))
-        .map(str::trim)
-        .ok_or_else(|| format!("`{}` names no commit", path.display()))?;
+    let line = |key: &str| text.lines().find_map(|line| line.strip_prefix(key)).map(str::trim);
+    let pin = match (line("# commit:"), line("# version:")) {
+        (Some(commit), _) => commit[..commit.len().min(8)].to_owned(),
+        (None, Some(version)) => version.to_owned(),
+        (None, None) => {
+            return Err(format!("`{}` names neither a `# commit:` nor a `# version:`", path.display()));
+        }
+    };
     Ok(format!(
-        "esc50 @ {} manifest {:016x} queries {:016x}",
-        &commit[..commit.len().min(8)],
+        "{set} @ {pin} manifest {:016x} queries {:016x}",
         library::fnv1a(text.as_bytes()),
         library::fnv1a(queries.as_bytes())
     ))
@@ -217,10 +270,11 @@ fn main() -> ExitCode {
     };
     // **Refused before anything is loaded**: the baseline is for the default queries, and recording another file's numbers over it
     // would make every later compare a compare against the wrong questions.
-    let default_queries = options.queries == repo("golden/esc50/queries.tsv");
+    let default_queries = options.queries == repo(&format!("golden/{}/queries.tsv", options.set));
     if options.bless && !default_queries {
         eprintln!(
-            "goldenbench: the baseline is for golden/esc50/queries.tsv, and `--bless` will not record another queries file's numbers over it"
+            "goldenbench: the baseline is for golden/{0}/queries.tsv, and `--bless` will not record another queries file's numbers over it",
+            options.set
         );
         return ExitCode::from(2);
     }
@@ -242,7 +296,8 @@ fn main() -> ExitCode {
         (Ok(labels), Ok(queries)) => (labels, queries),
         (Err(why), _) | (_, Err(why)) => {
             eprintln!(
-                "goldenbench: {why}\n\n`labels.csv` is written by `python3 tools/fetch_esc50.py {}`, which also downloads and verifies the clips.",
+                "goldenbench: {why}\n\n`labels.csv` is written by `python3 tools/fetch_{}.py {}`, which also downloads and verifies the clips.",
+                options.set,
                 root.display()
             );
             return ExitCode::from(2);
@@ -255,7 +310,7 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let identity = match set_identity(&queries) {
+    let identity = match set_identity(&options.set, &queries) {
         Ok(identity) => identity,
         Err(why) => {
             eprintln!("goldenbench: {why}");
@@ -265,13 +320,17 @@ fn main() -> ExitCode {
     let library: Library = library::scan(root);
     let (absent, stray) = (set.absent(&library), set.unlabelled(&library));
     if !absent.is_empty() || !stray.is_empty() {
+        let count = |n: usize, what: &str| format!("{n} {what}{}", if n == 1 { "" } else { "s" });
         eprintln!(
-            "goldenbench: the library is not the set — {} labelled files are absent{}, and {} files nobody labelled are there{}.\n\
-             A partial or padded copy measures a different set, so nothing was run. `python3 tools/fetch_esc50.py {}` repairs it.",
-            absent.len(),
+            "goldenbench: the library is not the set — {} {} absent{}, and {} nobody labelled {} there{}.\n\
+             A partial or padded copy measures a different set, so nothing was run. `python3 tools/fetch_{}.py {}` repairs it.",
+            count(absent.len(), "labelled file"),
+            if absent.len() == 1 { "is" } else { "are" },
             absent.first().map(|f| format!(" (the first is `{f}`)")).unwrap_or_default(),
-            stray.len(),
+            count(stray.len(), "file"),
+            if stray.len() == 1 { "is" } else { "are" },
             stray.first().map(|f| format!(" (the first is `{}`)", f.display())).unwrap_or_default(),
+            options.set,
             root.display()
         );
         return ExitCode::from(2);
@@ -486,27 +545,36 @@ fn main() -> ExitCode {
     println!(
         "1. Zero-shot classification — the paper's protocol: each clip against \"This is a sound of <class>.\", top-1"
     );
+    let reference = if options.set == "esc50" {
+        "paper: 88.0 – 91.0 % on the overlap-excluded subset; people score 81.3 %"
+    } else {
+        "no published figure for this set: the paper's prompt, applied to this set's class names"
+    };
     println!(
-        "   accuracy {}   ({} of {} clips)      paper: 88.0 – 91.0 % on the overlap-excluded subset; people score 81.3 %",
+        "   accuracy {}   ({} of {} clips)      {reference}",
         percent(zs_accuracy),
         zs.correct,
         zs.total
     );
+    let rate = |class: &(&String, &(usize, usize))| class.1.0 as f32 / class.1.1.max(1) as f32;
     let mut weakest: Vec<(&String, &(usize, usize))> = zs.by_class.iter().collect();
-    weakest.sort_by(|a, b| {
-        (a.1.0 as f32 / a.1.1.max(1) as f32).total_cmp(&(b.1.0 as f32 / b.1.1.max(1) as f32))
-    });
+    weakest.sort_by(|a, b| rate(a).total_cmp(&rate(b)));
+    let tied = weakest
+        .get(4)
+        .map_or(0, |fifth| weakest.iter().skip(5).take_while(|class| rate(class) == rate(fifth)).count());
     println!(
-        "   weakest classes: {}",
+        "   weakest classes: {}{}",
         weakest
             .iter()
             .take(5)
-            .map(|(class, (right, total))| format!(
-                "{class} {:.0} %",
-                *right as f32 / (*total).max(1) as f32 * 100.0
-            ))
+            .map(|class| format!("{} {:.0} %", class.0, rate(class) * 100.0))
             .collect::<Vec<_>>()
-            .join(", ")
+            .join(", "),
+        if tied == 0 {
+            String::new()
+        } else {
+            format!(" — and {tied} more at {:.0} %", rate(&weakest[4]) * 100.0)
+        }
     );
     let mut confused: Vec<(&(String, String), &usize)> = zs.confused.iter().collect();
     confused.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
@@ -535,39 +603,72 @@ fn main() -> ExitCode {
         scores.mrr,
         scores.map_10
     );
+    // **Precision@10 is bounded by class size**: a class of three files cannot fill ten places, so a perfect ranking of a library with small
+    // classes scores under 100 %. Said whenever it is, so a precision is read against what the library allows.
+    let positives_scored: Vec<&ScoredCase> = cases.iter().filter(|c| !c.is_negative()).collect();
+    let ceiling = positives_scored.iter().map(|c| c.right.len().min(10) as f32 / 10.0).sum::<f32>()
+        / positives_scored.len().max(1) as f32;
+    if ceiling < 0.995 {
+        println!(
+            "   precision@10 is bounded by class size: a perfect ranking of this library scores {} (a class of three files cannot fill ten places)",
+            percent(ceiling)
+        );
+    }
     if scores.missed.is_empty() {
         println!("   every description found a right answer within the first {}", eval::REPORT_K);
     } else {
         println!(
-            "   no right answer in the first {}: {}",
+            "   no right answer in the first {} ({} descriptions):",
             eval::REPORT_K,
-            scores
-                .missed
-                .iter()
-                .map(|(d, at)| match at {
-                    Some(rank) => format!("`{d}` (first right answer at {rank})"),
-                    None => format!("`{d}` (none ranked)"),
-                })
-                .collect::<Vec<_>>()
-                .join(", ")
+            scores.missed.len()
         );
+        for (description, at) in &scores.missed {
+            let rank = at.map_or_else(|| String::from("none ranked"), |rank| format!("at {rank}"));
+            println!("     {:<60} first right answer {rank}", clip(description, 60));
+        }
     }
     let mut worst: Vec<&ScoredCase> = cases.iter().filter(|c| !c.is_negative() && !c.hit(1)).collect();
     worst.sort_by(|a, b| {
         a.precision(10).total_cmp(&b.precision(10)).then_with(|| a.description.cmp(&b.description))
     });
     if !worst.is_empty() {
-        println!(
-            "   best result wrong, by precision@10: {}",
-            worst
-                .iter()
-                .take(8)
-                .map(|c| format!("`{}` {:.0} %", c.description, c.precision(10) * 100.0))
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
+        println!("   best result wrong ({} descriptions) — by precision@10, the worst eight:", worst.len());
+        for c in worst.iter().take(8) {
+            println!("     {:<60} {:>3.0} %", clip(&c.description, 60), c.precision(10) * 100.0);
+        }
     }
     println!();
+    if options.per_query {
+        let class_of = |hash: u64| {
+            library
+                .assets
+                .get(&hash)
+                .and_then(|a| a.paths.first())
+                .and_then(|p| set.label_of(p))
+                .unwrap_or("?")
+        };
+        println!(
+            "2b. Per description — the class it should find, what it found first, and where its first right answer ranked"
+        );
+        println!(
+            "   {:<46} {:<19} {:<19} {:>7} {:>5} {:>7}",
+            "description", "should find", "found first", "score", "rank", "score"
+        );
+        for (query, case) in set.queries.iter().zip(&cases) {
+            let first = case.scored.first().map(|(hash, score)| (class_of(*hash), *score));
+            let right = case.first_right().map(|rank| (rank, case.scored[rank - 1].1));
+            println!(
+                "   {:<46} {:<19} {:<19} {:>7} {:>5} {:>7}",
+                clip(&query.description, 46),
+                query.class.as_deref().unwrap_or("—"),
+                first.map_or("—", |(class, _)| class),
+                first.map_or_else(String::new, |(_, score)| format!("{score:+.3}")),
+                right.map_or_else(String::new, |(rank, _)| rank.to_string()),
+                right.map_or_else(String::new, |(_, score)| format!("{score:+.3}"))
+            );
+        }
+        println!();
+    }
 
     // ---- 3. bands
     println!("3. Scores — CLAP cosines, before any weighting");
@@ -614,24 +715,59 @@ fn main() -> ExitCode {
     }
     println!();
 
-    // ---- 4. floor
-    let curve: Vec<FloorRow> = eval::floor_curve(&cases, &FLOORS);
-    println!("4. The floor — what each keeps of the right answers and silences of the wrong ones");
-    println!(
-        "   {:>6}  {:>10}  {:>10}  {:>9}  {:>10}  {:>10}",
-        "floor", "top-1 kept", "hit@3 kept", "returned", "precision", "silent"
-    );
-    for r in &curve {
+    // ---- 3b. separation, raw and relative to the query
+    let relative = eval::centred(&cases);
+    if let Some(raw) = eval::separation(&cases) {
         println!(
-            "   {:>+6.2}  {:>10}  {:>10}  {:>9.1}  {:>10}  {:>10}",
-            r.floor,
-            percent(r.top_1_kept),
-            percent(r.hit_3_kept),
-            r.returned,
-            r.precision.map_or_else(|| String::from("—"), percent),
-            r.silent.map_or_else(|| String::from("—"), percent)
+            "3b. Can a floor tell a description the library can answer from one it cannot? — each query's top score, {} answerable against {} that should find nothing",
+            raw.answerable, raw.unanswerable
+        );
+        println!(
+            "   {:<30} {:>6}  {:>19}  {:>22}  {:>9}",
+            "", "AUC", "weakest answerable", "strongest unanswerable", "a floor?"
+        );
+        let row = |name: &str, s: eval::Separation| {
+            println!(
+                "   {name:<30} {:>6.3}  {:>+19.3}  {:>+22.3}  {:>9}",
+                s.auc,
+                s.weakest_answerable,
+                s.strongest_unanswerable,
+                if s.floor_exists() { "yes" } else { "no" }
+            );
+        };
+        row("the cosine itself", raw);
+        if let Some(s) = eval::separation(&relative) {
+            row("less the query's own median", s);
+        }
+        println!(
+            "   (AUC: the chance a random answerable query's top score beats a random unanswerable one's — 0.5 is a coin. A floor exists when the\n    weakest answerable top score is above the strongest unanswerable one: then some floor keeps every answer and silences every miss)\n"
         );
     }
+
+    // ---- 4. floor
+    let print_curve = |curve: &[FloorRow]| {
+        println!(
+            "   {:>6}  {:>10}  {:>10}  {:>9}  {:>10}  {:>10}",
+            "floor", "top-1 kept", "hit@3 kept", "returned", "precision", "silent"
+        );
+        for r in curve {
+            println!(
+                "   {:>+6.2}  {:>10}  {:>10}  {:>9.1}  {:>10}  {:>10}",
+                r.floor,
+                percent(r.top_1_kept),
+                percent(r.hit_3_kept),
+                r.returned,
+                r.precision.map_or_else(|| String::from("—"), percent),
+                r.silent.map_or_else(|| String::from("—"), percent)
+            );
+        }
+    };
+    println!("4. The floor — what each keeps of the right answers and silences of the wrong ones");
+    print_curve(&eval::floor_curve(&cases, &FLOORS));
+    println!(
+        "\n4b. The same on scores relative to each query's own median — a result must stand this far above that query's typical clip"
+    );
+    print_curve(&eval::floor_curve(&relative, &RELATIVE_FLOORS));
     println!(
         "   (top-1 kept: descriptions whose best result is right and clears the floor; hit@3 kept: a right answer among the first three"
     );
@@ -745,13 +881,14 @@ fn main() -> ExitCode {
         ("mrr", scores.mrr),
         ("map_10", scores.map_10),
     ];
-    let baseline_path = repo("golden/esc50/baseline.txt");
+    let baseline_path = repo(&format!("golden/{}/baseline.txt", options.set));
     let model = stamp.to_string();
     if options.bless {
-        let mut text = String::from(
-            "# goldenbench's baseline. Regenerate with `cargo run --release --features semantic --example goldenbench -- <dir> --bless`.\n\
+        let set_flag = if options.set == "esc50" { String::new() } else { format!(" --set {}", options.set) };
+        let mut text = format!(
+            "# goldenbench's baseline. Regenerate with `cargo run --release --features semantic --example goldenbench -- <dir>{set_flag} --bless`.\n\
              # The set and the model are recorded because a metric compared against a baseline from a different corpus or a\n\
-             # different model is a number about nothing (`#35`'s own pitfall, and `#45`'s).\n",
+             # different model is a number about nothing (`#35`'s own pitfall, and `#45`'s).\n"
         );
         text.push_str(&format!("set: {identity}\nmodel: {model}\n"));
         for (name, value) in metrics {
@@ -783,7 +920,8 @@ fn main() -> ExitCode {
         );
         if !default_queries {
             println!(
-                "             This run asked a different queries file, so nothing is compared; the baseline is for golden/esc50/queries.tsv."
+                "             This run asked a different queries file, so nothing is compared; the baseline is for golden/{}/queries.tsv.",
+                options.set
             );
             return ExitCode::SUCCESS;
         }

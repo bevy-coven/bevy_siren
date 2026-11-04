@@ -12,7 +12,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use bevy_siren::library;
-use bevy_siren::semantic::eval::{ScoreBand, ScoredCase, floor_curve, score_bands, score_cases};
+use bevy_siren::semantic::eval::{
+    ScoreBand, ScoredCase, centred, floor_curve, score_bands, score_cases, separation,
+};
 use bevy_siren::semantic::golden::{GoldenProblem, GoldenSet};
 
 fn case(description: &str, right: &[u64], scored: &[(u64, f32)]) -> ScoredCase {
@@ -189,6 +191,123 @@ fn a_band_ignores_nan_and_an_empty_list_has_none() {
         score_bands(&[case("no wrong answer", &[1], &[(1, 0.9)])]).is_none(),
         "nothing to compare the right answers with"
     );
+}
+
+// ------------------------------------------------------------------------------------------------- centred, and separation
+
+/// **A query's scores, relative to the query.** Every score less the median of that query's own scores over the library (nearest rank, the
+/// rule `ScoreBand` states, so the median is a score that occurred). The order, the hashes, the right answers and the description do not move:
+/// only the origin does, which is why the floor curve and the bands apply to centred cases exactly as they are.
+#[test]
+fn centring_subtracts_the_queries_own_median_and_changes_nothing_else() {
+    let raw = case("a", &[1], &[(1, 0.5), (2, 0.3), (3, 0.1)]);
+    let out = centred(std::slice::from_ref(&raw));
+    assert_eq!(out.len(), 1, "one case in, one out");
+    assert_eq!(out[0].description, raw.description);
+    assert_eq!(out[0].right, raw.right, "the right answers do not move");
+    assert_eq!(
+        out[0].scored.iter().map(|(h, _)| *h).collect::<Vec<_>>(),
+        vec![1, 2, 3],
+        "nor does the order"
+    );
+    let shifted: Vec<f32> = out[0].scored.iter().map(|(_, s)| *s).collect();
+    assert!(
+        close(shifted[0], 0.2) && close(shifted[1], 0.0) && close(shifted[2], -0.2),
+        "0.5, 0.3 and 0.1 less their median, 0.3: {shifted:?}"
+    );
+}
+
+/// The median of an even number of scores is the upper middle one — **a score that occurred**, as `ScoreBand` promises — and not the mean of
+/// the two in the middle, which no clip scored.
+#[test]
+fn the_median_of_an_even_count_is_a_score_that_occurred() {
+    let out = centred(&[case("a", &[1], &[(1, 0.8), (2, 0.6), (3, 0.2), (4, 0.0)])]);
+    let shifted: Vec<f32> = out[0].scored.iter().map(|(_, s)| *s).collect();
+    assert!(
+        close(shifted[0], 0.2)
+            && close(shifted[1], 0.0)
+            && close(shifted[2], -0.4)
+            && close(shifted[3], -0.6),
+        "the median of 0.8, 0.6, 0.2, 0.0 is 0.6 by nearest rank: {shifted:?}"
+    );
+}
+
+#[test]
+fn centring_ignores_nan_when_finding_the_median_and_leaves_an_empty_case_alone() {
+    let out = centred(&[case("a", &[1], &[(1, 0.5), (3, 0.1), (2, f32::NAN)]), case("none", &[], &[])]);
+    let shifted: Vec<f32> = out[0].scored.iter().map(|(_, s)| *s).collect();
+    assert!(
+        close(shifted[0], 0.0) && close(shifted[1], -0.4) && shifted[2].is_nan(),
+        "the median of 0.5 and 0.1 is 0.5 by nearest rank, and a NaN stays one: {shifted:?}"
+    );
+    assert!(out[1].scored.is_empty(), "nothing to centre, and no panic");
+}
+
+/// `positive` and `negative` are the top scores of answerable and unanswerable queries; each has a second, lower result so the list is a ranking.
+fn tops(positive: &[f32], negative: &[f32]) -> Vec<ScoredCase> {
+    let mut cases = Vec::new();
+    for (i, top) in positive.iter().enumerate() {
+        let hash = 1000 + i as u64;
+        cases.push(case(&format!("p{i}"), &[hash], &[(hash, *top), (1, *top - 0.2)]));
+    }
+    for (i, top) in negative.iter().enumerate() {
+        cases.push(case(&format!("n{i}"), &[], &[(2000 + i as u64, *top), (2, *top - 0.2)]));
+    }
+    cases
+}
+
+/// **Separation: can a floor on the top score tell a description the library can answer from one it cannot?** The AUC is the chance that a
+/// random answerable query's top score beats a random unanswerable query's — 0.5 is a coin, 1.0 is a floor that exists.
+#[test]
+fn the_auc_is_the_chance_an_answerable_querys_top_score_beats_an_unanswerable_ones() {
+    let s = separation(&tops(&[0.6, 0.5, 0.4], &[0.45, 0.3])).expect("both kinds of query");
+    assert_eq!((s.answerable, s.unanswerable), (3, 2));
+    assert!((s.auc - 5.0 / 6.0).abs() < 1e-12, "five of the six pairs: {}", s.auc);
+    assert_eq!((s.weakest_answerable, s.strongest_unanswerable), (0.4, 0.45));
+    assert!(!s.floor_exists(), "0.4 < 0.45: no floor keeps every answerable query and silences every other");
+
+    let clean = separation(&tops(&[0.6, 0.5], &[0.3, 0.2])).expect("both kinds of query");
+    assert_eq!(clean.auc, 1.0);
+    assert!(clean.floor_exists(), "0.5 > 0.3: any floor between them separates the two groups");
+}
+
+#[test]
+fn a_tie_counts_half() {
+    let s = separation(&tops(&[0.6, 0.5, 0.4, 0.45], &[0.45, 0.3])).expect("both kinds of query");
+    assert!((s.auc - 6.5 / 8.0).abs() < 1e-12, "six and a half of eight pairs: {}", s.auc);
+}
+
+#[test]
+fn separation_needs_both_kinds_of_query_and_a_top_score_to_read() {
+    assert!(separation(&tops(&[0.6], &[])).is_none(), "nothing unanswerable to part it from");
+    assert!(separation(&tops(&[], &[0.3])).is_none(), "nothing answerable");
+    assert!(separation(&[]).is_none());
+    let mut cases = tops(&[0.6], &[0.3]);
+    cases.push(case("an answerable query with no ranking", &[1], &[]));
+    cases.push(case("a query whose top score is NaN", &[], &[(9, f32::NAN)]));
+    let s = separation(&cases).expect("the two with a top score");
+    assert_eq!((s.answerable, s.unanswerable), (1, 1), "a query with no top score to read is not counted");
+}
+
+/// What a floor reads is the **top score**, whoever it belongs to: an answerable query whose best result is *wrong* still has that top score.
+#[test]
+fn the_top_score_is_read_whether_or_not_it_is_a_right_answer() {
+    let s = separation(&[case("p", &[2], &[(1, 0.9), (2, 0.1)]), case("n", &[], &[(3, 0.5)])]).expect("both");
+    assert_eq!(s.auc, 1.0);
+    assert_eq!(s.weakest_answerable, 0.9, "the wrong result's 0.9, not the right one's 0.1");
+}
+
+/// **Why centre.** A description that every clip matches a little can out-score one that has a real answer — its *top* score is high because all
+/// its scores are. Subtracting each query's own median removes that offset, and the two kinds of query part.
+#[test]
+fn centring_parts_a_query_whose_scores_are_all_high_from_one_with_a_real_answer() {
+    let answerable = case("a", &[1], &[(1, 0.30), (2, 0.10), (3, 0.00)]);
+    let unanswerable = case("n", &[], &[(4, 0.35), (5, 0.34), (6, 0.33)]);
+    let raw = separation(&[answerable.clone(), unanswerable.clone()]).expect("both");
+    assert_eq!(raw.auc, 0.0, "the unanswerable query's top score, 0.35, is the higher");
+    let relative = separation(&centred(&[answerable, unanswerable])).expect("both");
+    assert_eq!(relative.auc, 1.0, "0.20 above its median against 0.01 above its own");
+    assert!(relative.floor_exists());
 }
 
 // ---------------------------------------------------------------------------------------------------------------- loading
@@ -503,4 +622,206 @@ fn every_checked_in_query_names_its_answer_and_says_why_and_every_class_is_asked
         );
     }
     assert_eq!(spelled[0], spelled[1], "the two files call every class number by the same name");
+}
+
+// ------------------------------------------------------------------------------------------- the second library, checked in
+
+fn is_sha256(text: &str) -> bool {
+    text.len() == 64 && text.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+/// Each class and the number of files in it: what `tools/fetch_kenney.py` asserts and the packs' own pages support — *"23 card handling
+/// sounds, 19 chip handling and 12 dice handling"*, *"9 lasers, 15 phasers, 12 power-ups, 6 zaps"*, *"17 cues each in 8-bit, hit, pizzicato,
+/// sax and steel groups"*. Spelled out here as well, so that changing a label is a change in two places.
+const KENNEY: [(&str, usize); 29] = [
+    ("footstep", 10),
+    ("door", 6),
+    ("book", 8),
+    ("cloth", 4),
+    ("knife", 5),
+    ("metal_pot", 3),
+    ("leather", 3),
+    ("playing_cards", 23),
+    ("poker_chips", 19),
+    ("dice", 12),
+    ("chiptune", 17),
+    ("saxophone", 17),
+    ("steel_drum", 17),
+    ("pizzicato", 17),
+    ("mouse_click", 12),
+    ("error_beep", 8),
+    ("confirmation_chime", 4),
+    ("scrolling", 5),
+    ("laser", 24),
+    ("power_up", 12),
+    ("electric_zap", 6),
+    ("phaser", 15),
+    ("explosion", 7),
+    ("force_field", 5),
+    ("sci_fi_door", 6),
+    ("engine", 24),
+    ("thruster", 5),
+    ("computer_noise", 4),
+    ("metal_impact", 5),
+];
+
+/// **`#35`, criterion 1, for the second library: the contents are fixed and versioned.** One SHA-256 per file and per archive, a version, and the
+/// licence text of each pack beside its audio — and the labels name exactly the audio the manifest pins, in the classes the table above lists.
+#[test]
+fn the_kenney_manifest_pins_seven_archives_and_303_files_in_29_classes() {
+    let manifest = repo_file("golden/kenney/manifest.sha256");
+    assert_eq!(
+        manifest.lines().find_map(|l| l.strip_prefix("# version:")).map(str::trim),
+        Some("v1"),
+        "a set with no commit pins its contents by a version, which the benchmark's identity reads"
+    );
+    let packs: Vec<Vec<&str>> = manifest
+        .lines()
+        .filter_map(|l| l.strip_prefix("# pack:"))
+        .map(|l| l.split_whitespace().collect())
+        .collect();
+    assert_eq!(packs.len(), 7, "seven archives");
+    for pack in &packs {
+        assert!(
+            pack.len() == 3 && is_sha256(pack[1]) && pack[2].ends_with(".zip"),
+            "`<pack> <sha256> <archive>`: {pack:?}"
+        );
+    }
+
+    let (mut audio, mut licences) = (BTreeMap::new(), BTreeSet::new());
+    for line in manifest.lines().filter(|l| !l.is_empty() && !l.starts_with('#')) {
+        let (digest, path) = line.split_once("  ").unwrap_or_else(|| panic!("`<sha256>  <path>`: {line}"));
+        assert!(is_sha256(digest), "a lowercase SHA-256, not a shorter or weaker hash: {line}");
+        if path.starts_with("audio/") {
+            audio.insert(path.to_string(), digest.to_string());
+        } else {
+            licences.insert(path.to_string());
+        }
+    }
+    assert_eq!(audio.len(), 303);
+    assert_eq!(licences.len(), 7, "each pack's own licence text is pinned beside its audio");
+    let distinct: BTreeSet<&String> = audio.values().collect();
+    assert_eq!(
+        distinct.len(),
+        303,
+        "no two paths hold the same bytes: the library would hold one asset for two rows"
+    );
+
+    let labels = repo_file("golden/kenney/labels.csv");
+    let (mut by_class, mut labelled): (BTreeMap<String, usize>, BTreeSet<String>) = Default::default();
+    for line in labels.lines().skip(1) {
+        let (file, class) = line.split_once(',').unwrap_or_else(|| panic!("`file,class`: {line}"));
+        labelled.insert(file.to_string());
+        *by_class.entry(class.to_string()).or_default() += 1;
+    }
+    assert_eq!(
+        labelled,
+        audio.keys().cloned().collect::<BTreeSet<_>>(),
+        "the labels name exactly the files the manifest pins"
+    );
+    let expected: BTreeMap<String, usize> = KENNEY.iter().map(|(class, n)| (class.to_string(), *n)).collect();
+    assert_eq!(by_class, expected);
+}
+
+/// **`#35`, criterion 2, for the second library: every text query has an expected answer and the rationale in one line**, in each of the two
+/// files — and the two ask the same eighteen questions of sounds that are not here.
+#[test]
+fn every_kenney_query_names_its_answer_and_says_why_in_both_wordings() {
+    let labels = repo_file("golden/kenney/labels.csv");
+    let mut negatives: Vec<BTreeSet<String>> = Vec::new();
+    for file in ["golden/kenney/queries.tsv", "golden/kenney/queries-paraphrase.tsv"] {
+        // `parse` is where a rationale on every row, unique descriptions and a labelled file in every asked-for class are enforced.
+        let set = GoldenSet::parse(&labels, &repo_file(file))
+            .unwrap_or_else(|e| panic!("{file} does not load: {e}"));
+        assert_eq!((set.labelled(), set.classes().len()), (303, 29), "{file}");
+        let asked: BTreeSet<&str> = set.queries.iter().filter_map(|q| q.class.as_deref()).collect();
+        assert_eq!(asked, set.classes(), "{file}: every class is asked for");
+        assert_eq!(
+            set.queries.iter().filter(|q| q.class.is_some()).count(),
+            29,
+            "{file}: one description for each class"
+        );
+        assert!(
+            set.queries.iter().all(|q| !q.rationale.is_empty() && !q.rationale.contains('\t')),
+            "{file}: one line each"
+        );
+        let nothing: BTreeSet<String> =
+            set.queries.iter().filter(|q| q.class.is_none()).map(|q| q.description.clone()).collect();
+        assert_eq!(
+            nothing.len(),
+            18,
+            "{file}: queries that should find nothing are how a floor is shown to work"
+        );
+        negatives.push(nothing);
+    }
+    assert_eq!(
+        negatives[0], negatives[1],
+        "the same eighteen descriptions of sounds that are not here, asked both ways"
+    );
+}
+
+/// **The point of the second file, enforced rather than hoped for**: a stranger's wording uses none of its class's own words — the parts of a
+/// class name of four letters or more — and is not the maintainer's wording again. (ESC-50's paraphrase file was written to the same rule by
+/// hand; this library's is held to it.)
+#[test]
+fn a_strangers_wording_uses_none_of_its_classs_own_words_and_is_not_the_maintainers() {
+    let labels = repo_file("golden/kenney/labels.csv");
+    let maintainer = GoldenSet::parse(&labels, &repo_file("golden/kenney/queries.tsv")).expect("loads");
+    let stranger =
+        GoldenSet::parse(&labels, &repo_file("golden/kenney/queries-paraphrase.tsv")).expect("loads");
+    let first: BTreeMap<&str, &str> = maintainer
+        .queries
+        .iter()
+        .filter_map(|q| Some((q.class.as_deref()?, q.description.as_str())))
+        .collect();
+    for query in stranger.queries.iter().filter(|q| q.class.is_some()) {
+        let class = query.class.as_deref().expect("a positive query");
+        let words = query.description.to_lowercase();
+        for part in class.split('_').filter(|part| part.len() >= 4) {
+            assert!(
+                !words.contains(part),
+                "`{}` asks for `{class}` and contains its own word `{part}`",
+                query.description
+            );
+        }
+        assert_ne!(
+            first[class], query.description,
+            "`{class}`: a second wording that repeats the first is not a second wording"
+        );
+    }
+}
+
+/// **`goldenbench --set <name>` reads `golden/<name>/…` and tells a person to run `tools/fetch_<name>.py`**, so a set directory without any
+/// of them is a benchmark that refuses to start or points at nothing; and a set with no baseline has nothing to regress against.
+#[test]
+fn every_golden_set_has_what_the_benchmark_and_its_fetch_command_need() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut sets = Vec::new();
+    for entry in std::fs::read_dir(root.join("golden")).expect("golden/") {
+        let entry = entry.expect("an entry");
+        if !entry.path().is_dir() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        for needed in ["manifest.sha256", "queries.tsv", "baseline.txt"] {
+            assert!(
+                entry.path().join(needed).is_file(),
+                "golden/{name}/{needed} is what `goldenbench --set {name}` reads"
+            );
+        }
+        assert!(
+            root.join(format!("tools/fetch_{name}.py")).is_file(),
+            "`tools/fetch_{name}.py` is the command the benchmark names"
+        );
+        let manifest = std::fs::read_to_string(entry.path().join("manifest.sha256")).expect("the manifest");
+        assert!(
+            manifest.lines().any(|l| l.starts_with("# commit:") || l.starts_with("# version:")),
+            "golden/{name}/manifest.sha256 pins its contents by a commit or a version, which the benchmark's identity reads"
+        );
+        sets.push(name);
+    }
+    assert!(
+        sets.iter().any(|s| s == "esc50") && sets.iter().any(|s| s == "kenney"),
+        "both sets were seen: {sets:?}"
+    );
 }

@@ -3,8 +3,8 @@ goldenbench: esc50 @ 33c8ce9e manifest 50bf2b79f2e96d49 queries 591257e670ee4f34
              CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here; model transformers-4.57.6/torch-2.8.0/opset-17
 index:       2000 clips, read from `siren-index` — current, so no audio graph was loaded
 licences:    1770 permit commercial use, 170 do not, 60 unknown or not recognised — a person decides those
-text:        66 descriptions and 50 prompts embedded in 0.9 s
-ranking:     66 queries over 2000 clips in 70.0 ms
+text:        66 descriptions and 50 prompts embedded in 1.4 s
+ranking:     66 queries over 2000 clips in 64.6 ms
 
 1. Zero-shot classification — the paper's protocol: each clip against "This is a sound of <class>.", top-1
    accuracy  87.8 %   (1756 of 2000 clips)      paper: 88.0 – 91.0 % on the overlap-excluded subset; people score 81.3 %
@@ -14,7 +14,12 @@ ranking:     66 queries over 2000 clips in 70.0 ms
 2. Text-to-audio retrieval — 50 descriptions, every clip ranked, a right answer is any clip of the class
    hit@1  90.0 %   hit@3 100.0 %   hit@10 100.0 %   precision@10  88.8 %   MRR 0.950   mAP@10 0.857
    every description found a right answer within the first 3
-   best result wrong, by precision@10: `a car engine running` 20 %, `a cow mooing` 20 %, `a rooster crowing at dawn` 40 %, `flies and insects buzzing` 60 %, `a hen clucking` 70 %
+   best result wrong (5 descriptions) — by precision@10, the worst eight:
+     a car engine running                                          20 %
+     a cow mooing                                                  20 %
+     a rooster crowing at dawn                                     40 %
+     flies and insects buzzing                                     60 %
+     a hen clucking                                                70 %
 
 3. Scores — CLAP cosines, before any weighting
                                   min     p05     p25  median     p75     p95     max        n
@@ -39,6 +44,13 @@ ranking:     66 queries over 2000 clips in 70.0 ms
      a drum kit solo                      +0.325  fireworks
      an electric guitar riff              +0.320  clapping
 
+3b. Can a floor tell a description the library can answer from one it cannot? — each query's top score, 50 answerable against 16 that should find nothing
+                                     AUC   weakest answerable  strongest unanswerable   a floor?
+   the cosine itself               0.963               +0.492                  +0.593         no
+   less the query's own median     0.968               +0.407                  +0.536         no
+   (AUC: the chance a random answerable query's top score beats a random unanswerable one's — 0.5 is a coin. A floor exists when the
+    weakest answerable top score is above the strongest unanswerable one: then some floor keeps every answer and silences every miss)
+
 4. The floor — what each keeps of the right answers and silences of the wrong ones
     floor  top-1 kept  hit@3 kept   returned   precision      silent
     -0.10      90.0 %     100.0 %     1838.9       2.2 %       0.0 %
@@ -54,6 +66,18 @@ ranking:     66 queries over 2000 clips in 70.0 ms
     +0.40      90.0 %     100.0 %       42.5      68.6 %      43.8 %
     +0.45      90.0 %     100.0 %       27.7      81.6 %      56.2 %
     +0.50      90.0 %      98.0 %       16.5      90.4 %      68.8 %
+
+4b. The same on scores relative to each query's own median — a result must stand this far above that query's typical clip
+    floor  top-1 kept  hit@3 kept   returned   precision      silent
+    +0.00      90.0 %     100.0 %     1000.0       4.0 %       0.0 %
+    +0.05      90.0 %     100.0 %      679.4       5.9 %       0.0 %
+    +0.10      90.0 %     100.0 %      414.3       9.6 %       0.0 %
+    +0.15      90.0 %     100.0 %      236.1      16.5 %       0.0 %
+    +0.20      90.0 %     100.0 %      133.1      28.5 %       0.0 %
+    +0.25      90.0 %     100.0 %       79.5      44.6 %       0.0 %
+    +0.30      90.0 %     100.0 %       51.9      60.8 %       6.2 %
+    +0.35      90.0 %     100.0 %       33.8      75.8 %      37.5 %
+    +0.40      90.0 %     100.0 %       21.6      86.8 %      62.5 %
    (top-1 kept: descriptions whose best result is right and clears the floor; hit@3 kept: a right answer among the first three
     that clear it; returned: results per query that clear the floor, of 2000; precision: the share of those that are right;
     silent: the share of the 16 no-answer queries that return nothing)

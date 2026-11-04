@@ -160,13 +160,15 @@ the first 32 footsteps and quietly stole or refused every one after that.
   **Try it on your own files**: `tools/export_clap_onnx.py` makes both graphs from the weights in your Hugging Face cache,
   and `examples/semantic` indexes a folder, takes a description, prints the best three with the reason for each and plays
   one — [the guide](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md#try-it-examplessemantic).
-  **It is measured against recordings people labelled**: on 2 000 ESC-50 clips, fifty descriptions written by the maintainer reach
+  **It is measured against two libraries**: on 2 000 ESC-50 recordings, fifty descriptions written by the maintainer reach
   **hit@1 90 %, hit@3 100 %** — and **72 % and 84 %** when the same sounds are described in a stranger's words — and the pipeline
-  reproduces `transformers`' zero-shot accuracy on the same audio to four places (**87.8 %**). The first run overturned a documented
-  claim — the right and wrong score bands do *not* overlap much on real recordings, and a similarity floor of about 0.35 keeps every
-  description's top result in both wordings while shrinking a result list ~22× and silencing a quarter of the descriptions of sounds
-  the library lacks — which is why the default floor is now [a decision](https://github.com/bevy-coven/bevy_siren/blob/main/docs/loop/needs-decision/default-floor.md)
-  rather than a number. One library of environmental sounds, partly seen in the model's training: [what it cannot say](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/golden-set.md#what-it-cannot-say).
+  reproduces `transformers`' zero-shot accuracy on the same audio to four places (**87.8 %**). **On 303 game sounds from Kenney's CC0
+  packs it is far weaker: hit@1 31 %, hit@3 52 % (38 % in a stranger's words)**, the right answers' median similarity is 0.19 against
+  0.47, and one class (`engine`) is the first result for 22 of 47 descriptions — a hub. The first run overturned a documented claim —
+  the right and wrong score bands do *not* overlap much on real recordings — and **the second showed that the first library's floor
+  does not transfer**: a similarity floor that costs nothing on ESC-50 (0.35) returns nothing at all for 13 of 29 descriptions of game
+  sounds, so the default stays `0.0` and the floor is [a decision](https://github.com/bevy-coven/bevy_siren/blob/main/docs/loop/needs-decision/default-floor.md).
+  Two libraries, neither of them every library: [what it cannot say](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/golden-set.md#what-it-cannot-say).
   **An agent can drive all of it**: `siren-tools` is an MCP server over
   stdio — six tools, one error shape, and a bad call is a result a model can read, not a protocol error it never sees —
   built with `--features semantic` and nothing else, in [the guide](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md#the-tool-server-siren-tools).

@@ -7,6 +7,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The golden set's one library told one story about the similarity floor, and a second library told another.** Iteration 111 recommended `0.35` from
+  2 000 recordings; iteration 112 withdrew it on the strength of the repository's own demo (nothing scored above 0.256); **iteration 113 measured the second
+  library, and the doubt was right by more than a doubt**: on 303 game sounds the right answers' median similarity is **0.191** against 0.468, the weakest answerable
+  description's best result is 0.261 against 0.492, *a helicopter* finds an `engine` at **0.490** — above the best result of 27 of 29 answerable descriptions —
+  and **`0.35` returns nothing at all for 13 of 29**. The largest floor that costs neither library an answer in either wording is **0.20**, and it silences no description
+  that should find nothing. The default is unchanged at `0.0`; `needs-decision/default-floor.md` now recommends keeping it; `Floor::min_score`, `Weights::min_similarity`,
+  `docs/guide/semantic.md` and the README no longer offer `0.35` as the answer. **Three of the eight predictions written down before the run were wrong**: retrieval is
+  31 % at hit@1 where 60 – 85 % was predicted, and centring each query on its own median *lowered* the AUC by 0.13 where a rise was predicted. **How sure**: a bootstrap over the
+  descriptions puts the two libraries' AUCs apart only in the maintainer's wording (0.59 – 0.90 against 0.90 – 1.00); what separates them in both wordings is a count — **13 of 29
+  descriptions have a best result under 0.35 on Kenney (Wilson 95 %: 28 – 62 %), 0 of 50 on ESC-50 (0 – 7 %)**.
 - **Two of the five formats the scan calls audio could not be decoded, and nothing had ever tried.** `library::AUDIO_EXTENSIONS` —
   *"the formats the crate can decode"* — lists `wav ogg oga flac mp3`; `rodio` was given `wav` and `vorbis`; `indexer`'s own error says
   *"a library of `.mp3` files is indexed"*. Every `.flac` and `.mp3` was scanned as audio and refused (*"The format of the data has
@@ -136,6 +146,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **A second golden library — 303 game sounds from Kenney's CC0 packs — and `goldenbench --set`.** `golden/kenney/` holds a manifest pinning seven archives and 303 files by
+  SHA-256, the labels (the author's own file names, grouped into 29 classes by a rule fixed before measuring), and **two files of 47 queries** — 29 with right answers, 18
+  that should find nothing — written and committed *before the model ran*, with eight predictions; `tools/fetch_kenney.py <dir>` fetches the seven archives from
+  OpenGameArt's static URLs, checks every archive and every file against this repository's hashes, and refuses a stray, damaged or wrong-bytes file by name (exercised against
+  six failure modes). WAV, MP3 and Ogg Vorbis in one library, 221 of its 303 files under a second. **`goldenbench --set <name>`** generalises the benchmark with one baseline per set
+  — **ESC-50's identity string is byte-identical and its baseline still compares: no regression, all seven metrics +0.0000** — and prints the separation (`eval::separation`,
+  `eval::centred`, additive public items), a floor table on each query's own median, a precision@10 ceiling from the class sizes, and `--per-query`. A Python recomputation
+  agrees on every printed number on both libraries and both wordings (it caught an `f32` AUC printing `0.962` for an exact `0.9625`; now an `f64`); against `transformers` the
+  48 kHz files are identical and the 44.1 kHz ones differ by a resampler's amount (mean 0.004). The findings are in `docs/guide/golden-set.md` ("The second library") and
+  `needs-decision/default-floor.md`. `tests/semantic_golden.rs` +12 tests.
 - **`#35`'s golden set — recall, precision and the floor, measured on 2 000 recordings people labelled.** `golden/esc50/` holds a
   manifest (SHA-256 of every file at a pinned commit), **two files of 66 text queries** — 50 with right answers and 16 that should find
   nothing, each with a one-line rationale; one in the maintainer's words and one paraphrased to avoid the class names — and a recorded

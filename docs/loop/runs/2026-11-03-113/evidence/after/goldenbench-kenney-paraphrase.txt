@@ -1,0 +1,164 @@
+goldenbench: kenney @ v1 manifest 7445fb3de684cab7 queries 4d0e5ef0a1b3a096 — 303 clips, 29 classes, 29 queries and 18 that should find nothing
+             CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here; model transformers-4.57.6/torch-2.8.0/opset-17
+index:       303 clips, read from `siren-index` — current, so no audio graph was loaded
+licences:    303 permit commercial use, 0 do not, 0 unknown or not recognised — a person decides those
+text:        47 descriptions and 29 prompts embedded in 0.7 s
+ranking:     47 queries over 303 clips in 6.7 ms
+
+1. Zero-shot classification — the paper's protocol: each clip against "This is a sound of <class>.", top-1
+   accuracy  37.3 %   (113 of 303 clips)      no published figure for this set: the paper's prompt, applied to this set's class names
+   weakest classes: computer_noise 0 %, electric_zap 0 %, force_field 0 %, metal_impact 0 %, phaser 0 % — and 2 more at 0 %
+   most confused:   pizzicato → power_up ×13, phaser → power_up ×10, engine → force_field ×9, power_up → confirmation_chime ×9, steel_drum → power_up ×9
+
+2. Text-to-audio retrieval — 29 descriptions, every clip ranked, a right answer is any clip of the class
+   hit@1  31.0 %   hit@3  37.9 %   hit@10  48.3 %   precision@10  22.8 %   MRR 0.381   mAP@10 0.209
+   precision@10 is bounded by class size: a perfect ranking of this library scores  73.8 % (a class of three files cannot fill ten places)
+   no right answer in the first 3 (18 descriptions):
+     boots hitting the ground one after another                   first right answer at 21
+     pages turning and a heavy cover thudding shut                first right answer at 8
+     fabric being rubbed and rustled                              first right answer at 12
+     cookware ringing as it is knocked about                      first right answer at 7
+     stiff hide creaking in someone's hands                       first right answer at 45
+     a smooth reed-instrument riff                                first right answer at 15
+     a quick press of a button on a pointing device               first right answer at 12
+     a harsh negative buzz telling you that you did it wrong      first right answer at 16
+     a pleasant rising ding that says it worked                   first right answer at 28
+     a long list sliding by under your finger                     first right answer at 89
+     an arcade bonus pickup, rising and sparkling                 first right answer at 9
+     a sharp crackle of static discharge                          first right answer at 111
+     a sweeping energy pulse from a starship weapon               first right answer at 72
+     something blowing up with a low rumble                       first right answer at 20
+     an energy barrier shimmering around a ship                   first right answer at 19
+     an automatic gateway hissing open on a starship              first right answer at 12
+     old computing equipment chirping as it works                 first right answer at 28
+     a heavy clang of steel struck against steel                  first right answer at 101
+   best result wrong (20 descriptions) — by precision@10, the worst eight:
+     a harsh negative buzz telling you that you did it wrong        0 %
+     a heavy clang of steel struck against steel                    0 %
+     a long list sliding by under your finger                       0 %
+     a pleasant rising ding that says it worked                     0 %
+     a quick press of a button on a pointing device                 0 %
+     a sharp crackle of static discharge                            0 %
+     a smooth reed-instrument riff                                  0 %
+     a sweeping energy pulse from a starship weapon                 0 %
+
+2b. Per description — the class it should find, what it found first, and where its first right answer ranked
+   description                                    should find         found first           score  rank   score
+   boots hitting the ground one after another     footstep            dice                 +0.385    21  +0.167
+   a heavy wooden panel swinging on its hinges    door                door                 +0.375     1  +0.375
+   pages turning and a heavy cover thudding shut  book                cloth                +0.304     8  +0.202
+   fabric being rubbed and rustled                cloth               engine               +0.367    12  +0.258
+   a blade scraping out of a scabbard             knife               knife                +0.412     1  +0.412
+   cookware ringing as it is knocked about        metal_pot           engine               +0.269     7  +0.123
+   stiff hide creaking in someone's hands         leather             thruster             +0.340    45  +0.142
+   a deck being riffled and dealt out on a table  playing_cards       playing_cards        +0.238     1  +0.238
+   gambling tokens clacking against each other    poker_chips         thruster             +0.401     2  +0.371
+   small cubes tumbling across a tabletop         dice                dice                 +0.412     1  +0.412
+   a retro console fanfare                        chiptune            chiptune             +0.368     1  +0.368
+   a smooth reed-instrument riff                  saxophone           engine               +0.431    15  +0.236
+   a tropical tuned-percussion tune               steel_drum          steel_drum           +0.320     1  +0.320
+   a quick tune on plucked violins                pizzicato           steel_drum           +0.393     2  +0.363
+   a quick press of a button on a pointing device mouse_click         thruster             +0.336    12  +0.277
+   a harsh negative buzz telling you that you di… error_beep          engine               +0.500    16  +0.320
+   a pleasant rising ding that says it worked     confirmation_chime  steel_drum           +0.406    28  +0.195
+   a long list sliding by under your finger       scrolling           leather              +0.355    89  +0.071
+   a futuristic ray gun firing                    laser               laser                +0.360     1  +0.360
+   an arcade bonus pickup, rising and sparkling   power_up            confirmation_chime   +0.489     9  +0.387
+   a sharp crackle of static discharge            electric_zap        thruster             +0.543   111  -0.025
+   a sweeping energy pulse from a starship weapon phaser              engine               +0.406    72  +0.100
+   something blowing up with a low rumble         explosion           thruster             +0.368    20  +0.126
+   an energy barrier shimmering around a ship     force_field         thruster             +0.419    19  +0.138
+   an automatic gateway hissing open on a starsh… sci_fi_door         engine               +0.428    12  +0.276
+   the steady drone of a starship's drive         engine              engine               +0.548     1  +0.548
+   a jet of burning propellant roaring            thruster            thruster             +0.598     1  +0.598
+   old computing equipment chirping as it works   computer_noise      thruster             +0.400    28  +0.144
+   a heavy clang of steel struck against steel    metal_impact        metal_pot            +0.447   101  +0.006
+   a dog barking                                  —                   engine               +0.216              
+   rain falling on a roof                         —                   engine               +0.314              
+   a crowd cheering at a stadium                  —                   engine               +0.327              
+   a person laughing                              —                   engine               +0.265              
+   a baby crying                                  —                   engine               +0.330              
+   ocean waves crashing on a beach                —                   engine               +0.422              
+   a car horn honking                             —                   metal_pot            +0.216              
+   a helicopter flying overhead                   —                   engine               +0.490              
+   thunder rumbling                               —                   thruster             +0.463              
+   a telephone ringing                            —                   engine               +0.310              
+   a cat meowing                                  —                   engine               +0.308              
+   birds singing in the morning                   —                   engine               +0.262              
+   a person speaking                              —                   engine               +0.204              
+   a gunshot                                      —                   engine               +0.228              
+   a distorted rock guitar solo                   —                   engine               +0.288              
+   a piano playing a melody                       —                   steel_drum           +0.291              
+   a vacuum cleaner running                       —                   engine               +0.339              
+   applause                                       —                   dice                 +0.282              
+
+3. Scores — CLAP cosines, before any weighting
+                                  min     p05     p25  median     p75     p95     max        n
+   right answers               -0.161  -0.079  +0.086  +0.193  +0.285  +0.391  +0.598      303
+   wrong answers               -0.437  -0.200  -0.095  -0.016  +0.070  +0.225  +0.543     8484
+   best of the no-answer set   +0.204  +0.216  +0.262  +0.308  +0.330  +0.463  +0.490       18
+   the queries that should find nothing, by the best clip they found:
+     a helicopter flying overhead         +0.490  engine
+     thunder rumbling                     +0.463  thruster
+     ocean waves crashing on a beach      +0.422  engine
+     a vacuum cleaner running             +0.339  engine
+     a baby crying                        +0.330  engine
+     a crowd cheering at a stadium        +0.327  engine
+     rain falling on a roof               +0.314  engine
+     a telephone ringing                  +0.310  engine
+     a cat meowing                        +0.308  engine
+     a piano playing a melody             +0.291  steel_drum
+     a distorted rock guitar solo         +0.288  engine
+     applause                             +0.282  dice
+     a person laughing                    +0.265  engine
+     birds singing in the morning         +0.262  engine
+     a gunshot                            +0.228  engine
+     a car horn honking                   +0.216  metal_pot
+     a dog barking                        +0.216  engine
+     a person speaking                    +0.204  engine
+
+3b. Can a floor tell a description the library can answer from one it cannot? — each query's top score, 29 answerable against 18 that should find nothing
+                                     AUC   weakest answerable  strongest unanswerable   a floor?
+   the cosine itself               0.808               +0.238                  +0.490         no
+   less the query's own median     0.703               +0.221                  +0.515         no
+   (AUC: the chance a random answerable query's top score beats a random unanswerable one's — 0.5 is a coin. A floor exists when the
+    weakest answerable top score is above the strongest unanswerable one: then some floor keeps every answer and silences every miss)
+
+4. The floor — what each keeps of the right answers and silences of the wrong ones
+    floor  top-1 kept  hit@3 kept   returned   precision      silent
+    -0.10      31.0 %      37.9 %      233.5       4.3 %       0.0 %
+    -0.05      31.0 %      37.9 %      189.2       5.1 %       0.0 %
+    +0.00      31.0 %      37.9 %      139.5       6.6 %       0.0 %
+    +0.05      31.0 %      37.9 %       95.9       9.0 %       0.0 %
+    +0.10      31.0 %      37.9 %       63.1      12.0 %       0.0 %
+    +0.15      31.0 %      37.9 %       38.4      16.0 %       0.0 %
+    +0.20      31.0 %      37.9 %       23.8      20.8 %       0.0 %
+    +0.25      27.6 %      34.5 %       14.5      25.2 %      22.2 %
+    +0.30      27.6 %      34.5 %        8.6      26.2 %      50.0 %
+    +0.35      24.1 %      31.0 %        3.6      26.0 %      83.3 %
+    +0.40      13.8 %      13.8 %        1.7      29.2 %      83.3 %
+    +0.45       6.9 %       6.9 %        0.8      31.8 %      88.9 %
+    +0.50       6.9 %       6.9 %        0.4      50.0 %     100.0 %
+
+4b. The same on scores relative to each query's own median — a result must stand this far above that query's typical clip
+    floor  top-1 kept  hit@3 kept   returned   precision      silent
+    +0.00      31.0 %      37.9 %      152.0       6.1 %       0.0 %
+    +0.05      31.0 %      37.9 %      101.3       8.6 %       0.0 %
+    +0.10      31.0 %      37.9 %       64.1      12.0 %       0.0 %
+    +0.15      31.0 %      37.9 %       38.3      15.9 %       0.0 %
+    +0.20      31.0 %      37.9 %       22.9      21.2 %       0.0 %
+    +0.25      27.6 %      34.5 %       14.4      22.8 %       5.6 %
+    +0.30      27.6 %      34.5 %        7.9      20.4 %      27.8 %
+    +0.35      20.7 %      24.1 %        4.0      22.4 %      44.4 %
+    +0.40      13.8 %      13.8 %        2.0      24.1 %      83.3 %
+   (top-1 kept: descriptions whose best result is right and clears the floor; hit@3 kept: a right answer among the first three
+    that clear it; returned: results per query that clear the floor, of 303; precision: the share of those that are right;
+    silent: the share of the 18 no-answer queries that return nothing)
+
+5. The tool path — `search_music` returns the same ten, with the same similarities, as the raw ranking: 29 of 29 queries
+
+6. Anchor judgements — none yet. `#35`'s third criterion (at least 50 pairs, each judged by a person with a reason) is a
+   person's listening; nothing here pretends otherwise. `docs/guide/golden-set.md` says how to add them.
+
+baseline:    recorded for `kenney @ v1 manifest 7445fb3de684cab7 queries 92e6476e9b7e663f` and `laion/clap-htsat-fused@transformers-4.57.6/torch-2.8.0/opset-17 48000Hz x512`; this run is `kenney @ v1 manifest 7445fb3de684cab7 queries 4d0e5ef0a1b3a096` and `laion/clap-htsat-fused@transformers-4.57.6/torch-2.8.0/opset-17 48000Hz x512`.
+             This run asked a different queries file, so nothing is compared; the baseline is for golden/kenney/queries.tsv.

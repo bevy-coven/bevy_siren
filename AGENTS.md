@@ -61,11 +61,15 @@ every Bevy feature and a hole in its own `[dependencies]` list cannot fail.
   them from a Hugging Face cache and checks itself against `transformers`; the example indexes a folder, ranks a
   description and plays the answer. CI has no model, so **no test runs them** (clippy compiles the example) —
   `docs/guide/semantic.md`, "Try it", is how to run them, and `docs/media/README.md` regenerates the picture.
-- `src/semantic/golden.rs`, `src/semantic/eval.rs`, `golden/esc50/`, `tools/fetch_esc50.py` and `examples/goldenbench.rs` — the
-  **golden set** (`#35`, ADR 0009): a labelled library fetched and verified against a manifest (never vendored — it is CC BY-NC),
-  the text queries with their rationales, the loader that refuses a mistake by line, the metrics, and the benchmark that puts the real
-  model through all of it. `tests/semantic_golden.rs` tests the metrics, the loader and the checked-in set's own invariants; **no test
-  runs the benchmark** (no model, no network in CI). `golden/esc50/baseline.txt` is what a ranking change is measured against.
+- `src/semantic/golden.rs`, `src/semantic/eval.rs`, `golden/<set>/`, `tools/fetch_<set>.py` and `examples/goldenbench.rs` — the
+  **golden sets** (`#35`, ADR 0009): `esc50` (2 000 recordings, CC BY-NC, so fetched and never vendored) and `kenney` (303 game sounds, CC0,
+  fetched and verified all the same), each a labelled library pinned by a manifest, the text queries with their rationales in two wordings,
+  the loader that refuses a mistake by line, the metrics (`eval::separation` and `eval::centred` ask whether a floor can tell the
+  answerable from the unanswerable), and the benchmark that puts the real model through all of it (`goldenbench --set <name>`).
+  `tests/semantic_golden.rs` tests the metrics, the loader and the checked-in sets' own invariants; **no test runs the benchmark** (no
+  model, no network in CI). `golden/<set>/baseline.txt` is what a ranking change is measured against, and a hit@1 change under about eight
+  points is inside what re-encoding the same clips does. **A new set is a directory of `golden/` plus its fetch tool**, and a test fails
+  for a set that has neither.
 - `src/lib.rs` — the plugins, `SirenSystems::{Choose, Play, Mix}`, the re-exports, the quick start doctest.
 
 ## The loop, as a skill

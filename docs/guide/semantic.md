@@ -561,10 +561,10 @@ Every refusal is a sentence naming what to fix:
 - *"this index was built by a different model than the one loaded. Re-index the library with this model."*
 - *"the description needs 128 tokens and the model accepts 77. Shorten it, or split it into two searches."*
 
-## The floor: what 2 000 real recordings say
+## The floor: what two libraries say
 
-`Floor` drops results below a cosine. Its default is **0.0**, which keeps everything, and **that default is under review**
-(`docs/loop/needs-decision/default-floor.md`).
+`Floor` drops results below a cosine. Its default is **0.0**, which keeps everything. **The golden set measured two libraries and no positive
+number works for both** — the decision is `docs/loop/needs-decision/default-floor.md`, and the default is unchanged.
 
 It was chosen from six synthetic clips whose right and wrong score bands overlapped — *"no single threshold separates them; a floor
 of 0.5 rejects every correct match"*. **On real recordings that is false.** [The golden set](golden-set.md) ran 2 000 of them: the
@@ -580,16 +580,22 @@ description the library can answer from one it cannot with an AUC of 0.963 (0.88
 | **0.45** | 90.0 % | **27.7** | **81.6 %** | **9 of 16** |
 | 0.50 | 90.0 % | 16.5 | 90.4 % | 11 of 16 |
 
-Read the table with its caveats. **It is the maintainer's wording**: in a stranger's, a floor of 0.45 already loses two top results and
-0.50 loses nine, so the largest floor that is safe in both is 0.40 by a margin of 0.005 and **0.35 is the one with room to spare**. One
-library of environmental recordings that overlaps the model's training data, no music, speech or game foley, sixteen no-answer queries —
-and the ones a floor cannot silence are the ones with a real neighbour (a gunshot finds `fireworks` at 0.59). **And the demo above is the
-other library: nothing any of its five descriptions found scored above 0.26 — "a short electronic beep" → `Sosumi` at 0.21, "a glass
-being tapped" → `Glass` at 0.02 — which is below every positive floor in this table**, so a floor calibrated here would return nothing
-for a game's UI sounds; the decision file recommends keeping `0.0` until a second library of game
-audio has been measured. The lesson that matters more than any number: **synthetic tones understated a real match by a wide margin, so a
-floor calibrated on them was calibrated on nothing — and a floor calibrated on environmental recordings may be calibrated on nothing for
-synthetic UI sounds.**
+Read the table with its caveats. **It is ESC-50's, in the maintainer's wording**: in a stranger's, a floor of 0.45 already loses two top results and 0.50 loses nine. One library of
+environmental recordings that overlaps the model's training data, sixteen no-answer queries — and the ones a floor cannot silence are the ones with a real neighbour (a gunshot finds
+`fireworks` at 0.59).
+
+**And the second library — 303 game sounds from Kenney's CC0 packs — answers differently.** Its right answers' median is **0.191** against 0.468, the weakest top result of an answerable description is **0.261**
+(0.238 in the stranger's wording) against 0.492, and **a helicopter finds an `engine` at 0.490**, above the best result of 27 of the 29 answerable descriptions. The AUC of a floor on the top result is
+**0.759** (0.808), against ESC-50's 0.963 (0.885) — the 95 % intervals over the descriptions overlap in the stranger's wording, so **the count carries the conclusion, not the AUC**: **13 of 29 descriptions have a best
+result under 0.35 on Kenney (6 of 29 in the stranger's), 0 of 50 on ESC-50**, and no floor keeps every answer and silences every miss on either library. The `0.35` that is free on ESC-50 would have returned nothing for
+those 13. **The largest floor that costs neither library an answer in either wording is 0.20, and at 0.20 it silences no no-answer query on either**; one high enough to silence half of them (0.30)
+deletes answers. A floor *relative to the query* (each score less that query's median) is worse on game audio (AUC 0.626), and what helped in an exploratory test is on the gallery side — a hub, one
+class that is the first result for 22 of 47 descriptions — and is not built (`golden-set.md`, "The second library"). The lesson that matters more than any number: **a cosine's scale belongs to a library —
+synthetic tones understated a real match, environmental recordings overstate a game's — so a floor calibrated on one is calibrated on nothing for the other.**
+
+**A project that wants a floor sets one from its own descriptions that have an answer** (`Weights::min_similarity`, or `Ranked.floor` per request): run them, take the lowest top result and stay under it — a
+different writer lowered it by 0.02 on Kenney and 0.09 on ESC-50. **Not from descriptions that should find nothing**: on Kenney the strongest of those scored 0.490, above the top result of 27 of 29 answerable
+descriptions, so a floor that silences them deletes the answers.
 
 ## The ensemble: a score that explains itself
 
