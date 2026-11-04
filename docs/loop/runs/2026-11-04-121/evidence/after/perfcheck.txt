@@ -1,0 +1,35 @@
+cargo run --release --example perfcheck   (CARGO_INCREMENTAL=0; the final tree of iteration 121; Apple M4 Pro, a shared interactive session, 4 users)
+uptime before: 04:40:29  load average: 1.76, 5.81, 6.00      uptime after: 04:40:41  load average: 2.54, 5.84, 6.01   (the 5- and 15-minute averages include the matrix this machine had just run)
+
+run 1
+voices      us/frame        us/voice
+     8         0.067          0.0084
+    64         0.356          0.0056
+   256         1.127          0.0041
+run 2
+voices      us/frame        us/voice
+     8         0.046          0.0057
+    64         0.281          0.0044
+   256         1.053          0.0041
+run 3
+voices      us/frame        us/voice
+     8         0.056          0.0070
+    64         0.323          0.0050
+   256         1.213          0.0047
+run 4
+voices      us/frame        us/voice
+     8         0.063          0.0079
+    64         0.355          0.0055
+   256         1.227          0.0048
+run 5
+voices      us/frame        us/voice
+     8         0.066          0.0083
+    64         0.374          0.0058
+   256         0.769          0.0030
+
+Three more runs earlier in the iteration, on the tree with the seed change and before the docs (the raw text was not kept; the numbers, in µs/frame at 8 / 64 / 256 voices, load average 2.1 – 2.9):
+run A   0.041 / 0.246 / 0.822
+run B   0.060 / 0.331 / 1.237
+run C   0.059 / 0.335 / 1.248
+
+Iteration 120 (its perf.md, three runs, load 1.3 – 1.9): 0.061 – 0.062 / 0.322 – 0.357 / 0.837 – 1.152.   Iteration 119: 0.057 – 0.062 / 0.304 – 0.359 / 1.053 – 1.225.

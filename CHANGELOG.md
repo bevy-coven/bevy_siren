@@ -7,6 +7,17 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A seed was the generator's state, so `Rng::new(1)` drew `0` first: every small seed opened a cue on its first variant, neighbouring seeds' streams were correlated for dozens of draws, and seeds related by xor were exactly xor-related streams.** Found by iteration 120's
+  fresh-eyes pass (five seeds opened on the same recording; sixty of sixty) and measured here over 3000 (`docs/loop/runs/2026-11-04-121/evidence/before/seed-probe-on-the-unchanged-tree.txt`): the first pick of a cue of 2, 3, 4 or 8 variants was its **first variant for 3000 of 3000
+  seeds** (χ² = 3000 × (k − 1), p = 0; the first draw of every seed to 4096 was in the lowest sixteenth); the first draws of the seeds s and s + 1 correlated at **r = 0.9995** (and draw *n* at +0.65, −0.47, −0.60, **−0.78**, … to n = 64); one flipped seed bit changed **3.8 of 32** bits of the first
+  draw (seed bits 0 and 1: none); and for **1953 of 1953** triples (a, b, a ⊕ b) the third stream was the xor of the other two for all 1000 draws measured — xorshift is linear over F₂, and Brent 2007 §4 calls that *"clearly undesirable"*. Against *"two projects that differ only in
+  `seed` play different variants and different detunes from the first play"* (`docs/guide/cues.md`) and *"two seeds are two streams from the first play"* (README). The default seed, with its bits spread, hid it from every render and every test (they assert properties of streams, with the
+  seeds 3, 5, 7, 11 and 99). **`Rng::new` now runs the seed through `model::splitmix64`** — a Weyl step and Stafford's variant-13 finalizer, the SplitMix64 mixer; Brent's remedy is *a step that is not linear over F₂ before the linear generator* — and the generator is unchanged (xorshift64,
+  the top 32 bits). `seed()`, `ZERO_SEED`, `0` as an alias of the default seed and the RON schema are unchanged; **the one seed the mixer maps to the zero state, `0x61C8864680B583EB`, plays the default stream**. **Measured after** (`evidence/after/seed-probe-after.txt`): the first pick over
+  the seeds 1 … 3000 is spread evenly for every k (χ² 0.09 – 1.32, p 0.52 – 0.99), neighbouring seeds' draws are uncorrelated at every depth to n = 64 (|r| ≤ 0.053), one flipped seed bit changes 16.01 of 32 bits, and 0 of 1953 triples are xor-related.
+  **Behaviour change — a release note, not a patch (`docs/loop/needs-decision/seed-scramble.md`; `exact-pitch-draw.md` is the precedent): every seeded stream is different from 0.1.0's, including the default seed's.** A capture or a replay recorded on an earlier build plays other variants and
+  detunes, and the quick start's first step on the default seed is now `step_01.ogg` (it was `step_02.ogg`); the same seed on the same build plays the same sounds, as before. **The 21 rendered WAVs are byte-identical** (the harness draws a cue's speed at `pitch.at(0.0)`); only three
+  `variants …` report lines change. 8 new tests (`tests/model.rs`, `tests/play.rs`), six mutations (`evidence/before/mutations.txt`); `Rng::new` costs 0.7 ns.
 - **The README's Quick start never played a sound, and nothing ran it: `main` never added `walk`, the keys had no extension, `hear` corrupted the log, and a guide sentence sent a reader to the wrong file.** Found by pasting the block verbatim as an
   example and running it for seven seconds on a real window and this Mac's output device (`docs/loop/runs/2026-11-04-120/evidence/before/readme-as-written.txt`): the compiler said `function walk is never used` and `function hear is never used`, nothing played, and
   the one console line was Bevy's own `ERROR bevy_asset::server: Path not found: …/assets/audio/step_01` — it names neither this crate, a cue nor a key. **Four defects, one cause for all four surviving.** (1) `main` added `setup` and neither `walk`
@@ -253,6 +264,7 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **`model::splitmix64(seed) -> u64`** — the first output of SplitMix64 started at `seed`: the mixer `Rng::new` puts between a seed and the generator, public so a test can hold it to the published outputs (`e220a8397b1dcdaf`, `6e789e6aa1b965f4`, `06c45d188009454f` from state 0). Additive.
 - **`SirenLog::pushed()` and `SirenLog::since(mark)`** — read the log with a mark, to print each decision once. Each entry now carries the number it was pushed as, because the ring drops its oldest *routine* entry, not its oldest, so neither a position
   nor `len()` is a cursor: **`seen = log.len()` printed 256 of 600 entries and went quiet for good** (`docs/loop/runs/2026-11-04-120/evidence/before/len-cursor-stalls.txt`). `pushed()` never goes down (`clear` leaves it); `since(mark)` returns the entries
   pushed at or after `mark`, oldest first and **exactly** — including when an entry after the mark was evicted from the middle of a ring otherwise full of refusals, which a positional cursor gets wrong (`["r254", "c2"]` for `["c2"]`). +8 bytes an entry; a

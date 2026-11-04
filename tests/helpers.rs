@@ -43,6 +43,16 @@ pub fn sounds(keys: &[&str]) -> SirenSounds {
     sounds
 }
 
+/// The chi-square statistic of `counts` against an even split: Σ (observed − expected)² / expected, with `counts.len() − 1` degrees of freedom.
+///
+/// The seed tests compare it with the **upper 0.1 % point** of its distribution (10.83, 13.82, 16.27, 24.32 and 37.70 for 1, 2, 3, 7 and 15 degrees of freedom; `docs/loop/runs/2026-11-04-121/evidence/after/seed-probe-after.txt`, section 0,
+/// prints the upper tail at each and it reads 0.00100). The seeds are fixed, so a result is deterministic: it clears the bound or it does not.
+pub fn chi_square(counts: &[usize]) -> f64 {
+    let total: usize = counts.iter().sum();
+    let expected = total as f64 / counts.len() as f64;
+    counts.iter().map(|&observed| (observed as f64 - expected).powi(2) / expected).sum()
+}
+
 /// Every [`Played`] written since the last call.
 pub fn played(app: &mut App) -> Vec<Played> {
     app.world_mut().resource_mut::<Messages<Played>>().drain().collect()

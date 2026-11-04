@@ -197,6 +197,23 @@ python3 docs/media/transcript_png.py docs/media/quick-start.txt docs/media/quick
 
 Tests: `tests/quick_start.rs` — no device needed: the block's own `setup`, `walk` and `report` on the real asset server, Bevy's own audio loader and these two files, with the console captured.
 
+## `seeds.png` — a seed opens a stream the way a random seed would (iteration 121)
+
+![The same probe before and after: the first pick of a cue of 2, 3 or 8 variants over the seeds 1 to 3000 on the first variant every time and then split evenly; neighbouring seeds' first draws correlated at 0.9995 and then at -0.0055; one flipped seed bit changing 3.8 of 32 bits and then 16.0; 1953 of 1953 seed triples xor-related streams and then none; and the correlation at draws 1 to 64 from 0.4 – 0.8 down to 0.05](seeds.png)
+
+No clip: the change is **which sounds a seed plays**, and a sound has no spectrogram for it. `seeds.txt` is two verbatim **excerpts** of one probe, each naming its evidence file: `Rng::new(seed)` was xorshift64 started *at* the seed; now the seed goes through `splitmix64` first. **Before**: the first pick of a cue of
+2, 3 or 8 variants is the first variant for **3000 of 3000** seeds, the first draws of neighbouring seeds correlate at **r = 0.9995**, one flipped seed bit changes **3.8 of 32** bits of the first draw, the streams of the seeds *a*, *b* and *a* ⊕ *b* are xor-related in **1953 of 1953** triples, and draw *n* of neighbouring
+seeds stays correlated (−0.78 at n = 6, +0.40 at n = 64). **After**: an even split (p = 0.77, 0.52, 0.99), r = −0.0055, **16.0** of 32, **0** of 1953, and every depth inside ±0.055. The program is `runs/2026-11-04-121/evidence/after/seed-probe.rs.txt`; put it back as `examples/scratch_seed.rs` (it is not kept in `examples/`), and run it on the base commit to reproduce the *before*:
+
+```sh
+cp docs/loop/runs/2026-11-04-121/evidence/after/seed-probe.rs.txt examples/scratch_seed.rs
+cargo run --release --example scratch_seed          # on ed1caff the first block reads [3000, 0]; on this commit [1492, 1508]
+rm examples/scratch_seed.rs
+python3 docs/media/transcript_png.py docs/media/seeds.txt docs/media/seeds.png      # needs Pillow and macOS's Menlo
+```
+
+Tests: `tests/model.rs` (`a_seed_opens_a_stream_the_way_a_random_seed_would`, `neighbouring_seeds_are_uncorrelated_draw_for_draw`, `one_flipped_seed_bit_flips_half_the_first_draw`, `related_seeds_are_not_related_streams`, the known answers) and `tests/play.rs::a_cue_opens_on_any_variant_across_small_seeds` — no device needed.
+
 ## No clip: iteration 115, an Ogg loop sounds, and is as long as the stream says
 
 No clip: the change is **what a loop of an Ogg Vorbis file sounds like**, on Bevy's path and on the `mixer` backend, and `examples/render` renders no Ogg, so every rendered cue is byte-identical (21 of 21) and the

@@ -1,0 +1,68 @@
+   Compiling bevy_siren v0.1.0 (/Users/rebekahbrittain/bevy_siren)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.03s
+     Running tests/all.rs (target/debug/deps/all-bef009fc5a82eb4f)
+
+running 7 tests
+test model::one_flipped_seed_bit_flips_half_the_first_draw ... FAILED
+test model::a_seed_opens_a_stream_the_way_a_random_seed_would ... FAILED
+test model::the_stream_is_the_one_the_docs_describe ... FAILED
+test model::neighbouring_seeds_are_uncorrelated_draw_for_draw ... FAILED
+test model::the_one_seed_that_would_zero_the_state_still_draws ... FAILED
+test model::related_seeds_are_not_related_streams ... FAILED
+test play::a_cue_opens_on_any_variant_across_small_seeds ... FAILED
+
+failures:
+
+---- model::one_flipped_seed_bit_flips_half_the_first_draw stdout ----
+
+thread 'model::one_flipped_seed_bit_flips_half_the_first_draw' (13143760) panicked at tests/model.rs:423:9:
+flipping seed bit 0 changes 0.00 of the 32 bits of the first draw (a good mixer: 16)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- model::a_seed_opens_a_stream_the_way_a_random_seed_would stdout ----
+
+thread 'model::a_seed_opens_a_stream_the_way_a_random_seed_would' (13143758) panicked at tests/model.rs:370:9:
+a cue of 2 variants over the seeds 1..=3000 opens [3000, 0]: chi-square 3000.00, against 10.83 at 0.1 %
+
+---- model::the_stream_is_the_one_the_docs_describe stdout ----
+
+thread 'model::the_stream_is_the_one_the_docs_describe' (13143763) panicked at tests/model.rs:478:9:
+assertion `left == right` failed: the first four draws of seed 0x1
+  left: [0, 268452102, 2602468399, 4115985667]
+ right: [1920230795, 3532081798, 1194787753, 3953402422]
+
+---- model::neighbouring_seeds_are_uncorrelated_draw_for_draw stdout ----
+
+thread 'model::neighbouring_seeds_are_uncorrelated_draw_for_draw' (13143759) panicked at tests/model.rs:398:9:
+draw 1 of seed s against draw 1 of seed s + 1: r = +0.999, bound 0.073
+
+---- model::the_one_seed_that_would_zero_the_state_still_draws stdout ----
+
+thread 'model::the_one_seed_that_would_zero_the_state_still_draws' (13143762) panicked at tests/model.rs:497:5:
+assertion `left == right` failed: and it is the default stream, by design
+  left: [3692787630, 2064584769, 3876884154, 4145828960]
+ right: [3022755981, 1482853149, 1225710028, 3924304248]
+
+---- model::related_seeds_are_not_related_streams stdout ----
+
+thread 'model::related_seeds_are_not_related_streams' (13143761) panicked at tests/model.rs:451:5:
+1953 seed triples (a, b, a ^ b) are linearly related streams, for example [(1, 2, 3), (1, 3, 2), (1, 4, 5)]
+
+---- play::a_cue_opens_on_any_variant_across_small_seeds stdout ----
+
+thread 'play::a_cue_opens_on_any_variant_across_small_seeds' (13143764) panicked at tests/play.rs:270:5:
+the first variant over the seeds 1..=300: [300, 0, 0], chi-square 600.0 against 13.82
+
+
+failures:
+    model::a_seed_opens_a_stream_the_way_a_random_seed_would
+    model::neighbouring_seeds_are_uncorrelated_draw_for_draw
+    model::one_flipped_seed_bit_flips_half_the_first_draw
+    model::related_seeds_are_not_related_streams
+    model::the_one_seed_that_would_zero_the_state_still_draws
+    model::the_stream_is_the_one_the_docs_describe
+    play::a_cue_opens_on_any_variant_across_small_seeds
+
+test result: FAILED. 0 passed; 7 failed; 0 ignored; 0 measured; 233 filtered out; finished in 2.04s
+
+error: test failed, to rerun pass `--test all`

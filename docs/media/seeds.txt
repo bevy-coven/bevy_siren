@@ -1,0 +1,29 @@
+BEFORE — iteration 120's tree: Rng::new(seed) is xorshift64 started AT the seed. An excerpt of evidence/before/seed-probe-on-the-unchanged-tree.txt (examples/scratch_seed.rs, deterministic).
+
+== 1. The first pick of a cue with k variants, seeds 1..=3000: floor(first draw x k)
+   k = 2: counts [3000, 0]  chi-square 3000.00 (df 1)  p = 0.000e0
+   k = 3: counts [3000, 0, 0]  chi-square 6000.00 (df 2)  p = 0.000e0
+   k = 8: counts [3000, 0, 0, 0, 0, 0, 0, 0]  chi-square 21000.00 (df 7)  p = 0.000e0
+== 2. serial correlation between neighbouring seeds
+   Pearson r(first draw of seed s, of seed s+1) over 2999 pairs: 0.9995   (3 sigma for independence: +-0.0548)
+== 3. Avalanche: flip one bit of the seed, count the bits of the first u32 draw that change (a good mixer: 16.0 of 32)
+   mean over 64 bit positions x 256 seeds: 3.783   the six lowest seed bits: bit 0: 0.00, bit 1: 0.00, bit 2: 1.00, bit 3: 1.00 ...
+== 4. seeds a, b and c = a xor b: is draw n of c equal to draw n of a xor draw n of b?
+   seed triples (a, b, a^b) with a < b <= 63: 1953; the xor relation holds for ALL of the first 1000 draws in 1953 of them
+== 5. Decorrelation depth: Pearson r between draw n of seed s and draw n of seed s+1
+   n=1: +0.999  n=2: +0.648  n=3: -0.473  n=4: -0.597  n=6: -0.775  n=8: -0.375  n=12: -0.462  n=16: -0.276  n=24: +0.499  n=32: -0.427  n=64: +0.401
+
+AFTER — this change: the seed goes through splitmix64 first. The same probe, an excerpt of evidence/after/seed-probe-after.txt.
+
+== 1. The first pick of a cue with k variants, seeds 1..=3000: floor(first draw x k)
+   k = 2: counts [1492, 1508]  chi-square 0.09 (df 1)  p = 7.702e-1
+   k = 3: counts [980, 1029, 991]  chi-square 1.32 (df 2)  p = 5.163e-1
+   k = 8: counts [371, 359, 375, 387, 377, 371, 379, 381]  chi-square 1.30 (df 7)  p = 9.884e-1
+== 2. serial correlation between neighbouring seeds
+   Pearson r(first draw of seed s, of seed s+1) over 2999 pairs: -0.0055   (3 sigma for independence: +-0.0548)
+== 3. Avalanche: flip one bit of the seed, count the bits of the first u32 draw that change (a good mixer: 16.0 of 32)
+   mean over 64 bit positions x 256 seeds: 16.007   the six lowest seed bits: bit 0: 15.39, bit 1: 15.62, bit 2: 15.62, bit 3: 16.16 ...
+== 4. seeds a, b and c = a xor b: is draw n of c equal to draw n of a xor draw n of b?
+   seed triples (a, b, a^b) with a < b <= 63: 1953; the xor relation holds for ALL of the first 1000 draws in 0 of them
+== 5. Decorrelation depth: Pearson r between draw n of seed s and draw n of seed s+1
+   n=1: -0.006  n=2: -0.001  n=3: +0.022  n=4: -0.015  n=6: -0.044  n=8: -0.015  n=12: +0.053  n=16: +0.006  n=24: -0.001  n=32: +0.017  n=64: +0.016

@@ -1,0 +1,47 @@
+Probe: examples/scratch_seed.rs (kept as ../before/seed-probe.rs.txt; section 0 was added between the two runs and is in this one only), release build, on the CHANGED tree: `Rng::new` runs the seed through `splitmix64`.
+`cargo run --release --example scratch_seed`   (6 s; deterministic)
+
+== 0. The chi-square critical values the tests will use: the upper-tail probability at each (it should read 0.001)
+   chi-square 10.83 with  1 degrees of freedom: upper tail 0.00100
+   chi-square 13.82 with  2 degrees of freedom: upper tail 0.00100
+   chi-square 16.27 with  3 degrees of freedom: upper tail 0.00100
+   chi-square 24.32 with  7 degrees of freedom: upper tail 0.00100
+   chi-square 37.70 with 15 degrees of freedom: upper tail 0.00100
+
+== 1. The first pick of a cue with k variants, seeds 1..=3000: floor(first draw x k)
+   (what `VariantPicker::pick_from` does on a fresh picker); chi-square against an even split, and its p-value
+   k = 2: counts [1492, 1508]  chi-square 0.09 (df 1)  p = 7.702e-1
+   k = 3: counts [980, 1029, 991]  chi-square 1.32 (df 2)  p = 5.163e-1
+   k = 4: counts [730, 762, 748, 760]  chi-square 0.86 (df 3)  p = 8.341e-1
+   k = 8: counts [371, 359, 375, 387, 377, 371, 379, 381]  chi-square 1.30 (df 7)  p = 9.884e-1
+   first draw of seeds 1..=4096 in 16 bins: [254, 258, 236, 278, 259, 250, 270, 271, 261, 233, 255, 240, 262, 247, 259, 263]
+   chi-square 9.2 (df 15)  p = 8.692e-1
+
+== 2. The first draw of seeds 1..=12, and serial correlation between neighbouring seeds
+   [0.4471, 0.9512, 0.2436, 0.1042, 0.8132, 0.4649, 0.0934, 0.3027, 0.5471, 0.187, 0.5883, 0.7498]
+   Pearson r(first draw of seed s, of seed s+1) over 2999 pairs: -0.0055   (3 sigma for independence: +-0.0548); ascending pairs 1497 of 2999
+
+== 3. Avalanche: flip one bit of the seed, count the bits of the first u32 draw that change (a good mixer: 16.0 of 32)
+   mean over 64 bit positions x 256 seeds: 16.007   worst bit position: 0 at 15.451
+   the six lowest seed bits: bit 0: 15.39, bit 1: 15.62, bit 2: 15.62, bit 3: 16.16, bit 4: 15.97, bit 5: 15.93
+
+== 4. GF(2) linearity between related seeds (Brent 2007, section 4): for seeds a, b and c = a xor b, is draw n of c equal to draw n of a xor draw n of b?
+   seed triples (a, b, a^b) with a < b <= 63: 1953; the xor relation holds for ALL of the first 1000 draws in 0 of them
+
+== 5. Decorrelation depth: Pearson r between draw n of seed s and draw n of seed s+1, seeds 1..=3000
+   n=1: -0.006  n=2: -0.001  n=3: +0.022  n=4: -0.015  n=6: -0.044  n=8: -0.015  n=12: +0.053  n=16: +0.006  n=24: -0.001  n=32: +0.017  n=64: +0.016
+
+== 6. The edge: the one seed whose scrambled state could be zero, and 0 itself
+   Rng::new(0x0000000000000000): seed() = 0x5eed51ae00000001, first four u32 draws [697680e4, 1c9ac9e0, 7d0370cd, d63b63ca]
+   Rng::new(0x0000000000000001): seed() = 0x0000000000000001, first four u32 draws [7274658b, d2874a86, 473703a9, eba42236]
+   Rng::new(0x61c8864680b583eb): seed() = 0x61c8864680b583eb, first four u32 draws [697680e4, 1c9ac9e0, 7d0370cd, d63b63ca]
+   Rng::new(0xffffffffffffffff): seed() = 0xffffffffffffffff, first four u32 draws [311d6e06, a2212187, 706ceb41, 51e57a11]
+
+Before -> after
+ 1. First pick, seeds 1..=3000:      [3000, 0] (k=2), [3000, 0, 0] (k=3) ...  p = 0          ->  [1492, 1508], [980, 1029, 991], [730, 762, 748, 760], [371 .. 387]   p = 0.77, 0.52, 0.83, 0.99
+    First draw of seeds 1..=4096 in sixteenths: all 4096 in the first   (chi-square 61440, p = 0)  ->  [254 .. 278], chi-square 9.2, p = 0.87
+ 2. Neighbouring seeds, first draws: r = +0.9995, 2 of 2999 ascending   ->   r = -0.0055, 1497 of 2999 ascending
+ 3. One flipped seed bit, bits of the first draw that change (of 32): mean 3.78, bits 0 and 1: 0.00   ->   mean 16.007, worst position 15.45
+ 4. Triples (a, b, a^b), a < b <= 63, with stream(a^b) == stream(a) ^ stream(b) over 1000 draws: 1953 of 1953   ->   0 of 1953
+ 5. Draw n of neighbouring seeds, r: +0.999, +0.65, -0.47, -0.60, -0.78, -0.38, -0.46, -0.28, +0.50, -0.43, +0.40   ->   -0.006, -0.001, +0.022, -0.015, -0.044, -0.015, +0.053, +0.006, -0.001, +0.017, +0.016   (independence: within +-0.055)
+ 6. `Rng::new(1).next_u32()`: 0x00000000   ->   0x7274658b (the independent Python oracle's value). `seed()` is unchanged; `0` and 0x61C8864680B583EB play the default stream.

@@ -57,7 +57,8 @@ pub struct SirenSettings {
     #[cfg_attr(feature = "serde", serde(default = "SirenSettings::default_max_voices"))]
     pub max_voices: u16,
     /// The seed every variant pick and every detune is drawn from: the same seed replays the same
-    /// sounds, which is what makes a capture or a test reproducible.
+    /// sounds, which is what makes a capture or a test reproducible. **Any number is a good seed**: it is mixed before the
+    /// generator sees it ([`model::splitmix64`](crate::model::splitmix64)), so `1`, `2` and `3` open unrelated streams; `0` is the default seed.
     #[cfg_attr(feature = "serde", serde(default = "SirenSettings::default_seed"))]
     pub seed: u64,
     /// The buses, in the order an editor lists them.

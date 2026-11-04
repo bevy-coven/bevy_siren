@@ -1,0 +1,56 @@
+CARGO_INCREMENTAL=0 bash docs/loop/runs/2026-11-03-112/matrix.sh   (the tree at ed1caff = origin/main; started 04:09, 3.6 GB free)
+
+(started clean of this crate's artifacts; free 3.6 GB)
+=== cargo build   [free 3.6 GB, 04:09:43]
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.62s
+   exit: 0
+=== cargo test   [free 3.6 GB, 04:09:43]
+   1 warning: `bevy_siren` (example "quick_start") generated 1 warning (1 duplicate)
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning
+   1 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 233 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+   exit: 0
+=== cargo test --features serde   [free 3.6 GB, 04:10:00]
+   1 test result: ok. 9 passed; ... 1 test result: ok. 7 passed; ... 1 test result: ok. 242 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.91s
+   exit: 0
+=== cargo test --features semantic   [free 3.6 GB, 04:10:18]
+   1 test result: ok. 7 passed; ... 1 test result: ok. 551 passed; ... 1 test result: ok. 118 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.85s
+   exit: 0
+=== cargo test --features mixer   [free 3.6 GB, 04:11:24]
+   1 test result: ok. 7 passed; ... 1 test result: ok. 248 passed; ... 1 test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+   exit: 0
+=== cargo test --all-features   [free 3.6 GB, 04:11:45]
+   1 test result: ok. 7 passed; ... 1 test result: ok. 579 passed; ... 1 test result: ok. 129 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.38s
+   exit: 0
+=== cargo test --doc   [free 3.6 GB, 04:12:53]
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   exit: 0
+=== cargo test --features readme-example --test all readme::   [free 3.6 GB, 04:12:58]
+   1 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 233 filtered out; finished in 0.00s
+   exit: 0
+=== cargo build --examples   [free 3.6 GB, 04:13:03]
+   1 warning: `bevy_siren` (example "quick_start") generated 1 warning
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning (1 duplicate)
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 6.40s
+   exit: 0
+=== cargo build --examples --all-features   [free 3.6 GB, 04:13:09]
+   1 warning: `bevy_siren` (example "quick_start") generated 1 warning
+   1 error: linking with `cc` failed: exit status: 1
+   1 error: could not compile `bevy_siren` (example "mixer") due to 1 previous error
+   exit: 101                                                  <-- the ONE red; see below
+=== cargo clippy --all-targets --all-features -- -D warnings   [free 2.6 GB, 04:13:28]
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.07s
+   exit: 0
+=== cargo fmt --check   [free 2.6 GB, 04:13:33]
+   exit: 0
+=== cargo doc --no-deps --all-features   [free 2.6 GB, 04:13:33]
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.82s
+   exit: 0
+=== matrix done 04:13:37
+
+The ONE red: `cargo build --examples --all-features` failed to link `example "mixer"` at 3.6 GB free. It is the disk, not the code: after removing the stale binaries of this loop's own scratch examples (sources long deleted, which `cargo clean -p`
+cannot see; ~2.8 GB in target/debug and target/release; `~/.cache/huggingface` holds 50 GB and is the owner's, untouched) the SAME command, run alone with CARGO_INCREMENTAL=0 at 4 GB free, printed
+`Finished dev profile in 14.37s`, and left 1 GB free: building every example with every feature now takes about 3 GB of this crate's debug binaries (iteration 120's `quick_start`, a DefaultPlugins example, is 500 MB of it).
+[INFERENCE] for the cause of the first failure: the script's summary keeps no line of ld's message, so errno=28 was not seen; the evidence is that the command passes at 4 GB and failed at 3.6 GB.
+Everything else was green: 9 lib + 233 + 7 doc / serde 9 + 242 / semantic 118 + 551 / mixer 20 + 248 / all-features 129 + 579 / doc 7 / readme 1 / clippy, fmt, rustdoc clean.

@@ -274,8 +274,8 @@ fn the_panner_law_is_what_a_spatial_cue_divides_out() {
     );
 }
 
-/// **A `0` seed reports the seed it used.** `Rng::new(0)` maps a zero state to `ZERO_SEED`, because xorshift's state must
-/// never be zero; `SirenChoices` recorded the **argument**, so `seed()` — documented as *"the seed this stream was built
+/// **A `0` seed reports the seed it used.** `Rng::new(0)` maps a zero seed to `ZERO_SEED` (it had to, while the seed was xorshift's state, which must never be zero; since iteration 121 the seed is mixed first and the mapping is kept as the
+/// documented alias of the default seed); `SirenChoices` recorded the **argument**, so `seed()` — documented as *"the seed this stream was built
 /// from"* — named a number the stream did not come from. `ZERO_SEED` is also the crate's default seed, so `seed: 0` and
 /// the default are **one stream wearing two names**, and the report has to say which one.
 #[test]
@@ -329,6 +329,198 @@ fn a_zero_seed_and_the_default_seed_are_one_stream() {
     let mut one = Rng::new(1);
     let mut zero = Rng::new(0);
     assert_ne!(zero.next_u32(), one.next_u32(), "while seed 1 is a different stream");
+}
+
+/// Draw number `n` (1-based) of `Rng::new(seed)`, as the picker and the detune read it: a number in `[0, 1)`.
+fn nth_draw(seed: u64, n: usize) -> f32 {
+    let mut rng = bevy_siren::model::Rng::new(seed);
+    let mut draw = 0.0;
+    for _ in 0..n {
+        draw = rng.next_f32();
+    }
+    draw
+}
+
+/// Pearson's correlation coefficient.
+fn pearson(xs: &[f64], ys: &[f64]) -> f64 {
+    let n = xs.len() as f64;
+    let (mean_x, mean_y) = (xs.iter().sum::<f64>() / n, ys.iter().sum::<f64>() / n);
+    let (mut sxy, mut sxx, mut syy) = (0.0, 0.0, 0.0);
+    for (x, y) in xs.iter().zip(ys) {
+        sxy += (x - mean_x) * (y - mean_y);
+        sxx += (x - mean_x).powi(2);
+        syy += (y - mean_y).powi(2);
+    }
+    sxy / (sxx * syy).sqrt()
+}
+
+/// **A seed opens a stream the way a random seed would** — what `docs/guide/cues.md` promised: *"Two projects that differ only in `seed` play different variants and different detunes from the first play"*. A cue of `k` variants opens on
+/// `floor(first draw × k)`; over the seeds 1 … 3000 each variant should open about `3000 / k` of them, and the chi-square statistic against that even split must stay under its **upper 0.1 % point** (10.83, 13.82, 16.27, 24.32 for 1, 2, 3, 7
+/// degrees of freedom). **The unchanged tree read χ² = 3000 × (k − 1)**: all 3000 seeds opened on the first variant, because `Rng::new(1).next_u32()` was `0`. Sources: Brent 2007 §4 (a small seed is a low-weight xorshift state), the textbook test.
+#[test]
+fn a_seed_opens_a_stream_the_way_a_random_seed_would() {
+    use crate::helpers::chi_square;
+
+    for (k, critical) in [(2usize, 10.83), (3, 13.82), (4, 16.27), (8, 24.32)] {
+        let mut counts = vec![0usize; k];
+        for seed in 1..=3000u64 {
+            counts[((nth_draw(seed, 1) * k as f32) as usize).min(k - 1)] += 1;
+        }
+        let statistic = chi_square(&counts);
+        assert!(
+            statistic < critical,
+            "a cue of {k} variants over the seeds 1..=3000 opens {counts:?}: chi-square {statistic:.2}, against {critical} at 0.1 %"
+        );
+    }
+    // And the first draw itself, in sixteenths (15 degrees of freedom, 37.70).
+    let mut bins = vec![0usize; 16];
+    for seed in 1..=4096u64 {
+        bins[((nth_draw(seed, 1) * 16.0) as usize).min(15)] += 1;
+    }
+    let statistic = chi_square(&bins);
+    assert!(
+        statistic < 37.70,
+        "the first draw of the seeds 1..=4096 in sixteenths {bins:?}: chi-square {statistic:.1}, against 37.70"
+    );
+}
+
+/// **The streams of neighbouring seeds are uncorrelated from the first draw** — Gregory's criterion for a generator (*"negligible serial correlation between successive values"*, *Game Engine Architecture* §5.7) applied to successive seeds,
+/// which is how a replay, a capture and an A/B use them. The correlation of draw `n` of seed `s` with draw `n` of seed `s + 1`, over 2999 pairs, must stay inside four sigma of independence (`4 / √2999 = 0.073`). **The unchanged tree read 0.999 at
+/// draw 1 and −0.78 at draw 6**, and was outside the bound at every depth measured.
+#[test]
+fn neighbouring_seeds_are_uncorrelated_draw_for_draw() {
+    const SEEDS: u64 = 3000;
+    let bound = 4.0 / ((SEEDS - 1) as f64).sqrt();
+    for n in [1usize, 2, 3, 4, 6, 8, 16, 32, 64] {
+        let xs: Vec<f64> = (1..SEEDS).map(|seed| f64::from(nth_draw(seed, n))).collect();
+        let ys: Vec<f64> = (2..=SEEDS).map(|seed| f64::from(nth_draw(seed, n))).collect();
+        let r = pearson(&xs, &ys);
+        assert!(
+            r.abs() < bound,
+            "draw {n} of seed s against draw {n} of seed s + 1: r = {r:+.3}, bound {bound:.3}"
+        );
+    }
+}
+
+/// **Every bit of the seed reaches the first draw**: flip one bit of the seed and about half of the 32 bits of the first draw change. Over 64 bit positions and 256 seeds the mean is 16.0 ± 0.1 (4.5 sigma of a mean of 16 384 fair 32-bit
+/// differences), and each position's own mean lies in [15, 17]. **The unchanged tree read 3.78**, and flipping seed bit 0 or 1 changed *none* of the first draw's bits: an A/B on the seeds 1 and 2 was the same footstep.
+#[test]
+fn one_flipped_seed_bit_flips_half_the_first_draw() {
+    use bevy_siren::model::Rng;
+
+    let (mut total, mut samples) = (0u64, 0u64);
+    for bit in 0..64 {
+        let (mut sum, mut n) = (0u64, 0u64);
+        for seed in 1..=256u64 {
+            let flipped = seed ^ (1u64 << bit);
+            if flipped == 0 {
+                continue;
+            }
+            sum += u64::from((Rng::new(seed).next_u32() ^ Rng::new(flipped).next_u32()).count_ones());
+            n += 1;
+        }
+        let mean = sum as f64 / n as f64;
+        assert!(
+            (15.0..=17.0).contains(&mean),
+            "flipping seed bit {bit} changes {mean:.2} of the 32 bits of the first draw (a good mixer: 16)"
+        );
+        total += sum;
+        samples += n;
+    }
+    let mean = total as f64 / samples as f64;
+    assert!((15.9..=16.1).contains(&mean), "over every seed bit the mean is {mean:.3} of 32, not 16.0 ± 0.1");
+}
+
+/// **Seeds related by xor are not streams related by xor.** xorshift is linear over F₂ (Brent 2004, DOI 10.18637/jss.v011.i05), so the streams of the seeds a, b and a ⊕ b satisfy `stream(a ⊕ b) = stream(a) ⊕ stream(b)` *draw for draw, for ever* —
+/// Brent 2007 §4's *"clearly undesirable"* case, cured by a step that is not linear over F₂. For every triple with a < b ≤ 63 (1953 of them) the relation must fail somewhere in the first 16 draws. **The unchanged tree: all 1953 held it for 1000 draws**
+/// — the seeds 1, 2 and 3 were two streams and their xor.
+#[test]
+fn related_seeds_are_not_related_streams() {
+    use bevy_siren::model::Rng;
+
+    let mut related = Vec::new();
+    for a in 1..=63u64 {
+        for b in (a + 1)..=63u64 {
+            let c = a ^ b; // never zero, and never a or b, because a < b
+            let (mut stream_a, mut stream_b, mut stream_c) = (Rng::new(a), Rng::new(b), Rng::new(c));
+            if (0..16).all(|_| stream_a.next_u32() ^ stream_b.next_u32() == stream_c.next_u32()) {
+                related.push((a, b, c));
+            }
+        }
+    }
+    assert!(
+        related.is_empty(),
+        "{} seed triples (a, b, a ^ b) are linearly related streams, for example {:?}",
+        related.len(),
+        &related[..related.len().min(3)]
+    );
+}
+
+/// **The stream is the one the documents describe, and a change to it is a release note.** `exact-pitch-draw.md` records why: re-rolling every seeded stream is *"a release note, not a patch"*. These are the first four draws of five seeds and of the
+/// default, from an **independent implementation** (Python, written for iteration 121, which also reproduces SplitMix64's published outputs): xorshift64 (13, 7, 17), top 32 bits, started from `splitmix64(seed)`; `0` is the default seed. A change here is
+/// not a refactor: it moves every project's soundscape, and this test is what makes it a decision.
+#[test]
+fn the_stream_is_the_one_the_docs_describe() {
+    use bevy_siren::model::Rng;
+
+    let known: [(u64, [u32; 4]); 7] = [
+        (1, [0x7274_658b, 0xd287_4a86, 0x4737_03a9, 0xeba4_2236]),
+        (2, [0xf380_eee4, 0x5dd6_88ff, 0x5e63_fd47, 0x1cf7_bfbd]),
+        (3, [0x3e5f_66c8, 0x141d_8932, 0xf471_045f, 0xfcec_d800]),
+        (42, [0xfb4d_394f, 0x5eca_1bf6, 0x6848_8c8e, 0x8514_5493]),
+        (0, [0x6976_80e4, 0x1c9a_c9e0, 0x7d03_70cd, 0xd63b_63ca]),
+        (Rng::ZERO_SEED, [0x6976_80e4, 0x1c9a_c9e0, 0x7d03_70cd, 0xd63b_63ca]),
+        (u64::MAX, [0x311d_6e06, 0xa221_2187, 0x706c_eb41, 0x51e5_7a11]),
+    ];
+    for (seed, want) in known {
+        let mut rng = Rng::new(seed);
+        let got: [u32; 4] = std::array::from_fn(|_| rng.next_u32());
+        assert_eq!(got, want, "the first four draws of seed {seed:#x}");
+    }
+}
+
+/// **The one seed whose scrambled state would be zero still draws.** The mixer is a bijection with 0 ↦ 0, so exactly one seed — `−γ mod 2⁶⁴ = 0x61C8864680B583EB` — maps to the state xorshift never leaves; it is given the default seed's stream, and
+/// this holds the guard: sixty-four draws that are not all one value, and the default's own first four.
+#[test]
+fn the_one_seed_that_would_zero_the_state_still_draws() {
+    use bevy_siren::model::Rng;
+
+    let mut rng = Rng::new(0x61C8_8646_80B5_83EB);
+    let draws: Vec<u32> = (0..64).map(|_| rng.next_u32()).collect();
+    let distinct: std::collections::HashSet<u32> = draws.iter().copied().collect();
+    assert!(
+        distinct.len() >= 60,
+        "a live stream does not repeat itself: {} distinct values in 64 draws",
+        distinct.len()
+    );
+    let mut default = Rng::new(0);
+    assert_eq!(
+        draws[..4],
+        [default.next_u32(), default.next_u32(), default.next_u32(), default.next_u32()],
+        "and it is the default stream, by design"
+    );
+}
+
+/// **`splitmix64` gives SplitMix64's published outputs.** From state 0 Vigna's `splitmix64.c` prints `e220a8397b1dcdaf`, `6e789e6aa1b965f4`, `06c45d188009454f`, `f88bb8a8724c81ec`, `1b39896a51a8749b`; output *k* is `mix(0 + k·γ)`, so
+/// `splitmix64(0)`, `splitmix64(γ)`, `splitmix64(2γ)`… are those, and `splitmix64(1)` is `910a2dec89025cc1`. The same numbers come out of an independent Python implementation written for iteration 121 — a 64-bit match cannot be chance — which holds
+/// the **constants** (30, 27, 31; `0xBF58476D1CE4E5B9`, `0x94D049BB133111EB`; γ), where the avalanche test holds only that they mix. And exactly one input, −γ, gives zero: the seed the zero-state guard is for.
+#[test]
+fn splitmix64_gives_the_reference_outputs() {
+    use bevy_siren::model::splitmix64;
+
+    const GAMMA: u64 = 0x9E37_79B9_7F4A_7C15;
+    let published = [
+        0xe220_a839_7b1d_cdaf_u64,
+        0x6e78_9e6a_a1b9_65f4,
+        0x06c4_5d18_8009_454f,
+        0xf88b_b8a8_724c_81ec,
+        0x1b39_896a_51a8_749b,
+    ];
+    for (k, want) in published.iter().enumerate() {
+        assert_eq!(splitmix64((k as u64).wrapping_mul(GAMMA)), *want, "output {} from state 0", k + 1);
+    }
+    assert_eq!(splitmix64(1), 0x910a_2dec_8902_5cc1);
+    assert_eq!(splitmix64(GAMMA.wrapping_neg()), 0, "the one input that gives zero is −γ");
 }
 
 /// **A refusal outlives a burst of plays.** `SirenLog` evicted the oldest entry whatever it was, so one refusal was

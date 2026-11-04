@@ -284,6 +284,10 @@ pub fn next_boundary(now_s: f64, tempo_bpm: f32, beats: f64) -> f64 {
 /// same sequence; one that does not still gets a sequence, because a `0` seed is mapped to a constant.
 /// Never seeded from the clock inside this crate: a sound that cannot be reproduced cannot be debugged.
 ///
+/// **A seed is a name, not a state.** The xorshift step is linear over F₂, so a state with few bits set stays nearly empty for many steps and seeds related by xor are streams related by xor (Brent 2007, §4). Started from the seed itself,
+/// `Rng::new(1)` drew `0` first, every seed from 1 to 3000 opened a cue on its first variant, and the streams of the seeds 1, 2 and 3 were two streams and their xor (`docs/loop/runs/2026-11-04-121/`). So the state is the seed run through
+/// [`splitmix64`] — a Weyl step and a bit mixer, neither linear over F₂ — and every bit of the seed reaches the first draw. **The generator is unchanged**: xorshift64 (13, 7, 17), the top 32 bits.
+///
 /// **The seed a stream came from is [`seed`](Self::seed)'s answer, not the one a caller asked for.** They differ for
 /// `0`, which maps to [`ZERO_SEED`](Self::ZERO_SEED) — a value that is also `SirenSettings::default_seed()`, so
 /// `seed: 0` and the default are **one stream**, and a report must say so rather than naming a number the stream did not
@@ -298,17 +302,23 @@ pub struct Rng {
 }
 
 impl Rng {
-    /// The state a zero seed maps to: xorshift's state must never be zero, or it produces zero forever.
+    /// The seed a `0` seed maps to, and the crate's default seed: `seed: 0` and the default are one stream.
     pub const ZERO_SEED: u64 = 0x5EED_51AE_0000_0001;
 
     /// A generator from `seed`. A zero seed is replaced by [`ZERO_SEED`](Self::ZERO_SEED).
+    ///
+    /// The xorshift state is [`splitmix64`] of the seed. That mixer maps exactly one seed, `0x61C8_8646_80B5_83EB` (−γ mod 2⁶⁴), to the one state xorshift never leaves; that seed is given the default seed's stream instead.
     pub fn new(seed: u64) -> Self {
         let built_from = if seed == 0 { Self::ZERO_SEED } else { seed };
-        Self { state: built_from, built_from }
+        let mut state = splitmix64(built_from);
+        if state == 0 {
+            state = splitmix64(Self::ZERO_SEED);
+        }
+        Self { state, built_from }
     }
 
-    /// The seed this stream was **built from** — `0` reported as [`ZERO_SEED`](Self::ZERO_SEED), which is the state it
-    /// started at. It does not change as the stream advances.
+    /// The seed this stream was **built from** — `0` reported as [`ZERO_SEED`](Self::ZERO_SEED). It does not change as the
+    /// stream advances, and it is **not the xorshift state**, which is [`splitmix64`] of it and moves on every draw.
     pub fn seed(&self) -> u64 {
         self.built_from
     }
@@ -327,6 +337,20 @@ impl Rng {
     pub fn next_f32(&mut self) -> f32 {
         ((self.next_u32() >> 8) as f32) / (1u32 << 24) as f32
     }
+}
+
+/// **The first output of SplitMix64 started at `seed`**: a Weyl step `seed + γ` followed by a bit mixer, which is what stands between a seed and a generator that is linear over F₂.
+///
+/// γ = `0x9E37_79B9_7F4A_7C15` is the odd integer nearest 2⁶³(√5 − 1) — the Weyl constant Brent 2007 §4 recommends, and SplitMix's golden gamma (Steele, Lea and Flood, OOPSLA 2014, DOI 10.1145/2660193.2660195). The mixer is Stafford's variant 13: shifts
+/// 30, 27 and 31 with the multipliers `0xBF58_476D_1CE4_E5B9` and `0x94D0_49BB_1331_11EB`, as in Vigna's public-domain `splitmix64.c`; the same constants are in `symphonia-core` 0.5.5 (`src/conv.rs`) and `isomesh` 0.0.11.
+///
+/// It is a **bijection on `u64`** that is not linear over F₂, and one flipped input bit flips about half the output bits (`tests/model.rs::one_flipped_seed_bit_flips_half_the_first_draw`). From state 0 the outputs
+/// `splitmix64(0)`, `splitmix64(γ)` and `splitmix64(2γ)` are the published `e220a8397b1dcdaf`, `6e789e6aa1b965f4` and `06c45d188009454f` (`tests/model.rs::splitmix64_gives_the_reference_outputs`). Exactly one input, −γ mod 2⁶⁴, gives `0`.
+pub fn splitmix64(seed: u64) -> u64 {
+    let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
 }
 
 /// Which variant of a cue to play, without repeating one of the last few choices.

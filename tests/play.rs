@@ -240,6 +240,45 @@ fn a_projects_seed_reaches_the_stream() {
     assert_ne!(seven, ninetynine, "two seeds are two streams, or the seed is not a seed");
 }
 
+/// **A game's seed decides how a cue opens, across small seeds** — the sentence in `docs/guide/cues.md` (*"Two projects that differ only in `seed` play different variants and different detunes from the first play"*) held through the real play
+/// path, not through `Rng` alone. Seeds 1 … 600, one play of a three-variant cue with a ±1 semitone detune each: the first variants must spread over the three within the chi-square 0.1 % point (13.82), and the first detunes over four equal bins of the range
+/// within 16.27. **One app stands for every project**: a changed seed replaces the stream and every variant history, so the next play is the new seed's first draw (`changing_the_seed_restarts_the_stream` holds a reseeded app to a fresh one) — and a whole app per
+/// seed opened an audio device each under `--features mixer` (120 of them cost eleven seconds). 600 reseeds cost about 0.3 s in a debug build, and `tests/model.rs` asks the same of `Rng` over 3000.
+#[test]
+fn a_cue_opens_on_any_variant_across_small_seeds() {
+    use crate::helpers::chi_square;
+
+    let table = CueTable::new(vec![Cue {
+        sounds: vec![SoundSlot::new("a"), SoundSlot::new("b"), SoundSlot::new("c")],
+        pitch: bevy_siren::PitchRange { low: -1.0, high: 1.0 },
+        ..Cue::new("hit")
+    }]);
+    let mut app = app_with(table, sounds(&["a", "b", "c"]));
+    let (mut variants, mut detunes) = ([0usize; 3], [0usize; 4]);
+    for seed in 1..=600u64 {
+        app.world_mut().resource_mut::<SirenSettings>().seed = seed;
+        app.update();
+        app.world_mut().write_message(Play::cue("hit"));
+        app.update();
+        let first = played(&mut app).into_iter().next().expect("one request is one answer");
+        let which =
+            ["a", "b", "c"].iter().position(|key| *key == first.sound).expect("a sound the cue names");
+        variants[which] += 1;
+        detunes[(((first.pitch + 1.0) / 2.0 * 4.0) as usize).min(3)] += 1;
+        // One voice at a time: the budget never decides which seed is heard.
+        app.world_mut().despawn(first.entity);
+    }
+    let (by_variant, by_detune) = (chi_square(&variants), chi_square(&detunes));
+    assert!(
+        by_variant < 13.82,
+        "the first variant over the seeds 1..=600: {variants:?}, chi-square {by_variant:.1} against 13.82"
+    );
+    assert!(
+        by_detune < 16.27,
+        "the first detune over the seeds 1..=600 in quarters of its range: {detunes:?}, chi-square {by_detune:.1} against 16.27"
+    );
+}
+
 /// **A seed change restarts the stream** rather than continuing from the old position: after the change, the next
 /// four plays are a fresh seed-99 stream, not the old one carried on.
 #[test]

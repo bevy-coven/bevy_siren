@@ -36,7 +36,7 @@ every Bevy feature and a hole in its own `[dependencies]` list cannot fail.
 
 - `src/model.rs` — every number the crate decides with and **no engine type**: `db_to_gain`, `gain_to_db`, `sum_db`,
   `chain_db`, `semitones_to_ratio`, `distance_gain`, `backend_spatial_gain`, `active_duck_db`, `approach`,
-  `next_boundary`, `Rng`, `VariantPicker`, `Candidate`, `steal`. `tests/all.rs::engine_free` scans this file for engine
+  `next_boundary`, `Rng`, `splitmix64`, `VariantPicker`, `Candidate`, `steal`. `tests/all.rs::engine_free` scans this file for engine
   names.
 - `src/cue.rs` — `CueTable`, `Cue`, `SoundSlot`, `PitchRange`, `Repeat`, `Mode`, `Attenuation`, `CueProblem`,
   `problems()`, `from_ron`/`to_ron`.
@@ -163,6 +163,13 @@ function between frames; a duck takes time since it fired; a gain curve is a lin
   `tests/readme.rs` compared the README with the crate-root doc, and only under `--features readme-example`: **one found it only by pasting the block and running it on a real window and device.** **Run every block a reader will copy, and read the console they
   read**: the test captures it with a thread-local `tracing` layer (`with_default`), so `Update` is forced single-threaded (`SingleThreadedExecutor`) or a system on a pool thread prints where no one is listening. And **a log is read with a mark, not a position**:
   the obvious cursor — how many entries I have seen, against `len()` — printed 256 of 600 and then went quiet for good (`evidence/before/len-cursor-stalls.txt`); `SirenLog::since` goes by each entry's push number.
+- **A seed was the generator's state, and a linear generator's state is not a seed.** `Rng::new(1)` drew `0` first (`docs/loop/runs/2026-11-04-121/`): for every seed from 1 to 3000 the first pick of a cue was its first variant (**3000 of 3000**), the first draws of
+  neighbouring seeds correlated at **r = 0.9995** (and draw *n* stayed correlated to n = 64), one flipped seed bit changed **3.8 of 32** bits of the first draw, and the streams of the seeds `a`, `b` and `a ⊕ b` were xor-related for all 1000 draws measured (**1953 of 1953**
+  triples) — Brent 2007 §4's *"clearly undesirable"* case: xorshift is linear over F₂. The default seed, with its bits spread, **hid it from every render and every property test** (they use the seeds 3, 5, 7, 11 and 99 and assert properties, not values). `Rng::new` now runs the
+  seed through `splitmix64` (a Weyl step and Stafford's variant-13 finalizer; the one seed that maps to the zero state, −γ = `0x61C8864680B583EB`, plays the default stream), and `seed()` still reports the seed written. **A seed is mixed before a linear generator sees it, and a generator is
+  tested as a function of its seed across consecutive seeds** (`tests/model.rs`: uniformity of the opening, serial correlation, avalanche, the xor relation). **The stream is a release note, not a patch** (`needs-decision/exact-pitch-draw.md`, `seed-scramble.md`):
+  `the_stream_is_the_one_the_docs_describe` pins the first four draws of seven seeds from an independent implementation, so changing it is a decision with a changelog line. **And a reported seed that is not the written one restarts the stream every frame**
+  (`seed_choices` compares them; mutation M2 reddened nine play tests).
 
 ## The two-way street, both ways
 

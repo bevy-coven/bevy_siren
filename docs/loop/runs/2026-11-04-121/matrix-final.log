@@ -1,0 +1,58 @@
+The final matrix of iteration 121, on the final tree (`CARGO_INCREMENTAL=0 bash docs/loop/runs/2026-11-03-112/matrix.sh`; the test file `tests/play.rs` and one doc comment in `src/model.rs` were the last edits). Everything is green except ONE step, `cargo test --all-features`, which failed to LINK at 3.9 GB free
+— the same failure the baseline had on its `--examples --all-features` step at 3.6 GB, and which that same command passed at 4.0 GB on the previous tree (`evidence/before/matrix-with-120-apps.txt`). `cargo test` also builds every example, so it links the lib's tests, `all`, and seven Bevy example binaries in one go.
+
+[INFERENCE] the disk and not the code, with this evidence: re-running exactly that command by hand started at 2.9 GB free and ended at **125 MB free** with the same `linking with cc failed`; `cargo clean -p bevy_siren` and `--release -p bevy_siren` (this crate's own artifacts, all rebuilt in this session) gave 3.0 GB back; then
+`cargo test --all-features --tests -j 1` (the lib's tests and `all`, one job at a time, no examples — which the matrix's `cargo build --examples --all-features` step builds, and passed) linked and ran: **129 passed (lib), 0 (bin), 587 passed (`all`)**, 2.2 GB free afterwards. The count 587 is the previous tree's (579 + 8 new tests).
+
+(started clean of this crate's artifacts; free 3.9 GB)
+=== cargo build   [free 3.9 GB, 04:41:18]
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.70s
+   exit: 0
+=== cargo test   [free 3.9 GB, 04:41:19]
+   1 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 241 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.40s
+   exit: 0
+=== cargo test --features serde   [free 3.9 GB, 04:41:38]
+   1 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 250 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.23s
+   exit: 0
+=== cargo test --features semantic   [free 3.9 GB, 04:41:59]
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 559 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.67s
+   1 test result: ok. 118 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.88s
+   1 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   exit: 0
+=== cargo test --features mixer   [free 3.9 GB, 04:43:10]
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 256 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.88s      <-- was 13.21 s with the 120-app test
+   1 test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+   exit: 0
+=== cargo test --all-features   [free 3.9 GB, 04:43:32]
+   2 error: linking with `cc` failed: exit status: 1
+   1 error: could not compile `bevy_siren` (test "all") due to 1 previous error
+   1 error: could not compile `bevy_siren` (example "mixer") due to 1 previous error
+   exit: 101
+   (disk was short: removed this crate's artifacts; free now 2.9 GB)
+=== cargo test --doc   [free 2.9 GB, 04:44:17]
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   exit: 0
+=== cargo test --features readme-example --test all readme::   [free 2.9 GB, 04:44:22]
+   1 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 241 filtered out; finished in 0.00s
+   exit: 0
+=== cargo build --examples   [free 2.9 GB, 04:44:29]   exit: 0 (Finished in 6.76s)
+=== cargo build --examples --all-features   [free 2.9 GB, 04:44:36]   exit: 0 (Finished in 19.10s)
+=== cargo clippy --all-targets --all-features -- -D warnings   [free 2.9 GB, 04:44:57]   exit: 0
+=== cargo fmt --check   [free 2.9 GB, 04:45:01]   exit: 0
+=== cargo doc --no-deps --all-features   [free 2.9 GB, 04:45:01]   exit: 0
+=== matrix done 04:45:06
+
+By hand, after the failure:
+   cargo test --all-features            (2.9 GB free)  -> `linking with cc failed` again; free 125 MB afterwards
+   cargo clean -p bevy_siren && cargo clean --release -p bevy_siren   (5.2 GiB + 219.9 MiB removed; 3.0 GB free)
+   cargo test --all-features --tests -j 1   (3.0 GB free)
+      test result: ok. 129 passed; 0 failed   (the lib's tests)
+      test result: ok. 0 passed; 0 failed     (the bin)
+      test result: ok. 587 passed; 0 failed; finished in 10.88s   (`all`)
+      (2.2 GB free afterwards)

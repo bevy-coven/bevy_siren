@@ -213,6 +213,15 @@ project's file, not a crate constant. Two projects that differ only in `seed` pl
 detunes from the first play; the same number plays the same sequence twice, field for field, in two processes. That is
 what makes a capture, a replay and an A/B of an audio change reproducible.
 
+**A seed is a name, not a state, and any number is a good one.** The generator is xorshift64, which is linear over F₂, so a seed
+used as its state would be a state with few bits set: it was, until iteration 121, and `seed: 1` opened every cue on its *first*
+variant (3000 of the seeds 1 … 3000 did), the seeds 1 and 2 were the same footstep, and the streams of 1, 2 and 3 were two streams and
+their xor. `Rng::new` now runs the seed through SplitMix64's mixer first (`model::splitmix64`), so `1`, `2` and `3` are as unrelated
+as three random 64-bit numbers: over the seeds 1 … 3000 each variant of a cue opens its share of them, neighbouring seeds' draws are
+uncorrelated, and every bit of the seed changes about half the bits of the first draw
+(`tests/model.rs`; Brent 2007 §4 for why a linear generator must not be seeded linearly). **A stream is the same for the same seed on
+the same build; a release that changes it says so in the changelog** — this one did, once (`docs/loop/needs-decision/seed-scramble.md`).
+
 Changing the seed while the game runs **replaces** the stream and every variant history rather than continuing from
 the old position: the next play is the new seed's first draw. The seed is configuration, so the change is not written
 to `SirenLog` — the log is for what happened to a sound.
@@ -241,7 +250,9 @@ that reloads a table with different names. Without it, one picker per name ever 
 process, each holding an owned copy of its recent sound keys. Measured: 200 names played and the table cut to ten still
 held **200**; `SirenChoices::picker_count()` is the number if you want to draw it.
 
-**`0` is not a stream of its own.** xorshift's state must never be zero, so `Rng::new(0)` maps it to
-`model::Rng::ZERO_SEED` — which is exactly `SirenSettings::default_seed()`. A project that writes `seed: 0` therefore
-hears the crate's **default** stream, and `SirenChoices::seed()` reports `ZERO_SEED`, not `0`, because that is the seed
-the stream was built from. If you want a stream unlike the default, write any other number.
+**`0` is an alias of the default seed.** `Rng::new(0)` maps it to `model::Rng::ZERO_SEED` — which is exactly
+`SirenSettings::default_seed()`. A project that writes `seed: 0` therefore hears the crate's **default** stream, and
+`SirenChoices::seed()` reports `ZERO_SEED`, not `0`, because that is the seed the stream was built from. (It is kept so a documented
+behaviour does not move twice; since the seed is mixed, `0` would be a good seed of its own.) If you want a stream unlike the default,
+write any other number — **any** number: `1` is as good as a 64-bit one. **Exactly one other number is also the default stream**,
+`0x61C8864680B583EB`: the mixer maps it to the one state xorshift never leaves, and `Rng::new` gives it the default's stream instead of silence.

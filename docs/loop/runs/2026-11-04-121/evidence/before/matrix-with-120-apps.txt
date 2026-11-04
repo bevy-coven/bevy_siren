@@ -1,0 +1,46 @@
+The first "final" matrix of iteration 121 — green, and the line that mattered was a TIME, not a result: `cargo test --features mixer` finished its `all` binary in 13.21 s (the baseline's was under 2 s) because
+`play::a_cue_opens_on_any_variant_across_small_seeds` built a whole app per seed — 120 of them — and under `--features mixer` every app opens an audio device (about 90 ms each). The test was rewritten around ONE app that is reseeded
+(`seed_choices` replaces the stream: the existing `changing_the_seed_restarts_the_stream` holds a reseeded app to a fresh one), and cut to 600 seeds; the default suite then ran in 0.85 s (baseline 0.67 s, with this and seven more tests) and the mixer suite in 2.04 s.
+The rewritten test on the unscrambled seed (`let mut state = built_from;`): `the first variant over the seeds 1..=600: [600, 0, 0], chi-square 1200.0 against 13.82` (red, 0.38 s).
+
+(started clean of this crate's artifacts; free 4.0 GB)
+=== cargo build   [free 4.0 GB, 04:31:34]
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.84s
+   exit: 0
+=== cargo test   [free 4.0 GB, 04:31:36]
+   1 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 241 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.96s
+   exit: 0
+=== cargo test --features serde   [free 4.0 GB, 04:31:57]
+   1 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 250 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.76s
+   exit: 0
+=== cargo test --features semantic   [free 4.0 GB, 04:32:18]
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 559 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.10s
+   1 test result: ok. 118 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.81s
+   exit: 0
+=== cargo test --features mixer   [free 4.0 GB, 04:33:30]
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 256 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 13.21s      <-- the 120 devices
+   1 test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+   exit: 0
+=== cargo test --all-features   [free 4.0 GB, 04:34:04]
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 587 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.62s
+   1 test result: ok. 129 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.70s
+   exit: 0
+=== cargo test --doc   [free 3.9 GB, 04:35:22]
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   exit: 0
+=== cargo test --features readme-example --test all readme::   [free 3.9 GB, 04:35:26]
+   1 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 241 filtered out; finished in 0.00s
+   exit: 0
+=== cargo build --examples   [free 3.9 GB, 04:35:32]   exit: 0 (Finished in 5.37s)
+=== cargo build --examples --all-features   [free 3.9 GB, 04:35:37]   exit: 0 (Finished in 17.70s)
+=== cargo clippy --all-targets --all-features -- -D warnings   [free 3.9 GB, 04:35:56]   exit: 0
+=== cargo fmt --check   [free 4.0 GB, 04:36:01]   exit: 0
+=== cargo doc --no-deps --all-features   [free 3.9 GB, 04:36:01]   exit: 0
+=== matrix done 04:36:05

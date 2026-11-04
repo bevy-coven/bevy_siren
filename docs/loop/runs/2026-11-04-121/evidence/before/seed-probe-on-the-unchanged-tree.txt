@@ -1,0 +1,42 @@
+Probe: examples/scratch_seed.rs (kept as seed-probe.rs.txt), release build, on the UNCHANGED tree (HEAD ed1caff). Everything goes through `bevy_siren::model::Rng`, the one stream every variant pick and detune is drawn from.
+`cargo run --release --example scratch_seed`   (7 s; deterministic: no clock, no entropy - the same numbers on every run)
+
+== 1. The first pick of a cue with k variants, seeds 1..=3000: floor(first draw x k)
+   (what `VariantPicker::pick_from` does on a fresh picker); chi-square against an even split, and its p-value
+   k = 2: counts [3000, 0]  chi-square 3000.00 (df 1)  p = 0.000e0
+   k = 3: counts [3000, 0, 0]  chi-square 6000.00 (df 2)  p = 0.000e0
+   k = 4: counts [3000, 0, 0, 0]  chi-square 9000.00 (df 3)  p = 0.000e0
+   k = 8: counts [3000, 0, 0, 0, 0, 0, 0, 0]  chi-square 21000.00 (df 7)  p = 0.000e0
+   first draw of seeds 1..=4096 in 16 bins: [4096, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+   chi-square 61440.0 (df 15)  p = 0.000e0
+
+== 2. The first draw of seeds 1..=12, and serial correlation between neighbouring seeds
+   [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+   Pearson r(first draw of seed s, of seed s+1) over 2999 pairs: 0.9995   (3 sigma for independence: +-0.0548); ascending pairs 2 of 2999
+
+== 3. Avalanche: flip one bit of the seed, count the bits of the first u32 draw that change (a good mixer: 16.0 of 32)
+   mean over 64 bit positions x 256 seeds: 3.783   worst bit position: 0 at 0.000
+   the six lowest seed bits: bit 0: 0.00, bit 1: 0.00, bit 2: 1.00, bit 3: 1.00, bit 4: 1.00, bit 5: 1.00
+
+== 4. GF(2) linearity between related seeds (Brent 2007, section 4): for seeds a, b and c = a xor b, is draw n of c equal to draw n of a xor draw n of b?
+   seed triples (a, b, a^b) with a < b <= 63: 1953; the xor relation holds for ALL of the first 1000 draws in 1953 of them
+
+== 5. Decorrelation depth: Pearson r between draw n of seed s and draw n of seed s+1, seeds 1..=3000
+   n=1: +0.999  n=2: +0.648  n=3: -0.473  n=4: -0.597  n=6: -0.775  n=8: -0.375  n=12: -0.462  n=16: -0.276  n=24: +0.499  n=32: -0.427  n=64: +0.401
+
+== 6. The edge: the one seed whose scrambled state could be zero, and 0 itself
+   Rng::new(0x0000000000000000): seed() = 0x5eed51ae00000001, first four u32 draws [b42b988d, 58628b1d, 490ed9cc, e9e82178]
+   Rng::new(0x0000000000000001): seed() = 0x0000000000000001, first four u32 draws [00000000, 10004106, 9b1e842f, f554f503]
+   Rng::new(0x61c8864680b583eb): seed() = 0x61c8864680b583eb, first four u32 draws [dc1b77ae, 7b0f1041, e7148eba, f71c5460]
+   Rng::new(0xffffffffffffffff): seed() = 0xffffffffffffffff, first four u32 draws [00000000, 0fffbffe, 070dc404, 3217a46f]
+
+What this shows (iteration 120 measured one corner of it - 60 seeds, one play each; this is the whole shape):
+ 1. FOR EVERY SEED FROM 1 TO 3000 THE FIRST PICK OF A CUE IS ITS FIRST VARIANT, whatever the variant count (k = 2, 3, 4, 8: 3000 of 3000, chi-square = 3000 x (k - 1), p = 0). The first draw of every seed up to 4096 is in the lowest sixteenth
+    of [0, 1): `Rng::new(1).next_u32()` is exactly 0x00000000. README: "two seeds are two streams from the first play"; docs/guide/cues.md: "Two projects that differ only in `seed` play different variants and different detunes from the first play".
+ 2. NEIGHBOURING SEEDS ARE NEIGHBOURING DRAWS: r = 0.9995 between the first draws of seed s and s+1 (independence would be within +-0.055).
+ 3. THE FIRST DRAW DOES NOT SEE THE LOW BITS OF THE SEED: flipping seed bit 0 or 1 changes none of the 32 output bits, bits 2-5 change one; the mean is 3.8 of 32 (a good mixer: 16).
+ 4. STREAMS FROM RELATED SEEDS ARE EXACTLY LINEAR IN EACH OTHER, FOR EVER: stream(a xor b) == stream(a) xor stream(b) draw for draw over the first 1000 draws, for 1953 of 1953 triples. Seeds 1, 2 and 3 are not three streams: the third is the first
+    xor the second. This is Brent 2007 section 4 ("clearly undesirable"): xorshift is linear over GF(2), so the seeds of a linear generator must not be related by xor.
+ 5. IT IS NOT ONLY THE FIRST DRAW: draw n of seed s and of seed s+1 stay correlated at r = +0.65 (n = 2), -0.47, -0.60, -0.78 (n = 6), -0.46, -0.28, +0.50 (n = 24), -0.43, +0.40 (n = 64) - far outside +-0.055.
+ 6. Seeds with MANY ones are degenerate too (`Rng::new(u64::MAX).next_u32() == 0`). The default seed (0x5EED51AE00000001: 20 of 64 bits set) draws b42b988d, 58628b1d, 490ed9cc, e9e82178 first - unremarkable; its neighbourhood was not measured. [INFERENCE] that this is why the crate's own
+    default-seeded renders and its tests (which use seeds 3, 5, 7, 11 and assert properties, not values) showed nothing.

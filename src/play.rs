@@ -293,9 +293,9 @@ impl SirenChoices {
     /// The seed this stream was built from.
     ///
     /// This is the **effective** seed: a project that writes `seed: 0` is told
-    /// [`Rng::ZERO_SEED`](crate::model::Rng::ZERO_SEED), which is the value its stream actually started at, and the same
+    /// [`Rng::ZERO_SEED`](crate::model::Rng::ZERO_SEED), which is the seed its stream was built from, and the same
     /// value [`SirenSettings::default_seed`](crate::mix::SirenSettings::default_seed) returns. A nonzero seed is reported
-    /// as written.
+    /// as written (the stream's *state* is that seed mixed by [`splitmix64`](crate::model::splitmix64), which is not what is reported).
     pub fn seed(&self) -> u64 {
         self.seeded
     }

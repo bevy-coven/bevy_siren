@@ -1,0 +1,20 @@
+The block from README.md (examples/quick_start.rs, two variants, the default seed 0x5EED51AE00000001), on this Mac's window and output device, left running 9 s: the first lines of the console. The stream is the only thing that changed.
+
+BEFORE (iteration 120, evidence/after/quick-start-real-run.txt on that run's tree): the first draw of the default seed was b42b988d -> 0.7040 -> floor(0.7040 x 2) = 1
+   INFO quick_start: 2.06s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+   INFO quick_start: 2.47s stopped `footstep.grass`: ended
+   INFO quick_start: 2.73s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+
+AFTER (this tree): the first draw of the default seed is 697680e4 (the independent Python oracle's value, and the value tests/model.rs::the_stream_is_the_one_the_docs_describe holds) -> 0.4119 -> floor(0.4119 x 2) = 0
+   INFO quick_start: 0.78s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+   INFO quick_start: 1.01s stopped `footstep.grass`: ended
+   INFO quick_start: 1.16s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+   INFO quick_start: 1.45s stopped `footstep.grass`: ended
+   INFO quick_start: 1.68s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+   INFO quick_start: 1.93s stopped `footstep.grass`: ended
+   INFO quick_start: 2.16s played `footstep.grass` (step_02.ogg) on Effects at 0.00 dB
+   INFO quick_start: 2.45s stopped `footstep.grass`: ended
+   INFO quick_start: 2.65s played `footstep.grass` (step_01.ogg) on Effects at 0.00 dB
+
+This is prediction P9, and it is also the release note in one line: a project that never set a seed hears a different first footstep after this change. (The first step is at 0.78 s here and was at 2.06 s on iteration 120's run: the time of a window's first frames
+varies from launch to launch, so the "two seconds" iteration 120 recorded was one run's, not a property of the block.)

@@ -1,0 +1,226 @@
+// scratch (deleted before the commit; a copy is kept in evidence/): how a `Rng` behaves as a function of its SEED. Everything here goes through `bevy_siren::model::Rng`, the one stream the crate draws from.
+use bevy_siren::model::Rng;
+
+/// The upper tail of the chi-square distribution with `df` degrees of freedom: Q(df/2, x/2), by the series for x < a + 1 and a continued fraction after (the textbook method).
+fn chi2_sf(x: f64, df: f64) -> f64 {
+    let (a, x) = (df / 2.0, x / 2.0);
+    if x <= 0.0 {
+        return 1.0;
+    }
+    let ln_gamma = ln_gamma(a);
+    if x < a + 1.0 {
+        let (mut sum, mut term, mut n) = (1.0 / a, 1.0 / a, a);
+        for _ in 0..500 {
+            n += 1.0;
+            term *= x / n;
+            sum += term;
+        }
+        1.0 - sum * (-x + a * x.ln() - ln_gamma).exp()
+    } else {
+        let tiny = 1e-300;
+        let (mut b, mut c, mut d) = (x + 1.0 - a, 1.0 / tiny, 1.0 / (x + 1.0 - a));
+        let mut h = d;
+        for i in 1..500 {
+            let an = -(i as f64) * (i as f64 - a);
+            b += 2.0;
+            d = an * d + b;
+            if d.abs() < tiny {
+                d = tiny;
+            }
+            c = b + an / c;
+            if c.abs() < tiny {
+                c = tiny;
+            }
+            d = 1.0 / d;
+            h *= d * c;
+        }
+        (-x + a * x.ln() - ln_gamma).exp() * h
+    }
+}
+
+fn ln_gamma(x: f64) -> f64 {
+    // Lanczos approximation (g = 7, n = 9).
+    const C: [f64; 9] = [
+        0.999_999_999_999_809_9,
+        676.520_368_121_885_1,
+        -1_259.139_216_722_402_8,
+        771.323_428_777_653_1,
+        -176.615_029_162_140_6,
+        12.507_343_278_686_905,
+        -0.138_571_095_265_720_12,
+        9.984_369_578_019_572e-6,
+        1.505_632_735_149_311_6e-7,
+    ];
+    let x = x - 1.0;
+    let mut a = C[0];
+    let t = x + 7.5;
+    for (i, c) in C.iter().enumerate().skip(1) {
+        a += c / (x + i as f64);
+    }
+    0.5 * (2.0 * std::f64::consts::PI).ln() + (x + 0.5) * t.ln() - t + a.ln()
+}
+
+fn chi_square(counts: &[usize]) -> f64 {
+    let n: usize = counts.iter().sum();
+    let e = n as f64 / counts.len() as f64;
+    counts.iter().map(|&o| (o as f64 - e).powi(2) / e).sum()
+}
+
+fn pearson(xs: &[f64], ys: &[f64]) -> f64 {
+    let n = xs.len() as f64;
+    let (mx, my) = (xs.iter().sum::<f64>() / n, ys.iter().sum::<f64>() / n);
+    let (mut sxy, mut sxx, mut syy) = (0.0, 0.0, 0.0);
+    for (x, y) in xs.iter().zip(ys) {
+        sxy += (x - mx) * (y - my);
+        sxx += (x - mx).powi(2);
+        syy += (y - my).powi(2);
+    }
+    sxy / (sxx * syy).sqrt()
+}
+
+fn nth_f32(seed: u64, n: usize) -> f32 {
+    let mut rng = Rng::new(seed);
+    let mut x = 0.0;
+    for _ in 0..n {
+        x = rng.next_f32();
+    }
+    x
+}
+
+fn main() {
+    const N: u64 = 3000;
+
+    println!(
+        "== 0. The chi-square critical values the tests will use: the upper-tail probability at each (it should read 0.001)"
+    );
+    for (x, df) in [(10.83, 1.0), (13.82, 2.0), (16.27, 3.0), (24.32, 7.0), (37.70, 15.0)] {
+        println!(
+            "   chi-square {x:>5.2} with {df:>2.0} degrees of freedom: upper tail {:.5}",
+            chi2_sf(x, df)
+        );
+    }
+    println!();
+
+    println!("== 1. The first pick of a cue with k variants, seeds 1..={N}: floor(first draw x k)");
+    println!(
+        "   (what `VariantPicker::pick_from` does on a fresh picker); chi-square against an even split, and its p-value"
+    );
+    for k in [2usize, 3, 4, 8] {
+        let mut counts = vec![0usize; k];
+        for seed in 1..=N {
+            counts[((nth_f32(seed, 1) * k as f32) as usize).min(k - 1)] += 1;
+        }
+        let stat = chi_square(&counts);
+        println!(
+            "   k = {k}: counts {counts:?}  chi-square {stat:.2} (df {})  p = {:.3e}",
+            k - 1,
+            chi2_sf(stat, (k - 1) as f64)
+        );
+    }
+    // The first draw, in 16 equal bins.
+    let mut bins = vec![0usize; 16];
+    for seed in 1..=4096u64 {
+        bins[((nth_f32(seed, 1) * 16.0) as usize).min(15)] += 1;
+    }
+    let stat = chi_square(&bins);
+    println!(
+        "   first draw of seeds 1..=4096 in 16 bins: {bins:?}\n   chi-square {stat:.1} (df 15)  p = {:.3e}",
+        chi2_sf(stat, 15.0)
+    );
+
+    println!("\n== 2. The first draw of seeds 1..=12, and serial correlation between neighbouring seeds");
+    let firsts: Vec<f32> = (1..=12).map(|s| nth_f32(s, 1)).collect();
+    println!("   {:?}", firsts.iter().map(|f| (f * 1e4).round() / 1e4).collect::<Vec<_>>());
+    let xs: Vec<f64> = (1..N).map(|s| f64::from(nth_f32(s, 1))).collect();
+    let ys: Vec<f64> = (2..=N).map(|s| f64::from(nth_f32(s, 1))).collect();
+    let ascending = xs.iter().zip(&ys).filter(|(x, y)| y > x).count();
+    println!(
+        "   Pearson r(first draw of seed s, of seed s+1) over {} pairs: {:.4}   (3 sigma for independence: +-{:.4}); ascending pairs {ascending} of {}",
+        xs.len(),
+        pearson(&xs, &ys),
+        3.0 / (xs.len() as f64).sqrt(),
+        xs.len()
+    );
+
+    println!(
+        "\n== 3. Avalanche: flip one bit of the seed, count the bits of the first u32 draw that change (a good mixer: 16.0 of 32)"
+    );
+    let (mut total, mut samples, mut worst_bit, mut worst) = (0u64, 0u64, 0usize, f64::MAX);
+    for bit in 0..64 {
+        let (mut sum, mut n) = (0u64, 0u64);
+        for seed in 1..=256u64 {
+            let flipped = seed ^ (1u64 << bit);
+            if flipped == 0 {
+                continue;
+            }
+            let a = Rng::new(seed).next_u32();
+            let b = Rng::new(flipped).next_u32();
+            sum += u64::from((a ^ b).count_ones());
+            n += 1;
+        }
+        let mean = sum as f64 / n as f64;
+        if mean < worst {
+            (worst, worst_bit) = (mean, bit);
+        }
+        total += sum;
+        samples += n;
+    }
+    println!(
+        "   mean over 64 bit positions x 256 seeds: {:.3}   worst bit position: {worst_bit} at {worst:.3}",
+        total as f64 / samples as f64
+    );
+    let low: Vec<String> = (0..6)
+        .map(|bit| {
+            let sum: u32 = (1..=256u64)
+                .filter(|s| s ^ (1 << bit) != 0)
+                .map(|s| (Rng::new(s).next_u32() ^ Rng::new(s ^ (1 << bit)).next_u32()).count_ones())
+                .sum();
+            format!("bit {bit}: {:.2}", f64::from(sum) / 256.0)
+        })
+        .collect();
+    println!("   the six lowest seed bits: {}", low.join(", "));
+
+    println!(
+        "\n== 4. GF(2) linearity between related seeds (Brent 2007, section 4): for seeds a, b and c = a xor b, is draw n of c equal to draw n of a xor draw n of b?"
+    );
+    let (mut pairs, mut linear) = (0u32, 0u32);
+    for a in 1..=63u64 {
+        for b in (a + 1)..=63u64 {
+            let c = a ^ b;
+            if c == 0 || c == a || c == b {
+                continue;
+            }
+            pairs += 1;
+            let (mut ra, mut rb, mut rc) = (Rng::new(a), Rng::new(b), Rng::new(c));
+            let mut all = true;
+            for _ in 0..1000 {
+                all &= ra.next_u32() ^ rb.next_u32() == rc.next_u32();
+            }
+            linear += u32::from(all);
+        }
+    }
+    println!(
+        "   seed triples (a, b, a^b) with a < b <= 63: {pairs}; the xor relation holds for ALL of the first 1000 draws in {linear} of them"
+    );
+
+    println!(
+        "\n== 5. Decorrelation depth: Pearson r between draw n of seed s and draw n of seed s+1, seeds 1..={N}"
+    );
+    let mut row = Vec::new();
+    for n in [1usize, 2, 3, 4, 6, 8, 12, 16, 24, 32, 64] {
+        let xs: Vec<f64> = (1..N).map(|s| f64::from(nth_f32(s, n))).collect();
+        let ys: Vec<f64> = (2..=N).map(|s| f64::from(nth_f32(s, n))).collect();
+        row.push(format!("n={n}: {:+.3}", pearson(&xs, &ys)));
+    }
+    println!("   {}", row.join("  "));
+
+    println!("\n== 6. The edge: the one seed whose scrambled state could be zero, and 0 itself");
+    for seed in [0u64, 1, 0x61C8_8646_80B5_83EB, u64::MAX] {
+        let mut rng = Rng::new(seed);
+        let draws: Vec<u32> = (0..4).map(|_| rng.next_u32()).collect();
+        println!(
+            "   Rng::new({seed:#018x}): seed() = {:#018x}, first four u32 draws {draws:08x?}",
+            Rng::new(seed).seed()
+        );
+    }
+}
