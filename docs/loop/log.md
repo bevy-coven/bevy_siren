@@ -7,6 +7,47 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 114 — 2026-11-03 — a looping voice on the crate's own mixer ignored every gain change after its first pass
+
+**Change.** `MixerBackend::play` built a loop as `VoiceGain { decoder }.repeat_infinite()`, and `rodio`'s `repeat_infinite` **stores what it is given** (a span of up to 32 768 samples at a time, `buffered.rs:98-125`) and replays the stored values — so the voice's gain was the
+gain of the instant its first pass was decoded, **for ever**. A layer decoded silent never came in; a stop's 120 ms fade and a stolen loop's fade were clicks; nothing refused or logged, because `update_mix` did store the number and `SirenMix` said the layer was at 0 dB. **Bevy's path was never affected**
+(a sink's volume sits outside its repeat; `audio_output.rs:165`). Now `looped` repeats the sample **then** applies the gain, and `connect` is the one function that makes a voice. **Six unit tests** in `src/mixer/mod.rs` (the first in the crate to read a sample its own mixer
+produces; **four fail on the old order**), **one real-device test** in `tests/mixer.rs` (**no test had ever played a loop through the real `MixerBackend`**), `cues.yaml` case 34, an `AGENTS.md` trap, and the module doc.
+
+**Rationale.** Not the backlog: **the claims audit outranked it**. The sentence *"both backends answer identically; only the sample path differs"* appears in four files and was held by a fake `AudioOutput` that records the calls it receives — the sample path itself had never been read by anything. Reading `play`
+beside `rodio`'s source, then a probe with the crate's own `VoiceGain` copied verbatim and the real decoder, showed pass 2 at 0.08837 where 0.02209 was commanded. All five open issues were re-read and are blocked on a person, another repository or the owner (`#32`–`#34` the editor, pinned 221 commits back;
+`#35` anchor pairs; `#39` decided not to ship); no `consumer` issue is open.
+
+**Measured** through the real `Decoder`, a `Player` and a bus `Mixer`, pulled offline — what the device is handed, minus the device — **every output compared sample by sample with what the schedule commands**. A stem commanded to 0.25 on pass 2 played at 1.0 (worst difference **0.094** on a 0.125-peak stem; after: **0.000000** on every pass).
+A two-stem score, combat decoded silent and moved to 1.0 on pass 2: **660 Hz at −∞ dBFS on all four passes before; −∞, −18.99, −18.06, −18.06 after** (commanded the same), and the calm stem, commanded 12 dB down on pass 4, stayed at −18.06 before and is −27.81 after. A gain stored inside the first pass reached
+the speaker **1 to 32 767 samples late** before and **0** after. **The cost is unchanged**: 3.243 / 3.233 / 3.215 ns a sample before, 3.227 / 3.226 / 3.214 after (three runs of best-of-20; an earlier single run read +4.9 % and was noise).
+
+**The catches, because it was wrong first.** *The probe came before the predictions* — P1 and P2 are regression statements, and the one that could have gone the other way (the cost) held. *My first tests built the `Player` by hand*, so a later `play` could have diverged; *my first end-to-end test ran in the bus's own format* where nothing converts
+(production is 44.1 kHz stereo on a 48 kHz bus — now a test, red on the old order: *"0.17648624 then 0.17648618"*, the level did not move); *the first waveform pictures were blank* (`colors=white` on a transparent PNG; the skill is fixed); *the first spectrogram's streaks* were my 10 ms gain staircase, not the fix (the output equals the
+commanded signal to 0.000000). **And the fourth matrix was red, not on my code**: two indexer tests both named their scratch directory `"formats"`, every test is one process, and run together they **failed ten times in ten** — a flake in the baseline since iteration 112. All six `Scratch` helpers now give every call its own directory; ten of ten pass.
+
+**Evidence.** [`runs/2026-11-03-114/`](runs/2026-11-03-114/) — `eval.md`, `research.md` (seven sources, five predictions), `plan.md` (the ranking and **the carved-off Ogg route**), `perf.md`, `review.md`, `baseline-matrix.log`, `matrix.log`, `matrix-red-flake.log`, `matrix-final.log`; `evidence/after/loopgain.txt` and `loopgain.rs.txt` (the program), `loudness.txt`,
+`unit-tests-on-the-fixed-order.txt`, `indexer-scratch-race.txt`, the render set; `evidence/before/` (the unit tests on the old order, the race); `evidence/spectrograms/` (the score and the loop, before and after, **read**).
+
+**No clip**: the mixer path is not what `examples/render` renders; the pictures are the evidence (`docs/media/README.md`, "No clip: iteration 114").
+
+**Baseline:** green on arrival — 200 / 209 / 517 + 109 / 210 / 541 + 109, 6 doc, 1 readme, clippy, fmt, rustdoc. After: **200 / 209 / 517 + 109 / 6 + 211 / 542 + 115**, 6 doc, 1 readme, clippy `-D warnings`, fmt, rustdoc `-D warnings`, examples both ways; **render 21 of 21 WAVs byte-identical** to 113's, −21.5 LUFS, −7.5 dBFS TP, spectrograms read;
+perfcheck 0.057 – 0.064 / 0.322 – 0.344 / 0.797 – 1.101 µs a frame at 8 / 64 / 256 voices (inside the band; the mixer feature is off there). **The Cauldron's panel test was not run**: the editor pins `82d227e`, 221 commits back, and its 14 GB target does not fit.
+
+**Verdicts.** Function **GREAT** (after nine catches, four of them in my own tests), zoom **GREAT**, fresh eyes **GREAT**. **Commit** `cc38692`.
+
+**Recorded, not fixed.** **Nobody has listened** to the mixer path: the evidence is every sample of an offline render, not an ear (`docs/guide/listening.md` is the procedure). A loop at `speed` ≠ 1 has no test. `Repeat` keeps the decoded loop in memory as `f32` — about 23 MB a minute of 48 kHz stereo, by arithmetic and not by a watched RSS — and decodes its first span
+on the audio thread. `play` copies the whole sample (`bytes.to_vec()`) on every play. The example's *"1 assets"* beside *"4 failed"* (112). **Tool discipline**: reads and searches outnumbered bash more than two to one; three bash calls did what `glob`, `write` and `edit` are for — one of them a Python rewrite of a scratch file — and two `edit` ranges came from memory instead of the last read (`review.md`).
+
+**Top 5 remaining.**
+
+1. **Ogg loops are not sample-exact, on either path** (symphonia keeps the last block's padding: up to 975 frames, 20 ms, a pass — iteration 112 — against a gap threshold near 3 ms; Brennan et al. 2018). **The route is found and costed** (`plan.md`): bevy_audio already builds `decoder.take_duration(duration).repeat_infinite()` from `PlaybackSettings::duration`, so the default path needs no custom decoder; the mixer uses the same `take_duration`
+   before `looped`; `TakeDuration` emits exactly `N` samples when `remaining = N·p + 1 ns`, `p = ⌊10⁹ / (rate × channels)⌋`; the Ogg reader (`semantic::decode::ogg_declared_frames`) needs a bytes-based home outside `semantic`, and a positive starting granule (Vorbis I A.2) is not handled and must be named.
+2. **A person listens to the mixer path** — a looped layer entering on the bar, a fade, an Ogg, FLAC and MP3 — and a capture of the device's output if one can be made; until then every claim about how it *sounds* is a claim about samples.
+3. **A hubness correction, measured with a bank held out from the evaluation** (iteration 113's item 1): on both libraries in both wordings, the criterion written first. The crate change is the owner's.
+4. **The default-floor decision** and the other `needs-decision/` files (owner's); **resampler fidelity** at 44.1 kHz; **a third library**; `play`'s per-play copy and `Repeat`'s memory.
+5. **Waiting on a person, another repository or hardware:** `#35`'s anchor pairs; `#32`–`#34` the editor (pinned 221 commits back); `#39` (decided not to ship, ADR 0005); `#36`'s GPU figure; `find_compatible_*` speed; `needs-decision/headless-discovery.md`; iteration 105's `#[non_exhaustive]`; and the CI gap — nothing runs the benchmark, and the mixer's device test returns early on a runner with no audio device.
+
 ## Iteration 113 — 2026-11-03 — the second golden library: game audio answers the floor question the other way
 
 **Change.** `#35`'s second library — **303 game sounds from Kenney's CC0 packs**, 29 classes, WAV, MP3 and Ogg Vorbis in one folder, 221 of the 303 under a second — run through the real CLAP
