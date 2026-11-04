@@ -1,0 +1,49 @@
+similarity_demo on Kenney's 303 CC0 game sounds (303 vectors, 512 dimensions, CLAP audio tower).
+The model files are made once by tools/export_clap_onnx.py; the demo indexes the folder, asks six descriptions a
+developer would type, and then measures Querybank normalisation over the crate's own 48-description bank.
+
+library:  303 assets in `/tmp/kenney/audio`
+index:    303 vectors, 512 dimensions, model `transformers-4.57.6/torch-2.8.0/opset-17`
+
+== what a description finds (top 3 by CLAP cosine)
+
+  "a laser gun firing"       FOUND
+     1. scifi/laserRetro_000.ogg               0.488  <- right class
+     2. scifi/laserRetro_001.ogg               0.429  <- right class
+     3. scifi/spaceEngineLarge_000.ogg         0.423
+  "an explosion"             FOUND
+     1. scifi/explosionCrunch_003.ogg          0.418  <- right class
+     2. scifi/explosionCrunch_000.ogg          0.397  <- right class
+     3. scifi/explosionCrunch_001.ogg          0.394  <- right class
+  "footsteps on gravel"      missed
+     1. scifi/spaceEngineLarge_000.ogg         0.326
+     2. scifi/spaceEngineSmall_000.ogg         0.261
+     3. scifi/spaceEngineLarge_002.ogg         0.261
+  "a coin being picked up"   missed
+     1. scifi/spaceEngineSmall_003.ogg         0.283
+     2. scifi/spaceEngineSmall_000.ogg         0.278
+     3. scifi/spaceEngineLarge_003.ogg         0.257
+  "a dog barking"            missed
+     1. scifi/spaceEngineSmall_003.ogg         0.216
+     2. scifi/spaceEngineSmall_001.ogg         0.177
+     3. scifi/spaceEngineSmall_004.ogg         0.172
+  "a sword swing"            missed
+     1. scifi/spaceEngineSmall_001.ogg         0.397
+     2. scifi/spaceEngineSmall_003.ogg         0.344
+     3. scifi/spaceEngineSmall_002.ogg         0.326
+
+  2 of 6 descriptions found their class.
+
+== why: one class is near everything, and what normalising would change
+
+  first place, by class: spaceEngineSmall × 3   explosionCrunch × 1   laserRetro × 1   spaceEngineLarge × 1   
+  bank: 48 descriptions
+  encoded 48 of 48 bank descriptions
+
+  hit@1 over the bank: 9 of 48 raw, 14 of 48 normalised (19 % -> 29 %)
+
+  Of the six descriptions above, 2 found their class. The bank figure is the one that means something:
+  48 descriptions is a sample, and normalising lifted hit@1 by half — the direction the golden set measured
+  (31 % -> 44.8 % on this library).
+  The crate does NOT ship this: it needs an index-time statistic and a schema the editor reads, and the bank
+  here is the set's own descriptions, which is the weakness the guide names. It is a direction, not a feature.

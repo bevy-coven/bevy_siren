@@ -78,6 +78,30 @@ refuses to write an index with nothing in it.
 the same 14 files through both and compares every similarity: the largest difference is **4.9 × 10⁻⁴** — the example
 prints three decimals, so that is the rounding — and the ranking order is identical for every phrase.
 
+## Try it in one command: `examples/similarity_demo`
+
+```sh
+cargo run --release --features semantic --example similarity_demo -- <library-dir> \
+    --bank golden/kenney/queries.tsv
+```
+
+It asks **six descriptions a developer would type**, prints the top three for each and marks whether the right class is in
+them — and then measures the thing this guide reports further down: **one class is near everything**, so most queries come
+back with the same wrong answer. On Kenney's 303 CC0 game sounds, **2 of 6** descriptions find their class; the four that
+miss return three engine drones.
+
+It then applies **Querybank normalisation** (Bogolin et al., CVPR 2022, DOI `10.1109/cvpr52688.2022.00513`) — subtract
+each file's mean similarity to the other descriptions — over the crate's own 48-description bank, and reports both:
+
+```
+hit@1 over the bank: 9 of 48 raw, 14 of 48 normalised (19 % -> 29 %)
+```
+
+That is the same direction the golden set measured on this library (**31 % → 44.8 %**), at a lower absolute level because
+this demo's correction is the simplest form and its bank is the set's own descriptions. **The crate does not ship it**: it
+needs an index-time statistic and a schema the editor reads, which is why it is a demo and not a feature. `docs/media/similarity.png`
+is the run.
+
 **What it says about quality, honestly.** On fourteen macOS system sounds, "a short electronic beep" finds `Sosumi`
 (cosine 0.21) and "a frog croaking" does not find `Frog`: CLAP ranks it eleventh of fourteen, at −0.02, because it is a
 synthetic blip and not a frog. A cosine is a position on CLAP's own scale, and 0.2 is a good match

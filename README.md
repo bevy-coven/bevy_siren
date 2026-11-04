@@ -156,6 +156,11 @@ adds two deliberate mistakes so the `Problems` block does something.
   it and the asset's licence. Measured against two labelled libraries, honestly, including where it is weak:
   [semantic](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md),
   [the golden set](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/golden-set.md).
+  **Try it in one command**: `cargo run --release --features semantic --example similarity_demo -- <folder>` asks six ordinary
+  descriptions and marks whether each found its class — **2 of 6 do**, and the four that miss return engine drones, because
+  one class is near everything (the golden set: **22 of 47** descriptions put an engine first). It then shows the fix that is *not* shipped:
+  normalising by each file's mean similarity to the other descriptions lifts hit@1 from **9 of 48 to 14 of 48**, the
+  direction measured at **31 % → 44.8 %** — [what a description finds, and why it often does not](https://github.com/bevy-coven/bevy_siren/blob/main/docs/media/similarity.png).
 
 ## Part of the Coven
 

@@ -16,6 +16,38 @@ pad and a noise bed under them, so its quietest 50 ms frame after the fifth seco
 its 32 s — and its "music" was three pure sines (spectral flatness **0.0005**). It was heard as a hum and it did not say
 what it was demonstrating. `docs/media/demo/README.md` has the full account, what was cut and why, and the commands.
 
+## `similarity.png` — what a description finds, and why it often does not (2026-11-04)
+
+**No clip**: the program prints text, ranks, and ends. `similarity.txt` is `examples/similarity_demo`'s verbatim output over
+**Kenney's 303 CC0 game sounds**, drawn as a still by `docs/media/transcript_png.py`.
+
+It is a demo of the **honest** case, which is why it is worth a picture: **2 of 6** ordinary descriptions find their class
+(*"a laser gun firing"*, *"an explosion"*), and the other four — *"footsteps on gravel"*, *"a coin being picked up"*, *"a dog
+barking"*, *"a sword swing"* — return three **engine drones** in their top three. Then Querybank normalisation over the
+crate's own 48-description bank: **9 of 48 → 14 of 48** hit@1, the direction the golden set measured (31 % → 44.8 %) at a
+lower level because this is the simplest form of the correction.
+
+```sh
+# the model graphs, once (they need the weights in ~/.cache/huggingface)
+HF_HUB_OFFLINE=1 python3 tools/export_clap_onnx.py /tmp/clap
+export SIREN_MODEL=/tmp/clap/clap-text.onnx SIREN_VOCAB=/tmp/clap/tokenizer.json \
+       SIREN_AUDIO_MODEL=/tmp/clap/clap-audio.onnx SIREN_MODEL_VERSION="$(cat /tmp/clap/clap-export.txt)"
+
+# a library: Kenney's CC0 game sounds, 303 files, verified against the golden set's manifest
+python3 tools/fetch_kenney.py /tmp/kenney
+
+# the demo: it indexes the folder (19 s for 303 files on this M4 CPU) and asks its six descriptions
+cargo run --release --features semantic --example similarity_demo -- /tmp/kenney/audio \
+    --bank golden/kenney/queries.tsv | tee docs/media/similarity.txt
+python3 docs/media/transcript_png.py docs/media/similarity.txt docs/media/similarity.png
+```
+
+`--index <dir>` reuses the `siren-index` a previous run wrote, so a second run starts in under two seconds. Without
+`--bank` it normalises over its own six descriptions and says that the sample is too small.
+
+Tests: `examples/semantic` and this demo need the model, which CI does not have, so `cargo clippy` compiles them and no test
+runs them — the guide's "Try it" is how they are run, and the numbers above are from a run on this Mac.
+
 ## `semantic.png` — index a folder, describe a sound, hear it (iteration 110, `#38`)
 
 ![examples/semantic as a terminal transcript](semantic.png)
