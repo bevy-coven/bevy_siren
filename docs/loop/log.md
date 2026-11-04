@@ -7,6 +7,72 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 112 — 2026-11-03 — two of five formats could not be decoded, and nothing had ever tried
+
+**Change.** `library::AUDIO_EXTENSIONS` lists `wav ogg oga flac mp3` and calls them *"the formats the crate can decode"*; `rodio` was given
+`wav` and `vorbis`. Every `.flac` and `.mp3` was scanned as audio and refused (*"The format of the data has not been recognized"*), in a crate
+whose own error message says *"a library of `.mp3` files is indexed"* — **because no test had ever opened a file that was not a WAV.** Now:
+`rodio` has `flac` and `mp3` (two pure-Rust crates: `--features semantic` 487 → **497** lines, 181 → **183** crates; default build unchanged at
+413 / 149); `library::read_header` is fixed (a 48 kHz FLAC reported **768 000 Hz**; an Ogg's rate was read three bytes late); `semantic::decode`
+**cuts an Ogg to the length its last page declares**; `examples/semantic` waits for the decoded length instead of a 16-bit-PCM estimate (a 10 s FLAC
+was waited 1.7 s for, a 15 s MP3 5.8 s — "done" over a sound still playing); and `every_extension_the_scan_calls_audio_has_a_decoder` decodes a real
+`ffmpeg`-made fixture of every entry on the list, so the list and the decoder cannot drift again. 8 tests (7 in `semantic`), 5 fixtures, 41 KB.
+
+**Rationale.** Rank 1 beat the second golden library because both came from the same place — planning that library showed Kenney's Digital pack is
+**62 MP3s** — and a refusal that should not happen outranks a better experiment. The second library is carved off, its source found: Kenney's CC0 packs
+on OpenGameArt (kenney.nl's download API refuses scripts and was not circumvented), nine zips, MP3 and Ogg.
+
+**Checked against decoders that are not this crate's, on real files, through the whole pipeline** (`formats_parity.py`: the crate on a file against the
+crate on the same file decoded by the reference, so a difference is the decoder's alone). **FLAC**: ESC-50 as FLAC gives *identical* similarities to the
+WAVs — all 232 000, largest difference 0.0. **MP3**: Kenney's 62 MP3s match `ffmpeg` on **259 of 259** pairs, every length exact. **Ogg**: 209 effects match
+`libvorbis` to 1.8 × 10⁻⁷ — after one real defect: `symphonia` keeps the padding of the last Vorbis block, so **59 files came back up to 975 frames (20 ms)
+long**, which on short effects moved a similarity by up to 0.085 and changed the top three of **all 12** descriptions tried (rank correlation 0.727); cut to
+the declared length the worst difference is 0.004. A chained file is left alone, and the test goes red when that guard is weakened (I mutated it).
+
+**A retraction, because I got it wrong first.** 22 of 51 files in one pack differed from `libvorbis` by up to 3.5 % rms. I called it *"wrong samples in a
+minority of files"* in a doc comment, an upstream-report draft, two evidence file names and a pointer to a decision file I had not yet written. **My own
+table gave it away**: the `peak` column was `1 + max|diff|` on every row — the output was pinned at 1.0 where `libvorbis` decoded to 1.3.
+`symphonia-codec-vorbis/src/dsp.rs:136` is `*s = s.clamp(-1.0, 1.0)`; clamp `libvorbis` the same way and all 209 agree. A design choice, harmless, moved a
+similarity by at most 0.004. Retracted everywhere. And my first control, `ffmpeg`, is up to 128 frames short of the stream's length in 8 files; the reference is `libvorbis`.
+
+**The prediction I wrote down first was half wrong.** MP3 at 128 kbit/s: zero-shot ≤ 1 point (−0.3 / −0.6 measured ✓), a typical similarity < 0.01 (0.005 ✓; **0.033
+at 64 kbit/s ✗**), hit@1 within ±2 points (**+4 and +8 ✗**, upward). **The golden set's baseline is the WAV encoding, and the encoding moves the answer by about as
+much as four queries** — stated in the golden-set guide, the semantic guide and `#35`. Why hit@1 rose is an untested inference.
+
+**The second finding came from reading my own repository.** Iteration 111 recommended a floor of **0.35**. Iteration 110's demo — fourteen macOS UI sounds,
+five descriptions — scored **nothing above 0.256** (*"a short electronic beep"* → `Sosumi` 0.206; *"a glass being tapped"* → `Glass` 0.016): every positive floor
+would have returned an empty list. `needs-decision/default-floor.md` now recommends keeping `0.0` until a second library of game audio is measured; the guide and two
+doc comments say so; the default is unchanged. Also corrected: *"costs no new crate"* (`decode.rs`, `leaf.rs`, `library.rs`) was never true — `rodio` is in the default
+graph and its decoders are not, **16 of the 34 crates `semantic` adds**.
+
+**Evidence.** [`runs/2026-11-03-112/`](runs/2026-11-03-112/) — `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`, `upstream-symphonia-vorbis.md` (drafted, **not filed**),
+`matrix.sh` + `matrix.log`; `evidence/before/` (the example's wait on a FLAC and an MP3), `evidence/after/` (`formats_parity.py` and its seven outputs, `format_cost.py`,
+four `goldenbench` runs × two wordings, `decode-three-way.txt`, `vorbis-clamp-explains-it.txt`, `dependency-graph.txt`, `edge-cases.txt`, the render set, `spectrograms/`).
+
+**No clip:** no visible feature; the example's output changed by one line. Tests: `tests/semantic_decode.rs` (+6), `tests/library.rs` (+1), `tests/semantic_indexer.rs` (+1).
+
+**Baseline:** green on arrival — 199 / 208 / 209 / 109 + 497 / 109 + 521 / 6 doc, clippy, fmt, rustdoc — and the disk guard **did not run** (it called `df -g`, which this
+macOS rejects; fixed, in the skill). After: **200 / 209 / 505 semantic / 210 mixer / 529 all-features**, 6 doc, 1 readme, clippy `-D warnings`, fmt, rustdoc `-D warnings`, examples
+both ways; **render 21 of 21 WAVs byte-identical** to 111's, −21.5 LUFS, −7.5 dBFS TP, two spectrograms read; per-frame 0.018 – 0.062 / 0.106 – 0.354 / 0.396 – 1.258 µs at 8 / 64 / 256
+voices (inside the band). **The Cauldron's panel test was not run**: the editor pins `82d227e`, 215 commits back, and its 14 GB target does not fit.
+
+**Verdicts.** Function **GREAT** (after three claims that outran their evidence), zoom **GREAT**, fresh eyes **GREAT**. **Commit** `c6b7600`.
+
+**Recorded, not fixed.** The example prints *"1 assets"* and *"none of the 1 files could be indexed"* beside *"4 failed"* for a folder of broken files (the scan skips three by
+header and counts one asset). `mixer` still plays the near-silent Ogg padding. **Nobody has listened** to an Ogg, FLAC or MP3 through the mixer.
+
+**Top 5 remaining.**
+
+1. **The second golden library** — Kenney's CC0 packs (UI, foley, sci-fi, casino, jingles; already fetched, MP3 and Ogg now decode): ~35 describable classes, two wordings,
+   ~18 no-answer queries, `goldenbench --set <name>` and a separation metric (top score, top − library median). It is the evidence the floor decision is waiting on, and
+   it tests the one question this iteration raised: **are a game's correct scores near 0.2, or near ESC-50's 0.47?**
+2. **The default-floor decision** — `needs-decision/default-floor.md`: now *keep `0.0`* (revised); a floor relative to the library (option 6) if item 1 says the scales differ. Owner's.
+3. **Resampler fidelity**, and a model-backed `update_from_model` so one new file costs one clip (carried).
+4. **The mixer path**: listen to Ogg, FLAC and MP3 through `MixerBackend`; decide whether the backend should cut the Ogg padding too (a `Completes` timing question); the upstream
+   report in `runs/2026-11-03-112/upstream-symphonia-vorbis.md` is ready for the owner to file.
+5. **Waiting on a person, another repository or hardware:** `#35`'s anchor pairs; `#32`–`#34` the editor (pinned 215 commits back); `#39` (decided not to ship, ADR 0005);
+   `#36`'s GPU figure; `find_compatible_*` speed; `needs-decision/headless-discovery.md`; iteration 105's `#[non_exhaustive]`; and the CI gap — nothing runs the benchmark or the export script.
+
 ## Iteration 111 — 2026-11-03 — the golden set, and the claim the first real measurement overturned
 
 **Change.** `#35`'s part that a machine can do: **recall, precision and the similarity floor, measured on 2 000 recordings people
