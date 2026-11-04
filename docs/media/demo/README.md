@@ -1,65 +1,78 @@
 # The tour's evidence
 
-**The still is missing, and why.** `examples/demo` is a windowed program; its picture would be a capture of the panel.
-This machine could not take one when the demo was built: `screencapture` answered *could not create image from display*
-(the display was asleep), and `examples/mixer`'s previously-good capture came back **black** — 1 colour in a 1280 × 720
-PNG. A composed mock-up would be a lie about a project whose rule is that nothing ships without a picture it looked at, so
-what is here is what this machine could prove: the crate's own numbers.
+**`tour.mp4` is three A/B pairs, 26 seconds.** Each pair changes one thing and its halves are matched to within 0.5 LU on
+integrated loudness (ITU-R BS.1770), so what a listener judges is the feature and not a level difference.
 
-| file | what it is | how it was made |
-|---|---|---|
-| `tour.mp4`, `tour-poster.png` | **the tour you can play**: 32 s, 1280 × 720, H.264 + AAC 192 kbit/s, 763 KB. Every frame names the scene and what it demonstrates, and the bus meters are the crate's own `SirenMix` values; the poster is frame 9.3 s (the duck at its deepest) | `tools/make_demo_video.py` |
-| `bus-gain.png`, `.svg`, `.csv` | every bus's gain through the 32 s tour, from `SirenMix` — Music dipping to −14 dB under a line and recovering, Effects to −7, Ambience −9, Dialogue 0 | `cargo run --release --example demo_render -- <dir>` writes the CSV and the SVG; the PNG is the same CSV drawn at 1000 × 300 (a tool that reads pictures cannot read SVG) |
-| `tour.png` | the whole tour's spectrogram, 32 s | `ffmpeg -i mix.wav -lavfi showspectrumpic=…` |
-| `duck.png` | scene 4's spectrogram, 4 s | the same, on `scene-4.wav` |
-| `scenes.txt` | every scene's peak, RMS, bus depths and the crate's log lines | `demo_render`'s own report |
-| `live-console.txt` | the windowed demo on this Mac's device: the duck at 9.06 s, the stinger's at 17.06 s | `BEVY_ASSET_ROOT=$PWD ./target/debug/examples/demo`, 26 s |
+| file | what it is |
+|---|---|
+| `tour.mp4` | the tour: 1280 × 720, H.264 + AAC, 26 s. A frame names **A** or **B**, the vignette, what to listen for, each half's waveform and its measured level |
+| `tour-poster.png` | frame 2 s: the `A` half of vignette 1 |
+| `tour.txt` | `examples/demo_render`'s own report — every half's peak, RMS, integrated loudness, **the gain applied to match it**, and the crate's log lines |
 
-The numbers: the tour peaks at **−3.4 dBFS** with **−21.2 dBFS RMS** and **−22.3 LUFS** integrated, LRA 8.1 LU, and no
-sample at the rail. `tests/demo.rs::the_readmes_tour_numbers_are_the_runs_own` holds the README's table to `scenes.txt`.
+## What is in it, and what was cut
 
-To add the still when a display is awake:
+| # | vignette | A | B | correlated? |
+|---|---|---|---|---|
+| 1 | variant selection | one recording, ten times at a walk's cadence | three recordings, a no-repeat window | **−0.08** |
+| 2 | the voice budget | forty footsteps, forty voices | the same forty against a cap of four | **+0.87** |
+| 3 | distance | the same level at 4 m and 16 m | `Attenuation::Inverse`: 12 dB down at 4× | **+0.86** |
+
+**Correlation is the check that a pair is a pair**: 1.0 means A and B are the same sound and the vignette demonstrates
+nothing.
+
+**Two vignettes were cut, and the reason is a finding.** *Ducking* and *the layer change on the bar* both need a bed that
+keeps playing while something happens over it. A sustained bed on this crate is either
+
+- a **`Music` stem**, which `adopt_layers` hands to the score — the score then drives its level, so a vignette cannot set
+  it (measured: the layer vignette's A half came out at **−180 dBFS**, silent), or
+- a cue on another bus, which the table's budget **refused** in the harness (`refused \`music.calm\`: no voice free`, with
+  the score's two stems already live).
+
+The duck **rule** was measured working: `dialogue.greeting ducked Ambience by -8.0 dB` and `Effects by -4.0 dB` are in
+`tour.txt` from the run where the bed was refused. But with nothing under it to duck, the two halves correlated at
+**0.997** — a pair that demonstrates nothing. They are the next iteration's item rather than an A/B here that is not one.
+
+## Why the first demo was replaced
+
+The first version put nine features in one continuous stream with a music pad and a noise bed under them. Measured before
+it was replaced (`docs/loop/runs/2026-11-04-125/evidence/before/`):
+
+| measure | value |
+|---|---|
+| quietest 50 ms frame after the fifth second | **−28 dBFS** — no silence for 27 of its 32 s |
+| frames below −50 dBFS | 9.8 %, all in the first five seconds |
+| `music_calm` spectral flatness | **0.0005** — three pure sines (196, 294, 392 Hz) |
+| energy below 200 Hz in that pad | 65.9 % |
+
+It was heard as a hum, and nothing in it said what was being demonstrated. The sound set now uses **plucked phrases that
+decay to silence between notes** (31–34 % of each music file is below −60 dBFS) and the demo is A/B pairs.
+
+## Regenerating
 
 ```sh
-BEVY_ASSET_ROOT=$PWD SIREN_SHOT=/tmp/demo.png SIREN_FRAMES=420 cargo run --example demo
-# then move it here as demo.png and add it to docs/media/README.md and the README's hero slot
+python3 tools/make_demo_sounds.py assets/audio/demo           # the fourteen recordings
+CARGO_INCREMENTAL=0 cargo run --release --example demo_render -- /tmp/demo
+python3 tools/make_demo_video.py /tmp/demo docs/media/demo/tour.mp4
+ffmpeg -y -ss 2 -i docs/media/demo/tour.mp4 -frames:v 1 docs/media/demo/tour-poster.png
+ffmpeg -nostats -i docs/media/demo/tour.mp4 -af ebur128=peak=true -f null - 2>&1 | grep -E "^    (I|Peak):"
 ```
 
-## `tour.mp4` — why the README links it instead of embedding a player
+## Why the README links a video instead of embedding a player
 
-**GitHub's markdown renderer strips `<audio>` and `<video>`.** Measured with GitHub's own renderer
-(`gh api -X POST /markdown -f mode=gfm -f context=bevy-coven/bevy_siren -f text=…`):
+**GitHub's markdown renderer strips `<audio>` and `<video>`.** Measured with GitHub's own renderer:
 
 | input | rendered output |
 |---|---|
 | `<audio controls src="…/a.mp3"></audio>` | `<p dir="auto"></p>` — **gone** |
 | `<video controls src="…/a.mp4"></video>` | `<p dir="auto"></p>` — **gone** |
 | `![a tone](…/a.mp3)` | an `<img>` through camo pointing at the MP3, i.e. a broken image |
-| `<img src="…/tour.mp4">` | an `<img>` pointing at the MP4, i.e. a broken image |
 | `[▶ play](…/tour.mp4)` | a link — **works** |
 
-**What does work is the MIME type.** `raw.githubusercontent.com` serves an `.mp4` as `application/octet-stream`, so a
-browser downloads it; **`cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@main/…/tour.mp4` answers `content-type: video/mp4`**
-(measured: 200, 780 350 bytes, byte-identical to the committed file, `h264` + `aac`, 32.000 s), and a browser plays that
-in place. So the README links the jsDelivr URL and the poster's `<img>` links there too.
+And the MIME type matters: `raw.githubusercontent.com` serves an `.mp4` as `application/octet-stream` (a download), while
+`cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@main/…/tour.mp4` answers **`video/mp4`** (measured: 200, byte-identical to the
+committed file), so a browser plays it in place. The one form GitHub renders *with* a player is a `user-attachments`
+upload, whose endpoint refuses a token (422 to this repository's token); if the tour is ever uploaded there, its URL
+replaces the link and the poster's `<img>` in one line.
 
-The one form GitHub renders *with* a player is an attachment uploaded through its own flow
-(`https://github.com/user-attachments/assets/<uuid>`). The upload endpoint (`POST /upload/policies/assets`) refuses a
-token: it answered **422** to this repository's `gh` token, because that flow is the web editor's session, not the API. A
-release asset is the other candidate, and the repository has **no releases** and no plan to cut one in this iteration, so
-it is not a link a reader could follow today.
-
-So the README carries the poster (a real frame), a link whose MIME type makes the browser play it, and the per-scene
-table that says what each moment demonstrates. If the tour is ever uploaded as a `user-attachments` video, its URL can replace
-the link and the `<img>` of the poster in one line — the video is the same file either way.
-
-Regenerate, from the renderer's output:
-
-```sh
-CARGO_INCREMENTAL=0 cargo run --release --example demo_render -- /tmp/demo
-python3 tools/make_demo_video.py /tmp/demo docs/media/demo/tour.mp4
-ffmpeg -y -ss 9.3 -i docs/media/demo/tour.mp4 -frames:v 1 docs/media/demo/tour-poster.png
-```
-
-`tests/demo.rs::the_video_is_the_tour_and_carries_its_sound` checks the file that ships: 32 s, 1280 × 720, an AAC
-stream, and a poster that is a frame of it.
+Tests: `tests/demo.rs` — every pair differs and records its level match, no half reaches the rail, the video is 720p with
+an AAC stream and under 2 MB, and the recordings are the lengths the generator makes.

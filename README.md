@@ -83,70 +83,44 @@ number per bus per frame). Both answer `Played`, `Refused` and `Voice` identical
 
 ## Try it
 
-**▶ [Play the tour — 32 seconds, with sound](https://cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@main/docs/media/demo/tour.mp4)**
-(763 KB MP4; the link serves `video/mp4`, so a browser plays it in place rather than downloading it), or
-`cargo run --example demo` for the same nine scenes in a window with a live panel and keys.
+**▶ [Listen to the three A/B pairs — 26 seconds](https://cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@main/docs/media/demo/tour.mp4)**
+(577 KB MP4, served as `video/mp4` so a browser plays it in place), or `cargo run --example demo` for the crate working
+live in a window.
 
-[![The tour's fourth scene, mid-duck: the caption reads "a line of dialogue lowers Music by 8 dB and Effects by 4, then releases", and the bus meters show Music at −13.9 dB against its −6 dB rest, Effects at −6.9 against −3, Ambience and Dialogue flat](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/demo/tour-poster.png)](https://cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@main/docs/media/demo/tour.mp4)
+[![A frame of the tour: a large B beside "vignette 1: variant selection", the sentence "A is one recording played ten times at a walk's cadence — a machine gun. B is the same cue with three recordings and a no-repeat window", two waveforms marked A and B, and their levels at −43.4 and −42.8 dBFS](https://cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@main/docs/media/demo/tour-poster.png)](https://cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@main/docs/media/demo/tour.mp4)
 
-*Frame 9.3 s of the video: a line of dialogue holding `Music` down by 8 dB and `Effects` by 4, the crate's own numbers. Click it to play.*
+*The tour, mid-`B`. Click to play.*
 
-> **A README cannot hold a player, and this one does not pretend to.** GitHub strips `<audio>` and `<video>` from a README —
-> measured with GitHub's own renderer, both come back as an empty `<p>` — and `![x](a.mp3)` is rewritten to a broken
-> `<img>`. The sound is therefore behind the link, which is served as `video/mp4` so your browser plays it in place, and
-> the picture above is a real frame of it. `docs/media/demo/README.md` has the measurements and the one line to change if
-> GitHub ever renders an upload.
+**Each pair changes one thing, and the two are matched to within 0.5 LU**, so what you hear is the feature and not a
+level difference. That is the whole design:
 
-**What the video shows, moment by moment** — each scene is a feature, and the sound is the crate's own output:
+| # | what it demonstrates | A — without the crate | B — with it |
+|---|---|---|---|
+| 1 | **variant selection** | one recording played ten times at a walk's cadence: a machine gun | the same cue with three recordings and a no-repeat window: a walk |
+| 2 | **the voice budget** | forty footsteps at once, forty voices: the sum turns to sludge | the same forty against a cap of four: older voices are taken back, the mix stays legible |
+| 3 | **distance** | the same level at 4 m and at 16 m | the distance law: the far one arrives 12 dB lower, at 4 m and 16 m |
 
-| # | at | what you hear, and what it demonstrates |
-|---|---|---|
-| 1 | 0:00 | **Three footsteps from one cue.** Three recordings, and the picker never plays the same foot twice running. |
-| 2 | 0:03 | **A burst.** One sample at an exact pitch: a play with no decision in it, so it takes no draw from the seed. |
-| 3 | 0:05 | **A bed and a pad.** A looping ambience and a looping music layer, each on its own bus. |
-| 4 | 0:09 | **A line ducks the music.** `Dialogue` lowers `Music` by 8 dB and `Effects` by 4, holds, then releases — the meters show it. |
-| 5 | 0:13 | **The layer changes on the bar.** The combat stem comes in on a bar of 100 bpm, not on a frame. |
-| 6 | 0:17 | **A stinger.** It arrives at once and ducks the music it plays over. |
-| 7 | 0:20 | **The budget.** Six hits against a cue limit of three: three play, three are taken back, and the log names the cap. |
-| 8 | 0:24 | **Distance.** The same sound at 4 m and at 16 m: the attenuation law decides the level, not a volume knob. |
-| 9 | 0:28 | **A mistake.** A cue name that does not exist: refused, and the console says which without any code of yours. |
+The picture shows each half's waveform and its measured level, so a difference you can hear is also one you can see.
+`docs/media/demo/tour.txt` is the run's own report: every half's peak, RMS, integrated loudness, the gain applied to match
+it, and **the crate's log lines**.
 
-**What the tour sounds like, measured** — `demo_render` records the crate's decisions through a real `AudioOutput` and
-writes a WAV per scene (`docs/media/demo/scenes.txt` is the run's own report):
+> **Two pairs were cut, and that is worth saying.** *Ducking* and *the layer change on the bar* both need a bed that keeps
+> playing while something happens over it. On this crate a sustained bed is either a `Music` stem — which the score adopts
+> and drives, so its level is the score's to set — or a cue the table's budget refused in the harness. The duck rule
+> **was** measured working (`dialogue.greeting ducked Ambience by -8.0 dB`), but with nothing under it to duck the A and B
+> halves correlated at **0.997**: a pair that demonstrates nothing. They are the next iteration's item rather than an A/B
+> here that is not one.
 
-| scene | peak | RMS |
-|---|---|---|
-| 1 · three footsteps | −9.1 dBFS | −29.6 dBFS |
-| 2 · a burst | −8.9 dBFS | −32.6 dBFS |
-| 3 · a bed and a pad | −13.8 dBFS | −23.2 dBFS |
-| 4 · a line ducks the music | −4.7 dBFS | −21.1 dBFS |
-| 5 · the layer changes on the bar | −9.9 dBFS | −20.0 dBFS |
-| 6 · a stinger | −7.5 dBFS | −19.1 dBFS |
-| 7 · the budget | −3.8 dBFS | −20.5 dBFS |
-| 8 · distance | −3.4 dBFS | −20.2 dBFS |
-| 9 · a mistake | −9.5 dBFS | −20.2 dBFS |
-| **the whole tour** | **−3.4 dBFS** | **−21.2 dBFS**, **−22.3 LUFS** integrated, LRA 8.1 LU |
+**The demo that came before this one is gone on purpose.** It put nine features in one continuous stream with a music pad
+and a noise bed under them, so its quietest half-second after the fifth second was **−28 dBFS** and it was heard — rightly —
+as a hum. The music files were three pure sines (spectral flatness 0.0005). The sound set now uses **plucked phrases that
+decay to silence between notes** (31–34 % of each music file is below −60 dBFS), and the demo is A/B pairs rather than a
+tour.
 
-Scene 9 — the mistake — **sounds of the music and of nothing of its own**: the tour is one continuous run, so the pad
-started in scene 3 is under it, and the cue it asks for does not exist. That is what a real scene looks like when one
-name is wrong: the game keeps playing and the console says why. Nothing in the tour reaches the rail (0 samples at full
-scale).
-
-A game mix is mastered below −14 LUFS, and this one sits at **−22**: nine scenes back to back are not a master, and
-nothing in the tour reaches the rail.
-
-The panel: every bus with its level, its duck and its live voice count, the cue table with the crate's verdict on it, and
-the log of the last decisions.
-
-```sh
-cargo run --example mixer
-```
-
+**No music-bed demo of the crate's own.** `cargo run --example mixer` is the audio panel: every bus with its level, its
+duck and its live voice count, the cue table with the crate's verdict on it, and the log of what played and why.
 `SIREN_KEYS=steal,layer,duck` stages a run so a capture shows the three things this crate exists for; `SIREN_FAULTS=1`
-adds two deliberate mistakes so the `Problems` block and its `<- problem` markers do something. `cargo run --example music`
-prints each transition's time so a bar change can be checked against the tempo, and
-`cargo run --release --features mixer --example budget -- /tmp/budget` measures the voice budget: N one-shots against a
-cap, with a scripted output that ends each sample.
+adds two deliberate mistakes so the `Problems` block does something.
 
 ## What you can do
 

@@ -22,30 +22,44 @@ ffmpeg -f lavfi -i "anoisesrc=d=0.26:c=brown:r=44100:a=0.9:seed=23" \
 
 ## `audio/demo/` — the tour's sound set
 
-The eleven recordings `examples/demo` and `examples/demo_render` play. **Synthesised by `tools/make_demo_sounds.py` and released under CC0 1.0 (public domain)**; not part of the published crate, as above. They exist so the demo can be *audible* in a clone with no downloads, and so the repository carries no recording whose licence has to be tracked.
+The fourteen recordings `examples/demo` and `examples/demo_render` use. **Synthesised by `tools/make_demo_sounds.py` and released under CC0 1.0 (public domain)**; not part of the published crate. They exist so the demo is audible in a clone with no downloads, and so the repository carries no recording whose licence has to be tracked.
 
 | file | length | what it is |
 |---|---|---|
-| `step_01.ogg` | 0.220 s | filtered noise, 90 Hz – 1.7 kHz, exponential decay |
-| `step_02.ogg` | 0.260 s | the same recipe, 70 Hz – 1.3 kHz: darker and longer |
-| `step_03.ogg` | 0.190 s | 140 Hz – 2.4 kHz: brighter and shorter, so three footsteps are three sounds |
-| `hit_01.ogg` | 0.260 s | a 70 Hz body plus a broadband edge: a hit |
-| `click.ogg` | 0.050 s | a 1.1 kHz tick |
-| `wind.ogg` | 9.600 s | a band-limited noise bed, two bars at 100 bpm, loopable |
-| `music_calm.ogg` | 9.600 s | a four-bar pad at 196 Hz (root, fifth, octave), loopable |
-| `music_combat.ogg` | 9.600 s | the same shape at 233 Hz, brighter |
-| `stinger.ogg` | 0.600 s | a rising triad |
-| `line_01.ogg`, `line_02.ogg` | 0.450 s | dry two-partial "voice" tones |
+| `step_01..03.ogg` | 0.19–0.26 s | three filtered-noise footsteps, each a different band: the variants that stop a foot sounding mechanical |
+| `hit_01.ogg` | 0.26 s | a low thump with a click edge |
+| `click.ogg` | 0.05 s | a 1.1 kHz tick |
+| `note_low/mid/high.ogg` | 0.5–0.9 s | **plucked** notes: harmonic partials that decay faster the higher they are, plus a noise attack |
+| `bass.ogg` | 0.9 s | a plucked low note, no drone |
+| `music_calm.ogg`, `music_combat.ogg` | 9.6 s | **phrases**: plucks on a beat grid, four bars at 100 bpm, with silence between the notes |
+| `stinger.ogg` | 0.7 s | a plucked three-note riser |
+| `line_01/02.ogg` | 0.45 s | dry two-partial tones standing in for a spoken line |
 
-**Every loop is a whole number of bars at the score's tempo** (100 bpm, 4 beats: 2.4 s a bar), and every periodic component is evaluated on a phase that fits the loop an exact number of times, so the join is a continuation rather than a step. Measured: `music_calm.ogg`'s seam was **0.0544** before the phase correction, against a 99.9th-percentile step of 0.0330 inside the file — a click every pass — and is inside that percentile now (`tests/demo.rs`).
+**Why this set was rewritten.** The first version had a **noise bed** (`wind.ogg`) and an organ-like pad — three pure sines
+at 196/294/392 Hz, spectral flatness **0.0005** — playing from the third scene of the demo onward. The demo's quietest
+50 ms frame after its fifth second was therefore **−28 dBFS**: it was heard as a hum. Every loop is now a *phrase*, so
+between notes the file is **silent** (31–34 % of each music file is below −60 dBFS), and the bed is gone.
 
-**The Vorbis padding, again.** A stream's last page declares its length and its last packet decodes to a whole block: `step_01.ogg` is 0.220 s of arithmetic and the decoder returns **0.232 s**. `-frames:a` does not change it (measured: a 9 702-frame input still decoded to 10 240). The declared length is the one to trust, which is what `src/ogg.rs` is for and what `tests/demo.rs` asserts.
+**Every loop is a whole number of bars** at the demo's tempo (100 bpm, 4 beats: 2.4 s a bar), and every periodic component
+is evaluated on a phase that fits the loop an exact number of times, so the join is a continuation rather than a step.
+Measured: `music_calm.ogg`'s seam was **0.0544** before the phase correction, against a 99.9th-percentile step of 0.0330
+inside the file — a click every pass — and is inside that percentile now (`tests/demo.rs`).
+
+**The Vorbis padding, again.** A stream's last page declares its length and its last packet decodes to a whole block:
+`step_01.ogg` is 0.220 s of arithmetic and the decoder returns **0.232 s**. `-frames:a` does not change it (measured: a
+9 702-frame input still decoded to 10 240). The declared length is the one to trust, which is what `src/ogg.rs` is for and
+what `tests/demo.rs` asserts.
+
+**Encoding.** ffmpeg's native Vorbis encoder takes exactly two channels (`-af pan=stereo|c0=c0|c1=c0`) or fails `Could not
+open encoder before EOF`, and the temporary file needs the **output** suffix — a `.wav` name once made the encode fail.
 
 Regenerate, and verify:
 
 ```sh
-python3 tools/make_demo_sounds.py assets/audio/demo           # rewrites all eleven
-python3 tools/make_demo_sounds.py --check assets/audio/demo   # fails if any differs by a sample
+python3 tools/make_demo_sounds.py assets/audio/demo           # rewrites all fourteen
+python3 tools/make_demo_sounds.py --check assets/audio/demo   # fails on a difference, or on a file it does not make
 ```
 
-`--check` compares **decoded samples**, not bytes: an Ogg container carries a random stream serial, so two encodes of the same arithmetic differ in about twenty bytes and in no sample (measured: 21 bytes for `step_01.ogg`, 95 for `music_calm.ogg`, decoded PCM identical).
+`--check` compares **decoded samples**, not bytes: an Ogg container carries a random stream serial, so two encodes of the
+same arithmetic differ in about twenty bytes and in no sample. It also reports a file in the folder that the script does
+not make — which is how the old noise bed was caught after it was removed.

@@ -1,31 +1,37 @@
 #!/usr/bin/env python3
-"""**The demo's sound set**, synthesised here and released CC0 — the recordings `examples/demo` and `examples/tour` play.
+"""**The demo's sound set** — rewritten, after the first version was heard and was not good enough.
 
-Eleven files, written as Ogg Vorbis (the format the crate's own `assets/audio` already uses, so a clone needs no
-converter to run the demos). Every one is made by this script from arithmetic — no downloaded audio, no sample library,
-nothing whose licence has to be tracked — so `assets/README.md` can say exactly where each came from and the repository
-carries no asset it cannot reproduce.
+## What was wrong (measured, not guessed)
 
-    python3 tools/make_demo_sounds.py assets/audio
+The first set had a **static drone** under it: `music_calm`/`music_combat` were three pure sine waves (196, 294, 392 Hz;
+spectral flatness **0.0005** — 0 is pure tones, 1 is noise) and `wind` was a permanent broadband noise bed. Both played
+from the third scene on, so the tour's noise floor **never dropped below −19 dBFS for the last 27 of its 32 seconds**, and
+66 % of the pad's energy sat below 200 Hz. Heard back, that is a hum — a listener called it *"cosmic background
+radiation"* — with no note onsets and nothing that ever stops.
 
-What each file is:
+## What the rules are
 
-| file | what it is | why the demo needs it |
+From the reading that followed (`docs/loop/runs/2026-11-04-125/research.md`): a demo is judged on whether a difference is
+**audible and attributable**, and loudness matching within **0.5 LUFS** is the price of admission for any A/B; a reel
+should be about a minute and should **not** carry a continuous music bed, because it masks the thing being demonstrated.
+So this set is built to have **silence between events**:
+
+| file | what it is | why |
 |---|---|---|
-| `step_01.ogg`, `step_02.ogg`, `step_03.ogg` | three footsteps: filtered noise bursts, 0.2–0.3 s | a cue with three variants and a no-repeat window — the crate's headline feature |
-| `hit_01.ogg` | a low, short thump | a one-shot on `Effects` with a polyphony cap |
-| `click.ogg` | a bright 1.1 kHz tick | UI, and the cue that must not move the shared stream |
-| `wind.ogg` | a 4 s loopable noise bed | a `Mode::Loop` ambience, quiet and long |
-| `music_calm.ogg`, `music_combat.ogg` | two 4 s loopable pads at 100 bpm (2.4 s a bar: 4 beats) | vertical layering that changes on the bar |
-| `stinger.ogg` | a short rising triad | a stinger that ducks the music it plays over |
-| `line_01.ogg`, `line_02.ogg` | two short, dry "voice" tones | dialogue ducking music and effects |
+| `step_01..03.ogg` | three filtered-noise footsteps, 0.19–0.26 s | short, distinct, and they *end* |
+| `hit_01.ogg` | a low thump with a click edge | a transient, not a tone |
+| `click.ogg` | a 1 kHz tick, 50 ms | a UI sound |
+| `note_low.ogg`, `note_mid.ogg`, `note_high.ogg` | **plucked** notes with harmonic decay, 0.6 s | a pluck has an attack and a decay; an organ tone does not |
+| `bass.ogg` | a plucked low note, 0.9 s | the low end, without a drone |
+| `music_calm.ogg`, `music_combat.ogg` | **rhythmic phrases** — plucks on a beat grid, 4 bars at 100 bpm — with silence between notes | a phrase leaves gaps, so a duck is audible and nothing hums |
+| `stinger.ogg` | a plucked three-note riser, 0.7 s | it ducks the music for a second, so a drone there would be the loudest one |
+| `line_01.ogg`, `line_02.ogg` | short dry two-partial tones | a stand-in for a spoken line |
 
-Every loop is an exact number of bars at the tempo the example's score uses, so a layer change on the bar lands where a
-listener expects it: at 100 bpm a bar is 2.4 s, and the two pads are 4 bars = 9.6 s.
+No sustained tone, no noise bed, no `wind.ogg`. The music is a *figure*, so between notes the file is silent and a change
+made on a bar is heard as a change, not as a swell under a wash.
 
-The synthesis is numpy, at 44.1 kHz, and the Ogg encode is `ffmpeg`'s native Vorbis encoder (the same one `assets/README.md`
-already documents). The script is deterministic: the same numpy produces the same samples, so a re-run rewrites the same
-files, and `--check` says whether the files on disk are the ones this script makes.
+Deterministic: the same numpy produces the same samples, and `--check` compares the **decoded** samples (an Ogg container
+carries a random stream serial, so two encodes differ in about twenty bytes and in no sample).
 """
 
 import argparse
@@ -42,15 +48,14 @@ RATE = 44_100
 """44.1 kHz: what a game's music is authored at, and what `ffmpeg`'s Vorbis encoder takes without resampling."""
 
 BAR_S = 2.4
-"""One bar at 100 bpm in 4/4 — the tempo `examples/demo`'s score declares (`docs/guide/music.md`)."""
+"""One bar at 100 bpm in 4/4 — the tempo the demo's score declares."""
 
 
 def rng(seed: int) -> np.random.Generator:
-    """A generator whose output depends only on `seed`, so a re-run of this script reproduces every file byte for byte."""
     return np.random.default_rng(seed)
 
 
-def fade(x: np.ndarray, in_s: float = 0.004, out_s: float = 0.02, curve: str = "exp") -> np.ndarray:
+def fade(x: np.ndarray, in_s: float = 0.003, out_s: float = 0.02, curve: str = "exp") -> np.ndarray:
     """A short fade in and a longer fade out, so no file starts or ends on a step (a step is a click)."""
     n = len(x)
     a = max(1, int(in_s * RATE))
@@ -79,11 +84,7 @@ def one_pole_highpass(x: np.ndarray, cutoff_hz: float) -> np.ndarray:
 
 
 def footstep(seed: int, duration_s: float, low_hz: float, high_hz: float) -> np.ndarray:
-    """Filtered noise with a fast attack and an exponential tail: a foot on a surface.
-
-    Noise, not a tone: a footstep's character is its *band*, and a tone would sound like a beep at any band. Three
-    different (band, duration) pairs make three variants a listener can tell apart.
-    """
+    """Filtered noise with a fast attack and an exponential tail: a foot on a surface, and then silence."""
     n = int(duration_s * RATE)
     noise = rng(seed).normal(0.0, 1.0, n)
     x = one_pole_highpass(one_pole_lowpass(noise, high_hz), low_hz)
@@ -93,7 +94,7 @@ def footstep(seed: int, duration_s: float, low_hz: float, high_hz: float) -> np.
 
 
 def thump(seed: int) -> np.ndarray:
-    """A low body plus a click: what a hit reads as on a spectrogram (a low band and a broadband edge)."""
+    """A low body plus a click: what a hit reads as on a spectrogram — and it decays to nothing."""
     n = int(0.26 * RATE)
     t = np.arange(n) / RATE
     body = np.sin(2 * np.pi * 70.0 * t) * np.exp(-t * 22.0)
@@ -103,7 +104,7 @@ def thump(seed: int) -> np.ndarray:
 
 
 def tick() -> np.ndarray:
-    """A bright, very short click: the sound a UI cue wants, and the one this demo uses to show it costs no stream."""
+    """A bright, very short click: the sound a UI cue wants."""
     n = int(0.05 * RATE)
     t = np.arange(n) / RATE
     x = np.sin(2 * np.pi * 1_100.0 * t) * np.exp(-t * 120.0)
@@ -111,84 +112,64 @@ def tick() -> np.ndarray:
     return x / (np.max(np.abs(x)) + 1e-9) * 0.6
 
 
-def loopable(x: np.ndarray, seconds: float) -> np.ndarray:
-    """Cut `x` to exactly `seconds` so that **the end continues into the start**, and the join is not a click.
+def pluck(hz: float, seconds: float, seed: int = 0, bright: float = 1.0) -> np.ndarray:
+    """**A plucked note**, not an organ tone.
 
-    The first version of this function crossfaded the tail into the head *inside* the buffer and then wrote a line that
-    multiplied the tail by zero — a no-op dressed as a second half of the join. `tests/demo.rs` measured the result: the
-    seam of `music_calm.ogg` was a step of 0.0544 against a 99.9th-percentile step of 0.0330 **inside** the file, i.e. a
-    click every pass.
+    A pluck is what makes a demo's music stop between notes: the amplitude falls with `exp(-t·d)` and **the higher
+    partials fall faster than the fundamental** (`d·k^0.6` for partial `k`), which is what the ear hears as a string
+    being struck rather than a tone being held. The first version of this set used `sin(2πft)` with one slow envelope —
+    a drone — and it was audible as a hum on every second after the third.
 
-    What actually makes a loop seamless is that the signal is **periodic in the buffer's length**. These sources are sums
-    of sines whose frequencies are not periods of the buffer, so they are not periodic — but a buffer taken from a
-    *circular* mix is: every oscillator is evaluated on `t` wrapped modulo the loop, so the value at the last sample's
-    successor is the value at the first. `loopable` therefore asks its caller for a phase-correct length rather than
-    stitching two ends together.
+    `bright` scales how much of the upper partials is present: the combat layer is brighter, the calm one darker, so the
+    two layers differ by *timbre* and not only by pitch.
     """
-    want = int(round(seconds * RATE))
-    if len(x) < want:
-        reps = int(np.ceil(want / len(x)))
-        x = np.tile(x, reps)
-    return x[:want].copy()
-
-
-def wind(seed: int) -> np.ndarray:
-    """A 9.6 s bed — two bars, so it lines up with a bar change: band-limited noise with a swell whose period fits the loop.
-
-    The noise component is **not** periodic, and it must not be: a bed of noise whose every pass is identical is a tone,
-    not a bed. What is made periodic is the swell (four cycles in the file), and the noise's ends are tapered by a very
-    short equal-power crossfade of 5 ms — short enough to be inaudible on noise, long enough that the join is not a step.
-    """
-    n = int(round(9.6 * RATE))
+    n = int(seconds * RATE)
     t = np.arange(n) / RATE
-    noise = rng(seed).normal(0.0, 1.0, n)
-    x = one_pole_lowpass(one_pole_highpass(noise, 120.0), 900.0)
-    snapped = lambda f: round(f * 9.6) / 9.6  # noqa: E731
-    sw = 0.6 + 0.4 * np.sin(2 * np.pi * snapped(1.0 / 9.6) * t)
-    x = x * sw
-    # A 5 ms equal-power wrap on the noise only, so the join is a continuation and not a step.
-    fade_n = int(0.005 * RATE)
-    ramp = np.linspace(0.0, 1.0, fade_n)
-    head = x[:fade_n].copy()
-    tail = x[-fade_n:].copy()
-    x[:fade_n] = head * ramp + tail * (1.0 - ramp)
-    x = loopable(x, 9.6)
-    return x / (np.max(np.abs(x)) + 1e-9) * 0.35
+    x = np.zeros(n)
+    for k in range(1, 9):
+        # Higher partials decay faster, which is the whole difference between a pluck and a held tone.
+        decay = 6.0 * (k ** 0.6)
+        level = (0.9 / k) * (bright ** (k - 1))
+        x += level * np.sin(2 * np.pi * hz * k * t + 0.2 * k) * np.exp(-t * decay)
+    # A short noise transient at the onset: the pluck's "attack", which a sum of sines alone does not have.
+    n_attack = int(0.012 * RATE)
+    if n_attack:
+        burst = rng(seed).normal(0.0, 1.0, n_attack) * np.exp(-np.linspace(0.0, 5.0, n_attack)) * 0.25
+        x[:n_attack] += burst
+    x = fade(x, 0.0005, 0.02)
+    return x / (np.max(np.abs(x)) + 1e-9) * 0.8
 
 
-def pad(root_hz: float, bright: float, seconds: float = 9.6, seed: int = 0) -> np.ndarray:
-    """A four-bar loopable pad at `root_hz`: a root, a fifth and an octave, with a slow tremolo.
+def phrase(notes, seconds: float, seed: int = 0, bright: float = 1.0) -> np.ndarray:
+    """Lay plucked notes on a beat grid and return exactly `seconds` of buffer — **with silence between them**.
 
-    **Every periodic part is evaluated on a phase that fits the loop an exact number of times**, which is what makes the
-    last sample continue into the first with no step: `round(f * seconds) / seconds` is the nearest frequency to `f`
-    whose period divides the file. Without it the join is a click (measured: 0.0544 against a 99.9th-percentile step of
-    0.0330) and a layer that loops on the bar drifts out of phase with the bar as well.
+    `notes` is `[(beat, hz, length_beats), …]`; a beat is `BAR_S / 4` at 100 bpm. The buffer is exactly four bars, so the
+    phrase loops on the bar, and because every note decays the gaps are real silence rather than a floor.
     """
     n = int(round(seconds * RATE))
-    t = np.arange(n) / RATE
-    snapped = lambda f: round(f * seconds) / seconds  # noqa: E731 - a one-line phase correction
-    x = np.zeros(n)
-    for multiple, level in ((1.0, 0.55), (1.5, 0.3), (2.0, 0.25), (3.0, 0.1 * bright)):
-        x += level * np.sin(2 * np.pi * snapped(root_hz * multiple) * t + 0.3 * multiple)
-    # A slow amplitude motion on the bar grid, and it is on the grid too: one cycle every bar, 4 in the file.
-    x *= 0.75 + 0.25 * np.sin(2 * np.pi * snapped(1.0 / BAR_S) * t)
-    x += 0.02 * rng(seed).normal(0.0, 1.0, n)
-    x = loopable(x, seconds)
-    return x / (np.max(np.abs(x)) + 1e-9) * 0.4
+    out = np.zeros(n)
+    beat = BAR_S / 4.0
+    for i, (at_beat, hz, length) in enumerate(notes):
+        note = pluck(hz, length * beat, seed=seed + i, bright=bright)
+        start = int(at_beat * beat * RATE)
+        end = min(n, start + len(note))
+        if start < n:
+            out[start:end] += note[: end - start]
+    return out
 
 
 def stinger() -> np.ndarray:
-    """A rising triad, 0.6 s: short enough to sit over music and be named in a log line."""
-    n = int(0.6 * RATE)
-    t = np.arange(n) / RATE
-    x = np.zeros(n)
+    """A short **plucked** riser: three notes up, each decaying, 0.7 s. The first version was three sustained sines held
+    under an envelope — another drone — and the stinger ducks the music for a second, so a drone there was the most
+    audible one of all."""
+    n = int(0.7 * RATE)
+    out = np.zeros(n)
     for i, hz in enumerate((392.0, 494.0, 587.0)):
-        start = int(i * 0.12 * RATE)
-        env = np.exp(-np.maximum(0.0, t - i * 0.12) * 10.0)
-        env[:start] = 0.0
-        x += env * np.sin(2 * np.pi * hz * t)
-    x = fade(x, 0.003, 0.08)
-    return x / (np.max(np.abs(x)) + 1e-9) * 0.6
+        note = pluck(hz, 0.35, seed=70 + i, bright=1.5)
+        start = int(i * 0.09 * RATE)
+        end = min(n, start + len(note))
+        out[start:end] += note[: end - start]
+    return out / (np.max(np.abs(out)) + 1e-9) * 0.7
 
 
 def voice_tone(hz: float) -> np.ndarray:
@@ -202,16 +183,49 @@ def voice_tone(hz: float) -> np.ndarray:
 
 
 def files() -> dict[str, np.ndarray]:
-    """Every file this script makes, by name — the one list the writer, `--check` and `tests/demo.rs` all read."""
+    """Every file this script makes, by name — the list the writer, `--check` and `tests/demo.rs` all read."""
+    # Four bars at 100 bpm. Calm: a bass note on each bar, a sparse pluck above it.
+    calm = [
+        (0.0, 98.0, 1.6),
+        (4.0, 98.0, 1.6),
+        (8.0, 87.3, 1.6),
+        (12.0, 87.3, 1.6),
+        (2.0, 392.0, 0.9),
+        (6.0, 349.2, 0.9),
+        (10.0, 392.0, 0.9),
+        (14.0, 261.6, 1.2),
+    ]
+    # Combat: twice the notes, an octave up, brighter — the same grid, so the change lands on a bar.
+    combat = [
+        (0.0, 116.5, 0.9),
+        (2.0, 116.5, 0.9),
+        (4.0, 103.8, 0.9),
+        (6.0, 103.8, 0.9),
+        (8.0, 116.5, 0.9),
+        (10.0, 116.5, 0.9),
+        (12.0, 98.0, 0.9),
+        (14.0, 98.0, 0.9),
+        (1.0, 466.2, 0.4),
+        (3.0, 466.2, 0.4),
+        (5.0, 415.3, 0.4),
+        (7.0, 415.3, 0.4),
+        (9.0, 466.2, 0.4),
+        (11.0, 466.2, 0.4),
+        (13.0, 392.0, 0.4),
+        (15.0, 392.0, 0.4),
+    ]
     return {
         "step_01.ogg": footstep(11, 0.22, 90.0, 1_700.0),
         "step_02.ogg": footstep(23, 0.26, 70.0, 1_300.0),
         "step_03.ogg": footstep(37, 0.19, 140.0, 2_400.0),
         "hit_01.ogg": thump(5),
         "click.ogg": tick(),
-        "wind.ogg": wind(71),
-        "music_calm.ogg": pad(196.0, 0.6),
-        "music_combat.ogg": pad(233.08, 1.4),
+        "note_low.ogg": pluck(98.0, 0.9, seed=3, bright=0.7),
+        "note_mid.ogg": pluck(196.0, 0.6, seed=4),
+        "note_high.ogg": pluck(392.0, 0.5, seed=5, bright=1.3),
+        "bass.ogg": pluck(73.4, 0.9, seed=6, bright=0.5),
+        "music_calm.ogg": phrase(calm, 4 * BAR_S, seed=20, bright=0.8),
+        "music_combat.ogg": phrase(combat, 4 * BAR_S, seed=40, bright=1.4),
         "stinger.ogg": stinger(),
         "line_01.ogg": voice_tone(330.0),
         "line_02.ogg": voice_tone(392.0),
@@ -219,31 +233,19 @@ def files() -> dict[str, np.ndarray]:
 
 
 def encode(samples: np.ndarray, out: Path) -> None:
-    """Write `samples` as Ogg Vorbis, **declaring exactly its own length**.
+    """Write `samples` as Ogg Vorbis through `ffmpeg`'s native encoder.
 
-    A Vorbis stream's last page declares the frame count, and the last packet decodes to a whole block — more than the
-    stream has. `src/ogg.rs` (iteration 115) exists because of that excess: the decoder returns up to 21 ms of padding,
-    and the crate cuts a loop to the length its last page declares. Measured here before the fix: `step_01.ogg` was
-    written as 0.220 s and decoded to **0.232 s**, 530 frames of padding on a 0.22 s footstep.
-
-    **What was tried and does not work**: `-frames:a <n>` on the output. Measured: a 9 702-frame input still decodes to
-    **10 240** frames with the flag, because the padding is in the last block and the granule, not in how many packets are
-    written. The decoder's own count is therefore up to one block longer than the arithmetic, always, and the length that
-    is exact is the one the last page **declares** — which is what `src/ogg.rs` reads and what `tests/demo.rs` asserts.
+    **Two channels, always**: ffmpeg's native Vorbis encoder takes exactly two and fails `Could not open encoder before
+    EOF` on one (`assets/README.md` found the same for the quick start's footsteps). And the temp file needs the
+    **output** suffix — ffmpeg picks its muxer from the name, and a `.wav` name once made the encode fail.
     """
-    """Write `samples` (mono float, 44.1 kHz) as Ogg Vorbis through `ffmpeg`'s native encoder, the one `assets/README.md` documents."""
     pcm = np.clip(samples, -1.0, 1.0)
     data = (pcm * 32_767.0).astype("<i2").tobytes()
-    # The temp file carries the **output** suffix: ffmpeg picks its muxer from it, and a `.wav` name here once made
-    # the Vorbis encode fail with `Could not open encoder before EOF`.
     with tempfile.NamedTemporaryFile(suffix=".ogg") as tmp:
         subprocess.run(
             [
                 "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
                 "-f", "s16le", "-ar", str(RATE), "-ac", "1", "-i", "pipe:0",
-                # ffmpeg's native Vorbis encoder takes **exactly two channels** (`assets/README.md` found the same for the
-                # quick start's footsteps): the one signal is written to both, so the file is stereo and identical on
-                # each side rather than a mono stream the encoder refuses with `Could not open encoder before EOF`.
                 "-af", "pan=stereo|c0=c0|c1=c0",
                 "-c:a", "vorbis", "-strict", "-2", "-q:a", "5", str(tmp.name),
             ],
@@ -254,13 +256,7 @@ def encode(samples: np.ndarray, out: Path) -> None:
 
 
 def pcm_digest(path: Path) -> str:
-    """The SHA-256 of a file's **decoded samples**, not of its bytes.
-
-    An Ogg container carries a random stream serial, so two encodes of the same arithmetic differ in about twenty bytes
-    and not in a sample (measured: 21 bytes for `step_01.ogg`, 95 for `music_calm.ogg`, and the decoded PCM identical).
-    What `--check` must hold is the audio, because that is what a listener hears and what a re-run of this script is
-    supposed to reproduce: the container's serial is noise.
-    """
+    """The SHA-256 of a file's **decoded samples**, not of its bytes — the container's serial is noise, the audio is not."""
     out = subprocess.run(
         ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path), "-f", "s16le", "-ac", "1", "-ar", str(RATE), "pipe:1"],
         check=True,
@@ -271,7 +267,7 @@ def pcm_digest(path: Path) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("out", type=Path, help="the directory to write into, `assets/audio` in this repository")
+    ap.add_argument("out", type=Path, help="the directory to write into, `assets/audio/demo` in this repository")
     ap.add_argument("--check", action="store_true", help="write nothing; fail when a file is missing or differs")
     args = ap.parse_args()
     if shutil.which("ffmpeg") is None:
@@ -279,7 +275,12 @@ def main() -> int:
         return 2
     args.out.mkdir(parents=True, exist_ok=True)
     made = files()
-    stale = []
+    stale, extra = [], []
+    # **A file no cue names is a leftover**, and the first version of this set left `wind.ogg` behind after the noise
+    # bed was removed. `--check` reports it, so the folder cannot drift from the list.
+    for path in sorted(args.out.glob("*.ogg")):
+        if path.name not in made:
+            extra.append(f"{path.name}: in the folder and not made by this script")
     for name, samples in made.items():
         out = args.out / name
         if args.check:
@@ -293,8 +294,9 @@ def main() -> int:
             continue
         encode(samples, out)
         print(f"{name:<18} {len(samples) / RATE:6.3f} s  {pcm_digest(out)[:16]}")
-    if args.check and stale:
-        print("\n".join(stale), file=sys.stderr)
+    problems = stale + extra
+    if args.check and problems:
+        print("\n".join(problems), file=sys.stderr)
         return 1
     if args.check:
         print(f"{len(made)} files: all present and identical to what this script makes")

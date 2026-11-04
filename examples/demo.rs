@@ -15,7 +15,7 @@
 //! |---|---|---|
 //! | 1 | 0 – 3 | three footsteps: one cue, three recordings, never the same one twice in a row |
 //! | 2 | 3 – 5 | a burst: one sample, an exact pitch — a play with no decision in it |
-//! | 3 | 5 – 9 | a wind bed on `Ambience` and the calm layer on `Music`, both looping and both quiet |
+//! | 3 | 5 – 9 | the calm music layer, looping on `Music`: phrases that decay to silence between notes |
 //! | 4 | 9 – 13 | a line of dialogue ducks `Music` by 8 dB and `Effects` by 4, holds, and recovers |
 //! | 5 | 13 – 17 | the combat layer comes in **on the bar** and the calm one goes quiet |
 //! | 6 | 17 – 20 | a stinger arrives at once and ducks the music it plays over |
@@ -112,19 +112,32 @@ pub fn table() -> CueTable {
             gain_db: -4.0,
             ..Cue::new("gun.burst")
         },
+        // **The A half of the variant vignette**: one recording, played eight times. The demo plays it only to show what
+        // the crate's picker exists to prevent, and `tests/demo.rs` keeps it out of the windowed tour's script.
+        Cue {
+            sounds: vec![SoundSlot::new("step_01.ogg")],
+            repeat: Repeat::Shuffle,
+            gain_db: -3.0,
+            max_instances: 2,
+            ..Cue::new("footstep.single")
+        },
         // A UI click: one sample, its own bus, and a cue that must not move any other cue's draws.
         Cue {
             sounds: vec![SoundSlot::new("click.ogg")],
             pitch: bevy_siren::PitchRange::exact(0.0),
             ..Cue::new("ui.click")
         },
-        // A bed: one file, looping, quiet, on its own bus.
+        // **A bed the score does not own.** It lives on `Ambience`, not `Music`: `adopt_layers` tags every voice on the
+        // `Music` bus as a music layer and drives it to the score's target, so a stem played directly on `Music` is
+        // silenced (measured: the layer vignette's A half was −180 dBFS, and the duck's bed never played at all). A bed
+        // on `Ambience` is what a game's ambience is anyway, and the duck's rule `Dialogue -> Ambience` exercises the
+        // same code as `Dialogue -> Music`.
         Cue {
-            sounds: vec![SoundSlot::new("wind.ogg")],
+            sounds: vec![SoundSlot::new("music_calm.ogg")],
             mode: Mode::Loop,
             bus: "Ambience".to_owned(),
-            gain_db: -12.0,
-            ..Cue::new("wind")
+            gain_db: -4.0,
+            ..Cue::new("bed")
         },
         // Two music stems, started silent by the score and brought in on a bar.
         Cue {
@@ -145,6 +158,19 @@ pub fn table() -> CueTable {
             bus: "Music".to_owned(),
             priority: bevy_siren::UNSTEALABLE_PRIORITY,
             ..Cue::new("music.stinger")
+        },
+        // **A cue with no per-cue limit worth speaking of**, for the budget vignette: the *table's* `max_voices` is the cap
+        // under test there, and `footstep.grass`'s own `max_instances: 2` binds first in both halves — which is why that
+        // vignette's A and B came out sample-identical (0 bytes different) until this cue existed.
+        Cue {
+            sounds: vec![
+                SoundSlot::new("step_01.ogg"),
+                SoundSlot::new("step_02.ogg"),
+                SoundSlot::new("step_03.ogg"),
+            ],
+            max_instances: 64,
+            gain_db: -3.0,
+            ..Cue::new("footstep.many")
         },
         // A one-shot with its own polyphony limit, which scene 7 fills.
         // **Six of these sum past full scale if each one is at unity**: measured in the first run of `demo_render`, six
@@ -183,12 +209,18 @@ pub fn table() -> CueTable {
 }
 
 /// **The mix**: the crate's defaults, with `Effects` capped at three so scene 7's steal has a cap to hit.
+///
+/// `Ambience` is still one of the four buses even though nothing on it plays in this tour: the crate ships four, and a
+/// demo that renamed the set would be demonstrating a different crate.
 pub fn settings() -> SirenSettings {
     SirenSettings {
         buses: vec![
             BusLevel::new("Music").gain_db(-6.0).max_voices(4),
             BusLevel::new("Effects").gain_db(-3.0).max_voices(3),
-            BusLevel::new("Ambience").gain_db(-9.0),
+            // **Room for the bed.** At the crate's default table budget the bed was *refused* — `refused \`music.calm\`:
+            // no voice free` — because the score's two stems took the first slots before the vignette's own play arrived,
+            // and the duck then lowered a bus with nothing playing on it. Measured in `tour.txt`, not guessed.
+            BusLevel::new("Ambience").gain_db(-9.0).max_voices(4),
             BusLevel::new("Dialogue"),
         ],
         ..SirenSettings::default()
@@ -361,7 +393,6 @@ fn start_of(
     match SCENES[scene].start {
         Start::Footsteps | Start::Burst | Start::Hits | Start::Distances => {}
         Start::Bed => {
-            play.write(Play::cue("wind"));
             music.write(
                 MusicLayers::new(vec![
                     ("calm".to_owned(), -3.0),

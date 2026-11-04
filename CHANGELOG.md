@@ -269,6 +269,11 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   rule both searches ask: the stamps match, **or** the index carries an override **granted for exactly that model** — so
   consenting to one mismatch is not consenting to a third model, which would be a standing permission to rank noise.
 
+### Changed
+
+- **The demo is now three A/B pairs, and the sound set was rewritten: the first one hummed and showed nothing.** Heard back, the nine-scene tour had a **static drone** under it — `music_calm`/`music_combat` were three pure sines (196/294/392 Hz, spectral flatness **0.0005**) beneath a permanent noise bed (`wind.ogg`) — so its quietest 50 ms frame **after the fifth second was −28 dBFS**, with only 9.8 % of frames below −50 dBFS. That is a hum, and it is why the demo did not sound good. The set is now **plucked phrases that decay to silence** (31–34 % of each music file below −60 dBFS; no bed), and the demo is **A/B pairs**: one variable each, halves matched to within **0.5 LU** on integrated loudness (ITU-R BS.1770), silence between them, and a picture that names **A** or **B**, what to listen for, each half's waveform and its level. The three that ship: **variant selection** (one recording ten times vs three with a no-repeat window, correlation −0.08), **the voice budget** (forty voices vs a cap of four, +0.87) and **distance** (one level vs the inverse law, +0.86). 26 s, 720p, no sample at the rail, −24.9 LUFS.
+  **Two vignettes were cut rather than faked**: *ducking* and *the layer change on the bar* need a bed that keeps playing, and on this crate a sustained bed is either a `Music` stem the score adopts (measured: the A half came out at **−180 dBFS**) or a cue the table's budget refused in the harness. The duck rule was measured working (`ducked Ambience by -8.0 dB`) with nothing under it to duck, and the pair correlated at **0.997** — a demonstration of nothing. They are the next iteration's item. `docs/media/demo/README.md` has the account, the measurements and the commands; `tests/demo.rs` holds every shipped pair to a real difference, a recorded level match and no clipping.
+
 ### Added
 
 ### Added

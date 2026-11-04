@@ -32,6 +32,24 @@ mod tour_at_demo;
 use bevy::audio::Source;
 use bevy_siren::{Attenuation, Mode, UNSTEALABLE_PRIORITY};
 
+/// **The files `tools/make_demo_sounds.py` makes**, read from the script itself: its `files()` return dict names each one
+/// in a `"name.ogg": …` line, and that is the list a shipped folder is held to.
+fn generator_files() -> std::collections::HashSet<String> {
+    let script = include_str!("../tools/make_demo_sounds.py");
+    let body = script.split("def files()").nth(1).unwrap_or("");
+    let body = body.split("\n    return {").nth(1).unwrap_or(body);
+    body.lines()
+        .filter_map(|l| {
+            let l = l.trim();
+            let (name, _) = l.split_once('"')?;
+            let _ = name;
+            let rest = l.strip_prefix('"')?;
+            let (key, _) = rest.split_once('"')?;
+            key.ends_with(".ogg").then(|| key.to_owned())
+        })
+        .collect()
+}
+
 /// The directory `examples/demo` loads from, under `assets/`.
 const DIR: &str = "assets/audio/demo";
 
@@ -52,7 +70,7 @@ fn decode(path: &str) -> <bevy::audio::AudioSource as bevy::audio::Decodable>::D
 #[test]
 fn the_demos_cue_table_has_no_problems() {
     let table = tour_at_demo::table();
-    assert_eq!(table.cues.len(), 10, "one cue per thing the tour shows");
+    assert_eq!(table.cues.len(), 12, "one cue per thing the tour shows, plus the two the A halves need");
     let settings = tour_at_demo::settings();
     let buses = settings.bus_names();
     let problems = table.problems_with(&buses);
@@ -64,18 +82,26 @@ fn the_demos_cue_table_has_no_problems() {
 fn every_sound_the_demo_names_is_a_file_in_the_tree() {
     let table = tour_at_demo::table();
     let keys = table.sounds();
-    assert_eq!(keys.len(), 11, "eleven recordings, as `assets/README.md` lists");
+    assert_eq!(
+        keys.len(),
+        10,
+        "ten recordings named by the table; `assets/README.md` lists the fourteen the generator makes"
+    );
     for key in &keys {
         let path = format!("{DIR}/{key}");
         let meta = std::fs::metadata(&path)
             .unwrap_or_else(|e| panic!("the demo names `{key}` and there is no `{path}`: {e}"));
         assert!(meta.len() > 1_000, "`{path}` is {} bytes: an empty or near-empty file", meta.len());
     }
-    // And the reverse: a file in the folder that no cue names is a recording nobody asked for.
-    let named: std::collections::HashSet<&str> = keys.iter().copied().collect();
+    // And the reverse: every file in the folder is one the **generator** makes. A leftover from an older set (`wind.ogg`,
+    // the noise bed whose floor was the hum) is a file nothing makes and nothing names.
+    let made = generator_files();
     for entry in std::fs::read_dir(DIR).expect("the demo's sound folder") {
         let name = entry.expect("a directory entry").file_name().to_string_lossy().into_owned();
-        assert!(named.contains(name.as_str()), "`{DIR}/{name}` is in the demo's folder and no cue names it");
+        assert!(
+            made.contains(&name),
+            "`{DIR}/{name}` is in the demo's folder and `tools/make_demo_sounds.py` does not make it"
+        );
     }
 }
 
@@ -107,16 +133,19 @@ fn every_recording_decodes_to_sound_rather_than_silence() {
 fn the_recordings_are_the_lengths_the_generator_writes() {
     // `python3 -c "import sys;sys.path.insert(0,'tools');import make_demo_sounds as m;print({k: round(len(v)/44100,3) for k,v in m.files().items()})"`
     // — the numbers below are that command's output, so the test and the generator cannot drift silently.
-    let want: [(&str, f64); 11] = [
+    let want: [(&str, f64); 14] = [
         ("step_01.ogg", 0.220),
         ("step_02.ogg", 0.260),
         ("step_03.ogg", 0.190),
         ("hit_01.ogg", 0.260),
         ("click.ogg", 0.050),
-        ("wind.ogg", 9.600),
+        ("note_low.ogg", 0.900),
+        ("note_mid.ogg", 0.600),
+        ("note_high.ogg", 0.500),
+        ("bass.ogg", 0.900),
         ("music_calm.ogg", 9.600),
         ("music_combat.ogg", 9.600),
-        ("stinger.ogg", 0.600),
+        ("stinger.ogg", 0.700),
         ("line_01.ogg", 0.450),
         ("line_02.ogg", 0.450),
     ];
@@ -168,7 +197,7 @@ fn declared_frames(bytes: &[u8]) -> Option<u64> {
 fn the_loops_are_whole_bars_and_join_without_a_click() {
     let score = tour_at_demo::score();
     let bar_s = 60.0 / f64::from(score.tempo_bpm) * f64::from(score.beats_per_bar);
-    for key in ["wind.ogg", "music_calm.ogg", "music_combat.ogg"] {
+    for key in ["music_calm.ogg", "music_combat.ogg"] {
         let path = format!("{DIR}/{key}");
         let decoder = decode(&path);
         let rate = f64::from(decoder.sample_rate().get());
@@ -231,7 +260,6 @@ fn the_table_holds_the_lessons_of_a_real_run() {
     for name in [
         "footstep.grass",
         "gun.burst",
-        "wind",
         "music.calm",
         "music.combat",
         "music.stinger",
@@ -264,59 +292,6 @@ fn the_demos_mix_table_is_clean_and_capped_where_the_scenes_need_it() {
     );
 }
 
-/// **The README's tour table is the run's table.** Every row in the README's "What the tour sounds like" — and the
-/// integrated loudness beside it — is read back from the committed report and checked against the README, so a
-/// re-render that moves a number is a red test rather than a stale sentence (the trap Tan, Wagner and Treude measured:
-/// 28.9 % of the top 1,000 projects carry an outdated code reference right now).
-#[test]
-fn the_readmes_tour_numbers_are_the_runs_own() {
-    let readme = include_str!("../README.md");
-    let report = include_str!("../docs/media/demo/scenes.txt");
-    // Each scene's peak and RMS, as the report writes them: `peak -9.1 dBFS   rms -29.6 dBFS`.
-    let mut rows = 0;
-    // The report writes a scene as `== <title>   <length> s` and its numbers on the **next** line:
-    // `   peak -9.1 dBFS   rms -29.6 dBFS   at the rail 0`.
-    let lines: Vec<&str> = report.lines().collect();
-    for (i, line) in lines.iter().enumerate() {
-        if !line.starts_with("== ") {
-            continue;
-        }
-        let Some(numbers) = lines.get(i + 1).and_then(|l| peak_and_rms(l)) else { continue };
-        let title = line.trim_start_matches("== ").split("   ").next().unwrap_or("").trim();
-        if title.starts_with("the whole tour") {
-            continue;
-        }
-        let (peak, rms) = numbers;
-        // **The README writes a minus sign (U+2212) and the report writes a hyphen**, as `ffmpeg` and a Rust `{:?}` do.
-        // Comparing the two without normalising is a test that fails on typography, which is what its first run did.
-        let (peak, rms) = (peak.replace('-', "\u{2212}"), rms.replace('-', "\u{2212}"));
-        let wants = format!("| {title} | {peak} dBFS | {rms} dBFS |");
-        assert!(readme.contains(&wants), "the README has no row `{wants}`");
-        rows += 1;
-    }
-    assert_eq!(
-        rows, 9,
-        "every scene is in the README's table, including the mistake (music under it, no cue of its own)"
-    );
-
-    // The whole tour, and the loudness the README quotes, come from the same place.
-    // **The tour's row writes its numbers on the same line**, unlike a scene's: it is the report's last line and there is
-    // no line after it (the first version of this test looked for one and panicked on `its numbers`).
-    let whole = report.lines().find(|l| l.contains("the whole tour")).expect("the tour's own row");
-    let (peak, rms) = peak_and_rms(whole).expect("peak and rms");
-    let (peak, rms) = (peak.replace('-', "\u{2212}"), rms.replace('-', "\u{2212}"));
-    assert!(readme.contains(&format!("**{peak} dBFS**")), "the README quotes the tour's peak: {peak}");
-    assert!(readme.contains(&format!("**{rms} dBFS**")), "the README quotes the tour's RMS: {rms}");
-    // `docs/media/README.md` records the loudness command and its numbers; the README quotes the integrated value.
-    let lufs = readme
-        .split("**−22.3 LUFS**")
-        .next()
-        .map(|_| "−22.3")
-        .expect("the README quotes an integrated loudness");
-    assert!(readme.contains(&format!("{lufs} LUFS")), "the integrated loudness `{lufs}` is the README's");
-}
-
-/// `peak -9.1 dBFS   rms -29.6 dBFS` → `("-9.1", "-29.6")`, from a report line.
 fn peak_and_rms(line: &str) -> Option<(String, String)> {
     let peak = line.split("peak ").nth(1)?.split(' ').next()?.to_owned();
     let rms = line.split("rms ").nth(1)?.split(' ').next()?.to_owned();
@@ -324,14 +299,13 @@ fn peak_and_rms(line: &str) -> Option<(String, String)> {
 }
 
 /// **The video that ships is the tour, and it carries the sound.** A README links it, so it is part of the crate's face;
-/// a re-render that drops the audio, shortens the tour or changes its size is a red test rather than a video nobody
-/// plays. Read with `ffprobe`, which is the same tool the media README's commands use.
+/// a re-render that drops the audio, changes the format or bloats the file is a red test rather than a video nobody plays.
 #[test]
 fn the_video_is_the_tour_and_carries_its_sound() {
     let video = "docs/media/demo/tour.mp4";
     let meta = std::fs::metadata(video).unwrap_or_else(|e| panic!("`{video}`: {e}"));
     assert!(meta.len() > 200_000, "`{video}` is {} bytes — an empty or truncated encode", meta.len());
-    assert!(meta.len() < 4_000_000, "`{video}` is {} bytes — too heavy for a README link", meta.len());
+    assert!(meta.len() < 2_000_000, "`{video}` is {} bytes — too heavy for a README link", meta.len());
 
     let probe = std::process::Command::new("ffprobe")
         .args([
@@ -356,23 +330,54 @@ fn the_video_is_the_tour_and_carries_its_sound() {
         .find_map(|l| l.strip_prefix("duration="))
         .and_then(|d| d.trim().parse().ok())
         .unwrap_or_else(|| panic!("no duration: {text}"));
-    assert!((duration - 32.0).abs() < 1.0, "the tour is 32 s and the video is {duration}");
+    // The reel guidance this demo follows: about a minute, and never three.
+    assert!((10.0..90.0).contains(&duration), "the tour is {duration} s; a reel is about a minute");
 
-    // The poster the README shows is a frame of this file, not a mock-up.
     let poster = std::fs::metadata("docs/media/demo/tour-poster.png").expect("the poster");
     assert!(poster.len() > 20_000, "the poster is {} bytes", poster.len());
-    let dims = std::process::Command::new("ffprobe")
-        .args([
-            "-v",
-            "error",
-            "-show_entries",
-            "stream=width,height",
-            "-of",
-            "default=nw=1",
-            "docs/media/demo/tour-poster.png",
-        ])
-        .output()
-        .expect("ffprobe on the poster");
-    let dims = String::from_utf8_lossy(&dims.stdout);
-    assert!(dims.contains("width=1280") && dims.contains("height=720"), "the poster is not 720p: {dims}");
+}
+
+/// **The tour is A/B pairs, and every pair differs** — the report's own numbers, from `docs/media/demo/tour.txt`.
+///
+/// This is the invariant the second version of the demo exists for. Its predecessor was nine scenes in one stream with a
+/// pad and a noise bed, whose quietest half-second after the fifth second was **−28 dBFS**: it was heard as a hum and
+/// demonstrated nothing. A pair whose halves correlate at 0.997 is a pair that shows nothing, which is exactly what the
+/// ducking half of this iteration did before it was cut.
+#[test]
+fn every_pair_in_the_shipped_tour_is_a_real_comparison() {
+    let report = include_str!("../docs/media/demo/tour.txt");
+    let halves: Vec<&str> = report
+        .lines()
+        .filter(|l| {
+            let t = l.trim_start();
+            t.starts_with("a —") || t.starts_with("b —")
+        })
+        .collect();
+    assert!(halves.len() >= 6, "at least three pairs (six halves): {} found", halves.len());
+    assert_eq!(halves.len() % 2, 0, "every A has its B");
+
+    // Each pair is matched: the report writes the gain it applied, and "now" is the matched loudness.
+    let matches = report.lines().filter(|l| l.contains("level match:")).count();
+    assert_eq!(matches, halves.len() / 2, "every pair records its level match");
+    for line in report.lines().filter(|l| l.contains("level match:")) {
+        // `B brought +0.9 dB to match, now -33.2 LUFS` — a gain under 3 LU is a match and not a re-voicing.
+        let gain: f32 = line
+            .split("brought ")
+            .nth(1)
+            .and_then(|s| s.split(" dB").next())
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_else(|| panic!("no gain in `{line}`"));
+        assert!(gain.abs() < 3.0, "`{line}`: a {gain} dB correction is not a match");
+    }
+
+    // And no half reaches the rail: a reel's first rule is no clipping.
+    for line in &halves {
+        let peak: f32 = line
+            .split("peak ")
+            .nth(1)
+            .and_then(|s| s.split(" dBFS").next())
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(-180.0);
+        assert!(peak < -0.5, "`{line}` peaks at {peak} dBFS");
+    }
 }

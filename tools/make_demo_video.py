@@ -51,19 +51,23 @@ def font(size, bold=False):
 
 
 def parse_report(path):
-    """The scenes, their lengths and their numbers, from `demo_render`'s own report."""
+    """The vignettes: title, the two halves' numbers, and what to listen for — from `demo_render`'s own report."""
     scenes, current = [], None
     for line in path.read_text().splitlines():
-        if line.startswith("== "):
-            head = line[3:]
-            title, _, length = head.partition("   ")
-            current = {"title": title.strip(), "len": float(length.split()[0]), "peak": "", "rms": ""}
-            scenes.append(current)
-        elif current is not None and "peak " in line:
-            current["peak"] = line.split("peak ")[1].split()[0]
-            current["rms"] = line.split("rms ")[1].split()[0]
-    # The last row is the whole tour, which is a label and not a scene.
-    return [s for s in scenes if not s["title"].startswith("the whole tour")]
+        if line.startswith("vignette "):
+            title = line.split("·", 1)[1].strip()
+            if current is None or current["title"] != title:
+                current = {"title": title, "halves": [], "listen": ""}
+                scenes.append(current)
+        elif current is not None and line.strip().startswith(("a —", "b —")):
+            part = line.strip()[0]
+            seg = line.split(":", 1)[1]
+            length = float(seg.split(",")[0].split()[0])
+            rms = float(line.split("rms ")[1].split()[0]) if "rms " in line else -40.0
+            current["halves"].append({"which": part, "label": line.strip()[4:].split(":")[0], "len": length, "rms": rms})
+        elif current is not None and line.strip().startswith("listen for: "):
+            current["listen"] = line.strip()[len("listen for: "):]
+    return [s for s in scenes if len(s["halves"]) == 2]
 
 
 def parse_bus(path):
@@ -93,72 +97,92 @@ def bus_db_at(history, t):
     return best
 
 
-def frame(scenes, buses, t, total, title_f, label_f, small_f):
+def frame(scenes, wave_paths, t, total, title_f, label_f, small_f, big_f):
+    """One frame: which vignette, which half (**A** or **B**), what to listen for, and the level of both halves so far."""
     im = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(im)
 
-    # Which scene is on screen, and how far into it.
-    start, scene, into = 0.0, scenes[0], t
-    for s in scenes:
-        if t >= start and t < start + s["len"]:
-            scene, into = s, t - start
-            break
-        start += s["len"]
+    # Which vignette and which half is playing, from the report's own lengths plus the gaps the renderer inserted.
+    at, idx, half = 0.0, 0, 0
+    for i, v in enumerate(scenes):
+        for h, part in enumerate(v["halves"]):
+            if at <= t < at + part["len"] + 0.35:
+                idx, half = i, h
+                break
+            at += part["len"] + (0.35 if h == 0 else 0.9)
+        else:
+            continue
+        break
+    v = scenes[idx]
+    part = v["halves"][half]
 
-    d.text((48, 36), "bevy_siren", font=title_f, fill=INK)
-    d.text((48, 78), "a 32-second tour of the crate's decisions, with the sound it made", font=small_f, fill=MUTED)
+    d.text((48, 30), "bevy_siren", font=title_f, fill=INK)
+    d.text((48, 70), f"{len(scenes)} A/B pairs — one variable each, level-matched, the sound the crate made", font=small_f, fill=MUTED)
 
-    # **The scene, large**, with its own explanation under it: this is the "what is it demoing" half.
-    d.text((48, 150), scene["title"], font=title_f, fill=SCENE_INK)
-    what = SCENE_WHAT.get(scene["title"], "")
-    d.text((48, 200), what, font=label_f, fill=INK)
-    if scene["rms"]:
-        d.text((48, 238), f"peak {scene['peak']} dBFS   rms {scene['rms']} dBFS   (this scene, measured)", font=small_f, fill=MUTED)
+    # **A or B, large.** The single most important thing on the frame: a listener must know which one they are hearing.
+    tag = "A" if half == 0 else "B"
+    colour = (255, 120, 120) if half == 0 else (120, 220, 160)
+    d.rectangle([48, 140, 130, 240], outline=colour, width=4)
+    d.text((66, 158), tag, font=big_f, fill=colour)
+    d.text((150, 148), part["label"], font=title_f, fill=INK)
+    d.text((150, 196), f"vignette {idx + 1}: {v['title']}", font=label_f, fill=colour)
 
-    # **The bus meters**: the crate's own gains, one bar per bus, with the duck visible as a shorter bar.
-    top = 320
-    d.text((48, top - 34), "each bus's gain, from SirenMix — the crate's numbers, not the demo's", font=small_f, fill=MUTED)
-    for i, (bus, colour) in enumerate(BUS_COLOUR.items()):
-        y = top + i * 46
-        db = bus_db_at(buses.get(bus, [(0.0, 0.0)]), t)
-        # −30 dB is an empty bar; 0 dB is full.
-        width = int(max(0.0, min(1.0, (db + 30.0) / 30.0)) * 700)
-        d.text((48, y + 4), f"{bus:<9}", font=label_f, fill=colour)
-        d.rectangle([170, y + 2, 170 + 700, y + 24], outline=(52, 60, 76))
-        if width:
-            d.rectangle([170, y + 2, 170 + width, y + 24], fill=colour)
-        d.text((890, y + 4), f"{db:6.1f} dB", font=label_f, fill=colour)
+    # **What to listen for**, wrapped: the half of the demo people said was missing.
+    words, line, lines = v["listen"].split(), "", []
+    for word in words:
+        trial = (line + " " + word).strip()
+        if d.textlength(trial, font=label_f) > W - 300:
+            lines.append(line)
+            line = word
+        else:
+            line = trial
+    lines.append(line)
+    for i, text in enumerate(lines[:4]):
+        d.text((150, 250 + i * 30), text, font=label_f, fill=INK)
 
-    # **The timeline**: the whole tour, the scenes numbered, the playhead where the sound is.
-    y = H - 92
-    d.rectangle([48, y, W - 48, y + 34], outline=(52, 60, 76))
-    left = 48
-    for i, s in enumerate(scenes):
-        w = (s["len"] / total) * (W - 96)
-        if i == t // max(s["len"], 1e-9):
-            pass
-        d.text((left + 8, y + 9), str(i + 1), font=small_f, fill=MUTED)
-        left += w
-    playhead = 48 + (t / total) * (W - 96)
-    d.rectangle([playhead - 2, y - 6, playhead + 2, y + 40], fill=SCENE_INK)
+    # **The two halves as waveforms**, which is the one picture that shows *why* A and B differ: eight even hits against
+    # an uneven walk, forty spikes against four. Read from the WAVs the renderer wrote, one column per pixel.
+    wave_top = 380
+    d.text((48, wave_top - 24), "the two halves, sample for sample (A above, B below)", font=small_f, fill=MUTED)
+    for h, part_name in enumerate(("a", "b")):
+        path = wave_paths.get((idx, part_name))
+        if path is None or not path.exists():
+            continue
+        raw = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path), "-f", "s16le", "-ac", "1", "-ar", "8000", "pipe:1"],
+            check=True, stdout=subprocess.PIPE,
+        ).stdout
+        data = memoryview(raw).cast("h")
+        n = len(data)
+        y0, hgt = wave_top + h * 70, 62
+        c = (255, 120, 120) if h == 0 else (120, 220, 160)
+        d.line([(48, y0 + hgt // 2), (W - 48, y0 + hgt // 2)], fill=(40, 46, 58))
+        for x in range(W - 96):
+            lo, hi = n * x // (W - 96), n * (x + 1) // (W - 96)
+            if hi <= lo:
+                continue
+            seg = data[lo:hi]
+            peak = max(max(seg), -min(seg)) / 32768.0
+            peak = peak ** 0.5  # a square root, so a quiet hit is visible beside a loud one
+            amp = int(peak * (hgt // 2 - 2))
+            d.line([(48 + x, y0 + hgt // 2 - amp), (48 + x, y0 + hgt // 2 + amp)], fill=c)
+
+    # **The two halves' levels**, so "matched" is visible: two bars, A and B, at their RMS.
+    base = H - 128
+    d.text((48, base - 26), "the two halves, matched to within 0.5 LU (ITU-R BS.1770)", font=small_f, fill=MUTED)
+    for h, p_ in enumerate(v["halves"]):
+        y = base + h * 34
+        rms = p_.get("rms", -40)
+        width = int(max(0.05, min(1.0, (rms + 60) / 60)) * 700)
+        c = (255, 120, 120) if h == 0 else (120, 220, 160)
+        d.text((48, y + 4), "A" if h == 0 else "B", font=label_f, fill=c)
+        d.rectangle([90, y + 1, 90 + 700, y + 22], outline=(52, 60, 76))
+        d.rectangle([90, y + 1, 90 + width, y + 22], fill=c)
+        d.text((810, y + 4), f"{rms:6.1f} dBFS", font=label_f, fill=c)
+
     elapsed = f"{int(t // 60)}:{t % 60:04.1f}"
-    d.text((W - 150, y + 9), f"{elapsed} / {int(total // 60)}:{total % 60:04.1f}", font=small_f, fill=MUTED)
+    d.text((W - 170, H - 46), f"{elapsed} / {int(total // 60)}:{total % 60:04.1f}", font=small_f, fill=MUTED)
     return im
-
-
-# **What each moment demonstrates**, in a sentence a stranger can read. Keyed by the report's own scene titles, so a
-# renamed scene fails the build rather than shipping a blank caption.
-SCENE_WHAT = {
-    "1 · three footsteps": "one cue, three recordings — the picker never plays the same foot twice in a row",
-    "2 · a burst": "one sample at an exact pitch: a play with no decision in it, so it takes no draw from the seed",
-    "3 · a bed and a pad": "a looping ambience and a looping music layer, each on its own bus",
-    "4 · a line ducks the music": "a line of dialogue lowers Music by 8 dB and Effects by 4, then releases",
-    "5 · the layer changes on the bar": "the combat layer comes in on a bar of 100 bpm, not on a frame",
-    "6 · a stinger": "a stinger arrives at once and ducks the music it plays over",
-    "7 · the budget": "six hits against a cue limit of three: three play, three are taken back",
-    "8 · distance": "the same sound at 4 m and at 16 m — the distance law decides the level",
-    "9 · a mistake": "a cue name that does not exist: refused, and the console says which",
-}
 
 
 def main():
@@ -166,14 +190,11 @@ def main():
         print(__doc__)
         return 2
     src, out = Path(sys.argv[1]), Path(sys.argv[2])
-    scenes = parse_report(src / "scenes.txt")
-    buses = parse_bus(src / "bus-gain.csv")
-    missing = [s["title"] for s in scenes if s["title"] not in SCENE_WHAT]
-    if missing:
-        print(f"no caption for {missing}", file=sys.stderr)
-        return 1
-    total = sum(s["len"] for s in scenes)
-    title_f, label_f, small_f = font(34, True), font(20), font(15)
+    scenes = parse_report(src / "tour.txt")
+    # Each half's own WAV, for the waveform: `vignette-<n>-<a|b>.wav`.
+    wave_paths = {(i, h): src / f"vignette-{i + 1}-{h}.wav" for i in range(len(scenes)) for h in ("a", "b")}
+    total = sum(h["len"] for s in scenes for h in s["halves"]) + 0.35 * len(scenes) + 0.9 * len(scenes)
+    title_f, label_f, small_f, big_f = font(34, True), font(20), font(15), font(64, True)
 
     out.parent.mkdir(parents=True, exist_ok=True)
     # Frames are piped to ffmpeg: 32 s at 30 fps is 960 frames, and keeping them on this volume is 1.5 GB of PNGs it does
@@ -181,16 +202,24 @@ def main():
     cmd = [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
         "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "pipe:0",
-        "-i", str(src / "mix.wav"),
+        "-i", str(src / "tour.wav"),
         "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
         "-movflags", "+faststart", "-shortest", str(out),
     ]
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     n = int(total * FPS)
-    for i in range(n):
-        proc.stdin.write(frame(scenes, buses, i / FPS, total, title_f, label_f, small_f).tobytes())
-    proc.stdin.close()
+    try:
+        for i in range(n):
+            proc.stdin.write(frame(scenes, wave_paths, i / FPS, total, title_f, label_f, small_f, big_f).tobytes())
+        proc.stdin.close()
+    except BrokenPipeError:
+        # **Write the encoder's own words**, not a Python traceback: a broken pipe means ffmpeg stopped, and why is in its
+        # stderr (a missing input, a bad argument), which is the only thing worth printing.
+        proc.stdin.close()
+        print("ffmpeg stopped early:\n" + proc.stderr.read().decode(errors="replace"), file=sys.stderr)
+        proc.wait()
+        return 1
     if proc.wait() != 0:
         print("ffmpeg failed", file=sys.stderr)
         return 1
