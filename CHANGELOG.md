@@ -7,6 +7,18 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A play whose file failed to load was answered `Played`, and nothing ever sounded.** A handle exists, the asset server knows the load failed and says why (`LoadState::Failed`), and the crate waited for the bytes **for ever**:
+  `Played` was written, the voice sat in the budget, and the log read as healthy. Probed on the real `AssetServer` with a misspelt file name and the default cue (`max_instances: 1`): **six plays, six `Played`, no `Refused`, a
+  log of *played* and *stolen by ui.click (cue)* — each dead voice held until the next play stole it, which hides the leak, so nothing looked wrong**. It is the commonest authoring mistake there is, and the crate's own rule says
+  *every play answers exactly one of `Played`/`Refused`, and nothing plays on a refusal*; `cues.yaml` case 25 already cites *"Bevy's own split of not-found from failed-to-load"* and only one side of it was built (bytes the
+  decoder refuses). Now the crate asks the server where it decides: **a play whose picked file has failed is refused** (`MissingSound { sound }`; no `Played`, no voice, nothing counted), and **a voice spawned while the load was in
+  flight, whose load then fails, is refused in the frame the server says so and despawned** (`playback::refuse_failed_loads`, both backends; the `Played` it could not have known to withhold stands, as for bytes the decoder
+  refuses). The log line carries what the variant cannot — *"the file for sound `typo_click.ogg` failed to load: Path not found: /…/typo_click.ogg"* — which is option 4 of that decision record: **no variant is added**, so no
+  consumer's exhaustive `match` breaks; a game that prints `Refused::reason` still reads the one sentence (the record now says why that argues for option 1). **A load still in flight is not refused** and nothing is invented about
+  a slow disk. Cost: the system **0.06 µs a frame** with no waiting voice, 0.06 with 256 running ones, **0.77** with 256 that never start (a headless app, the worst case); the check at a play **8.5 ns** for a loaded handle.
+  `tests/failed_load.rs` (real server, a loader that waits at a gate the test opens and then succeeds or fails, so the order of events is the test's): three red on the unchanged tree, four with `mixer`, and each of the checks, switched off in turn, reddened the tests
+  that guard it; `cues.yaml` case 37; `docs/media/failed-load.png`. Not listened to — there is nothing to hear. **Not changed**: a load that never resolves still waits; bytes that load and do not decode still panic Bevy's own path
+  (`AudioSource::decoder` unwraps) where the mixer refuses them.
 - **An Ogg Vorbis loop produced no samples — on the crate's own mixer, and on Bevy's path too whenever `mixer` or `semantic` was on.** The crate's `rodio` line named `vorbis`, which is `symphonia`'s decoder, and
   `rodio` reports a span of length zero until that decoder's first sample (a Vorbis stream's first packet carries no audio); `Buffered`, which `repeat_infinite` is built on, reads a zero span as *an empty source*.
   Measured on the real `tests/fixtures/tone.ogg`: `decoder.repeat_infinite()` — built the way Bevy builds its decoder (`Decoder::builder().with_byte_len(n)…`, `audio_output.rs:165`), **not** through a running `AudioPlugin` — yielded **0 of 147 456 samples**, and on the real `MixerBackend` a loop of a 0.1 s Ogg had **ended before 350 ms** — where a

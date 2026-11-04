@@ -1,0 +1,241 @@
+//! SCRATCH, iteration 116: when do the stems of a score start, with the real `AssetServer` loading real files?
+//!
+//! The real `SirenPlugin` and `MusicPlugin` run in a headless app whose frames are paced at 16.667 ms; the output is a recording `AudioOutput` that notes the frame each `play` arrives in and
+//! (with `--render`) puts the sample into an offline `rodio` mixer pulled one frame's worth per update — the device, minus the device. Deleted before the commit; the source is kept in
+//! `docs/loop/runs/2026-11-04-116/evidence/after/stem-skew.rs.txt`.
+//!
+//!     cargo run --release --features mixer --example scratch_stem_skew -- <stems dir> <trials> [<render dir>]
+
+#[cfg(not(feature = "mixer"))]
+fn main() {
+    eprintln!("scratch_stem_skew needs --features mixer");
+}
+
+#[cfg(feature = "mixer")]
+fn main() {
+    run::main();
+}
+
+#[cfg(feature = "mixer")]
+mod run {
+    use std::io::Cursor;
+    use std::num::NonZero;
+    use std::path::Path;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
+
+    use bevy::asset::AssetPlugin;
+    use bevy::audio::{AudioLoader, AudioSource};
+    use bevy::prelude::*;
+    use bevy_siren::output::{AudioOutput, Backend, Output};
+    use bevy_siren::{Cue, CueTable, Mode, MusicLayer, MusicPlugin, MusicScore, SirenPlugin, SirenSounds, SoundSlot};
+    use rodio::Source;
+
+    const FRAME: Duration = Duration::from_micros(16_667);
+    const RATE: u32 = 48_000;
+    /// One 16.667 ms frame of stereo at 48 kHz.
+    const FRAME_SAMPLES: usize = 800 * 2;
+
+    struct Recorder {
+        frame: Arc<AtomicUsize>,
+        starts: Arc<Mutex<Vec<usize>>>,
+        mixer: Option<rodio::mixer::Mixer>,
+        players: Vec<rodio::Player>,
+    }
+
+    impl AudioOutput for Recorder {
+        fn set_bus_db(&mut self, _: &str, _: f32) {}
+        fn set_voice_db(&mut self, _: &str, _: usize, _: f32) {}
+        fn stop_voice(&mut self, _: &str, _: usize) {}
+        fn play(&mut self, _: &str, bytes: &Arc<[u8]>, _db: f32, _speed: f32, looping: bool) -> Option<usize> {
+            let at = self.frame.load(Ordering::Relaxed);
+            let index = {
+                let mut starts = self.starts.lock().unwrap();
+                starts.push(at);
+                starts.len() - 1
+            };
+            if let Some(mixer) = &self.mixer {
+                let decoder = rodio::Decoder::new(Cursor::new(bytes.to_vec())).ok()?;
+                let player = rodio::Player::connect_new(mixer);
+                player.set_volume(1.0);
+                if looping {
+                    player.append(decoder.repeat_infinite());
+                } else {
+                    player.append(decoder);
+                }
+                self.players.push(player);
+            }
+            Some(index)
+        }
+        fn finished(&self, _: &str, _: usize) -> bool {
+            false
+        }
+    }
+
+    struct Trial {
+        starts: Vec<usize>,
+        samples: Vec<f32>,
+    }
+
+    fn trial(dir: &str, files: &[&str], render: bool) -> Trial {
+        let cue_of = |file: &str| format!("track.{file}");
+        let table = CueTable::new(
+            files
+                .iter()
+                .map(|f| Cue {
+                    sounds: vec![SoundSlot::new(*f)],
+                    bus: "Music".to_owned(),
+                    mode: Mode::Loop,
+                    priority: 200,
+                    ..Cue::new(cue_of(f))
+                })
+                .collect(),
+        );
+        let score = MusicScore {
+            layers: files
+                .iter()
+                .map(|f| {
+                    let mut layer = MusicLayer::new(*f, cue_of(f));
+                    layer.gain_db = 0.0;
+                    layer
+                })
+                .collect(),
+            tempo_bpm: 120.0,
+            beats_per_bar: 4.0,
+        };
+        let frame = Arc::new(AtomicUsize::new(0));
+        let starts = Arc::new(Mutex::new(Vec::new()));
+        let (mixer, mut out) = rodio::mixer::mixer(NonZero::new(2).unwrap(), NonZero::new(RATE).unwrap());
+        let recorder =
+            Recorder { frame: frame.clone(), starts: starts.clone(), mixer: render.then_some(mixer), players: Vec::new() };
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin { file_path: dir.into(), ..default() }))
+            .init_asset::<AudioSource>()
+            .init_asset_loader::<AudioLoader>()
+            .add_plugins((SirenPlugin, MusicPlugin));
+        app.insert_resource(table);
+        app.insert_resource(score);
+        app.insert_resource(SirenSounds::new());
+        app.insert_resource(Output(Box::new(recorder)));
+        app.insert_resource(Backend(true));
+        // What a game does: ask the asset server for the table's files at startup, with the score already there.
+        app.add_systems(Startup, |server: Res<AssetServer>, table: Res<CueTable>, mut sounds: ResMut<SirenSounds>| {
+            sounds.load_table(&server, &table, "");
+        });
+
+        let t0 = Instant::now();
+        let mut samples = Vec::new();
+        for f in 0..180usize {
+            frame.store(f, Ordering::Relaxed);
+            app.update();
+            if render {
+                samples.extend(out.by_ref().take(FRAME_SAMPLES));
+            } else if starts.lock().unwrap().len() >= files.len() {
+                break;
+            }
+            let target = t0 + FRAME * (f as u32 + 1);
+            let now = Instant::now();
+            if target > now {
+                std::thread::sleep(target - now);
+            }
+        }
+        let starts = starts.lock().unwrap().clone();
+        Trial { starts, samples }
+    }
+
+    fn write_wav(path: &Path, samples: &[f32]) {
+        let data_len = (samples.len() * 4) as u32;
+        let mut bytes = Vec::with_capacity(44 + samples.len() * 4);
+        bytes.extend_from_slice(b"RIFF");
+        bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
+        bytes.extend_from_slice(b"WAVEfmt ");
+        bytes.extend_from_slice(&16u32.to_le_bytes());
+        bytes.extend_from_slice(&3u16.to_le_bytes());
+        bytes.extend_from_slice(&2u16.to_le_bytes());
+        bytes.extend_from_slice(&RATE.to_le_bytes());
+        bytes.extend_from_slice(&(RATE * 2 * 4).to_le_bytes());
+        bytes.extend_from_slice(&8u16.to_le_bytes());
+        bytes.extend_from_slice(&32u16.to_le_bytes());
+        bytes.extend_from_slice(b"data");
+        bytes.extend_from_slice(&data_len.to_le_bytes());
+        for s in samples {
+            bytes.extend_from_slice(&s.to_le_bytes());
+        }
+        std::fs::write(path, bytes).expect("writes");
+    }
+
+    fn spread(starts: &[usize]) -> usize {
+        match (starts.iter().min(), starts.iter().max()) {
+            (Some(lo), Some(hi)) => hi - lo,
+            _ => 0,
+        }
+    }
+
+    pub fn main() {
+        let args: Vec<String> = std::env::args().collect();
+        let (dir, trials) = (args[1].clone(), args[2].parse::<usize>().expect("trials"));
+        let render_dir = args.get(3).cloned();
+
+        let eight: Vec<String> = (0..8).map(|i| format!("stem_{i}.ogg")).collect();
+        let eight: Vec<&str> = eight.iter().map(String::as_str).collect();
+        let pair = ["click_small.ogg", "click_large.ogg"];
+
+        for (what, files) in [("8 stems of 3.7 MB", &eight[..]), ("a 159 KB stem and a 2.1 MB stem", &pair[..])] {
+            let mut spreads = Vec::new();
+            let mut first_starts = Vec::new();
+            let mut unfinished = 0;
+            for _ in 0..trials {
+                let t = trial(&dir, files, false);
+                if t.starts.len() < files.len() {
+                    unfinished += 1;
+                    continue;
+                }
+                spreads.push(spread(&t.starts));
+                first_starts.push(*t.starts.iter().min().unwrap());
+            }
+            let skewed = spreads.iter().filter(|s| **s > 0).count();
+            let worst = spreads.iter().copied().max().unwrap_or(0);
+            let mut histogram = [0usize; 8];
+            for s in &spreads {
+                histogram[(*s).min(7)] += 1;
+            }
+            let first_mean = first_starts.iter().sum::<usize>() as f64 / first_starts.len().max(1) as f64;
+            let first_max = first_starts.iter().copied().max().unwrap_or(0);
+            println!(
+                "{what}: {trials} trials; stems started in different frames in {skewed} ({:.1} %); worst spread {worst} frames = {:.1} ms; never all started {unfinished}; spread histogram (0..7+ frames) {histogram:?}; first stem started in frame {first_mean:.2} on average, at most {first_max} ({:.1} ms)",
+                100.0 * skewed as f64 / trials as f64,
+                worst as f64 * 16.667,
+                first_max as f64 * 16.667,
+            );
+        }
+
+        if let Some(out) = render_dir {
+            std::fs::create_dir_all(&out).expect("dir");
+            let (mut skewed, mut aligned) = (None, None);
+            for _ in 0..60 {
+                let t = trial(&dir, &pair, true);
+                if t.starts.len() < pair.len() {
+                    continue;
+                }
+                let slot = if spread(&t.starts) > 0 { &mut skewed } else { &mut aligned };
+                if slot.is_none() {
+                    *slot = Some(t);
+                }
+                if skewed.is_some() && aligned.is_some() {
+                    break;
+                }
+            }
+            for (name, t) in [("click-skewed", &skewed), ("click-aligned", &aligned)] {
+                match t {
+                    Some(t) => {
+                        println!("{name}: stems started in frames {:?}", t.starts);
+                        write_wav(&Path::new(&out).join(format!("{name}.wav")), &t.samples);
+                    }
+                    None => println!("{name}: no such trial in 60"),
+                }
+            }
+        }
+    }
+}

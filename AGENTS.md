@@ -45,7 +45,7 @@ every Bevy feature and a hole in its own `[dependencies]` list cannot fail.
 - `src/play.rs` — `Play`, `Played`, `Refused`, `Refusal`, `Voice`, `Compensation`, `MixerVoice`, `Completes`,
   `Samples`, `StopVoice`, `StopCue`, `SirenChoices`, and `play_requests`.
 - `src/playback.rs` — `start_pending`: the only place a voice starts on the crate's own mixer once its bytes have
-  loaded; and `trim_ogg_loops`, which tells **Bevy's** path how long an Ogg loop is (`PlaybackSettings::duration`) once the bytes are there.
+  loaded; `trim_ogg_loops`, which tells **Bevy's** path how long an Ogg loop is (`PlaybackSettings::duration`) once the bytes are there; and `refuse_failed_loads`, which refuses and frees a voice whose file the asset server says failed to load.
 - `src/ogg.rs` — std-only, always compiled: `inspect` (one walk of an Ogg Vorbis file's pages → the length its last granule position declares, or `None` for anything it does not fully understand: chained, cut short,
   not Vorbis, a packet count that cannot account for the granule) and `loop_length`/`take_duration` (the `Duration` that makes `rodio`'s `TakeDuration` emit exactly that many frames: `N·p + 1` ns, **not**
   `frames / rate`). `semantic::decode`, `trim_ogg_loops` and the mixer's `Shape::of` all read it. `ogg::synthetic` (`cfg(test)`) builds Ogg streams by hand.
@@ -57,7 +57,7 @@ every Bevy feature and a hole in its own `[dependencies]` list cannot fail.
   `rodio::Player` and bus `Mixer` offline — the only tests that read a sample the crate's own mixer produces.
 - `src/music.rs` — `MusicScore`, `MusicLayer`, `MusicLayers`, `When`, `Stinger`, `MusicState`, `MusicVoice`, and the
   systems `start_layers`, `adopt_layers`, `move_layers`, `play_stingers`.
-- `src/sounds.rs` — `SirenSounds`: the key → handle map, `load_table`, `missing`, `failed`.
+- `src/sounds.rs` — `SirenSounds`: the key → handle map, `load_table`, `missing`, `failed`; and `load_error`, the one place the crate reads `LoadState::Failed` (`play::answer`, `refuse_failed_loads` and `failed` all ask it).
 - `src/log.rs` — `SirenLog` (256 entries) and `Entry`.
 - `src/semantic/server.rs` — behind `semantic`: the MCP tool host (`Host`, `SPECS`, `read_message`) as a library, so a test
   drives it with no process. `src/bin/siren-tools.rs` is the loop around it (ADR 0006, 0008); `serde_json` is its one
@@ -138,6 +138,10 @@ function between frames; a duck takes time since it fired; a gain curve is a lin
   because every loop test used a WAV. `rodio` compiles `lewton` *out* when `symphonia-vorbis` is on, so the crate's feature also swapped the decoder of a game's **own** `AudioPlayer` (Bevy's `vorbis` is
   `rodio/lewton`). The line now names `lewton`; `tests/ogg_loops.rs::the_duration_plays_exactly_the_streams_length_through_rodio_itself` fails on the old one, `tests/mixer.rs::an_ogg_loop_on_the_real_mixer_sounds_until_it_is_stopped`
   needs a device, and `OpenSpan` protects the mixer's loops in a game that turns on Bevy's `symphonia-vorbis` itself. **A loop test needs a loop of every format the crate says it plays, and must compare a length, not just assert equality.**
+- **A handle is more than a handle: the asset server has a load state, and a default handle never has one.** Every headless test's handle is `Handle::default()` (Uuid), which `AssetServer::get_load_state` answers `None` for, so for most of
+  this crate's life a file that **failed to load** was a state no test could build: `Played` was written, the voice waited for ever, and the log read *played* / *stolen by `x` (cue)* — a healthy sequence for a sound nobody heard
+  (`docs/loop/runs/2026-11-04-116/`). Bevy's own start system never reads the state either (`audio_output.rs:109`). **To test a load in flight or failed deterministically**, register a loader for `.ogg` of your own that **waits at a
+  gate your test opens** and then succeeds or fails as told (`tests/failed_load.rs::Gated`) over `tests/fixtures`, so the order of events is the test's — a loader that sleeps makes *"still loading"* a race between a delay and a frame, false on a starved machine. And **remove the `Output`** to force Bevy's path (`Backend(false)` alone is not read).
 
 ## The two-way street, both ways
 

@@ -1,0 +1,34 @@
+   Compiling bevy_siren v0.1.0 (/Users/rebekahbrittain/bevy_siren)
+warning: unused import: `bevy::prelude::*`
+   --> src/playback.rs:198:9
+    |
+198 |     use bevy::prelude::*;
+    |         ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `bevy_siren` (lib test) generated 1 warning (run `cargo fix --lib -p bevy_siren --tests` to apply 1 suggestion)
+    Finished `release` profile [optimized] target(s) in 2.30s
+     Running unittests src/lib.rs (target/release/deps/bevy_siren-a5605832566c50db)
+
+running 1 test
+   0 voices, running (a mixer voice each)      : 0.058 us/frame
+   0 voices, waiting, default handle, no asset : 0.055 us/frame
+   0 voices, waiting, loaded asset             : 0.098 us/frame
+   8 voices, running (a mixer voice each)      : 0.054 us/frame
+   8 voices, waiting, default handle, no asset : 0.110 us/frame
+   8 voices, waiting, loaded asset             : 0.077 us/frame
+  64 voices, running (a mixer voice each)      : 0.066 us/frame
+  64 voices, waiting, default handle, no asset : 0.247 us/frame
+  64 voices, waiting, loaded asset             : 0.149 us/frame
+ 256 voices, running (a mixer voice each)      : 0.059 us/frame
+ 256 voices, waiting, default handle, no asset : 0.769 us/frame
+ 256 voices, waiting, loaded asset             : 0.417 us/frame
+load_error on a default (Uuid) handle: 2.2 ns a call (0 failed)
+load_error on a handle the server tracks as failed: 137.8 ns a call, which formats its error (200000 failed)
+the handle is loaded: true
+load_error on a handle the server tracks as loaded: 8.5 ns a call (0 failed)
+test playback::scratch_bench::scratch_cost_of_refusing_failed_loads ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.20s
+

@@ -102,16 +102,50 @@ impl SirenSounds {
     }
 
     /// Every key whose load has failed, so a project can say which file to deliver.
+    ///
+    /// **The crate asks the same question where it decides**, so a game need not remember to poll this: a play whose picked sound
+    /// is in this list **and whose bytes are not loaded** is refused (`Refusal::MissingSound`), and a voice whose load fails after it was
+    /// played is refused and freed — both with the asset server's own sentence in the log. (A key whose *reload* failed is listed here
+    /// and still plays, because the previous bytes are loaded.)
     pub fn failed(&self, server: &AssetServer, table: &CueTable) -> Vec<String> {
         table
             .sounds()
             .into_iter()
-            .filter(|key| {
-                self.handles.get(*key).is_some_and(|handle| {
-                    matches!(server.get_load_state(handle.id()), Some(bevy::asset::LoadState::Failed(_)))
-                })
-            })
+            .filter(|key| self.handles.get(*key).is_some_and(|handle| load_error(server, handle).is_some()))
             .map(str::to_owned)
             .collect()
     }
+}
+
+/// **Why `handle`'s file failed to load**, in the asset server's own words (the cause and the path it looked for), or `None` when it has not failed.
+///
+/// `None` for a load still in flight, for a loaded asset, and for a handle the server has no record of — a reserved handle, a default (Uuid) one:
+/// `AssetServer::get_load_state` answers `None` for a Uuid handle (*"Always say we don't have Uuid assets"*, `bevy_asset-0.20.1/src/server/mod.rs:1075`),
+/// and nothing is invented about a file the server never heard of. This is the one place the crate reads `LoadState::Failed`.
+pub(crate) fn load_error(server: &AssetServer, handle: &Handle<AudioSource>) -> Option<String> {
+    match server.get_load_state(handle.id()) {
+        Some(bevy::asset::LoadState::Failed(error)) => Some(error.to_string()),
+        _ => None,
+    }
+}
+
+/// **What the asset server and the asset table say about a sound's file**, as one system parameter — `play_requests` is at Bevy's sixteen, and a tuple of the two resources is one parameter that adds no type to its public
+/// signature. Both are optional: a world with no `AssetPlugin` has no server and no table, and then no file can have failed.
+pub(crate) type Files<'w> = (Option<Res<'w, AssetServer>>, Option<Res<'w, Assets<AudioSource>>>);
+
+/// **Why the sound behind `handle` cannot be played because its file failed to load**, or `None` — which also means *its bytes are not there*.
+///
+/// That second condition is the difference from [`load_error`]. A **reload** that fails — an edited file half-way through saving — leaves the server's state `Failed` and the *previous* bytes in `Assets`
+/// (a failed reload removes nothing), and a sound whose bytes are there can be played: refusing it would silence a cue the game could still sound. So a sound is refused for its file only when there is nothing to play.
+pub(crate) fn cannot_load(files: &Files, handle: &Handle<AudioSource>) -> Option<String> {
+    let (server, assets) = files;
+    if assets.as_ref().is_some_and(|assets| assets.get(handle).is_some()) {
+        return None;
+    }
+    load_error(server.as_deref()?, handle)
+}
+
+/// The log's sentence for a file that failed to load: the key a project maps to a file, and the asset server's own cause, which carries the path it looked for — the file to fix.
+pub(crate) fn failed_to_load(sound: &str, error: &str) -> String {
+    format!("the file for sound `{sound}` failed to load: {error}")
 }

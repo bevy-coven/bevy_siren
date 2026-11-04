@@ -1,0 +1,18 @@
+   Compiling bevy_siren v0.1.0 (/Users/rebekahbrittain/bevy_siren)
+    Finished `release` profile [optimized] target(s) in 8.52s
+     Running `target/release/examples/scratch_failed_load /tmp/siren-stems typo_click.ogg`
+frame  5: Refused `ui.click`: no handle or undecodable bytes for sound `typo_click.ogg`
+frame 20: Refused `ui.click`: no handle or undecodable bytes for sound `typo_click.ogg`
+frame 35: Refused `ui.click`: no handle or undecodable bytes for sound `typo_click.ogg`
+frame 50: Refused `ui.click`: no handle or undecodable bytes for sound `typo_click.ogg`
+frame 65: Refused `ui.click`: no handle or undecodable bytes for sound `typo_click.ogg`
+frame 80: Refused `ui.click`: no handle or undecodable bytes for sound `typo_click.ogg`
+
+6 plays asked; `SirenSounds::failed` names ["typo_click.ogg"]; voice entities alive: 0; the mix counts 0 on Effects
+the log, as a developer reads it:
+  0.15s refused `ui.click`: the file for sound `typo_click.ogg` failed to load: Path not found: /tmp/siren-stems/typo_click.ogg
+  0.37s refused `ui.click`: the file for sound `typo_click.ogg` failed to load: Path not found: /tmp/siren-stems/typo_click.ogg
+  0.66s refused `ui.click`: the file for sound `typo_click.ogg` failed to load: Path not found: /tmp/siren-stems/typo_click.ogg
+  0.91s refused `ui.click`: the file for sound `typo_click.ogg` failed to load: Path not found: /tmp/siren-stems/typo_click.ogg
+  1.11s refused `ui.click`: the file for sound `typo_click.ogg` failed to load: Path not found: /tmp/siren-stems/typo_click.ogg
+  1.39s refused `ui.click`: the file for sound `typo_click.ogg` failed to load: Path not found: /tmp/siren-stems/typo_click.ogg

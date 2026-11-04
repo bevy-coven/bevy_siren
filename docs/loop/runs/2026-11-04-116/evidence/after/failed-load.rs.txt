@@ -1,0 +1,63 @@
+//! SCRATCH, iteration 116: what does the crate do with a play whose file failed to load? Real `AssetServer`, a key that names a file that is not there (a typo), the default cue (`max_instances: 1`).
+//! Deleted before the commit; the source is kept in `docs/loop/runs/2026-11-04-116/evidence/after/failed-load.rs.txt`.
+//!
+//!     cargo run --release --example scratch_failed_load -- <assets dir> <key>
+
+use std::time::{Duration, Instant};
+
+use bevy::asset::AssetPlugin;
+use bevy::audio::{AudioLoader, AudioSource};
+use bevy::prelude::*;
+use bevy_siren::{Cue, CueTable, Play, Played, Refused, SirenLog, SirenMix, SirenPlugin, SirenSounds, SoundSlot, Voice};
+
+const FRAME: Duration = Duration::from_micros(16_667);
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let (dir, key) = (args[1].clone(), args[2].clone());
+    let table = CueTable::new(vec![Cue { sounds: vec![SoundSlot::new(key.clone())], ..Cue::new("ui.click") }]);
+
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin { file_path: dir, ..default() }))
+        .init_asset::<AudioSource>()
+        .init_asset_loader::<AudioLoader>()
+        .add_plugins(SirenPlugin);
+    app.insert_resource(table);
+    app.add_systems(Startup, |server: Res<AssetServer>, table: Res<CueTable>, mut sounds: ResMut<SirenSounds>| {
+        sounds.load_table(&server, &table, "");
+    });
+
+    let t0 = Instant::now();
+    let mut asked = 0usize;
+    for f in 0..90usize {
+        // One play every 15 frames (250 ms), after the load has had time to resolve.
+        if f % 15 == 5 {
+            app.world_mut().write_message(Play::cue("ui.click"));
+            asked += 1;
+        }
+        app.update();
+        let played: Vec<Played> = app.world_mut().resource_mut::<Messages<Played>>().drain().collect();
+        let refused: Vec<Refused> = app.world_mut().resource_mut::<Messages<Refused>>().drain().collect();
+        for p in &played {
+            println!("frame {f:>2}: Played `{}` ({})", p.cue, p.sound);
+        }
+        for r in &refused {
+            println!("frame {f:>2}: Refused `{}`: {}", r.cue, r.reason);
+        }
+        let target = t0 + FRAME * (f as u32 + 1);
+        let now = Instant::now();
+        if target > now {
+            std::thread::sleep(target - now);
+        }
+    }
+    let server = app.world().resource::<AssetServer>().clone();
+    let sounds = app.world().resource::<SirenSounds>().clone();
+    let failed = sounds.failed(&server, app.world().resource::<CueTable>());
+    let voices = app.world_mut().query::<&Voice>().iter(app.world()).count();
+    let counted = app.world().resource::<SirenMix>().voices.get("Effects").copied().unwrap_or(0);
+    println!("\n{asked} plays asked; `SirenSounds::failed` names {failed:?}; voice entities alive: {voices}; the mix counts {counted} on Effects");
+    println!("the log, as a developer reads it:");
+    for entry in app.world().resource::<SirenLog>().iter() {
+        println!("  {}", entry.line());
+    }
+}

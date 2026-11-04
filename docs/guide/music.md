@@ -219,3 +219,7 @@ let waiting = music.blocked("combat");   // Some(1): refused while one voice was
 
 `None` means the layer was never refused. A panel that draws only `layer_db` cannot tell a waiting layer from one
 authored silent — both read `-80.0 dB` — which is why `examples/mixer` appends `waiting` to the gain.
+
+**A stem whose file failed to load is the same state, and the log says why.** The layer's `Play` is refused (`MissingSound`, with the asset server's own cause and path in the log), so `blocked(layer)` reads `Some(n)` exactly as for a
+budget refusal — it cannot say *which*, and a panel that draws only that number reads *"waiting for a voice"* for a layer that waits for a file. The log line is the answer: *"the file for sound `track_combat.ogg` failed to load: Path
+not found: …"*. The layer asks again only when a voice frees, so a dead stem writes a line then and not every frame (`tests/failed_load.rs`); the other layers play on.

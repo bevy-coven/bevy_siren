@@ -25,7 +25,7 @@ use crate::model::{
     Candidate, Rng, SILENT_DB, VariantPicker, backend_spatial_gain, chain_db, distance_gain, finite_or,
     gain_to_db, semitones_to_ratio, steal,
 };
-use crate::sounds::SirenSounds;
+use crate::sounds::{Files, SirenSounds, cannot_load};
 
 /// Ask for a cue to play.
 ///
@@ -120,12 +120,16 @@ pub enum Refusal {
     UnknownCue,
     /// The cue has no variants, so there is nothing to play.
     NoSounds,
-    /// The cue's chosen variant names a `sound` key with no handle in [`SirenSounds`], or one whose bytes the
-    /// decoder refused.
+    /// The cue's chosen variant names a `sound` key with no handle in [`SirenSounds`], one whose bytes the decoder
+    /// refused, or one whose **file failed to load**.
     ///
-    /// Two causes, one sentence, because both mean the same thing to a project: **this sound cannot be played, and
+    /// Three causes, one sentence, because all mean the same thing to a project: **this sound cannot be played, and
     /// here is the key to go and look at**. The missing-handle case is found when the play is answered; the
-    /// undecodable case when the bytes first load, which is why this variant is produced from two places.
+    /// undecodable case when the bytes first load; a file the asset server says failed to load is found at the play
+    /// (the server already knows) or, for a voice spawned while the load was in flight, in the frame the server says
+    /// so — which is why this variant is produced from three places. **The log tells them apart** (a failed load names
+    /// the cause and the path the server looked for); the variant does not, so a game that prints
+    /// `Refused::reason` reads the one sentence (`docs/loop/needs-decision/undecodable-sound.md`).
     MissingSound {
         /// The key a project maps to a file — never the cue's name.
         sound: String,
@@ -430,6 +434,9 @@ pub fn play_requests(
     voices: Query<(Entity, &Voice, Option<&crate::music::MusicVoice>), Without<Stopping>>,
     backend: Res<crate::output::Backend>,
     output: Option<Res<crate::output::Output>>,
+    // **The asset server and the asset table answer whether a picked file cannot be played because it failed to load** — the one fact a handle cannot say. One parameter, because this is the sixteenth, Bevy's maximum
+    // for a system; both are optional inside it, so a world with no `AssetPlugin` has no load to fail.
+    files: Files,
     mut played: MessageWriter<Played>,
     mut refused: MessageWriter<Refused>,
     mut commands: Commands,
@@ -452,7 +459,8 @@ pub fn play_requests(
     // crate promises to keep; a voice this frame marked stopping no longer counts.
     let mut live: Vec<Live> = voices.iter().map(Live::of).collect();
     for request in requests.read() {
-        match answer(request, table.as_ref(), &sounds, &settings, &mut choices, &listener, &live, now) {
+        match answer(request, table.as_ref(), &sounds, &files, &settings, &mut choices, &listener, &live, now)
+        {
             Ok(started) => {
                 for (victim, cap) in &started.stolen {
                     // **Which cap took the voice, not only who asked.** A `footstep.grass` request can take a voice
@@ -531,11 +539,25 @@ pub fn play_requests(
                 });
             }
             Err(reason) => {
-                log.push(Entry::Refused { at_s: now, cue: request.cue.clone(), reason: reason.to_string() });
+                // **The cause, when the asset server knows it.** `MissingSound` carries only the key, so a file that failed to load reads the same as a key with no handle; the log says which, with the server's own
+                // sentence (the cause and the path). `needs-decision/undecodable-sound.md`, option 4: no variant is added, so no consumer's exhaustive `match` breaks.
+                let sentence = refusal_sentence(&reason, &sounds, &files);
+                log.push(Entry::Refused { at_s: now, cue: request.cue.clone(), reason: sentence });
                 refused.write(Refused { cue: request.cue.clone(), reason });
             }
         }
     }
+}
+
+/// The log's sentence for a refusal: `reason`'s own, except that a [`Refusal::MissingSound`] whose file the asset server says **failed to load** names the cause and the path the server looked for.
+fn refusal_sentence(reason: &Refusal, sounds: &SirenSounds, files: &Files) -> String {
+    if let Refusal::MissingSound { sound } = reason
+        && let Some(handle) = sounds.get(sound)
+        && let Some(error) = cannot_load(files, handle)
+    {
+        return crate::sounds::failed_to_load(sound, &error);
+    }
+    reason.to_string()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -543,6 +565,7 @@ fn answer(
     request: &Play,
     table: &CueTable,
     sounds: &SirenSounds,
+    files: &Files,
     settings: &SirenSettings,
     choices: &mut SirenChoices,
     listener: &Query<(&GlobalTransform, &SpatialListener)>,
@@ -564,6 +587,12 @@ fn answer(
     let Some(handle) = sounds.get(&slot.sound) else {
         return Err(Refusal::MissingSound { sound: slot.sound.clone() });
     };
+    // **A file the asset server says failed to load, with nothing to play, is no better than no handle.** The handle exists and the bytes never will, and a voice spawned for it waits for ever: `Played` for a sound that
+    // cannot sound, a slot held against the budget, a log that reads as healthy. A load still in flight is *not* refused — it waits, as it always did; nothing is invented about a slow disk. And a file whose **reload** failed
+    // but whose previous bytes are loaded *can* be played, so it is (`sounds::cannot_load`).
+    if cannot_load(files, handle).is_some() {
+        return Err(Refusal::MissingSound { sound: slot.sound.clone() });
+    }
     let bus = cue.bus_name().to_owned();
     if !settings.bus_names().contains(&bus.as_str()) {
         return Err(Refusal::UnknownBus { bus });

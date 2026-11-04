@@ -116,6 +116,16 @@ and read what the sound is). And an assertion of `first == second` over a loop t
 **A number measured on one decoder is not a number about another.** Iteration 112's 59-of-209 Oggs decoded long was `symphonia`'s, built from a `File`; this iteration's 253-of-254 was `symphonia` built with `Decoder::new(Cursor)` and 51-of-254
 was `lewton`'s. A prediction that carried the first into a claim about the second was wrong (`runs/2026-11-03-115/research.md`, P5). Say which decoder, built how, on which set, every time a count goes into a doc.
 
+**A test fixture that is always in the happy state cannot see the other states.** Every headless test's handle is `Handle::default()` — a Uuid handle the asset server answers `None` for — so a file that **failed to load** was a state no
+test could build, and for the whole life of the crate `Played` was written for a sound that could not sound (iteration 116: six plays of a misspelt file, six `Played`, a log of *played* and *stolen by `x` (cue)*). When a claim is
+about a thing with **states** (an asset: loading, loaded, failed; a voice: waiting, playing, ended; a device: present, absent), `grep` the tests for how each state is *built*, and where a state has no builder, that is the item.
+Make the state **deterministic** — a loader that **waits at a gate your test opens**, then succeeds or fails as told; not a file that is missing (a race with the disk), and not a sleep (a race with the next frame) — and measure the discovery on the real thing (the real `AssetServer`, the default cue)
+before writing a prediction.
+
+**Tool discipline is part of the loop, and the user has said so twice.** Read with `read`, `grep` and `glob`; bash runs **programs** (`cargo`, `ffmpeg`, `git`, `python3` as an analysis, `cp`/`rm` of your own scratch). Not `cat`,
+`head`, `tail`, `ls | awk`, `sed`/`perl`/`python` to edit (use `edit`), `tee` or `>` to keep output: a bare command's full output is `artifact://<id>` — `read` or `grep` it, and `cp artifact://<id> <evidence file>` keeps it. After
+`cargo fmt` the line numbers move: **re-read before the next `edit`**. A file read in the same turn as the bash that creates it can race it: read it again.
+
 ## 3. Research first
 
 Use home-still before any code (`distill_search`; if the bridge answers `401 Refresh token expired`, use

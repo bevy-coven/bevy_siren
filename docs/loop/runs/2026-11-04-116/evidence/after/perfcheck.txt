@@ -1,0 +1,24 @@
+--- run 1 ---
+voices      us/frame        us/voice
+     8         0.064          0.0080
+    64         0.355          0.0056
+   256         1.217          0.0048
+--- run 2 ---
+voices      us/frame        us/voice
+     8         0.062          0.0078
+    64         0.355          0.0056
+   256         1.189          0.0046
+--- run 3 ---
+voices      us/frame        us/voice
+     8         0.059          0.0073
+    64         0.336          0.0053
+   256         1.245          0.0049
+
+upper bound: every voice is costed, including the ones update_mix skips because their gain did not move
+
+(`perfcheck` costs `model::chain_db`, `db_to_gain` and `approach` — not the systems — so it cannot see `refuse_failed_loads`; see ../../perf.md.)
+
+--- mix.wav, `ffmpeg -af ebur128=peak=true` (the 21 rendered WAVs are byte-identical to iteration 115's) ---
+  Integrated loudness:  I: -21.5 LUFS   Threshold: -31.5 LUFS
+  Loudness range:       LRA: 0.0 LU
+  True peak:            Peak: -7.5 dBFS

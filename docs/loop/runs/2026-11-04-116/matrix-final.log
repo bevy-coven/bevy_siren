@@ -1,0 +1,73 @@
+(started clean of this crate's artifacts; free 5.6 GB)
+=== cargo build   [free 5.6 GB, 01:20:27]
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.39s
+   exit: 0
+=== cargo test   [free 5.6 GB, 01:20:27]
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning
+   1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   1 test result: ok. 208 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+   1     Finished `test` profile [unoptimized + debuginfo] target(s) in 6.37s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 5.6 GB)
+=== cargo test --features serde   [free 5.6 GB, 01:20:40]
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning
+   1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   1 test result: ok. 217 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+   1     Finished `test` profile [unoptimized + debuginfo] target(s) in 8.25s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 5.6 GB)
+=== cargo test --features semantic   [free 5.6 GB, 01:20:54]
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning
+   1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 526 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.25s
+   1 test result: ok. 114 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.70s
+   1 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   1     Finished `test` profile [unoptimized + debuginfo] target(s) in 29.47s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 5.6 GB)
+=== cargo test --features mixer   [free 5.6 GB, 01:21:56]
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning
+   1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 222 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.61s
+   1 test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+   1     Finished `test` profile [unoptimized + debuginfo] target(s) in 11.44s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 5.6 GB)
+=== cargo test --all-features   [free 5.6 GB, 01:22:14]
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning
+   1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 553 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.79s
+   1 test result: ok. 125 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.91s
+   1 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   1     Finished `test` profile [unoptimized + debuginfo] target(s) in 27.50s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 5.6 GB)
+=== cargo test --doc   [free 5.6 GB, 01:23:15]
+   1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1     Finished `test` profile [unoptimized + debuginfo] target(s) in 0.76s
+   exit: 0
+=== cargo test --features readme-example --test all readme::   [free 5.6 GB, 01:23:19]
+   1 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 208 filtered out; finished in 0.00s
+   1     Finished `test` profile [unoptimized + debuginfo] target(s) in 2.30s
+   exit: 0
+=== cargo build --examples   [free 5.4 GB, 01:23:23]
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.09s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 5.6 GB)
+=== cargo build --examples --all-features   [free 5.6 GB, 01:23:28]
+   1 warning: `bevy_siren` (example "mixer") generated 1 warning
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 15.30s
+   exit: 0
+   (disk was short: removed this crate's artifacts; free now 5.6 GB)
+=== cargo clippy --all-targets --all-features -- -D warnings   [free 5.6 GB, 01:23:44]
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.32s
+   exit: 0
+=== cargo fmt --check   [free 5.6 GB, 01:23:48]
+   exit: 0
+=== cargo doc --no-deps --all-features   [free 5.6 GB, 01:23:48]
+   1     Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.37s
+   exit: 0
+=== matrix done 01:23:52

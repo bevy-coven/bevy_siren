@@ -1,0 +1,33 @@
+`cargo test --features mixer --test all failed_load`, run by
+    ( for i in 1..15: cargo test … | grep "test result"; then start one `yes > /dev/null` per core (sysctl hw.ncpu), 8 more runs, kill the `yes` pids )
+after the loader's sleep was replaced by a gate the test opens (tests/failed_load.rs: `Gate`, `Gated`).
+
+--- 15 runs, quiet machine
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.32s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.30s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.32s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.25s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.27s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.33s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.25s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.30s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.25s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.28s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.32s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.27s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.38s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.26s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.31s
+--- 8 runs, every core held by a busy loop (my own 'yes' processes, killed by pid after)
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.39s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.54s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.51s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.58s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.49s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.48s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.53s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.52s
+
+23 of 23 green. What this does and does not show: the premises ("the load is still in flight when the play is asked", "both layers' voices are waiting for their bytes") no longer depend on how long a delay is
+compared with how long a frame takes — the loader cannot answer until the test opens the gate — so a starved machine cannot make them false. The saturated runs are the case a 150 ms sleep was exposed to.
+I did not run the previous sleeping version under the same load, so this is not a measured before/after of flakiness; it is a removal of a race that was there by construction.

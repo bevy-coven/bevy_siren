@@ -1,0 +1,23 @@
+   Compiling bevy_siren v0.1.0 (/Users/rebekahbrittain/bevy_siren)
+    Finished `release` profile [optimized] target(s) in 7.30s
+     Running `target/release/examples/scratch_failed_load /tmp/siren-stems typo_click.ogg`
+frame  5: Played `ui.click` (typo_click.ogg)
+frame 20: Played `ui.click` (typo_click.ogg)
+frame 35: Played `ui.click` (typo_click.ogg)
+frame 50: Played `ui.click` (typo_click.ogg)
+frame 65: Played `ui.click` (typo_click.ogg)
+frame 80: Played `ui.click` (typo_click.ogg)
+
+6 plays asked; `SirenSounds::failed` names ["typo_click.ogg"]; voice entities alive: 3; the mix counts 1 on Effects
+the log, as a developer reads it:
+  0.15s played `ui.click` (typo_click.ogg) on Effects at 0.00 dB
+  0.39s stopped `ui.click`: stolen by ui.click (cue)
+  0.39s played `ui.click` (typo_click.ogg) on Effects at 0.00 dB
+  0.60s stopped `ui.click`: stolen by ui.click (cue)
+  0.60s played `ui.click` (typo_click.ogg) on Effects at 0.00 dB
+  0.84s stopped `ui.click`: stolen by ui.click (cue)
+  0.84s played `ui.click` (typo_click.ogg) on Effects at 0.00 dB
+  1.11s stopped `ui.click`: stolen by ui.click (cue)
+  1.11s played `ui.click` (typo_click.ogg) on Effects at 0.00 dB
+  1.43s stopped `ui.click`: stolen by ui.click (cue)
+  1.43s played `ui.click` (typo_click.ogg) on Effects at 0.00 dB

@@ -1,0 +1,50 @@
+   Compiling bevy_siren v0.1.0 (/Users/rebekahbrittain/bevy_siren)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.44s
+     Running tests/all.rs (target/debug/deps/all-7a78880c066fc13b)
+
+running 5 tests
+test failed_load::on_the_crates_own_mixer_a_failed_load_never_reaches_the_output ... FAILED
+test failed_load::a_voice_whose_load_fails_after_it_was_played_is_refused_in_that_frame_and_freed ... FAILED
+test failed_load::a_load_still_in_flight_is_not_refused_and_a_loaded_file_plays ... FAILED
+test failed_load::a_play_of_a_file_that_already_failed_to_load_is_refused_with_the_cause ... ok
+test failed_load::a_layer_whose_stem_failed_is_refused_once_the_other_plays_and_the_log_stays_quiet ... FAILED
+
+failures:
+
+---- failed_load::on_the_crates_own_mixer_a_failed_load_never_reaches_the_output stdout ----
+
+thread 'failed_load::on_the_crates_own_mixer_a_failed_load_never_reaches_the_output' (12818672) panicked at tests/failed_load.rs:264:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- failed_load::a_voice_whose_load_fails_after_it_was_played_is_refused_in_that_frame_and_freed stdout ----
+
+thread 'failed_load::a_voice_whose_load_fails_after_it_was_played_is_refused_in_that_frame_and_freed' (12818671) panicked at tests/failed_load.rs:160:5:
+assertion `left == right` failed: a play whose file is still loading is played — it waits for its bytes
+  left: 0
+ right: 1
+
+---- failed_load::a_load_still_in_flight_is_not_refused_and_a_loaded_file_plays stdout ----
+
+thread 'failed_load::a_load_still_in_flight_is_not_refused_and_a_loaded_file_plays' (12818669) panicked at tests/failed_load.rs:212:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- failed_load::a_layer_whose_stem_failed_is_refused_once_the_other_plays_and_the_log_stays_quiet stdout ----
+
+thread 'failed_load::a_layer_whose_stem_failed_is_refused_once_the_other_plays_and_the_log_stays_quiet' (12818668) panicked at tests/failed_load.rs:317:5:
+the dead stem was refused
+
+
+failures:
+    failed_load::a_layer_whose_stem_failed_is_refused_once_the_other_plays_and_the_log_stays_quiet
+    failed_load::a_load_still_in_flight_is_not_refused_and_a_loaded_file_plays
+    failed_load::a_voice_whose_load_fails_after_it_was_played_is_refused_in_that_frame_and_freed
+    failed_load::on_the_crates_own_mixer_a_failed_load_never_reaches_the_output
+
+test result: FAILED. 1 passed; 4 failed; 0 ignored; 0 measured; 216 filtered out; finished in 0.54s
+
+error: test failed, to rerun pass `--test all`

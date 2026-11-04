@@ -39,3 +39,11 @@ two without touching the message.
 
 Nothing. Iteration 6 shipped the key and a sentence true for both causes, which needed no public change. The
 distinguishing variant waits on this answer.
+
+## Iteration 116: a third cause, and option 4 shipped for it
+
+`MissingSound` now has **three** causes: a key with no handle, bytes the decoder refused, and **a file that failed to load** (`LoadState::Failed`: a typo in a name, a file nobody delivered). Until iteration 116 the third was not
+a refusal at all — every play of it was answered `Played` and nothing sounded (`runs/2026-11-04-116/`). It is refused now, at the play and for a voice already in flight, with option 4's shape: **one variant in the message, the
+cause and the path in the log** (*"the file for sound `x` failed to load: Path not found: /…/x.ogg"*). The limitation stands and is the argument for option 1: a game's own meter that prints `Refused::reason` reads the one sentence
+for all three, and **the three want different things from a project** — a missing key is a line to add, a corrupt file is a file to re-export, a failed load is a name or a path to fix, and only the last two have the server's own
+words to say. The recommendation is unchanged and a little stronger: **option 1, a variant, in the next minor version** — now for two new variants (`Undecodable`, `LoadFailed`), with `MissingSound` going back to one cause.

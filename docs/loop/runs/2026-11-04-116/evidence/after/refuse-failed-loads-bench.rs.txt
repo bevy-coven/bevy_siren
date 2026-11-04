@@ -1,0 +1,45 @@
+// SCRATCH, iteration 116: what `refuse_failed_loads` and `load_error` cost, in release. It was appended to `src/playback.rs` as `#[cfg(test)] mod scratch_bench`, run with
+//     cargo test --release --lib scratch_cost_of_refusing_failed_loads -- --ignored --nocapture
+// and removed before the commit. Its output is `refuse-failed-loads-cost.txt`.
+
+use std::time::Instant;
+
+use bevy::asset::AssetPlugin;
+use bevy::prelude::*;
+
+use super::*;
+use crate::cue::Mode;
+
+fn voice() -> Voice {
+    Voice { cue: "c".to_owned(), bus: "Effects".to_owned(), priority: 0, start_s: 0.0, base_db: 0.0, variant: 0, semitones: 0.0, mode: Mode::Once, unstealable: false }
+}
+
+#[test]
+#[ignore]
+fn scratch_cost_of_refusing_failed_loads() {
+    for voices in [0usize, 8, 64, 256] {
+        for kind in ["running (a mixer voice each)", "waiting, default handle, no asset", "waiting, loaded asset"] {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<AudioSource>();
+            app.init_resource::<CueTable>().init_resource::<SirenLog>().add_message::<Refused>();
+            let loaded = app.world_mut().resource_mut::<Assets<AudioSource>>().add(AudioSource { bytes: std::sync::Arc::from(vec![0u8; 4]) });
+            for _ in 0..voices {
+                let mut e = app.world_mut().spawn((voice(), Samples(if kind.ends_with("loaded asset") { loaded.clone() } else { Handle::default() })));
+                if kind.starts_with("running") {
+                    e.insert(MixerVoice(0));
+                }
+            }
+            app.world_mut().insert_resource(Time::<Real>::default());
+            let id = app.world_mut().register_system(refuse_failed_loads);
+            app.world_mut().run_system(id).unwrap();
+            let frames = 50_000;
+            let t = Instant::now();
+            for _ in 0..frames {
+                app.world_mut().run_system(id).unwrap();
+            }
+            println!("{voices:>4} voices, {kind:<34}: {:.3} us/frame", t.elapsed().as_secs_f64() * 1e6 / f64::from(frames));
+        }
+    }
+    // The play-time check, per call: a default (Uuid) handle, a handle the server tracks as failed, and one it tracks as loaded (the real loader, a real file).
+    // ... (three loops of `load_error(black_box(&server), black_box(&handle))`, 2 000 000 / 200 000 / 2 000 000 calls; see the output for the numbers)
+}

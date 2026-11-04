@@ -74,7 +74,8 @@ place — so a delivered recording replaces another without touching the table, 
 artist delivers anything.
 
 `sounds.missing(&table)` is every key still unanswered (an editor shows it), and `sounds.failed(&assets_server, &table)`
-is every key whose load the server reported as failed.
+is every key whose load the server reported as failed — **a list you no longer have to poll to learn a play will be
+silent**: the crate asks the server itself, and a play of a failed file is refused (below).
 
 **A reload must call `retain_keys` first.** `load_table` **merges**: it asks for the keys it has no handle for and never
 drops one the table has lost, and `SirenSounds` has no other remover. That matters because a handle is what keeps an
@@ -143,9 +144,24 @@ round trip is a test.
 
 ## Repeat rules
 
-A `MissingSound` names the **sound key** a project maps to a file, never the cue — for both of its causes, a key with
-no handle and a key whose bytes the decoder refused. ``no handle or undecodable bytes for sound `step_03` `` sends you
-to `audio/step_03.wav`, which is the file to fix.
+A `MissingSound` names the **sound key** a project maps to a file, never the cue — for all three of its causes: a key with
+no handle, a key whose bytes the decoder refused, and **a key whose file failed to load**. ``no handle or undecodable bytes
+for sound `step_03` `` sends you to `audio/step_03.wav`, which is the file to fix.
+
+**A file that failed to load is refused, with the cause in the log.** Type `step_3.wav` for `step_03.wav` and the asset
+server knows the load failed and says why; the crate asks it where it decides, so the first play reads
+
+```
+0.15s refused `footstep.grass`: the file for sound `step_3.wav` failed to load: Path not found: /…/assets/audio/step_3.wav
+```
+
+and writes no `Played`, spawns no voice and holds no slot (before this, every play of that file was answered `Played`,
+nothing ever sounded, and the log showed a healthy *played* and *stolen by footstep.grass (cue)*). A voice spawned while
+the load was still in flight, whose load then fails, is refused in the frame the server says so — after the `Played` it
+could not have known to withhold — and despawned. **A load still in flight is not refused**: it waits, as it always did,
+and nothing is invented about a slow disk. The `Refused` message carries the one variant, so a game that prints
+`reason` reads the one sentence; the log has the cause (`docs/loop/needs-decision/undecodable-sound.md` weighs a variant
+of its own).
 
 `Repeat::AvoidRepeat { avoid: n }` refuses the last `n` variants, and the default `avoid: 1` is what stops the
 machine-gun footstep. **The window is the number the cue asks for, read on every play** — a table an editor reloads with

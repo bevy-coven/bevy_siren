@@ -7,9 +7,11 @@
 //!
 //! **This is the only place a voice starts twice-checked.** A voice that has a [`MixerVoice`] is playing; a voice
 //! with [`Samples`] and no `MixerVoice` is waiting. A sample the decoder refuses is reported as a `Refused` with
-//! the key, so a project learns which file to deliver rather than hearing nothing.
+//! the key, so a project learns which file to deliver rather than hearing nothing — and so is **a file that failed to
+//! load** (`refuse_failed_loads`): the asset server knows, and a voice that waits for bytes that will never come is
+//! `Played` for a sound that cannot sound, a slot held for ever, and a log that reads as healthy.
 
-use bevy::audio::{AudioPlayer, AudioSource, PlaybackMode, PlaybackSettings};
+use bevy::audio::{AudioPlayer, AudioSink, AudioSource, PlaybackMode, PlaybackSettings, SpatialAudioSink};
 use bevy::prelude::*;
 
 use crate::cue::CueTable;
@@ -17,6 +19,7 @@ use crate::log::{Entry, SirenLog};
 use crate::ogg;
 use crate::output::Output;
 use crate::play::{MixerVoice, Refusal, Refused, Samples, Voice};
+use crate::sounds::{Files, cannot_load, failed_to_load};
 
 /// The `sound` key a cue's chosen variant names, or `None` when the table can no longer answer for it.
 fn key_of(table: &CueTable, cue: &str, variant: usize) -> Option<String> {
@@ -101,6 +104,44 @@ pub fn start_pending(
                 commands.entity(entity).despawn();
             }
         }
+    }
+}
+
+/// The voices that have not started on either path: no mixer voice, no sink of either kind.
+type Unstarted = (Without<MixerVoice>, Without<AudioSink>, Without<SpatialAudioSink>);
+
+/// **Refuses a voice whose file failed to load, and frees it.** A play whose file had **already** failed is refused where it is asked (`play::answer`) and never spawns; this is the voice that was
+/// spawned while the load was still in flight and whose load then failed — the play could not know. It answers as `start_pending` does for bytes the decoder refuses: `Refused { MissingSound { sound } }` and
+/// a log line, here with the asset server's own cause and the path it looked for, and the voice is despawned so its budget slot is free at the next `update_mix`. The `Played` it already wrote stands; a
+/// refusal after a `Played` is the second answer, and it is the true one.
+///
+/// **Only a voice that has not started and whose asset is absent is looked at**, so a running voice costs nothing (its archetype is skipped), and a load still `Loading` — or a handle the server has no
+/// record of — is left to wait, exactly as before. Runs after `start_pending` and works on both paths: a voice has a [`MixerVoice`] only once the mixer started it, and a sink only once Bevy did.
+pub(crate) fn refuse_failed_loads(
+    mut commands: Commands,
+    files: Files,
+    table: Res<CueTable>,
+    waiting: Query<(Entity, &Voice, &Samples), Unstarted>,
+    mut refused: MessageWriter<Refused>,
+    mut log: ResMut<SirenLog>,
+    real: Res<Time<Real>>,
+) {
+    let now = real.elapsed_secs_f64();
+    for (entity, voice, samples) in &waiting {
+        let Some(error) = cannot_load(&files, &samples.0) else {
+            continue;
+        };
+        // The key the play chose, recovered as `start_pending` recovers it; a table edited since can no longer answer, and then the cue really is unknown.
+        let (reason, sentence) = match key_of(&table, &voice.cue, voice.variant) {
+            Some(sound) => {
+                let sentence = failed_to_load(&sound, &error);
+                (Refusal::MissingSound { sound }, sentence)
+            }
+            None => (Refusal::UnknownCue, Refusal::UnknownCue.to_string()),
+        };
+        log.push(Entry::Refused { at_s: now, cue: voice.cue.clone(), reason: sentence });
+        refused.write(Refused { cue: voice.cue.clone(), reason });
+        commands.entity(entity).despawn();
     }
 }
 

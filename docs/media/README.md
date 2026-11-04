@@ -93,6 +93,25 @@ cargo build --release --features semantic --example goldenbench
 python3 docs/media/transcript_png.py docs/media/golden-kenney.txt docs/media/golden-kenney.png    # needs Pillow and macOS's Menlo
 ```
 
+## `failed-load.png` — a file that failed to load is refused, with the cause (iteration 116)
+
+![The same six plays of a misspelt file name, before and after: six Played and a log of played and stolen by ui.click (cue), then six Refused and a log line that names the file and the path the asset server looked for](failed-load.png)
+
+`failed-load.txt` is the verbatim output of one scratch program run twice — on the tree as it was (iteration 115) and with this change — against the real `AssetServer` and a key, `typo_click.ogg`, that names a file that is not
+there. **Before: six plays, six `Played`, a log of *played* and *stolen by ui.click (cue)* — a healthy-looking sequence for a sound nobody heard, with a dead voice held in the budget. After: six `Refused`, no voice, nothing counted
+on the bus, and a log line that names the key, says the file failed to load and carries the asset server's own cause and path.** (The `Refused` message a game prints still reads the one `MissingSound` sentence — the six
+`frame N:` lines of the second run: the cause is in the log, which is `needs-decision/undecodable-sound.md`'s option 4.) The program is `runs/2026-11-04-116/evidence/after/failed-load.rs.txt`:
+
+```sh
+cp docs/loop/runs/2026-11-04-116/evidence/after/failed-load.rs.txt examples/scratch_failed_load.rs     # it is not kept in examples/
+mkdir -p /tmp/siren-stems                                                                              # any directory: the key names a file that is not in it
+cargo run --release --example scratch_failed_load -- /tmp/siren-stems typo_click.ogg
+rm examples/scratch_failed_load.rs
+python3 docs/media/transcript_png.py docs/media/failed-load.txt docs/media/failed-load.png             # needs Pillow and macOS's Menlo
+```
+
+Tests: `tests/failed_load.rs` — real server, real fixtures, a loader that waits at a gate the test opens and then succeeds or fails, so the order of events is the test's and not a race with the disk or a delay.
+
 ## No clip: iteration 115, an Ogg loop sounds, and is as long as the stream says
 
 No clip: the change is **what a loop of an Ogg Vorbis file sounds like**, on Bevy's path and on the `mixer` backend, and `examples/render` renders no Ogg, so every rendered cue is byte-identical (21 of 21) and the
