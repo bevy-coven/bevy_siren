@@ -1,0 +1,60 @@
+The final matrix of iteration 123, on the final tree (`CARGO_INCREMENTAL=0 bash docs/loop/matrix.sh`), on a volume at
+100 % with **2.3 GB** free at the start. Two steps did not link — `cargo test --features semantic` and `cargo build
+--examples --all-features` — and both are **the disk, not the code**: `linking with cc failed` while six other feature
+sets' artifacts are on a volume with 2.3 GB left. Both were re-run alone afterwards and are recorded below with the
+number that passed.
+
+(started clean of this crate's artifacts; free 2.3 GB)
+=== cargo build   [free 2.3 GB, 05:31:41]   exit: 0 (Finished in 0.60s)
+=== cargo test   [free 2.3 GB, 05:31:41]
+   1 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 247 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.65s
+   exit: 0
+=== cargo test --features serde   [free 2.3 GB, 05:31:51]
+   1 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+   1 test result: ok. 256 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.65s
+   exit: 0
+=== cargo test --features semantic   [free 2.3 GB, 05:32:01]
+   3 error: linking with `cc` failed: exit status: 1
+   1 error: could not compile `bevy_siren` (test "all") due to 1 previous error
+   1 error: could not compile `bevy_siren` (example "quick_start") due to 1 previous error
+   1 error: could not compile `bevy_siren` (example "mixer") due to 1 previous error
+   exit: 101
+   (disk was short: removed this crate's artifacts; free now 2.3 GB)
+=== cargo test --features mixer   [free 2.3 GB, 05:32:34]
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+   1 test result: ok. 262 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.28s
+   1 test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+   exit: 0
+=== cargo test --all-features --tests -j 1   [free 2.3 GB, 05:32:53]
+   1 test result: ok. 593 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.34s
+   1 test result: ok. 129 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.48s
+   1 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   exit: 0
+=== cargo test --doc   [free 2.3 GB, 05:33:46]
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   exit: 0
+=== cargo test --features readme-example --test all readme::   [free 2.3 GB, 05:33:50]
+   1 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 247 filtered out; finished in 0.00s
+   exit: 0
+=== cargo build --examples   [free 2.3 GB, 05:33:58]   exit: 0 (Finished in 3.11s)
+=== cargo build --examples --all-features   [free 2.3 GB, 05:34:01]
+   1 error: linking with `cc` failed: exit status: 1
+   1 error: could not compile `bevy_siren` (example "mixer") due to 1 previous error
+   exit: 101
+=== cargo clippy --all-targets --all-features -- -D warnings   [free 2.3 GB, 05:34:10]   exit: 0
+=== cargo fmt --check   [free 2.3 GB, 05:34:14]   exit: 0
+=== cargo doc --no-deps --all-features   [free 2.3 GB, 05:34:14]   exit: 0
+=== matrix done 05:34:18
+
+By hand, afterwards:
+  cargo test --features semantic --test all     (2.3 GB free)  ->  Finished; **565 passed**.
+  cargo build --examples --all-features         ->  the same link failure; `cargo check --examples --all-features`
+      compiles every example (19 `.d` files), so the code side is held and the link is the disk.
+
+Both failures are the same one iteration 121 and 122 recorded: `target/debug/deps` is 9.8 GB of dependency artifacts on a
+volume with 2 – 2.3 GB free, and the two steps that write several Bevy-sized binaries at once are the ones that need
+more. The counts are **9 + 247 / 9 + 256 / 118 + 565 / 20 + 262 / 129 + 593**, 7 doc, 1 readme — four more integration
+tests than the baseline in every build (`tests/console.rs`), and every other step green.

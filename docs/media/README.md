@@ -231,6 +231,22 @@ python3 docs/media/transcript_png.py docs/media/stream-draws.txt docs/media/stre
 
 Tests: `tests/play.rs::an_exact_pitch_range_leaves_the_stream_alone`, `tests/model.rs::a_forced_pick_is_not_a_draw` and `a_pick_with_two_candidates_still_draws` — no device needed.
 
+## `refusals.png` — a refusal a project authored wrong is on the console (iteration 123)
+
+![The same probe before and after over ten refusal classes: ten silent consoles before, and after, one line per authoring class with the cue and its reason, one line for a hundred plays in one frame, and nothing for a healthy cue, a budget cap or a spatial mute; then the real device's console from the README's quick start with one letter wrong, printing WARN bevy_siren once a second](refusals.png)
+
+No clip: the change is **a line on the console**, and the sound of every play is unchanged (21 of 21 rendered WAVs and every refusal text are byte-identical to iteration 122's). `refusals.txt` is two verbatim **excerpts** of one probe (`evidence/{before,after}/refusals-probe.rs.txt`), plus the real device's console. **Before**, ten refusal classes — a misspelt cue, a key with no handle, an unknown bus, a cue with no sounds — printed **nothing**: the crate wrote the sentence into `Refused` and `SirenLog` and the
+guide's *"there is no silent failure"* held only for a game that had already written the printer. **After**, the four a project authored wrong print once per cue and reason per frame, with the cue's name and the log's own sentence; a hundred plays of one typo in one frame are **one** line; the budget and a spatial mute never print; and a headless app with no subscriber prints nothing. The program:
+
+```sh
+cp docs/loop/runs/2026-11-04-123/evidence/after/refusals-probe.rs.txt examples/scratch_refusals.rs
+cargo run --release --example scratch_refusals       # on bdc0bdf every row reads `0 line(s)`; after, the table above
+rm examples/scratch_refusals.rs
+python3 docs/media/transcript_png.py docs/media/refusals.txt docs/media/refusals.png      # needs Pillow and macOS's Menlo
+```
+
+Tests: `tests/console.rs` — `an_authoring_refusal_is_printed_once_per_frame_and_named`, `a_budget_refusal_and_a_spatial_mute_are_not_printed`, `the_console_line_is_the_logs_own_sentence`, `no_subscriber_is_silent_and_safe` — no device needed.
+
 ## No clip: iteration 115, an Ogg loop sounds, and is as long as the stream says
 
 No clip: the change is **what a loop of an Ogg Vorbis file sounds like**, on Bevy's path and on the `mixer` backend, and `examples/render` renders no Ogg, so every rendered cue is byte-identical (21 of 21) and the

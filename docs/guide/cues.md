@@ -59,6 +59,21 @@ There is no silent failure. Every refused play is a `Refused` with a reason that
 A refusal names what a project has to supply. It never falls back to another bus or a guessed file, because a
 sound that plays the wrong thing is worse than one that says what is missing.
 
+**An authoring mistake is also printed, once, without your code.** A game that reads neither `Refused` nor `SirenLog` —
+the ordinary game — used to learn nothing from a misspelt cue name; `UnknownCue`, `NoSounds`, `MissingSound` and
+`UnknownBus` now reach the console as a `warn!` whose target is `bevy_siren`, once per cue and reason per frame:
+
+```
+WARN bevy_siren: refused `footstep.grss`: no cue of that name
+```
+
+**`VoiceLimit` and `SpatiallyMute` never print**: a budget cap is the budget doing what you asked for, and a spatial mute
+is an architectural state (a scene whose listener arrives a frame after its first play would otherwise print at frame
+zero of every run). Both are still `Refused` messages and `SirenLog` entries. To silence the authoring line too —
+a game with its own error reporting — `RUST_LOG=bevy_siren=off`, or a `LogPlugin` filter, does it; a crate cannot be
+silenced by its own `println!`, which is why this is a `tracing` event and not a print
+(`docs/loop/needs-decision/log-cursor.md`, option 4).
+
 ## The keys and the files
 
 A cue's `sound` is an opaque key. `SirenSounds` maps keys to loaded handles:

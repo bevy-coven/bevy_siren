@@ -1,0 +1,157 @@
+// Iteration 123's probe: does the console learn that a play was refused? Run on the unchanged tree and again after the
+// change. Deleted once its output is kept; the source is evidence/{before,after}/refusals-probe.rs.txt.
+use std::sync::{Arc, Mutex};
+
+use bevy::log::tracing::{Event, Subscriber};
+use bevy::log::tracing_subscriber;
+use bevy::log::tracing_subscriber::layer::{Context, Layer, SubscriberExt};
+use bevy::log::tracing::field::{Field, Visit};
+use bevy::prelude::*;
+use bevy_siren::*;
+
+#[derive(Clone, Default)]
+struct Console(Arc<Mutex<Vec<(String, String)>>>);
+
+impl<S: Subscriber> Layer<S> for Console {
+    fn on_event(&self, event: &Event<'_>, _: Context<'_, S>) {
+        struct Message(String);
+        impl Visit for Message {
+            fn record_debug(&mut self, _: &Field, value: &dyn std::fmt::Debug) {
+                self.0 = format!("{value:?}");
+            }
+        }
+        let mut message = Message(String::new());
+        event.record(&mut message);
+        self.0.lock().expect("the console").push((event.metadata().target().to_owned(), message.0));
+    }
+}
+
+fn table() -> CueTable {
+    CueTable::new(vec![
+        Cue { sounds: vec![SoundSlot::new("a"), SoundSlot::new("b")], ..Cue::new("footstep.grass") },
+        Cue { sounds: vec![SoundSlot::new("a")], ..Cue::new("ui.click") },
+        Cue { sounds: vec![SoundSlot::new("a")], bus: "Reverb".to_owned(), ..Cue::new("bang") },
+        Cue { sounds: vec![SoundSlot::new("a")], max_instances: 2, ..Cue::new("engine.idle") },
+        Cue { sounds: vec![], ..Cue::new("silent.cue") },
+        Cue { sounds: vec![SoundSlot::new("a")], spatial: true, ..Cue::new("bang.spatial") },
+    ])
+}
+
+fn sounds() -> SirenSounds {
+    let mut sounds = SirenSounds::new();
+    for key in ["a", "b"] {
+        sounds.insert(key, Handle::<AudioSource>::default());
+    }
+    sounds
+}
+
+fn app(settings: SirenSettings) -> App {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+        .init_asset::<AudioSource>()
+        .insert_resource(table())
+        .insert_resource(sounds())
+        .insert_resource(settings)
+        .add_plugins(SirenPlugin);
+    // **One frame, and then `Update` on this thread** so a thread-local subscriber sees every event.
+    app.update();
+    app
+}
+
+fn app_without_sounds() -> App {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+        .init_asset::<AudioSource>()
+        .insert_resource(table())
+        .insert_resource(SirenSounds::new())
+        .insert_resource(SirenSettings::default())
+        .add_plugins(SirenPlugin);
+    app.update();
+    app
+}
+
+fn plays(app: &mut App, cue: &str, count: usize) {
+    for _ in 0..count {
+        app.world_mut().write_message(Play::cue(cue));
+    }
+    app.update();
+}
+
+fn measured(name: &str, run: impl FnOnce()) {
+    let console = Console::default();
+    let subscriber = tracing_subscriber::registry().with(console.clone());
+    bevy::log::tracing::subscriber::with_default(subscriber, run);
+    let lines: Vec<String> = console
+        .0
+        .lock()
+        .expect("the console")
+        .iter()
+        .filter(|(target, _)| target == "bevy_siren")
+        .map(|(_, message)| message.clone())
+        .collect();
+    println!("{name:<46} {:>2} line(s)  {lines:?}", lines.len());
+}
+
+fn main() {
+    // A healthy game: two variants, both handles, eight plays. Must print nothing, before and after.
+    measured("healthy footstep, 8 plays", || {
+        let mut app = app(SirenSettings::default());
+        plays(&mut app, "footstep.grass", 8);
+    });
+    // An authoring mistake: a cue name not in the table.
+    measured("unknown cue, 1 play", || {
+        let mut app = app(SirenSettings::default());
+        plays(&mut app, "footstep.grss", 1);
+    });
+    // The same mistake a hundred times in one frame: one line.
+    measured("unknown cue, 100 plays in one frame", || {
+        let mut app = app(SirenSettings::default());
+        plays(&mut app, "footstep.grss", 100);
+    });
+    // Two different unknown cues in one frame: two lines.
+    measured("two unknown cues in one frame", || {
+        let mut app = app(SirenSettings::default());
+        app.world_mut().write_message(Play::cue("footstep.grss"));
+        app.world_mut().write_message(Play::cue("footstep.snow"));
+        app.update();
+    });
+    // The same unknown cue over eight frames: one line a frame.
+    measured("unknown cue, 8 frames", || {
+        let mut app = app(SirenSettings::default());
+        for _ in 0..8 {
+            plays(&mut app, "footstep.grss", 1);
+        }
+    });
+    // A key with no handle.
+    measured("a sound key with no handle", || {
+        // `ui.click` names the key "a", and this app is built without a handle for it: the cue is in the table and
+        // its variant cannot be played.
+        let mut app = app_without_sounds();
+        plays(&mut app, "ui.click", 1);
+    });
+    // A bus the mix table does not have.
+    measured("an unknown bus", || {
+        let mut app = app(SirenSettings::default());
+        plays(&mut app, "bang", 1);
+    });
+    // A cue with no sounds.
+    measured("a cue with no sounds", || {
+        let mut app = app(SirenSettings::default());
+        plays(&mut app, "silent.cue", 1);
+    });
+    // The budget: normal operation, must print nothing.
+    measured("budget of 2, 40 plays", || {
+        let mut app = app(SirenSettings { max_voices: 2, ..SirenSettings::default() });
+        plays(&mut app, "engine.idle", 40);
+    });
+    // A spatial play with no listener: architectural, must print nothing.
+    measured("a spatial play with no listener", || {
+        let mut app = app(SirenSettings::default());
+        app.world_mut().write_message(Play::cue("bang.spatial").at(Vec3::new(1.0, 0.0, 0.0)));
+        app.update();
+    });
+    // No subscriber at all (the ordinary headless test): nothing to print, nothing to panic.
+    let mut app = app(SirenSettings::default());
+    plays(&mut app, "footstep.grss", 10);
+    println!("{:<46} completed", "no subscriber, 10 unknown-cue plays");
+}

@@ -1,0 +1,29 @@
+// Iteration 123's real-device picture: the README's quick start, with the cue name misspelt. Deleted once the console is
+// kept as evidence; the source stays as docs/loop/runs/2026-11-04-123/evidence/after/typo-on-the-real-console.rs.txt.
+use bevy::prelude::*;
+use bevy_siren::*;
+
+fn main() {
+    App::new()
+        .add_plugins((DefaultPlugins, SirenPlugin))
+        .add_systems(Startup, setup)
+        .add_systems(Update, walk)
+        .run();
+}
+
+fn setup(mut cue_table: ResMut<CueTable>, mut sounds: ResMut<SirenSounds>, assets: Res<AssetServer>) {
+    cue_table.insert(Cue {
+        sounds: vec![SoundSlot::new("step_01.ogg"), SoundSlot::new("step_02.ogg")],
+        ..Cue::new("footstep.grass")
+    });
+    sounds.load_table(&assets, &cue_table, "audio");
+}
+
+/// The cue is called `footstep.grss` here: one letter, and nothing plays.
+fn walk(mut play: MessageWriter<Play>, time: Res<Time>, mut elapsed: Local<f32>) {
+    *elapsed += time.delta_secs();
+    if *elapsed >= 1.0 {
+        *elapsed -= 1.0;
+        play.write(Play::cue("footstep.grss"));
+    }
+}

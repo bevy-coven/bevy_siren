@@ -5,8 +5,13 @@
 //! finds the `Ducked`/`Played`/`Refused` lines that answer it; and a game that prints them reads with a mark —
 //! [`SirenLog::since`] the number [`SirenLog::pushed`] gave last time — as the README's quick start does.
 //!
-//! Nothing here is a `println!`. A crate that prints is a crate a game cannot silence: the game prints the log, and
-//! the quick start shows the six lines that do it.
+//! **The log is written in silence; the console is told about an authoring mistake.** Nothing here is a `println!`, and
+//! nothing here prints: a panel shows the tail, a game's own system prints it (the quick start's six lines), and a game
+//! that prints none of it still hears every sound. **The one thing the crate itself prints** is a refusal a project
+//! authored wrong — a cue name the table does not have, a cue with no sounds, a key with no handle, a bus the mix table
+//! does not have — as a `warn!` whose target is `bevy_siren`, once per cue and reason per frame
+//! (`docs/loop/runs/2026-11-04-123/`). It is filterable by target and level (`RUST_LOG=bevy_siren=off`), so a game can
+//! silence it; the budget and a spatial mute never print.
 
 use std::collections::VecDeque;
 

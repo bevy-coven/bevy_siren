@@ -161,6 +161,35 @@ pub enum Refusal {
     SpatiallyMute(Vec3),
 }
 
+impl Refusal {
+    /// **Whether a project authored this wrong**, which is what decides whether the console is told.
+    ///
+    /// `true` for the four a running game cannot produce by playing correctly — a cue name the table does not have, a
+    /// cue with no sounds, a key with no handle (or bytes the decoder refused), a bus the mix table does not have.
+    /// `false` for the two that are normal: [`VoiceLimit`](Self::VoiceLimit) is the budget doing what a project asked
+    /// for (`cues.yaml` cases 7–9 and 21), and [`SpatiallyMute`](Self::SpatiallyMute) is an architectural state — a
+    /// scene whose listener arrives a frame after its first play would otherwise print at frame zero of every run.
+    pub(crate) fn is_authoring(&self) -> bool {
+        match self {
+            Self::UnknownCue | Self::NoSounds | Self::MissingSound { .. } | Self::UnknownBus { .. } => true,
+            Self::VoiceLimit { .. } | Self::SpatiallyMute(_) => false,
+        }
+    }
+
+    /// The variant's own name, for a line that must not repeat within a frame: two different reasons for one cue are
+    /// two mistakes, and the same reason a hundred times is one.
+    pub(crate) fn kind(&self) -> &'static str {
+        match self {
+            Self::UnknownCue => "UnknownCue",
+            Self::NoSounds => "NoSounds",
+            Self::MissingSound { .. } => "MissingSound",
+            Self::UnknownBus { .. } => "UnknownBus",
+            Self::VoiceLimit { .. } => "VoiceLimit",
+            Self::SpatiallyMute(_) => "SpatiallyMute",
+        }
+    }
+}
+
 impl std::fmt::Display for Refusal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -487,6 +516,9 @@ pub fn play_requests(
     // owns every voice"); this is what makes that promise true rather than a claim about a resource the
     // spawn never read.
     let mixer = output.as_deref().filter(|_| backend.0);
+    // **A frame's hundred identical refusals are one mistake.** The console line is per cue and reason per frame:
+    // a burst of plays against a misspelt name is one typo, and a hundred lines for it is a console nobody reads.
+    let mut announced: std::collections::HashSet<(String, &'static str)> = std::collections::HashSet::new();
     let mixer_owns = mixer.is_some();
     // **Who decodes this play's bytes is who is asked whether they can be decoded**: the crate's own mixer when it owns the voice — it refuses in `start_pending`, after `Played`, unless asked here — and Bevy otherwise.
     let decode = mixer.map_or(Decode::Bevy, Decode::Output);
@@ -584,6 +616,17 @@ pub fn play_requests(
                 // **The cause, when the asset server knows it.** `MissingSound` carries only the key, so a file that failed to load reads the same as a key with no handle; the log says which, with the server's own
                 // sentence (the cause and the path). `needs-decision/undecodable-sound.md`, option 4: no variant is added, so no consumer's exhaustive `match` breaks.
                 let sentence = refusal_sentence(&reason, &sounds, &files, &decode);
+                // **An authoring mistake goes to the console, once a frame.** A game that reads neither `Refused` nor
+                // `SirenLog` — the ordinary game — used to learn nothing from a misspelt cue, a bus the mix table does
+                // not have, a key with no handle or a cue with no sounds (`runs/2026-11-04-123`: every one of them
+                // printed nothing). It is a `warn!` with `target: "bevy_siren"`, so it reaches the terminal the game's
+                // own subscriber prints and a game can silence it with `RUST_LOG=bevy_siren=off` or a `LogPlugin`
+                // filter — the rule `src/log.rs` states, kept: the crate prints **only** what a project authored wrong.
+                // **A budget refusal is not a fault** (a cap doing its job, `cues.yaml` 7–9 and 21), and a spatial mute is
+                // an architectural state that can precede the listener by a frame; neither prints.
+                if reason.is_authoring() && announced.insert((request.cue.clone(), reason.kind())) {
+                    warn!(target: "bevy_siren", "refused `{}`: {sentence}", request.cue);
+                }
                 log.push(Entry::Refused { at_s: now, cue: request.cue.clone(), reason: sentence });
                 refused.write(Refused { cue: request.cue.clone(), reason });
             }

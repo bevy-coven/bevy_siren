@@ -1,0 +1,35 @@
+Iteration 123 — the crate's own line, on this Mac's console, from a real window and the real device.
+
+The README's quick start with one letter of the cue's name wrong (`footstep.grss`, in the code; the table has
+`footstep.grass`), built and run as
+
+  CARGO_INCREMENTAL=0 cargo build --example scratch_typo
+  BEVY_ASSET_ROOT=$PWD ./target/debug/examples/scratch_typo      (killed after 9 s)
+
+The console, verbatim (the window's own `INFO bevy_*` lines kept so the context is the one a person sees):
+
+2026-11-04T11:28:04.651182Z  INFO bevy_diagnostic::system_information_diagnostics_plugin::internal: SystemInfo { os: "macOS 26.6.2 Tahoe", kernel: "25.6.0", cpu: "Apple M4 Pro", core_count: "14", memory: "48.0 GiB" }
+2026-11-04T11:28:04.687007Z  INFO bevy_render::renderer: AdapterInfo { name: "Apple M4 Pro", vendor: 0, device: 0, device_type: IntegratedGpu, … backend: Metal, … }
+2026-11-04T11:28:04.857345Z  INFO bevy_pbr::cluster: GPU clustering is supported on this device.
+2026-11-04T11:28:04.857436Z  INFO bevy_render::batching::gpu_preprocessing: GPU preprocessing is fully supported on this device.
+2026-11-04T11:28:04.878230Z  INFO bevy_winit::system: Creating new window scratch_typo (67v0)
+2026-11-04T11:28:06.134467Z  WARN bevy_siren: refused `footstep.grss`: no cue of that name
+2026-11-04T11:28:07.135868Z  WARN bevy_siren: refused `footstep.grss`: no cue of that name
+2026-11-04T11:28:08.142799Z  WARN bevy_siren: refused `footstep.grss`: no cue of that name
+2026-11-04T11:28:09.117367Z  WARN bevy_siren: refused `footstep.grss`: no cue of that name
+2026-11-04T11:28:10.122034Z  WARN bevy_siren: refused `footstep.grss`: no cue of that name
+2026-11-04T11:28:11.132345Z  WARN bevy_siren: refused `footstep.grss`: no cue of that name
+2026-11-04T11:28:12.127316Z  WARN bevy_siren: refused `footstep.grss`: no cue of that name
+2026-11-04T11:28:13.146211Z  WARN bevy_siren: refused `footstep.grss`: no cue of that name
+
+What it says:
+
+- **The crate's own line is on the console with no game code for it** — the example has no `report` system at all. Before
+  iteration 123 this run printed **nothing** from the crate (the same probe on `bdc0bdf`: ten refusal classes, ten silent
+  consoles) and a reader had no way to learn that one letter was wrong.
+- **One line a second**, because the example plays once a second; a thousand plays in one frame would be one line
+  (`tests/console.rs::an_authoring_refusal_is_printed_once_per_frame_and_named`).
+- **It is a `WARN`, and its target is the crate**: `RUST_LOG=bevy_siren=off` silences it, and a game's own
+  `LogPlugin::filter` can too. Nothing else in the run changed: the same window lines, the same order.
+- **The healthy quick start prints none of it** (the run before this one: footsteps only, no `bevy_siren` line), which is
+  the other half of the promise.

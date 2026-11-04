@@ -1,0 +1,37 @@
+BEFORE — a refusal a project authored wrong is written to `Refused` and `SirenLog` and printed nowhere. Excerpt of
+runs/2026-11-04-123/evidence/before/refusals-on-the-unchanged-tree.txt (10 refusal classes, the real plugin, a `tracing`
+layer capturing target `bevy_siren`).
+
+healthy footstep, 8 plays                       0 line(s)  []
+unknown cue, 1 play                             0 line(s)  []
+unknown cue, 100 plays in one frame             0 line(s)  []
+two unknown cues in one frame                   0 line(s)  []
+unknown cue, 8 frames                           0 line(s)  []
+a sound key with no handle                      0 line(s)  []
+an unknown bus                                  0 line(s)  []
+a cue with no sounds                            0 line(s)  []
+budget of 2, 40 plays                           0 line(s)  []
+a spatial play with no listener                 0 line(s)  []
+
+AFTER — the four a project authored wrong print once per cue and reason per frame; the budget and the spatial mute never
+do. Excerpt of evidence/after/refusals-after.txt.
+
+healthy footstep, 8 plays                       0 line(s)  []
+unknown cue, 1 play                             1 line(s)  ["refused `footstep.grss`: no cue of that name"]
+unknown cue, 100 plays in one frame             1 line(s)  ["refused `footstep.grss`: no cue of that name"]
+two unknown cues in one frame                   2 line(s)  ["refused `footstep.grss`: no cue of that name", "refused `footstep.snow`: no cue of that name"]
+unknown cue, 8 frames                           8 line(s)  one a frame
+a sound key with no handle                      1 line(s)  ["refused `ui.click`: no handle or undecodable bytes for sound `a`"]
+an unknown bus                                  1 line(s)  ["refused `bang`: bus `Reverb` is not in the mix table"]
+a cue with no sounds                            1 line(s)  ["refused `silent.cue`: the cue has no sounds"]
+budget of 2, 40 plays                           0 line(s)  []
+a spatial play with no listener                 0 line(s)  []
+
+ON THE REAL DEVICE — the README's quick start with one letter wrong (`footstep.grss`), no `report` system at all
+(evidence/after/typo-on-the-real-console.txt):
+
+2026-11-04T11:28:04.878230Z  INFO bevy_winit::system: Creating new window scratch_typo (67v0)
+2026-11-04T11:28:06.134467Z  WARN bevy_siren: refused `footstep.grss`: no cue of that name
+2026-11-04T11:28:07.135868Z  WARN bevy_siren: refused `footstep.grss`: no cue of that name
+2026-11-04T11:28:08.142799Z  WARN bevy_siren: refused `footstep.grss`: no cue of that name
+…

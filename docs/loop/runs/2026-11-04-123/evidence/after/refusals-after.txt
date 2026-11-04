@@ -1,0 +1,29 @@
+Iteration 123 — the console after the change (the tree with the `warn!` in `play_requests`). The same probe, same order,
+same capture: a `tracing` layer collecting every event whose target is `bevy_siren`, on this thread.
+
+  CARGO_INCREMENTAL=0 cargo run --release --example scratch_refusals
+
+healthy footstep, 8 plays                       0 line(s)  []
+unknown cue, 1 play                             1 line(s)  ["refused `footstep.grss`: no cue of that name"]
+unknown cue, 100 plays in one frame             1 line(s)  ["refused `footstep.grss`: no cue of that name"]
+two unknown cues in one frame                   2 line(s)  ["refused `footstep.grss`: no cue of that name", "refused `footstep.snow`: no cue of that name"]
+unknown cue, 8 frames                           8 line(s)  each "refused `footstep.grss`: no cue of that name"
+a sound key with no handle                      1 line(s)  ["refused `ui.click`: no handle or undecodable bytes for sound `a`"]
+an unknown bus                                  1 line(s)  ["refused `bang`: bus `Reverb` is not in the mix table"]
+a cue with no sounds                            1 line(s)  ["refused `silent.cue`: the cue has no sounds"]
+budget of 2, 40 plays                           0 line(s)  []
+a spatial play with no listener                 0 line(s)  []
+no subscriber, 10 unknown-cue plays            completed
+
+What the table says:
+
+- **A healthy game prints nothing**: eight footsteps, two variants, both handles — 0 lines, as before.
+- **An authoring mistake is on the console once**, with the cue it was asked for and the log's own sentence.
+- **A hundred plays in one frame are one line**, and **two cues are two lines**. The first run of the change printed a
+  hundred; the per-frame set was added because the probe showed it, and that run is in this file's history rather than
+  in the code.
+- **Eight frames are eight lines** — one a frame, which is what an unfixed mistake looks like at 60 fps.
+- **The budget prints nothing** at 40 plays against a cap of 2, and **a spatial mute prints nothing**: normal operation
+  and an architectural state stay silent.
+- **No subscriber: nothing happens** — the ten unknown-cue plays complete, so the 600-odd existing headless tests that
+  install no subscriber are unaffected.

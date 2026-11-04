@@ -1,0 +1,23 @@
+Iteration 123 — the console on the unchanged tree (bdc0bdf). examples/scratch_refusals.rs (source kept beside this file),
+run as:
+
+  CARGO_INCREMENTAL=0 cargo run --release --example scratch_refusals
+
+Every line counts the `tracing` events whose target is `bevy_siren`, captured on this thread by a `tracing` layer — the
+way a person reads the terminal.
+
+healthy footstep, 8 plays                       0 line(s)  []
+unknown cue, 1 play                             0 line(s)  []
+unknown cue, 100 plays in one frame             0 line(s)  []
+two unknown cues in one frame                   0 line(s)  []
+unknown cue, 8 frames                           0 line(s)  []
+a sound key with no handle                      0 line(s)  []
+an unknown bus                                  0 line(s)  []
+a cue with no sounds                            0 line(s)  []
+budget of 2, 40 plays                           0 line(s)  []
+a spatial play with no listener                 0 line(s)  []
+no subscriber, 10 unknown-cue plays            completed
+
+**Every refusal class prints nothing.** The crate writes the sentence into `SirenLog` and into `Refused`, and a game that
+reads neither learns nothing: a misspelt cue name, a bus the mix table does not have, a key with no handle and a cue
+with no sounds are all silent. That is the defect, in one table.

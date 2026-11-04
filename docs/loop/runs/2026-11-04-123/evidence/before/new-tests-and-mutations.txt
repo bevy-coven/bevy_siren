@@ -1,0 +1,48 @@
+Iteration 123 — the red-first run and the mutations. Each block is `CARGO_INCREMENTAL=0 cargo test --test all -- console::`
+on this tree, with one thing changed and put back. `src/play.rs` was copied before the first and compared after the last
+(`md5 -q`: 485b503e1176f809a402a703c4309fd3 — restored exactly after every mutation).
+
+================================================= A. the console switched off (the unchanged behaviour) =================================================
+`if reason.is_authoring() && announced.insert(…) {`  →  `if false && reason.is_authoring() && … {`
+
+  test console::an_authoring_refusal_is_printed_once_per_frame_and_named ... FAILED
+    assertion `left == right` failed: a hundred plays are one line
+      left: []        right: ["refused `footstep.grss`: no cue of that name"]
+  test console::the_console_line_is_the_logs_own_sentence ... FAILED
+    (no line to compare with the log's)
+  test console::a_budget_refusal_and_a_spatial_mute_are_not_printed ... ok      <- it asserts silence, which is what this is
+  test console::no_subscriber_is_silent_and_safe ... ok
+
+**Two of the four are red**, for the defect they were written for, and the other two are the "must stay silent" half of
+the rule and correctly pass with no printing at all.
+
+================================================= M1 — the per-frame set dropped =================================================
+`if reason.is_authoring() && announced.insert((cue, reason.kind()))`  →  `if reason.is_authoring()`
+
+  test console::an_authoring_refusal_is_printed_once_per_frame_and_named ... FAILED
+    (a hundred plays are a hundred lines)
+  the other three: ok.
+
+================================================= M2 — the budget printed =================================================
+`Self::VoiceLimit { .. } | Self::SpatiallyMute(_) => false`  →  `=> true`
+
+  test console::a_budget_refusal_and_a_spatial_mute_are_not_printed ... FAILED
+  the other three: ok.
+
+================================================= M3 — the line keyed by the cue alone =================================================
+`announced.insert((request.cue.clone(), reason.kind()))`  →  `announced.insert((request.cue.clone(), "any"))`
+
+  **GREEN — and that is the finding.** No test could tell, because **no cue can be refused for two reasons in one
+  frame**: `answer` decides in one order, and the first reason it meets is the only one — `MissingSound` before
+  `UnknownBus`, for a cue with no handle *and* a bus the table does not have. The key is still the reason, because a
+  future order (a bus checked first) would make two reasons reachable, and the type costs nothing; what this run says is
+  that the test cannot be written today, and the test's comment says so instead of pretending to hold it. A test written
+  for a state the code cannot reach is a test that passes for the wrong reason.
+
+  What replaced the attempt: the same cue with **one** reason prints **one** line (`bang` with no handles → `MissingSound`,
+  and the line names the handle, which is the reason a project must fix first) — a test of the order the crate's docs
+  promise, not of a key that is invisible.
+
+================================================= What the set says =================================================
+Three of the four guards are held by a test that fails without them. The fourth (the reason in the key) is held by
+nothing, **because nothing can exercise it**, and the file says so.

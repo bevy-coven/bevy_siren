@@ -1,0 +1,21 @@
+cargo run --release --example perfcheck   (CARGO_INCREMENTAL=0; the changed tree of iteration 123; Apple M4 Pro, a shared session, 4 users; load average 2.04, 4.10, 6.53 after the runs)
+
+=== run 1
+voices      us/frame        us/voice
+     8         0.062          0.0078
+    64         0.358          0.0056
+   256         1.304          0.0051
+
+=== run 2
+voices      us/frame        us/voice
+     8         0.058          0.0072
+    64         0.325          0.0051
+   256         1.209          0.0047
+
+=== run 3
+voices      us/frame        us/voice
+     8         0.060          0.0075
+    64         0.332          0.0052
+   256         1.228          0.0048
+
+Iteration 122 (three runs): 0.047-0.057 / 0.283-0.325 / 0.846-1.115.  Iteration 121 (eight runs): 0.041-0.067 / 0.246-0.374 / 0.769-1.248.

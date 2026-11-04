@@ -19,7 +19,12 @@ The README's Quick start has to *show* what the crate decided — `docs/loop/run
 | 1 | **`pushed()` and `since(mark)`**, each entry carrying the number it was pushed as (this change) | two additive methods; a game keeps one `u64` | **chosen**: exact, tiny, the game owns its mark |
 | 2 | A `Logged` message stream — a `Message<Entry>` written beside every `push` | none to read it | no: every decision is cloned (four `String`s) into a message at frame rate whether or not anyone listens, and the log's rule for which entry leaves a full ring would have to be held in two places. A game that wants the stream can build it on option 1 in three lines |
 | 3 | Nothing: a game uses `at_s` as its cursor | none | no: every entry of one frame shares one time, so a strict `>` loses entries pushed after the reader ran in that frame and `>=` prints them twice; and the other obvious cursor, `seen = log.len()`, **printed 256 of 600 entries and went quiet for good** (`evidence/before/len-cursor-stalls.txt`) |
-| 4 | **The crate prints** — a `warn!` once per cue and reason for an *authoring* refusal (`UnknownCue`, `NoSounds`, `MissingSound`, `UnknownBus`), filterable by target | a line on every game's console | **not here**: `src/log.rs:7` says *"A crate that prints is a crate a game cannot silence"* (a `tracing` event can be filtered where a `println!` cannot, which weakens it but does not settle it); a `VoiceLimit` refusal is **normal operation** under load and must never print; and a setting for it is a schema change the editor reads. It would make the failure loud for a game that never reads the log — **recorded as the next candidate** |
+| 4 | **The crate prints** — a `warn!` once per cue and reason for an *authoring* refusal (`UnknownCue`, `NoSounds`, `MissingSound`, `UnknownBus`), filterable by target | a line on every game's console | **built in iteration 123** (`runs/2026-11-04-123/`): `src/log.rs:7` says *"A crate that prints is a crate a game cannot silence"* — a `tracing` event **can** be silenced (`RUST_LOG=bevy_siren=off`, a `LogPlugin` filter), which is what settles it — and `warn!` is a `tracing` event, so the sentence becomes *the log is written in silence; the console is told about an authoring mistake*. A `VoiceLimit` never prints (normal operation, `cues.yaml` 7–9 and 21) and a `SpatiallyMute` never prints (architectural); no setting was added — `RUST_LOG` is the setting a Rust project already has |
+
+**Option 4 was built in iteration 123.** Ten refusal classes printed nothing before it; after it, an authoring refusal
+prints once per cue and reason per frame on `target: "bevy_siren"`, the budget and a spatial mute never print, and the
+line is the log's own sentence (`tests/console.rs`, four tests; the real device's console is
+`runs/2026-11-04-123/evidence/after/typo-on-the-real-console.txt`). `is_authoring` is `pub(crate)`: no public surface.
 
 ## Edge cases and what is decided
 
@@ -31,4 +36,4 @@ The README's Quick start has to *show* what the crate decided — `docs/loop/run
 
 ## Recommendation
 
-Option 1, as built. Option 4 deserves its own iteration with a measurement first (how many refusals a healthy game of the shipped examples produces, so the rule can promise it prints none of them) and the sentence that settles `src/log.rs:7`.
+Option 1, as built; **option 4 was built in iteration 123** with the measurement this file asked for — a healthy game refuses nothing it prints, and the sentence at `src/log.rs` is rewritten to *the log is written in silence; the console is told about an authoring mistake*.

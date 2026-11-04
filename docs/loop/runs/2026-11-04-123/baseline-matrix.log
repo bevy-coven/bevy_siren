@@ -1,0 +1,62 @@
+The baseline matrix of iteration 123, on the tree at `bdc0bdf` (= `origin/main`, clean), run as
+`CARGO_INCREMENTAL=0 bash docs/loop/matrix.sh` on a volume at 100 % with **2.7 GB** free at the start.
+
+The two steps that did not link are **the disk, not the code**: both are `linking with cc failed` on a machine whose free
+space is 2.7 GB and whose `target/debug/deps` is 9.8 GB of dependency artifacts (Bevy, ORT). Each was re-run alone
+afterwards, and `eval.md` records both the number that failed and the number that passed.
+
+(started clean of this crate's artifacts; free 2.7 GB)
+=== cargo build   [free 2.7 GB, 05:15:16]   exit: 0 (Finished in 0.42s)
+=== cargo test   [free 2.7 GB, 05:15:16]
+   1 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 243 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.99s
+   exit: 0
+=== cargo test --features serde   [free 2.7 GB, 05:15:34]
+   1 test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 252 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.29s
+   exit: 0
+=== cargo test --features semantic   [free 2.7 GB, 05:15:54]
+   1 error: linking with `cc` failed: exit status: 1
+   1 error: could not compile `bevy_siren` (test "all")
+   1 error: could not compile `bevy_siren` (lib test)
+   1 error: could not compile `bevy_siren` (example "goldenbench") due to 1 previous error
+   exit: 101
+   (disk was short: removed this crate's artifacts; free now 2.7 GB)
+=== cargo test --features mixer   [free 2.7 GB, 05:16:20]
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   1 test result: ok. 258 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.93s
+   1 test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s
+   exit: 0
+=== cargo test --all-features --tests -j 1   [free 2.7 GB, 05:16:47]
+   1 test result: ok. 589 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.35s
+   1 test result: ok. 129 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.85s
+   1 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+   exit: 0
+=== cargo test --doc   [free 2.6 GB, 05:17:36]
+   1 test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+   exit: 0
+=== cargo test --features readme-example --test all readme::   [free 2.6 GB, 05:17:41]
+   1 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 243 filtered out; finished in 0.00s
+   exit: 0
+=== cargo build --examples   [free 2.6 GB, 05:17:46]   exit: 0 (Finished in 6.91s)
+=== cargo build --examples --all-features   [free 2.6 GB, 05:17:53]
+   1 error: linking with `cc` failed: exit status: 1
+   1 error: could not compile `bevy_siren` (example "mixer") due to 1 previous error
+   exit: 101
+   (disk was short: removed this crate's artifacts; free now 2.7 GB)
+=== cargo clippy --all-targets --all-features -- -D warnings   [free 2.7 GB, 05:18:13]   exit: 0
+=== cargo fmt --check   [free 2.7 GB, 05:18:20]   exit: 0
+=== cargo doc --no-deps --all-features   [free 2.7 GB, 05:18:20]   exit: 0
+=== matrix done 05:18:28
+
+By hand, afterwards:
+  cargo test --features semantic --test all     (2.21 GB free)  ->  Finished; **561 passed**. It links alone; in the matrix it
+      links beside six other feature sets' artifacts.
+  cargo build --examples --all-features          (the same step, alone)  -> see eval.md: it is the disk, and
+      `cargo check --examples --all-features` is what holds the code side of it.
+
+The two warnings in every step are the same two: ``bevy_siren` (example "quick_start")` and `(example "mixer")` each generate
+one, and they are the macOS linker message `ld: __eh_frame section too large` — a Bevy debug binary's unwinding table, not
+a warning in this crate's code (`cargo clippy -D warnings` is green).
