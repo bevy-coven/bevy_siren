@@ -214,6 +214,23 @@ python3 docs/media/transcript_png.py docs/media/seeds.txt docs/media/seeds.png  
 
 Tests: `tests/model.rs` (`a_seed_opens_a_stream_the_way_a_random_seed_would`, `neighbouring_seeds_are_uncorrelated_draw_for_draw`, `one_flipped_seed_bit_flips_half_the_first_draw`, `related_seeds_are_not_related_streams`, the known answers) and `tests/play.rs::a_cue_opens_on_any_variant_across_small_seeds` — no device needed.
 
+## `stream-draws.png` — a play that cannot decide takes nothing from the stream (iteration 122)
+
+![The same probe before and after: eight plays of a one-sound exact-pitch cue moving a three-variant cue's next six sounds and then leaving them exactly where the seed put them; an alternating exact-pitch footstep's one play and eight plays giving different observer sequences and then the same; and a three-variant cue with a one-deep window still drawing, and still never repeating back to back](stream-draws.png)
+
+No clip: the change is **which earlier plays move a later one**, and the sound of any single play is unchanged. `stream-draws.txt` is two verbatim **excerpts** of one probe (`evidence/before/draws-probe.rs.txt`, run on the tree before
+the fix and again after): the observer is a three-variant `Shuffle` cue whose next six sounds and pitches are printed after the cue under test has played 0, 1 or 8 times. **Before**, everything moves it — eight plays of a burst (one sound, an exact pitch, no decision in any of them) turn `b b c a c b` into `c b a b a a`, and an alternating exact-pitch
+footstep with **one** decision in eight plays takes sixteen numbers. **After**, the burst and the click leave it exactly where the seed put it, and the exact-pitch footstep's one play and eight plays leave it in the same place; a footstep with the default pitch still moves it (its detune is a real decision), and a three-variant cue under `avoid: 1` still draws every play and still never repeats back to back. The program:
+
+```sh
+cp docs/loop/runs/2026-11-04-122/evidence/before/draws-probe.rs.txt examples/scratch_draws.rs
+cargo run --release --example scratch_draws          # on 3176ebe every line DIFFERS; after the fix the burst and the click read SAME
+rm examples/scratch_draws.rs
+python3 docs/media/transcript_png.py docs/media/stream-draws.txt docs/media/stream-draws.png      # needs Pillow and macOS's Menlo
+```
+
+Tests: `tests/play.rs::an_exact_pitch_range_leaves_the_stream_alone`, `tests/model.rs::a_forced_pick_is_not_a_draw` and `a_pick_with_two_candidates_still_draws` — no device needed.
+
 ## No clip: iteration 115, an Ogg loop sounds, and is as long as the stream says
 
 No clip: the change is **what a loop of an Ogg Vorbis file sounds like**, on Bevy's path and on the `mixer` backend, and `examples/render` renders no Ogg, so every rendered cue is byte-identical (21 of 21) and the

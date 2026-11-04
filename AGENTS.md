@@ -14,6 +14,8 @@ labelled `consumer` and `consumer:<project>`; it is never patched into the consu
 
 ## Build and test
 
+**The whole list is one script**: `CARGO_INCREMENTAL=0 bash docs/loop/matrix.sh` (about four and a half minutes; it cleans this crate's own artifacts whenever free space is under 5 GB). It has **one** step split — `cargo test --all-features --tests -j 1` in place of `cargo test --all-features` — because that one command links the lib's tests, `all` and seven Bevy example binaries in parallel and did not fit the disk (iteration 121 at 3.9 GB, iteration 122's `--features semantic` at 2.1 GB); the examples are built by the `--examples --all-features` step below. A step that dies `rustc-LLVM ERROR: IO failure on output stream: No space left on device` is **the disk**, not the code: clean this crate, re-run that step alone, and say so in `eval.md`.
+
 ```sh
 cargo build                                   # the trimmed feature list a consumer gets
 cargo test                                    # one `all` binary, including tests/leaf.rs
@@ -170,6 +172,8 @@ function between frames; a duck takes time since it fired; a gain curve is a lin
   tested as a function of its seed across consecutive seeds** (`tests/model.rs`: uniformity of the opening, serial correlation, avalanche, the xor relation). **The stream is a release note, not a patch** (`needs-decision/exact-pitch-draw.md`, `seed-scramble.md`):
   `the_stream_is_the_one_the_docs_describe` pins the first four draws of seven seeds from an independent implementation, so changing it is a decision with a changelog line. **And a reported seed that is not the written one restarts the stream every frame**
   (`seed_choices` compares them; mutation M2 reddened nine play tests).
+- **A random number spent where it cannot change the answer is a coupling, not a flourish.** `answer` drew the detune for a cue with `PitchRange::exact` and the picker drew for a pick with one candidate left, so a burst weapon, a UI click or an alternating footstep moved every other cue's picks (`docs/loop/runs/2026-11-04-122/`): **eight plays of a one-sound exact-pitch cue moved a three-variant cue's next six sounds from `b b c a c b` to `c b a b a a`**, and the guide had documented it as a limitation. The stream exists so a run is a function of its *decisions* (L'Ecuyer et al. 2002: streams are for synchronisation and independent replications), so a play that decides nothing takes nothing — but **a pick that still has two candidates must still draw**, or the window stops being random (`a_pick_with_two_candidates_still_draws`).
+  **A mutation that stays green is the finding, not a pass**: two of six were invisible on their first run — the pitch guard was tested one half at a time until the test asked the inverted cue *first*, and `pick`'s forced branch was never reached because `len == 1` returns before the draw — so a test written from the *rule* was rewidened to each *path* that reaches it (`pick`, `pick_from`, each half of a two-part condition). **And `at(0.0)`, not `low`**: an inverted range is answered 0.0 by `at` and +2 semitones by `low`, so reading the bound instead of calling the function is a different sound (M6).
 
 ## The two-way street, both ways
 

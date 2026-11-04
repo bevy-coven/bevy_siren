@@ -1,0 +1,29 @@
+================================================= OUTPUT, fixed tree (b3397ee + this iteration's change) =================================================
+$ CARGO_INCREMENTAL=0 cargo run --release --example scratch_draws        (free 1.73 GB before)
+
+observer alone (6 plays):            ["b", "b", "c", "a", "c", "b"]
+observer after 8 x gun.burst       ["b", "b", "c", "a", "c", "b"]  SAME
+observer after 8 x footstep.grass  ["b", "c", "c", "b", "c", "c"]  DIFFERS
+observer after 8 x footstep.exact  ["a", "c", "a", "c", "b", "c"]  DIFFERS
+observer after 8 x ui.click        ["b", "b", "c", "a", "c", "b"]  SAME
+observer after 1 footstep:           ["b", "c", "a", "c", "b", "a"]
+observer after 8 footsteps:          ["b", "c", "c", "b", "c", "c"]  DIFFERS
+observer after 1 footstep.exact:     ["a", "c", "a", "c", "b", "c"]
+observer after 8 footsteps.exact:    ["a", "c", "a", "c", "b", "c"]  SAME
+footstep.stone (avoid 1, 3 variants): ["b", "a", "c", "a", "c", "b"]  repeats: false
+
+What the seven lines say:
+
+- **The burst and the UI click** (one sound, an exact pitch) leave the observer **exactly** where the seed put it. Before
+  the fix, both moved it to `c b a b a a`. Neither play had a decision in it, and now neither takes a number.
+- **`footstep.exact`** is the alternating two-variant cue **with an exact pitch**: its only decision is its *first* pick.
+  **One play and eight plays leave the observer in the same place** (`a c a c b c`) — the seven plays after the first
+  decide nothing (one candidate left, no pitch to draw) and take nothing. Before the fix, eight of them took sixteen
+  numbers.
+- **`footstep.grass`** (the same alternating cue, with the default ±1 semitone pitch) still moves the observer, and
+  **eight plays differ from one**: the pitch of each play is a real decision (a detune inside the range), so it draws.
+  This is the line that says the fix did not turn a real choice into a forced one.
+- **`footstep.stone`** (three sounds, `avoid: 1`) is unchanged: `b a c a c b`, no repeat back to back, because it has two
+  candidates on every play and still draws.
+- The observer's `b b c a c b` alone (unchanged from before the fix) is the seed's own answer: the *crate's* stream for
+  the observer is untouched, only the plays that had no decision stopped moving it.

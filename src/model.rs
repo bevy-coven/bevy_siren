@@ -422,6 +422,11 @@ impl VariantPicker {
     /// one file are one candidate for repetition: after `"a"` is heard, every slot whose key is `"a"` is refused. That is
     /// the guarantee `Repeat::AvoidRepeat` makes — *"never one of the last `avoid` variants"* — and a player hears keys.
     ///
+    /// **A pick with one candidate left takes nothing from `rng`.** The number cannot change the answer, and the stream
+    /// is shared: a two-variant cue under the default `avoid: 1` alternates, so every play after its first has one
+    /// candidate and would otherwise move every other cue's picks (`docs/loop/needs-decision/exact-pitch-draw.md`).
+    /// The draw happens only when two or more candidates are in front of it.
+    ///
     /// [`pick`](Self::pick) is the same rule without keys and is unchanged; a picker that has never been given keys
     /// behaves exactly as it always did.
     pub fn pick_from(&mut self, keys: &[&str], avoid: u8, rng: &mut Rng) -> Option<usize> {
@@ -462,14 +467,23 @@ impl VariantPicker {
         if choices.is_empty() {
             choices.extend(0..len);
         }
-        let at = ((rng.next_f32() * choices.len() as f32) as usize).min(choices.len() - 1);
-        let picked = choices[at];
+        // **A forced pick is not a decision.** One candidate cannot be changed by a number, and the number is spent from
+        // the stream every cue shares, so it is not taken.
+        let picked = if choices.len() == 1 {
+            choices[0]
+        } else {
+            let at = ((rng.next_f32() * choices.len() as f32) as usize).min(choices.len() - 1);
+            choices[at]
+        };
         self.remember(picked);
         self.remember_key(keys[picked]);
         Some(picked)
     }
 
     /// Picks a variant index in `0..len`, or `None` when the cue has no variant to play.
+    ///
+    /// **A pick with one candidate left takes nothing from `rng`**, as [`pick_from`](Self::pick_from) does: the number
+    /// cannot change the answer, and the stream is shared with every other cue.
     pub fn pick(&mut self, len: usize, avoid: u8, rng: &mut Rng) -> Option<usize> {
         if len == 0 {
             return None;
@@ -498,8 +512,13 @@ impl VariantPicker {
                 }
             }
         }
-        let at = ((rng.next_f32() * choices.len() as f32) as usize).min(choices.len() - 1);
-        let picked = choices[at];
+        // **A forced pick is not a decision** — `pick_from`'s rule, and the same reason.
+        let picked = if choices.len() == 1 {
+            choices[0]
+        } else {
+            let at = ((rng.next_f32() * choices.len() as f32) as usize).min(choices.len() - 1);
+            choices[at]
+        };
         self.remember(picked);
         Some(picked)
     }

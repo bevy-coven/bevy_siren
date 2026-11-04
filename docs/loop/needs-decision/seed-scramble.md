@@ -29,7 +29,7 @@ undesirable"* — and the cure: *a step that is not linear over F₂*, such as a
 ## Release timing
 
 [`exact-pitch-draw.md`](exact-pitch-draw.md) recommends skipping a pitch draw an exact range cannot use *"at the next minor"*, for the same reason: it moves every seeded stream. **Ship the two in the same minor, so a project's soundscape is re-rolled once and not twice.** This change is in `main`; **the release is a separate act** and
-the `CHANGELOG.md` entry is its release note. The crate promises *same seed, same sounds* **on a build**, and now says so (`docs/guide/cues.md`); `tests/model.rs::the_stream_is_the_one_the_docs_describe` pins the first four draws of seven seeds from an independent implementation, so the next change to the stream is a decision with a changelog line and not a refactor.
+the `CHANGELOG.md` entry is its release note. **Iteration 122 built the second half** (`exact-pitch-draw.md`'s option B, and the picker's forced pick with it), so both are in `main` and unreleased together: the pair is complete, and what is left is the release. The crate promises *same seed, same sounds* **on a build**, and now says so (`docs/guide/cues.md`); `tests/model.rs::the_stream_is_the_one_the_docs_describe` pins the first four draws of seven seeds from an independent implementation, so the next change to the stream is a decision with a changelog line and not a refactor.
 
 ## Edge cases and what is decided
 

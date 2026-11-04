@@ -1333,25 +1333,41 @@ fn music_layers_respect_the_tables_budget() {
     let voices = app.world().resource::<SirenMix>().voices_on("Music");
     assert!(voices <= 1, "the mix counts {voices} voices on Music");
 }
-/// **A play draws for its detune even when its pitch range is exact**, so adding a fixed-pitch cue to a scene moves what
-/// every other cue plays. This is `needs-decision/exact-pitch-draw.md`'s measurement, kept so the decision has a number
-/// and a later fix can be seen to change it.
+/// **A play whose pitch cannot vary takes nothing from the stream**, so a fixed-pitch cue does not move what any other
+/// cue plays — and neither does one whose range is **inverted** (`problems()` reports it; `at` answers `0.0` for every
+/// unit, so the number cannot change the answer either). This is `needs-decision/exact-pitch-draw.md`'s option B,
+/// measured through the real play path: the probe on the unchanged tree had eight plays of a one-sound exact-pitch cue
+/// move a three-variant cue's next six sounds (`evidence/before/draws-on-the-unchanged-tree.txt`).
 #[test]
-fn an_exact_pitch_range_still_draws_from_the_stream() {
-    let cue = |name: &str, pitch: bevy_siren::PitchRange| Cue {
-        sounds: vec![SoundSlot::new("a"), SoundSlot::new("b")],
-        pitch,
-        repeat: bevy_siren::Repeat::Shuffle,
-        ..Cue::new(name)
+fn an_exact_pitch_range_leaves_the_stream_alone() {
+    let table = || {
+        CueTable::new(vec![
+            Cue {
+                sounds: vec![SoundSlot::new("a")],
+                pitch: bevy_siren::PitchRange::exact(0.0),
+                repeat: bevy_siren::Repeat::Shuffle,
+                ..Cue::new("exact")
+            },
+            Cue {
+                sounds: vec![SoundSlot::new("a")],
+                pitch: bevy_siren::PitchRange { low: 2.0, high: -2.0 },
+                repeat: bevy_siren::Repeat::Shuffle,
+                ..Cue::new("inverted")
+            },
+            Cue {
+                sounds: vec![SoundSlot::new("a"), SoundSlot::new("b"), SoundSlot::new("c")],
+                pitch: bevy_siren::PitchRange { low: -2.0, high: 2.0 },
+                repeat: bevy_siren::Repeat::Shuffle,
+                ..Cue::new("wide")
+            },
+        ])
     };
-    let table = CueTable::new(vec![
-        cue("exact", bevy_siren::PitchRange::exact(0.0)),
-        cue("wide", bevy_siren::PitchRange { low: -2.0, high: 2.0 }),
-    ]);
-    let run = |before: usize| {
-        let mut app = app(table.clone(), SirenSettings::default(), sounds(&["a", "b"]), false);
-        for _ in 0..before {
-            app.world_mut().write_message(Play::cue("exact"));
+    /// Six plays of `wide` after `plays` plays of `after` — the sound **and** the pitch of each, which is where a moved
+    /// stream shows.
+    fn observed(table: &CueTable, after: &str, plays: usize) -> Vec<(String, f32)> {
+        let mut app = app(table.clone(), SirenSettings::default(), sounds(&["a", "b", "c"]), false);
+        for _ in 0..plays {
+            app.world_mut().write_message(Play::cue(after));
             app.update();
             let _ = played(&mut app);
         }
@@ -1359,17 +1375,50 @@ fn an_exact_pitch_range_still_draws_from_the_stream() {
         for _ in 0..6 {
             app.world_mut().write_message(Play::cue("wide"));
             app.update();
-            out.extend(played(&mut app).into_iter().map(|p| p.sound));
+            out.extend(played(&mut app).into_iter().map(|p| (p.sound, p.pitch)));
         }
         out
-    };
-    let alone = run(0);
-    let after_exact = run(4);
-    assert_ne!(
-        alone, after_exact,
-        "an exact-pitch play currently spends a draw; when `needs-decision/exact-pitch-draw.md` is decided as B, \
-         these become equal and this test flips"
+    }
+    let alone = observed(&table(), "wide", 0);
+    // Each cue is asked on its own run, and the **inverted** one first: with the exact-pitch half of the guard switched
+    // off, a test that asked the exact one first would fail there and never reach this one (mutation M2).
+    for (before, label) in [("inverted", "an inverted pitch"), ("exact", "an exact pitch")] {
+        assert_eq!(
+            observed(&table(), before, 8),
+            alone,
+            "eight plays of a cue with {label} cannot decide anything, so they must leave `wide` exactly where it \
+             was: a draw that cannot change the answer is not spent"
+        );
+    }
+    /// `after` played eight times: what the **cue itself** reports, which is the number the device plays at.
+    fn heard(table: &CueTable, after: &str) -> Vec<f32> {
+        let mut app = app(table.clone(), SirenSettings::default(), sounds(&["a", "b", "c"]), false);
+        let mut out = Vec::new();
+        for _ in 0..8 {
+            app.world_mut().write_message(Play::cue(after));
+            app.update();
+            out.extend(played(&mut app).into_iter().map(|p| p.pitch));
+        }
+        out
+    }
+    // **An inverted range is answered `0.0` for every unit**, which is what `at` does and what a play of that cue always
+    // heard; `low` would be 2.0 semitones, so reading the bound instead of calling `at` would be a different sound
+    // (mutation M6). An exact range is its own value.
+    assert!(
+        heard(&table(), "inverted").iter().all(|p| *p == 0.0),
+        "an inverted pitch plays at 0: {:?}",
+        heard(&table(), "inverted")
     );
+    assert!(
+        heard(&table(), "exact").iter().all(|p| *p == 0.0),
+        "an exact 0.0 pitch plays at 0: {:?}",
+        heard(&table(), "exact")
+    );
+    assert!(
+        alone.iter().any(|(_, p)| *p != 0.0),
+        "the premise: `wide`'s pitch does vary, so it does draw: {alone:?}"
+    );
+    assert!(alone.windows(2).any(|w| w[0] != w[1]), "the premise: `wide`'s sounds vary too: {alone:?}");
 }
 
 /// **`AvoidRepeat { avoid: 0 }` refuses nothing, so the rule a project wrote is not the rule it gets.**

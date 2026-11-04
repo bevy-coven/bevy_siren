@@ -179,6 +179,97 @@ fn the_picker_never_repeats_within_its_window() {
     assert_eq!(VariantPicker::new(4).pick(0, 1, &mut rng), None);
 }
 
+/// **A pick with one candidate left takes nothing from the stream** — `needs-decision/exact-pitch-draw.md`'s option B,
+/// at the picker. A one-sound cue never has a choice; a two-sound cue under the default `avoid: 1` alternates, so every
+/// play after its first has one candidate. Either way the number cannot change the answer, and the stream is shared
+/// with every other cue, so a play that cannot decide must leave it exactly where it was.
+///
+/// Measured on the unchanged tree: eight plays of a one-sound exact-pitch cue moved a three-variant cue's next six
+/// sounds (`runs/2026-11-04-122/evidence/before/draws-on-the-unchanged-tree.txt`).
+#[test]
+fn a_forced_pick_is_not_a_draw() {
+    // By keys, which is the path a play takes.
+    let mut picker = VariantPicker::new(1);
+    let mut rng = Rng::new(11);
+    assert_eq!(picker.pick_from(&["a"], 1, &mut rng), Some(0), "a one-sound cue plays its sound");
+    assert_eq!(
+        rng.next_f32(),
+        Rng::new(11).next_f32(),
+        "a pick with one candidate took a number from the stream"
+    );
+
+    // And the alternating two-variant cue: the first play has two candidates (a draw), every later one has one.
+    let mut picker = VariantPicker::new(1);
+    let mut rng = Rng::new(11);
+    let first = picker.pick_from(&["a", "b"], 1, &mut rng).expect("two variants");
+    let mut before_second = rng.clone();
+    let second = picker.pick_from(&["a", "b"], 1, &mut rng).expect("two variants");
+    assert_ne!(first, second, "the window refuses the sound just heard");
+    assert_eq!(
+        rng.next_f32(),
+        before_second.next_f32(),
+        "the second play had one candidate (`{}` is refused) and still took a number",
+        ["a", "b"][first]
+    );
+
+    // `pick`, the same rule without keys. `len == 1` returns before any draw, so the case that reaches the new branch
+    // is the alternating two-variant one, as it is for `pick_from`.
+    let mut picker = VariantPicker::new(1);
+    let mut rng = Rng::new(11);
+    let first = picker.pick(2, 1, &mut rng).expect("two variants");
+    let mut before_second = rng.clone();
+    let second = picker.pick(2, 1, &mut rng).expect("two variants");
+    assert_ne!(first, second, "the window refuses the variant just picked");
+    assert_eq!(
+        rng.next_f32(),
+        before_second.next_f32(),
+        "`pick` had one candidate (`{first}` is refused) and took a number from the stream"
+    );
+}
+
+/// **A pick that still has a choice still draws** — the refusal that must **not** happen. A three-variant cue under
+/// `avoid: 1` has two candidates on every play, so its sequence is still random and still never repeats back to back;
+/// a fix that stopped drawing whenever the window has refused something would turn a real choice into a forced one.
+#[test]
+fn a_pick_with_two_candidates_still_draws() {
+    let mut picker = VariantPicker::new(1);
+    let mut rng = Rng::new(11);
+    let mut last = None;
+    let mut seen = [0usize; 3];
+    for _ in 0..64 {
+        let pick = picker.pick(3, 1, &mut rng).expect("three variants");
+        assert!(pick < 3);
+        assert_ne!(Some(pick), last, "the window refuses the variant just picked");
+        seen[pick] += 1;
+        last = Some(pick);
+    }
+    assert!(seen.iter().all(|n| *n > 0), "a variant was never picked, so its picks are not random: {seen:?}");
+
+    // The stream really moved: after 64 picks the next number is not the one a fresh stream gives.
+    assert_ne!(
+        rng.next_f32(),
+        Rng::new(11).next_f32(),
+        "a pick with two candidates must still take a number"
+    );
+
+    // And **by keys**, which is the path a play takes: three sounds, a one-deep window, so every play has two
+    // candidates and every play draws.
+    let mut picker = VariantPicker::new(1);
+    let mut rng = Rng::new(11);
+    let mut last = None;
+    let keys = ["a", "b", "c"];
+    for _ in 0..64 {
+        let pick = picker.pick_from(&keys, 1, &mut rng).expect("three sounds");
+        assert_ne!(Some(pick), last, "the window refuses the sound just heard");
+        last = Some(pick);
+    }
+    assert_ne!(
+        rng.next_f32(),
+        Rng::new(11).next_f32(),
+        "a `pick_from` with two candidates must still take a number"
+    );
+}
+
 /// The steal picks the lowest priority first, then the oldest, and never an unstealable voice; a budget that
 /// cannot be made room in returns fewer than asked, which the caller reads as a refusal.
 #[test]

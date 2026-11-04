@@ -226,14 +226,24 @@ Changing the seed while the game runs **replaces** the stream and every variant 
 the old position: the next play is the new seed's first draw. The seed is configuration, so the change is not written
 to `SirenLog` — the log is for what happened to a sound.
 
-**The stream is shared, so a play's draws move every later play's.** A play draws once for its variant and once for its
-detune — the detune **even when the cue's `pitch` range is exact**, because `answer` computes
-`cue.pitch.at(choices.rng.next_f32())` before it knows the range cannot use the number. So adding a fixed-pitch cue to a
-scene shifts every later pick for every other cue that shares the stream: a project's soundscape is a function of its
-seed and its **play order**, not its seed alone. Measured in
-`tests/play.rs::an_exact_pitch_range_still_draws_from_the_stream`. Skipping that draw is
-`docs/loop/needs-decision/exact-pitch-draw.md`, and it is not a patch because it would re-roll every project's
-soundscape in the build that shipped it.
+**The stream is shared, but a play that cannot decide takes nothing from it.** A play draws once for its variant and
+once for its detune — and **only when the number can change what is heard**:
+
+- a cue whose `pitch` range is **exact** (`PitchRange::exact(n)`, `low == high`) plays at `n` without drawing, and one
+  whose range is **inverted** (`problems()` reports it) plays at 0 semitones without drawing, because `at` answers 0 for
+  every unit;
+- a pick with **one candidate left** does not draw either — a one-sound cue, or the second play of a two-variant cue under
+  the default `avoid: 1`, which alternates. A three-variant cue under `avoid: 1` still has two candidates every play, so
+  it still draws, and a cue with a pitch range that is not exact still draws its detune.
+
+So `seed` and the plays that *needed* a number decide a project's soundscape, and a burst weapon, a UI click or an
+alternating footstep leaves every other cue's picks exactly where the seed put them
+(`tests/play.rs::an_exact_pitch_range_leaves_the_stream_alone`,
+`tests/model.rs::a_forced_pick_is_not_a_draw`). Measured before the change: eight plays of a one-sound exact-pitch cue
+moved a three-variant cue's next six sounds from `b b c a c b` to `c b a b a a`
+(`docs/loop/runs/2026-11-04-122/evidence/before/draws-on-the-unchanged-tree.txt`). The decision and its cost to a project
+are `docs/loop/needs-decision/exact-pitch-draw.md`: it is a release note, not a patch, and it ships in the same minor as
+iteration 121's stream change so a project is re-rolled once.
 
 ## A cue's history, and what the table owns
 

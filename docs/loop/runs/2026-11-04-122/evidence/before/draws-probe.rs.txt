@@ -1,0 +1,110 @@
+examples/scratch_draws.rs — iteration 122's probe. It prints, through the real play path with the default seed, the six
+`Played.sound`s of a three-variant `Shuffle` observer cue ("hit") when (a) it plays alone, (b) it plays after eight plays
+of a cue that cannot use its number, and (c) after one footstep and after eight. Deleted after its output was kept;
+this is the file as it ran on the unchanged tree.
+
+// Iteration 122's probe: does a play that cannot use a random number still move the stream every other cue shares?
+use bevy::prelude::*;
+use bevy_siren::*;
+
+fn table() -> CueTable {
+    CueTable::new(vec![
+        Cue { sounds: vec![SoundSlot::new("a")], pitch: PitchRange::exact(0.0), repeat: Repeat::Shuffle, ..Cue::new("gun.burst") },
+        Cue { sounds: vec![SoundSlot::new("a"), SoundSlot::new("b")], repeat: Repeat::AvoidRepeat { avoid: 1 }, ..Cue::new("footstep.grass") },
+        Cue { sounds: vec![SoundSlot::new("a"), SoundSlot::new("b")], pitch: PitchRange::exact(0.0), repeat: Repeat::AvoidRepeat { avoid: 1 }, ..Cue::new("footstep.exact") },
+        Cue { sounds: vec![SoundSlot::new("a")], pitch: PitchRange::exact(0.0), repeat: Repeat::Shuffle, ..Cue::new("ui.click") },
+        Cue { sounds: vec![SoundSlot::new("a"), SoundSlot::new("b"), SoundSlot::new("c")], repeat: Repeat::Shuffle, ..Cue::new("hit") },
+        Cue {
+            sounds: vec![SoundSlot::new("a"), SoundSlot::new("b"), SoundSlot::new("c")],
+            repeat: Repeat::AvoidRepeat { avoid: 1 },
+            ..Cue::new("footstep.stone")
+        },
+    ])
+}
+
+fn sounds() -> SirenSounds {
+    let mut sounds = SirenSounds::new();
+    for key in ["a", "b", "c"] {
+        sounds.insert(key, Handle::<AudioSource>::default());
+    }
+    sounds
+}
+
+fn app() -> App {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+        .init_asset::<AudioSource>()
+        .insert_resource(table())
+        .insert_resource(sounds())
+        .insert_resource(SirenSettings::default())
+        .add_plugins(SirenPlugin);
+    app.update();
+    app
+}
+
+fn play(app: &mut App, cue: &str) -> Vec<Played> {
+    app.world_mut().write_message(Play::cue(cue));
+    app.update();
+    app.world_mut().resource_mut::<Messages<Played>>().drain().collect()
+}
+
+fn main() {
+    let mut alone = app();
+    let alone_six: Vec<String> = (0..6).map(|_| play(&mut alone, "hit").remove(0).sound).collect();
+    println!("observer alone (6 plays):            {alone_six:?}");
+
+    for before in ["gun.burst", "footstep.grass", "footstep.exact", "ui.click"] {
+        let mut app = app();
+        for _ in 0..8 {
+            let _ = play(&mut app, before);
+        }
+        let six: Vec<String> = (0..6).map(|_| play(&mut app, "hit").remove(0).sound).collect();
+        println!("observer after 8 x {before:<15} {six:?}  {}", if six == alone_six { "SAME" } else { "DIFFERS" });
+    }
+
+    let mut one = app();
+    let _ = play(&mut one, "footstep.grass");
+    let one_six: Vec<String> = (0..6).map(|_| play(&mut one, "hit").remove(0).sound).collect();
+    let mut eight = app();
+    for _ in 0..8 {
+        let _ = play(&mut eight, "footstep.grass");
+    }
+    let eight_six: Vec<String> = (0..6).map(|_| play(&mut eight, "hit").remove(0).sound).collect();
+    println!("observer after 1 footstep:           {one_six:?}");
+    println!("observer after 8 footsteps:          {eight_six:?}  {}", if eight_six == one_six { "SAME" } else { "DIFFERS" });
+
+    let mut exact_one = app();
+    let _ = play(&mut exact_one, "footstep.exact");
+    let exact_one_six: Vec<String> = (0..6).map(|_| play(&mut exact_one, "hit").remove(0).sound).collect();
+    let mut exact_eight = app();
+    for _ in 0..8 {
+        let _ = play(&mut exact_eight, "footstep.exact");
+    }
+    let exact_eight_six: Vec<String> = (0..6).map(|_| play(&mut exact_eight, "hit").remove(0).sound).collect();
+    println!("observer after 1 footstep.exact:     {exact_one_six:?}");
+    println!("observer after 8 footsteps.exact:    {exact_eight_six:?}  {}", if exact_eight_six == exact_one_six { "SAME" } else { "DIFFERS" });
+
+    let mut stone = app();
+    let three: Vec<String> = (0..6).map(|_| play(&mut stone, "footstep.stone").remove(0).sound).collect();
+    let repeat = three.windows(2).any(|w| w[0] == w[1]);
+    println!("footstep.stone (avoid 1, 3 variants): {three:?}  repeats: {repeat}");
+}
+
+================================================= OUTPUT, unchanged tree (3176ebe) =================================================
+$ CARGO_INCREMENTAL=0 cargo run --release --example scratch_draws        (free 2.84 GB before; 2.78 GB after)
+
+observer alone (6 plays):            ["b", "b", "c", "a", "c", "b"]
+observer after 8 x gun.burst       ["c", "b", "a", "b", "a", "a"]  DIFFERS
+observer after 8 x footstep.grass  ["a", "a", "b", "c", "b", "c"]  DIFFERS
+observer after 8 x ui.click        ["c", "b", "a", "b", "a", "a"]  DIFFERS
+observer after 1 footstep:           ["b", "c", "a", "c", "b", "a"]
+observer after 8 footsteps:          ["a", "a", "b", "c", "b", "c"]  DIFFERS
+footstep.stone (avoid 1, 3 variants): ["b", "a", "c", "a", "c", "b"]  repeats: false
+
+Notes:
+- A burst of ONE sound at an EXACT pitch — eight plays, not one decision among them — moves the observer's six variants
+  from `b b c a c b` to `c b a b a a`. A UI click, the same. Eight alternating footsteps move it too.
+- `observer after 1 footstep` and `observer after 8 footsteps` differ: every footstep after the first has one candidate
+  left (the two-variant window refuses the sound just heard) and still spends a draw.
+- The refusal that must NOT happen already holds: a three-variant cue with `avoid: 1` never repeats back to back
+  (`repeats: false`) — it still has two candidates per play, so it must still draw after the fix.

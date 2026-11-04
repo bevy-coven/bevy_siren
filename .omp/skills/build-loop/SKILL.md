@@ -35,16 +35,28 @@ Read `docs/loop/log.md`, `docs/loop/cues.yaml`, `CHANGELOG.md`, `git log --oneli
 what is already red**, in `runs/<dir>/eval.md` before anything else:
 
 ```sh
+CARGO_INCREMENTAL=0 bash docs/loop/matrix.sh      # every step below, in order; ~4.5 min; cleans this crate below 5 GB free
+```
+
+```sh
 cargo build
 cargo test
 cargo test --features serde
+cargo test --features semantic
 cargo test --features mixer
+cargo test --all-features --tests -j 1            # split: the single command links seven Bevy examples too, and the disk is 3 GB
 cargo test --doc
+cargo test --features readme-example --test all readme::
 cargo clippy --all-targets --all-features -- -D warnings
 cargo fmt --check
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
 cargo build --examples
+cargo build --examples --all-features
 ```
+
+**A step that fails `rustc-LLVM ERROR: IO failure on output stream: No space left on device` is the disk, not the code**:
+`cargo clean -p bevy_siren` (and `--release`), re-run that step alone, and write in `eval.md` both the number that failed
+and the number that passed. A matrix that silently drops a feature set is worse than a red one.
 
 If an earlier iteration left work half done — an uncommitted change, a branch, a `runs/` directory with no `review.md`
 verdict — finish or revert it first; a new item on top of a broken one measures nothing.
@@ -159,6 +171,10 @@ draw, and the streams of the seeds *a*, *b* and *a* ⊕ *b* were xor-related for
 opening — is it uniform (χ² against its 0.1 % point), is it uncorrelated across neighbouring seeds (Pearson r, within 4/√N), does every seed bit reach it (the mean avalanche is 16 of 32 *and each position is inside [15, 17]*: a bare multiplication passes the mean and fails bit 39), and are related seeds unrelated streams (xor)** — and hold the mixing function itself to **known answers from an independent implementation**
 (a one-bit constant typo and a one-round mixer pass every statistic: mutations M4 and M5). **A change to a seeded stream is a release note, not a patch** (`needs-decision/exact-pitch-draw.md`, `seed-scramble.md`): ship it with the other one that moves the stream, pin the first draws of several seeds, and **never let the reported seed differ from the written one** —
 `seed_choices` compares them every frame, and a reported seed that moves restarts the stream each frame (M2: nine play tests red). **Check the disk before a matrix: building every example with every feature takes ~3 GB of debug binaries**, and `cargo clean -p` cannot see the binaries of a scratch example whose source is gone — remove those by hand.
+**A random number spent where it cannot change the answer is a coupling, and the fix has two sides.** Iteration 122: `answer` drew the detune for a `PitchRange::exact` cue and the picker drew for a pick with one candidate left, so **eight plays of a one-sound exact-pitch cue moved a three-variant cue's next six sounds** from `b b c a c b` to `c b a b a a`
+(`runs/2026-11-04-122/`), and the guide had documented the coupling as a limitation. The audit is `grep` for every draw, and ask of each **which state makes it a decision** — then **prove both directions with two tests**: a play that cannot decide takes nothing, and **a play that still has two candidates still draws** (a three-variant cue under `avoid: 1` must stay random and never repeat back-to-back). **A mutation that stays green is the finding, not a pass**: two of six
+were invisible on their first run — a guard tested one half at a time (the test asked the *exact* cue first, so switching the *inverted* half off reddened nothing) and a branch that a `len == 1` early return made unreachable (the test held the rule and never reached the line) — so a test written from a *rule* was widened to each *path* that reaches it. And **call the function, do not read its field**: `at(0.0)` answers 0.0 for an inverted range where `low` is +2 semitones, so the neutralised play would have been a different sound (M6).
+**When two changes to a seeded stream are pending, ship them together**: iteration 121's scramble and this one are one re-roll for a project, and the second is free only while the first is unreleased. **A matrix that does not fit the disk is a blocker of the first order**: `docs/loop/matrix.sh` splits the all-features test step; a step that dies `No space left on device` is the disk, not the code, and `eval.md` records both the number that failed and the number that passed when it was re-run alone.
 **Run `cargo fmt && cargo clippy --all-targets --all-features -- -D warnings` after every edit, before any test and before the matrix** — it was the first red of the matrix in iterations 115 and 116, and the cargo output a tool summarises shows `Finished`
 and hides the warning that becomes the error.
 

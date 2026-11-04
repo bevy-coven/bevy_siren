@@ -658,7 +658,17 @@ fn answer(
     // **Which of these was not a number**, recorded rather than only neutralised. The order is the order a project
     // reads them in: the cue's pitch and gain, then the sound's gain, then the play's own.
     let mut neutralised: Vec<&'static str> = Vec::new();
-    let mut pitch = cue.pitch.at(choices.rng.next_f32());
+    // **A pitch the stream cannot decide takes no draw from it.** `at` answers `low + (high − low) × unit`, so a range
+    // whose two ends are equal is the same detune for every unit, and one whose ends are inverted (`problems()` reports
+    // it) is answered `0.0` for every unit. Both are read at `at(0.0)` — the same function the drawn path calls, so the
+    // value is the one a play of that cue always had — and the number stays in the stream every *other* cue draws from.
+    // Measured: eight plays of a one-sound exact-pitch cue moved a three-variant cue's next six sounds
+    // (`needs-decision/exact-pitch-draw.md`, option B).
+    let mut pitch = if cue.pitch.is_inverted() || cue.pitch.low == cue.pitch.high {
+        cue.pitch.at(0.0)
+    } else {
+        cue.pitch.at(choices.rng.next_f32())
+    };
     if let Some(extra) = request.pitch {
         pitch += extra;
     }

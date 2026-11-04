@@ -1,0 +1,84 @@
+Iteration 122 — the new tests with the fix switched off, and six mutations. Each block is one run of
+
+  CARGO_INCREMENTAL=0 cargo test --test all -- <the tests named>
+
+on this tree, with one thing changed and put back. Both source files were copied before the first change and compared
+after the last (`md5 -q`: src/play.rs 644d62174ec4e53b2d4813f038ea7e54, src/model.rs 3850954526cbba0fade24badff3a809c —
+restored exactly after every mutation).
+
+================================================= A. the new tests on the unchanged source =================================================
+`git stash push src/model.rs src/play.rs` (the tests kept):
+
+test model::a_pick_with_two_candidates_still_draws ... ok          <- the refusal that must NOT happen: green both ways
+test model::a_forced_pick_is_not_a_draw ... FAILED
+test play::an_exact_pitch_range_leaves_the_stream_alone ... FAILED
+
+thread 'model::a_forced_pick_is_not_a_draw' panicked at tests/model.rs:208:5:
+assertion `left == right` failed: the second play had one candidate (`b` is refused) and still took a number
+  left: 0.78368753
+ right: 0.38159668
+thread 'play::an_exact_pitch_range_leaves_the_stream_alone' panicked at tests/play.rs:1382:9:
+assertion `left == right` failed: eight plays of a cue with an exact pitch cannot decide anything, so they must leave `wide` exactly where it was: a draw that cannot change the answer is not spent
+  left: [("c", 0.5402925), ("b", 1.6614404), ("a", 1.5885961), ("b", 0.28503194), ("a", 1.0929413), ("a", 1.9281628)]
+ right: [("b", -1.553053), ("b", 1.3473744), ("c", -0.7941488), ("a", 0.93552613), ("c", 0.5402925), ("b", 1.6614404)]
+
+Both new tests are red on the unchanged tree for the reason they exist; the "must still draw" test is green there — it
+is a rule that has to survive the fix, not a bug the fix cures.
+
+================================================= M1 — the pitch guard switched off =================================================
+`let mut pitch = if cue.pitch.is_inverted() || cue.pitch.low == cue.pitch.high {`  →  `if false {`
+
+  RED: play::an_exact_pitch_range_leaves_the_stream_alone (the exact-pitch pair of runs differs again).
+  GREEN: model::a_forced_pick_is_not_a_draw, model::a_pick_with_two_candidates_still_draws.
+
+================================================= M2 — only the inverted half of the pitch guard switched off =================================================
+`cue.pitch.is_inverted() || cue.pitch.low == cue.pitch.high`  →  `cue.pitch.low == cue.pitch.high`
+
+  **The first run of this mutation was GREEN, and that was the finding.** The test asked the exact-pitch cue first, so
+  the exact half of the guard (still on) left nothing to fail, and the inverted half was never reached on its own — the
+  test was passing an assertion about the guard as a whole, not about each half. The test now asks the **inverted** cue
+  first (and still asserts both):
+
+    RED: play::an_exact_pitch_range_leaves_the_stream_alone
+      "eight plays of a cue with an inverted pitch cannot decide anything, so they must leave `wide` exactly where it was"
+
+================================================= M6 — `at(0.0)` replaced by the bound `low` =================================================
+`cue.pitch.at(0.0)`  →  `cue.pitch.low`, with the guard intact.
+
+  The first attempt (with `if false` left in from M1) reddened the pitch test for the wrong reason; run properly:
+
+    RED: play::an_exact_pitch_range_leaves_the_stream_alone
+      "an inverted pitch plays at 0: [1.9999998, 1.9999998, 1.9999998, 1.9999998, 1.9999998, 1.9999998, 1.9999998, 1.9999998]"
+
+  This is why the code calls `at(0.0)` instead of reading `low`: an inverted range is answered `0.0` by `at` (what a
+  play of that cue always heard) and `low` would be +2 semitones — a different sound, not a neutralised one.
+
+================================================= M3 — `pick_from`'s forced pick draws again =================================================
+The conditional pick in `pick_from` → the unconditional draw.
+
+  RED: model::a_forced_pick_is_not_a_draw (the one-sound case and the alternating second play).
+  GREEN: model::a_pick_with_two_candidates_still_draws, play::an_exact_pitch_range_leaves_the_stream_alone.
+
+================================================= M4 — `pick`'s forced pick draws again =================================================
+The same in `pick`.
+
+  **The first run of this was GREEN, and that was the second finding.** `pick`'s `len == 1` early return happens before
+  any draw, so `picker.pick(1, 1, …)` never reached the new branch: the test held the *rule* but not the *line*. It now
+  asks the alternating two-variant case through `pick` as well:
+
+    RED: model::a_forced_pick_is_not_a_draw
+      "`pick` had one candidate (`1` is refused) and took a number from the stream"
+
+================================================= M5 — the pick never draws =================================================
+`if choices.len() == 1`  →  `if !choices.is_empty()` in `pick_from`: a pick with two candidates is treated as forced.
+
+  **The first run of this was GREEN too**: the must-still-draw test covered `pick` only. It now covers both paths:
+
+    RED: model::a_pick_with_two_candidates_still_draws
+      "a `pick_from` with two candidates must still take a number"
+
+================================================= What the mutation set says =================================================
+Two of the six mutations were **invisible on the first run**, and both were a test that asserted the rule while missing
+the path: a guard tested half at a time, and two methods where only one was held. The pair of tests is now one per
+direction (forced → no draw; a choice → a draw) and one per method (`pick`, `pick_from`), plus one per half of the pitch
+guard (exact, inverted) and the value an inverted range plays at.
