@@ -7,6 +7,69 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 108 — 2026-11-03 — a guard that fired, and a variant that got through anyway
+
+**Change.** `problems_names_each_mistake` — the test whose job is *every problem a table can have is named, in a sentence* —
+produced six of `CueProblem`'s seven variants and stayed green. `InertAvoidRepeat` (iteration 105) is tested on its own
+(`tests/play.rs`, `tests/model.rs`), but no fixture cue here produced it, so it never went through the *"is a sentence, not a
+debug print"* loop. `tests/table.rs` now lists every variant **once**, in a `kinds!` macro that generates the exhaustive
+`match` and the count together, and fails — `no fixture cue produces ["InertAvoidRepeat"]` — until a fixture cue produces
+each listed kind. **No change to `src/`.**
+
+**Rationale.** Iteration 107's recorded follow-up, the third of three lists that can drift (106 settings, 107 music, 108
+cues). This one returns an enum rather than `Vec<String>`, so no `const` was needed — but an exhaustive `match` turned out
+not to be the guard either.
+
+**My first design was wrong, and I found out by reading `git diff`.** I wrote *"no guard exists"*, added a second exhaustive
+`match`, added a tenth variant, saw `E0004`, and counted it as proof. `HEAD`'s `named` closure already listed all seven
+variants with no wildcard, so `HEAD` fails to compile identically — and had **already fired in iteration 105**, which is the
+`E0004` quoted in `needs-decision/diagnostic-enums-are-extensible.md`. **That firing is how the gap happened:** the compiler
+demanded an arm, I wrote the arm, nothing demanded a fixture. *An exhaustive `match` forces acknowledgement, not coverage.*
+The closure was also vacuous (implied by `problems.contains` one line above) and its comment was false (it said it did not
+enumerate the variants). It is deleted, and iteration 105's decision file, which called the test "fixed to match the
+documented property", now says it was given an arm.
+
+**Proved the guard fails, on the real state.** A variant added and unlisted → `E0004`. Added and listed with no fixture →
+`no fixture cue produces ["Tenth"]` (`HEAD` passes this). And iteration 105's own state replayed on the real variant — listed,
+its cue and row removed → `no fixture cue produces ["InertAvoidRepeat"]`. All reverted; `src/cue.rs` and `tests/table.rs`
+returned to their original content hashes.
+
+**Before/after.** No audio changed: all **21 rendered wavs byte-identical** to iteration 107's, master **−21.5 LUFS, −7.5
+dBFS true peak**. Per-frame cost 0.063 / 0.355 / 1.218 µs at 8 / 64 / 256 voices on a load average of 3.71 — inside the
+recorded band; no claim.
+
+**Verdicts.** Function **GREAT**, zoom **GREAT**, fresh eyes **GREAT**. The zoom read `footstep-stone.png`: a 27 ms broadband
+attack ending on a sharp edge near −90 dBFS (about 40 dB under the partials beside it), three sustained low partials decaying
+to a −95 dBFS tail, no click, shelf or hole.
+
+**Found while closing — the more important finding: `#28`'s MCP server is not blocked, and never was.** ADR 0006, **accepted**,
+decides *"one library crate, one `[[bin]]` behind the `semantic` feature … a workspace was considered and rejected"*, and
+`#28`'s own scope says *"a server binary behind the `semantic` feature"*. My `needs-decision/mcp-tool-surface.md` (iteration
+102) re-asked that question, **recommended the option the ADR had rejected**, and listed `#28`–`#31` as blocked on it.
+`needs-decision/README.md` says only the public API, the message types and the definitions-file schema belong there; a
+feature-gated binary is none of the three, and its dependency is a `leaf.rs` row the ADR says to argue *"like any other"*.
+The file now carries a banner saying so. Iterations 103–105 found real defects; 106–108 were drift guards — while the one open
+issue with a clear path sat unbuilt. Iteration 109 builds it.
+
+**Evidence.** [`runs/2026-11-03-108/`](runs/2026-11-03-108/) — `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`,
+`evidence/after/` (32 files), `evidence/spectrograms/`.
+
+**No clip:** a test-only change, nothing to see or hear. Its test is `tests/table.rs::problems_names_each_mistake`.
+
+**Baseline:** nothing red — 199 / 208 serde / 209 mixer / 109 lib + **436 semantic** / **460 all-features** / 6 doc, clippy,
+fmt and docs clean.
+
+**Top 5 remaining.**
+
+1. **`#28` the MCP server — iteration 109, unblocked.** `src/bin/siren-tools.rs` behind `semantic` per ADR 0006, one
+   `serde_json` row in `leaf.rs` argued the way the ADR says, a stdio JSON-RPC host that lists tools, validates arguments
+   and returns typed errors. Everything it wraps exists and is tested.
+2. **`#29`/`#30`/`#31` wire forms** — follow `#28`; their library halves are done.
+3. **ADR 0007's "the server cannot be built in this crate yet" paragraph** is now false and needs correcting with `#28`.
+4. **`#35` golden set** (labelled real recordings), **`#32`–`#34`/`#38`** (the editor, in `bevy_grimoire`), **`#39`** (a music
+   encoder and a licence audit) — each waits on a person, another repository, or an asset.
+5. **`#[non_exhaustive]` on the print-only diagnostic enums** — iteration 105's decision file, now with the one cost it missed.
+
 ## Iteration 107 — 2026-11-03 — the same list, in the other score
 
 **Change.** `MusicScore::problems()`'s doc said *"Nine checks, and this list is the whole of them"*. The nine were

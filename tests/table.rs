@@ -45,6 +45,31 @@ fn an_unknown_field_is_refused() {
 /// Every problem a table can have is named, in a sentence a person reads on a status line.
 #[test]
 fn problems_names_each_mistake() {
+    // **Every `CueProblem` variant, listed once** — and that one list is what makes a missing fixture fail. The macro
+    // expands to a `match` with no wildcard, so a variant added to the enum is a compile error until it is listed here;
+    // the list is then one longer, so this test fails until a fixture cue produces the new variant. **The second half is
+    // the point.** An exhaustive `match` alone is satisfied by writing an arm — which is exactly how `InertAvoidRepeat`
+    // joined the enum in iteration 105 (the compiler demanded an arm, it got one) and never joined the fixture below.
+    macro_rules! kinds {
+        ($($variant:ident),+ $(,)?) => {
+            const KINDS: &[&str] = &[$(stringify!($variant)),+];
+            fn kind(problem: &CueProblem) -> &'static str {
+                match problem {
+                    $(CueProblem::$variant { .. } => stringify!($variant)),+
+                }
+            }
+        };
+    }
+    kinds!(
+        NoSounds,
+        DuplicateName,
+        UnknownBus,
+        InvertedPitch,
+        UnlimitedInstances,
+        BadAttenuation,
+        InertAvoidRepeat
+    );
+
     let table = CueTable::new(vec![
         Cue::new("silent"),
         Cue { sounds: vec![SoundSlot::new("a")], ..Cue::new("twice") },
@@ -61,31 +86,30 @@ fn problems_names_each_mistake() {
             attenuation: bevy_siren::Attenuation::Linear { max_m: -1.0 },
             ..Cue::new("bad_falloff")
         },
+        // `InertAvoidRepeat` is the variant this fixture lacked until iteration 108: the enum had it, `Display` had it,
+        // and nothing here produced it.
+        Cue {
+            sounds: vec![SoundSlot::new("g")],
+            repeat: Repeat::AvoidRepeat { avoid: 0 },
+            ..Cue::new("inert")
+        },
     ]);
     let problems = table.problems();
-    // **Every `CueProblem` names its cue**, which is the property this closure exists to assert — so it reads the name
-    // rather than enumerating the variants. Enumerating them made adding one a compile error in a test whose subject is
-    // *"each problem is a sentence naming its cue"*, not *"the set of problems is exactly these six"*.
-    let named = |p: &CueProblem, name: &str| match p {
-        CueProblem::NoSounds { name: n }
-        | CueProblem::DuplicateName { name: n }
-        | CueProblem::InvertedPitch { name: n }
-        | CueProblem::BadAttenuation { name: n }
-        | CueProblem::UnlimitedInstances { name: n }
-        | CueProblem::UnknownBus { name: n, .. }
-        | CueProblem::InertAvoidRepeat { name: n } => n == name,
-    };
-    for (problem, name) in [
-        (CueProblem::NoSounds { name: "silent".into() }, "silent"),
-        (CueProblem::DuplicateName { name: "twice".into() }, "twice"),
-        (CueProblem::UnknownBus { name: "wrong_bus".into(), bus: "Reverb".into() }, "wrong_bus"),
-        (CueProblem::InvertedPitch { name: "inverted".into() }, "inverted"),
-        (CueProblem::UnlimitedInstances { name: "unbounded".into() }, "unbounded"),
-        (CueProblem::BadAttenuation { name: "bad_falloff".into() }, "bad_falloff"),
+    for problem in [
+        CueProblem::NoSounds { name: "silent".into() },
+        CueProblem::DuplicateName { name: "twice".into() },
+        CueProblem::UnknownBus { name: "wrong_bus".into(), bus: "Reverb".into() },
+        CueProblem::InvertedPitch { name: "inverted".into() },
+        CueProblem::UnlimitedInstances { name: "unbounded".into() },
+        CueProblem::BadAttenuation { name: "bad_falloff".into() },
+        CueProblem::InertAvoidRepeat { name: "inert".into() },
     ] {
         assert!(problems.contains(&problem), "{problem:?} is not in {problems:#?}");
-        assert!(problems.iter().any(|p| named(p, name)), "{name} is not reported");
     }
+    let produced: std::collections::BTreeSet<&str> = problems.iter().map(kind).collect();
+    let missing: Vec<&str> = KINDS.iter().copied().filter(|k| !produced.contains(k)).collect();
+    assert!(missing.is_empty(), "no fixture cue produces {missing:?} — every variant needs one");
+
     // Each problem is a sentence, not a debug print.
     for problem in &problems {
         let line = problem.to_string();

@@ -7,6 +7,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **The table test covered six of `CueProblem`'s seven variants and stayed green.** `InertAvoidRepeat` was tested on its own
+  (`tests/play.rs`, `tests/model.rs`) but no fixture cue in `problems_names_each_mistake` produced it, so the test whose job
+  is *every problem prints as a sentence naming its cue* never reached it. The compiler had already demanded an arm for it
+  when it was added (`E0004`, iteration 105) and an arm is all that was written — **an exhaustive `match` forces
+  acknowledgement, not coverage**. `tests/table.rs` now lists every variant **once**, in a `kinds!` macro that generates the
+  exhaustive `match` and the count together, and fails with `no fixture cue produces ["InertAvoidRepeat"]` until a fixture
+  cue produces each kind — proved by replaying iteration 105's state on the real variant. A test-only change; `src/` is
+  untouched. Same repair as `mix::SETTINGS_CHECKS` and `music::MUSIC_CHECKS`, for the enum-returning sibling.
 - **`MusicScore::problems()` claimed a complete list and nothing enforced it.** Its doc said *"Nine checks, and this list
   is the whole of them"*, and a test asserted each of the nine fires — but the nine were correct **by hand**: adding a tenth
   check to `problems` left the suite green while the doc went on claiming completeness. `music::MUSIC_CHECKS` is now the

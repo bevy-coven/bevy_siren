@@ -1,3 +1,15 @@
+> **Superseded by [ADR 0006](../../adr/0006-plugin-and-tool-server.md) — and this file should never have been filed.**
+> ADR 0006 was *accepted* on 2026-11-03 and already decides what this file asks: *"One library crate, one `[[bin]]` behind
+> the `semantic` feature … A workspace was considered and rejected."* That is **Option A below, and the opposite of the
+> recommendation written here.** Issue `#28`'s own scope says the same (*"a server binary behind the `semantic` feature"*).
+> I filed this without reading the ADR's decision, recommended the option it had rejected, and then treated `#28`–`#31` as
+> blocked on it for several iterations.
+>
+> What actually remains is one dependency row. ADR 0006's cost table says the binary's dependencies are *"argued for … like
+> any other"* in a `tests/leaf.rs` row, and `needs-decision/README.md` says only *"the public API, the message types and the
+> definitions-file schema come here"* — a feature-gated binary is none of the three. **Iteration 109 builds the server.** The
+> file stays as the record of the mistake; nothing below it is a pending decision.
+
 # Decision: where the MCP tool surface lives, and what it costs the crate
 
 `#28` asks for "a server binary behind the `semantic` feature, listing the tools `#8` names". The crate today has **no

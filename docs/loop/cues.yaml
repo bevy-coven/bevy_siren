@@ -219,7 +219,7 @@ cases:
 
   - id: 18
     cue: a broken table
-    authored: { no_sounds: 1, duplicate: 1, unknown_bus: 1, inverted_pitch: 1 }
+    authored: { one_cue_per_kind: "every `CueProblem` variant — `tests/table.rs`'s `kinds!` is the one list, not this line" }
     behaviour: problems() names each mistake in a sentence.
     observed_by: "`CueTable::problems_with`."
     green_when: One sentence per mistake, each naming its cue.
