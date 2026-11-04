@@ -152,6 +152,26 @@ A stem that comes back starts from the beginning, so it is out of phase with the
 that died; the crate does not re-time it, because what a restart means after a gain change is a decision the score does
 not carry.
 
+## A stem's file: how long a loop is
+
+A loop is as long as its file says, and the format decides how far that is from the length of the sound. The crate does not decode a stem to measure it: it reads the length the container declares and,
+where the decoder returns more than that, cuts the extra at the loop point — **on Bevy's path and on the `mixer` feature's own graph alike**. A stem that is a block too long is late by that block on every
+pass, and two stems that are late by different amounts are no longer on the same bar.
+
+| Format | A loop's length | Why |
+|---|---|---|
+| WAV, FLAC | exact | the container counts the samples (measured: `tone.flac` is 24 000 samples a pass) |
+| MP3 | not cut | `tests/fixtures/tone.mp3` carries an encoder tag (`Info`, `LAME4.0`, which `ffmpeg` writes) and loops at exactly its 24 000 samples; **an MP3 with no tag was not measured**, and the crate does not read one |
+| Ogg Vorbis | **cut to the last page's granule position** | the decoders return the padding of the last block — on Kenney's 254 CC0 Ogg effects, 51 files by 27 to 936 frames (a median of 9 ms, the loudest at −6 dBFS) — so `tone.ogg` looped at 24 576 frames and now loops at its 24 000: a 12 ms gap on every pass is gone |
+
+An Ogg the crate cannot read one length from — a chained or grouped file, a file cut short, a stream whose packet count cannot account for its last granule position — is looped as the decoder returns
+it. A stream that starts at a non-zero granule position (Vorbis I allows one: *"a positive starting value simply indicates that this stream begins at some positive time offset"*) is not detected; its loop is no worse than it was.
+
+**An Ogg loop needs a Vorbis decoder whose loop is not empty.** `rodio`'s `symphonia` Vorbis decoder reports an empty first span, and `repeat_infinite` — Bevy's own loop and the mixer's — of it produces **no samples**
+(RustAudio/rodio#775; Bevy's 0.18 → 0.19 migration guide: *"OGG/VORBIS support through `symphonia` is currently subject to issues with buffering, reverb, looping and spatial audio"*). This crate's
+`Cargo.toml` selects `lewton`, which is Bevy's own default, and the `mixer` feature's loops are protected from the other decoder; if a game turns on Bevy's `symphonia-vorbis` itself, an Ogg stem on
+**Bevy's** path is silent whatever this crate does, and a WAV, FLAC or MP3 stem is unaffected.
+
 ## As data
 
 ```ron

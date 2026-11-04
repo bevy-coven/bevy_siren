@@ -1,0 +1,15 @@
+test mixer::tests::only_a_loop_of_an_ogg_that_declares_its_length_is_cut ... ok
+test mixer::tests::a_loop_of_an_empty_sample_ends_instead_of_repeating_nothing ... ok
+test mixer::tests::a_gain_stored_between_two_samples_is_on_the_next_one ... ok
+test mixer::tests::a_voice_that_plays_once_follows_its_gain_and_ends ... ok
+test mixer::tests::a_looping_voice_follows_its_gain_on_every_pass ... ok
+test mixer::tests::a_loop_cut_to_its_declared_length_is_that_period_with_no_padding_at_the_wrap ... FAILED
+test mixer::tests::a_looping_voice_through_a_player_and_a_bus_mixer_follows_its_gain ... ok
+test mixer::tests::a_trimmed_loop_through_a_player_and_a_bus_mixer_repeats_at_exactly_the_streams_length ... FAILED
+test mixer::tests::a_stem_in_another_rate_follows_its_gain_through_the_bus ... ok
+test mixer::tests::the_duration_it_computes_takes_exactly_the_declared_frames_at_every_rate_and_channel_count ... ok
+thread 'mixer::tests::a_loop_cut_to_its_declared_length_is_that_period_with_no_padding_at_the_wrap' (12741993) panicked at src/mixer/mod.rs:569:13:
+assertion `left == right` failed: pass 1 is the stream, to the sample
+thread 'mixer::tests::a_trimmed_loop_through_a_player_and_a_bus_mixer_repeats_at_exactly_the_streams_length' (12741998) panicked at src/mixer/mod.rs:620:13:
+assertion `left == right` failed: pass 1 through the player and the mixer
+test result: FAILED. 8 passed; 2 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.25s

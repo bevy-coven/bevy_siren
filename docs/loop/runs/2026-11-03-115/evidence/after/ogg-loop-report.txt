@@ -1,0 +1,29 @@
+== The fixture: tests/fixtures/tone.ogg through Bevy's chain (decoder, repeat_infinite) ==
+declared: 24000 frames at 48000 Hz, 2 channels; loop_length = 499.968001ms
+decoder returns: 24576 frames (49152 samples), 576 frames past the declared length = 12.00 ms
+padding peak -56.6 dBFS; the stream's own peak -21.0 dBFS
+before.len() 196608 (four passes would be 196608); after.len() 192000 (four would be 192000); first current_span_len of a fresh decoder: Some(2048); of one that has produced a sample: Some(2048)
+
+== Does a loop of each format's decoder produce samples? (decoder.repeat_infinite(), three passes asked for) ==
+tone.ogg      one pass   49152 samples; fresh decoder span Some(2048); loop produced 147456 of 147456
+tone-441.ogg  one pass   10240 samples; fresh decoder span Some(2048); loop produced 30720 of 30720
+tone.flac     one pass   24000 samples; fresh decoder span Some(1024); loop produced 72000 of 72000
+tone.mp3      one pass   24000 samples; fresh decoder span Some(47); loop produced 72000 of 72000
+loop period before: 24576 frames (512.000 ms); after: 24000 frames (500.000 ms); declared 24000
+wrap step before 0.0030 (largest step inside a pass 0.0054); after 0.0073 (largest 0.0054)
+near-silent run (< -60 dBFS) at the first wrap: before 563 frames (11.73 ms), after 0 frames
+
+== P4: cells (rate x channels x frames) where TakeDuration emits other than the declared samples ==
+108 cells: frames/rate wrong in 77 (worst +158 samples); N*p+1 wrong in 0
+
+== The population: Kenney's CC0 game audio, every .ogg ==
+254 Ogg files; the walk understood 254; decoder returns more than declared for 51 (20.1%), 51 of them by 1..=1024 frames
+tail frames: min 27 median 412 max 936; padding peak dBFS: median -48.9 worst -6.0
+after the trim: 254 of 254 decode to exactly the declared samples
+inspect() per call: median 0.03 us (13905 bytes); slowest 0.53 us (188542 bytes)
+
+== The worst tail: chip-lay-3.ogg (936 frames of padding = 21.2 ms, 44100 Hz, 2 ch, declared 10776) ==
+period before Some(11712) frames; after Some(10776) frames
+
+== A long file: /tmp/siren-ogg-long.ogg (9.14 MB) ==
+understood: Some(Stream { frames: 14400000, sample_rate: 48000, channels: 2 }); inspect() 8.2 us per call

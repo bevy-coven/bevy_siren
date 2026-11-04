@@ -1,0 +1,47 @@
+// SCRATCH, iteration 115: the cost of `trim_ogg_loops`, per new voice and per frame once every voice has been looked at.
+// It was appended to `src/playback.rs` as `#[cfg(test)] mod scratch_bench`, run with
+//     cargo test --release --lib scratch_cost_of_trim_ogg_loops -- --ignored --nocapture
+// and removed before the commit. Its output is `trim-system-cost.txt`.
+
+use std::sync::Arc;
+use std::time::Instant;
+
+use bevy::audio::{AudioPlayer, AudioSource, PlaybackMode, PlaybackSettings};
+use bevy::prelude::*;
+
+use super::*;
+
+#[test]
+#[ignore]
+fn scratch_cost_of_trim_ogg_loops() {
+    let ogg = std::fs::read("tests/fixtures/tone.ogg").unwrap();
+    for voices in [8usize, 64, 256] {
+        let mut world = World::new();
+        let mut assets = Assets::<AudioSource>::default();
+        let handle = assets.add(AudioSource { bytes: Arc::from(ogg.clone()) });
+        world.insert_resource(assets);
+        for _ in 0..voices {
+            world.spawn((
+                AudioPlayer::new(handle.clone()),
+                PlaybackSettings { mode: PlaybackMode::Loop, ..PlaybackSettings::ONCE },
+                Samples(handle.clone()),
+            ));
+        }
+        let id = world.register_system(trim_ogg_loops);
+        let t = Instant::now();
+        world.run_system(id).unwrap();
+        let first = t.elapsed();
+        let frames = 50_000;
+        let t = Instant::now();
+        for _ in 0..frames {
+            world.run_system(id).unwrap();
+        }
+        let steady = t.elapsed();
+        println!(
+            "{voices:>4} voices: first frame {:>8.2} us ({:.3} us/voice); every voice marked: {:.3} us/frame",
+            first.as_secs_f64() * 1e6,
+            first.as_secs_f64() * 1e6 / voices as f64,
+            steady.as_secs_f64() * 1e6 / f64::from(frames)
+        );
+    }
+}

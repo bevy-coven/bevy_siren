@@ -1,18 +1,20 @@
 //! **Starting a voice on whichever backend owns playback**, and nothing else.
 //!
-//! Bevy's path needs no system: an entity with `AudioPlayer` starts itself, waiting for its asset exactly as it
-//! waits for a file. The crate's own mixer has no such hook, so this module reads the bytes of each
-//! [`Samples`] handle once they are loaded and starts the voice on its bus.
+//! Bevy's path needs no system to *start* a voice: an entity with `AudioPlayer` starts itself, waiting for its asset exactly
+//! as it waits for a file. The crate's own mixer has no such hook, so this module reads the bytes of each
+//! [`Samples`] handle once they are loaded and starts the voice on its bus. **The one thing Bevy's path cannot know** is how
+//! long an Ogg loop is: `trim_ogg_loops` tells it, once the bytes are there.
 //!
 //! **This is the only place a voice starts twice-checked.** A voice that has a [`MixerVoice`] is playing; a voice
 //! with [`Samples`] and no `MixerVoice` is waiting. A sample the decoder refuses is reported as a `Refused` with
 //! the key, so a project learns which file to deliver rather than hearing nothing.
 
-use bevy::audio::AudioSource;
+use bevy::audio::{AudioPlayer, AudioSource, PlaybackMode, PlaybackSettings};
 use bevy::prelude::*;
 
 use crate::cue::CueTable;
 use crate::log::{Entry, SirenLog};
+use crate::ogg;
 use crate::output::Output;
 use crate::play::{MixerVoice, Refusal, Refused, Samples, Voice};
 
@@ -99,5 +101,43 @@ pub fn start_pending(
                 commands.entity(entity).despawn();
             }
         }
+    }
+}
+
+/// Marks a voice whose loop length is settled — told, or found to need no telling — so [`trim_ogg_loops`] looks at each voice once.
+#[derive(Component)]
+pub(crate) struct LoopChecked;
+
+/// The voices [`trim_ogg_loops`] has not looked at yet: Bevy's own (they carry an `AudioPlayer`), and not yet marked.
+type Unchecked = (With<AudioPlayer>, Without<LoopChecked>);
+
+/// **Tells Bevy's path how long an Ogg loop is.** `rodio`'s Vorbis decoders return the padding of an Ogg's last block (for 51 of Kenney's 254 files, with `lewton`) and Bevy loops what the decoder returns, so a loop of one is
+/// longer than its stream by one padding at every wrap: a gap of near-silence or a repeated tail, and a stem that drifts off its bar. `PlaybackSettings::duration` is Bevy's own way to end a loop early
+/// (`decoder.take_duration(duration).repeat_infinite()`), and the length is on the file's last page — see [`crate::ogg`].
+///
+/// A voice is looked at **once**. A loop whose asset is not loaded yet is looked at again next frame, which is still before Bevy can start it: Bevy waits for the same asset, in `PostUpdate`, after this
+/// system's `Update` — **except in the one frame a system that runs after this one in `Update` adds the asset**, when Bevy starts the voice untrimmed and a later `duration` changes nothing. A one-shot is marked
+/// without a read, because only a loop exposes the padding. A file that is not an Ogg, or is one the walk does not fully understand, is left exactly as it was, and so is a voice a host gave a `duration` of its own.
+/// A voice the crate's mixer owns has no `AudioPlayer` and is not this system's: the mixer's own `play` does the same for its loop.
+pub(crate) fn trim_ogg_loops(
+    mut commands: Commands,
+    assets: Option<Res<Assets<AudioSource>>>,
+    mut voices: Query<(Entity, &Samples, &mut PlaybackSettings), Unchecked>,
+) {
+    let Some(assets) = assets else {
+        return;
+    };
+    for (entity, samples, mut settings) in &mut voices {
+        if matches!(settings.mode, PlaybackMode::Loop) {
+            let Some(asset) = assets.get(&samples.0) else {
+                continue; // not loaded yet: ask again next frame
+            };
+            if settings.duration.is_none()
+                && let Some(length) = ogg::loop_length(&asset.bytes)
+            {
+                settings.duration = Some(length);
+            }
+        }
+        commands.entity(entity).try_insert(LoopChecked);
     }
 }

@@ -1,0 +1,52 @@
+import glob, os, sys
+import numpy as np
+import soundfile as sf
+
+KENNEY = "/tmp/kenney-lib"
+BACKENDS = {"symphonia": "/tmp/siren-dump-symphonia", "lewton": "/tmp/siren-dump-lewton"}
+
+def load(dump, name):
+    meta = open(os.path.join(dump, name + ".meta")).read().split()
+    channels, rate = int(meta[0]), int(meta[1])
+    raw = np.fromfile(os.path.join(dump, name + ".f32"), dtype="<f4")
+    return raw.reshape(-1, channels), rate
+
+paths = sorted(glob.glob(KENNEY + "/**/*.ogg", recursive=True))
+rows = {b: [] for b in BACKENDS}
+for path in paths:
+    name = os.path.basename(path)
+    ref, ref_rate = sf.read(path, dtype="float32", always_2d=True)
+    for backend, dump in BACKENDS.items():
+        got, rate = load(dump, name)
+        n = min(len(got), len(ref))
+        diff = got[:n] - ref[:n]
+        ref_rms = float(np.sqrt(np.mean(ref[:n].astype(np.float64) ** 2))) or 1e-12
+        diff_rms = float(np.sqrt(np.mean(diff.astype(np.float64) ** 2))) or 1e-12
+        tail = got[len(ref):] if len(got) > len(ref) else np.zeros((0, got.shape[1]), dtype=np.float32)
+        rows[backend].append(dict(
+            name=name, frames_over=len(got) - len(ref), max_abs=float(np.max(np.abs(diff))) if n else 0.0,
+            snr_db=20 * np.log10(ref_rms / diff_rms), ref_peak=float(np.max(np.abs(ref))),
+            rate_ok=(rate == ref_rate), tail_peak=float(np.max(np.abs(tail))) if len(tail) else 0.0))
+
+for backend, rs in rows.items():
+    over = np.array([r["frames_over"] for r in rs])
+    snr = np.array([r["snr_db"] for r in rs])
+    mx = np.array([r["max_abs"] for r in rs])
+    print(f"== {backend} vs libvorbis (soundfile), {len(rs)} files ==")
+    print(f"  rate mismatches: {sum(not r['rate_ok'] for r in rs)}")
+    print(f"  frames returned minus the reference's: min {over.min()} median {int(np.median(over))} max {over.max()}; "
+          f"longer in {int((over > 0).sum())} files, shorter in {int((over < 0).sum())}, equal in {int((over == 0).sum())}")
+    print(f"  SNR against the reference over the shared frames: min {snr.min():.1f} dB, median {np.median(snr):.1f} dB")
+    print(f"  max |difference|: median {np.median(mx):.2e}, worst {mx.max():.2e}  ({[r['name'] for r in rs if r['max_abs'] == mx.max()][0]})")
+    hot = [r for r in rs if r["ref_peak"] > 1.0]
+    print(f"  files whose libvorbis peak exceeds 1.0: {len(hot)}; of them the backend's worst max |difference| {max([r['max_abs'] for r in hot], default=0):.3f}")
+    worst_tail = sorted(rs, key=lambda r: -r["tail_peak"])[:3]
+    print("  loudest padding past the reference length: " + ", ".join(f"{r['name']} {20*np.log10(r['tail_peak']) if r['tail_peak'] else float('-inf'):.1f} dBFS ({r['frames_over']} frames)" for r in worst_tail))
+
+# the two against each other
+both = list(zip(rows["symphonia"], rows["lewton"]))
+same_len = sum(1 for a, b in both if a["frames_over"] == b["frames_over"])
+print(f"== symphonia and lewton return the same number of frames for {same_len} of {len(both)} files ==")
+diffs = [(a["frames_over"] - b["frames_over"], a["name"]) for a, b in both if a["frames_over"] != b["frames_over"]]
+diffs.sort()
+print("  symphonia minus lewton frames, extremes:", diffs[:3], diffs[-3:])

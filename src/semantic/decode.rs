@@ -11,21 +11,28 @@
 //! plays is a file that indexes. (That list and these features were once two unrelated statements, and `.mp3` and `.flac` were
 //! scanned as audio and then refused; `tests/semantic_decode.rs` now decodes a real file of every extension on the list.)
 //!
+//! **Vorbis is `lewton`, the decoder Bevy's own `vorbis` feature selects** — and until iteration 115 it was `symphonia`'s, which
+//! made a loop of any Ogg silent (`Cargo.toml` has the measurement). Against `libvorbis` on 254 real Ogg effects `lewton` is within
+//! 7 × 10⁻⁷ of it on every file, **including the 25 hot masters that decode past ±1**; `symphonia` clamped those at ±1 and was off by
+//! up to 0.30. The Kenney golden benchmark with the real CLAP model is unchanged to four decimals on every metric, so the swap
+//! moved no ranking (`docs/loop/runs/2026-11-03-115/evidence/after/goldenbench-kenney-lewton.txt`).
+//!
 //! **One correction is made on the way in**: an Ogg stream is cut to the length its last page declares (`decode`'s doc), because
-//! `symphonia` keeps the padding of the last Vorbis block. `mixer` plays that padding as up to 20 ms of near-silence (median peak
-//! −69 dBFS, worst −35); the index would have *ranked* it, so only the index path cuts it. The decoder also clamps Vorbis output to
-//! [−1, 1], where `libvorbis` returns the overshoot of a hot master (22 of 51 files of one pack, peaks to 1.3): a design choice that
-//! moved a similarity by at most 0.004, and is left alone (`docs/loop/runs/2026-11-03-112/upstream-symphonia-vorbis.md`).
+//! the decoders keep the padding of the last Vorbis block — `lewton` for 51 of those 254 files (up to 936 frames, 21 ms at
+//! 44.1 kHz), `symphonia` built with `Decoder::new` for 253 (up to 1 019) — and the index would have *ranked* it. The playback paths cut it too, **for a loop
+//! only** — the padding is what sits between two passes, where a one-shot just ends in it — and both read the length through one
+//! walk of the pages, `crate::ogg`, so what is indexed and what loops cannot disagree about where a stream ends.
 //!
 //! **What it costs — and an earlier version of this paragraph was wrong.** It said the decoder *"costs no new crate"* because
 //! `bevy_audio` already resolves `rodio 0.22.2` (`cargo tree -i rodio`: `bevy_audio → bevy_internal → bevy → bevy_siren`). `rodio`
-//! is in the default graph; **its decoders are not** — no `symphonia` crate is — so enabling the feature adds them: **16 of the 34
-//! crates `semantic` adds** (ten of them `symphonia`'s, including the two this crate added in iteration 112 to read `flac` and
-//! `mp3`: `symphonia-bundle-flac` and `symphonia-bundle-mp3`), against 6 for `ort`, 7 for `rubato`, 3 for `ebur128` and 4 for
-//! `serde_json` (two crates are shared). Measured with `cargo tree --edges normal`: the default build is **413 lines, 149 crates,
-//! unchanged**; `semantic` is **497 lines, 183 crates** (487 and 181 before the two).
+//! is in the default graph; **its decoders are not** — no `symphonia` or `lewton` crate is — so enabling the feature adds them: **18 of
+//! the 36 crates `semantic` adds** (eight of them `symphonia`'s, for `wav`, `flac` and `mp3`; `lewton`, `ogg`, `byteorder` and `tinyvec`
+//! for Vorbis), against 6 for `ort`, 7 for `rubato`, 3 for `ebur128` and 4 for `serde_json` (two crates are shared). Measured with
+//! `cargo tree --edges normal`: the default build is **413 lines, 149 crates, unchanged**; `semantic` is **493 lines, 185 crates**
+//! (497 and 183 with `symphonia`'s Vorbis decoder, which is two crates, `-codec-vorbis` and `-format-ogg`, against `lewton`'s four).
 //! That is **this crate's own graph**, which builds `bevy` with its defaults off; a game's graph already holds whatever its `bevy`
-//! enabled — Vorbis, by default — so the decoder crates `semantic` adds *there* are the formats the game does not already read.
+//! enabled — `lewton` and its three, by default — so the decoder crates `semantic` adds *there* are the formats the game does not
+//! already read, and **none for Vorbis**.
 //!
 //! # The rate
 //!
@@ -35,7 +42,7 @@
 //! the model's, because the conversion happens first.
 
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
+use std::io::Read;
 use std::path::Path;
 
 use rodio::Source;
@@ -137,49 +144,30 @@ pub fn decode(path: &Path) -> Result<Decoded, DecodeProblem> {
 const MAX_END_TRIM_FRAMES: usize = 8192;
 
 /// **The number of frames an Ogg stream says it has**: the granule position of its last page — when the file is **one** logical stream
-/// whose pages run unbroken to the end of the file and the last is marked end-of-stream (RFC 3533, §6). `None` for anything else: not
-/// Ogg, a chained file (two streams back to back have no single length), a stream cut off before its end, a position of −1 (*no packet
-/// finished on this page*). The caller cuts only on a length the file actually stated.
+/// whose pages run unbroken to the end of the file, the last is marked end-of-stream (RFC 3533, §6), and the packet count can account for
+/// the position (`crate::ogg::inspect` has the window). `None` for anything else: not Ogg, a chained file (two streams back to back have
+/// no single length), a stream cut off before its end, a position of −1 (*no packet finished on this page*). The caller cuts only on a
+/// length the file actually stated.
 ///
 /// **Why it is needed.** A Vorbis stream ends on a page whose granule position is the number of frames the stream has, and the final
-/// packet decodes to a whole block, which is more; the spec says to discard the excess (Vorbis I, A.2). `symphonia` 0.5 keeps it
-/// (an upstream defect other projects report too). Measured against `libvorbis` on 209 real Ogg effects: **59 decoded up to 975
-/// frames long** (20 ms at 48 kHz), none short. On the RPG pack's effects (0.27 – 1.5 s) that tail alone moved a similarity by up to
-/// 0.085 and changed the top three of **all 12** descriptions tried; cut to the declared length the worst difference was 0.004, the top
-/// three differed for 3 of 12 and the rank correlation was never below 0.998
+/// packet decodes to a whole block, which is more; the spec says to discard the excess (Vorbis I, A.2). Neither `rodio` Vorbis decoder
+/// does it for every file: against `libvorbis` on Kenney's 254 CC0 Ogg effects `lewton` returned more for **51** (up to 936 frames, a padding peak as
+/// high as −6 dBFS) and `symphonia`, built with `Decoder::new`, for **253** (up to 1 019) — `docs/loop/runs/2026-11-03-115/evidence/after/vorbis-backend-parity.txt`. On
+/// iteration 112's 209 files, built from a `File` as this function builds it, `symphonia` was **59 up to 975 frames long** (20 ms at 48 kHz), none short. On the RPG pack's effects (0.27 – 1.5 s)
+/// that tail alone moved a similarity by up to 0.085 and changed the top three of **all 12** descriptions tried; cut to the declared length
+/// the worst difference was 0.004, the top three differed for 3 of 12 and the rank correlation was never below 0.998
 /// (`docs/loop/runs/2026-11-03-112/evidence/after/formats-parity-ogg-vs-libvorbis.txt`, `ogg-tail-vs-clamp.txt`). MP3 and FLAC arrive
 /// at their exact length and are not
 /// touched — the same measurement found MP3 identical to `ffmpeg`'s decode on all 259 pairs.
 ///
-/// It reads each page's 27-byte header and segment table and skips its payload, so it costs a few small reads per page — a file
-/// that is already being decoded in full.
+/// The file is read a second time only when it starts with `OggS`: a WAV, FLAC or MP3 costs four bytes.
 fn ogg_declared_frames(path: &Path) -> Option<usize> {
-    let length = std::fs::metadata(path).ok()?.len();
-    let mut file = BufReader::new(File::open(path).ok()?);
-    let (mut offset, mut streams, mut last) = (0u64, 0usize, None);
-    while !file.fill_buf().ok()?.is_empty() {
-        let mut header = [0u8; 27];
-        file.read_exact(&mut header).ok()?;
-        if &header[..4] != b"OggS" || header[4] != 0 {
-            return None;
-        }
-        let segments = usize::from(header[26]);
-        let mut table = [0u8; 255];
-        file.read_exact(&mut table[..segments]).ok()?;
-        let payload: usize = table[..segments].iter().map(|n| usize::from(*n)).sum();
-        file.seek_relative(i64::try_from(payload).ok()?).ok()?;
-        offset += 27 + segments as u64 + payload as u64;
-
-        let (flags, granule) = (header[5], i64::from_le_bytes(header[6..14].try_into().ok()?));
-        streams += usize::from(flags & 0x02 != 0); // beginning of a logical stream
-        last = Some((flags, granule));
-    }
-    // `seek_relative` does not fail past the end of the file, so a last page that was cut short shows as an offset beyond it.
-    let (flags, granule) = last?;
-    if streams != 1 || offset != length || flags & 0x04 == 0 || granule < 0 {
+    let mut magic = [0u8; 4];
+    File::open(path).ok()?.read_exact(&mut magic).ok()?;
+    if &magic != b"OggS" {
         return None;
     }
-    usize::try_from(granule).ok()
+    usize::try_from(crate::ogg::inspect(&std::fs::read(path).ok()?)?.frames).ok()
 }
 
 /// **Decode and prepare in one step**: the whole path from a file to a model input, or the reason it stops.

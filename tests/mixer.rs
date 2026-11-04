@@ -409,6 +409,25 @@ fn a_loop_on_the_real_mixer_sounds_until_it_is_stopped() {
     assert!(backend.finished("Ambience", voice), "a stopped loop is finished");
 }
 
+/// **An Ogg loop on the real mixer sounds too.** With the symphonia Vorbis backend, `repeat_infinite` of an Ogg decoder produced **no samples at all** (`rodio`'s decoder reports a span of length zero until its first
+/// sample, and `Buffered` reads that as an empty source — RustAudio/rodio#775): the loop finished at once, `Played` had been written, and nothing was heard. Every loop test before this one used a WAV. `tone-441.ogg`
+/// is 0.1 s, so the 350 ms wait is three passes; a voice that is empty has ended long before it. It needs an audio device and returns early where there is none; it plays at −60 dB.
+#[test]
+fn an_ogg_loop_on_the_real_mixer_sounds_until_it_is_stopped() {
+    use bevy_siren::mixer::MixerBackend;
+
+    let Some(mut backend) = MixerBackend::open() else {
+        eprintln!("no audio device; an Ogg loop on the real mixer cannot be played here");
+        return;
+    };
+    let bytes: Arc<[u8]> = Arc::from(include_bytes!("fixtures/tone-441.ogg").as_slice());
+    let voice = backend.play("Ambience", &bytes, -60.0, 1.0, true).expect("the Ogg loop starts");
+    std::thread::sleep(std::time::Duration::from_millis(350));
+    assert!(!backend.finished("Ambience", voice), "three passes of a 0.1 s loop later it is still sounding");
+    backend.stop_voice("Ambience", voice);
+    assert!(backend.finished("Ambience", voice), "a stopped loop is finished");
+}
+
 /// **A voice whose entity is despawned frees its mixer slot.**
 ///
 /// The mixer's number for a voice lives in a component on the voice entity, so despawning that entity — which is what

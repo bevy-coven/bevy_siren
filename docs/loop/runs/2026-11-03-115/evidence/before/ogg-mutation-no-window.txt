@@ -1,0 +1,17 @@
+85 |     let (frames, shortest, longest) = (granule as u64, decoding * short / 2, decoding * long / 2);
+warning: unused variable: `longest`
+85 |     let (frames, shortest, longest) = (granule as u64, decoding * short / 2, decoding * long / 2);
+   |                            ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_longest`
+test ogg::tests::a_well_formed_stream_reports_its_declared_length_rate_and_channels ... ok
+test ogg::tests::a_stream_of_another_rate_and_one_channel_reports_both ... ok
+test ogg::tests::a_loop_is_told_a_length_only_for_a_stream_that_is_understood ... ok
+test ogg::tests::a_granule_the_packet_count_cannot_hold_is_refused_and_its_edges_are_not ... FAILED
+test ogg::tests::a_stream_the_walk_does_not_fully_understand_is_refused ... FAILED
+---- ogg::tests::a_granule_the_packet_count_cannot_hold_is_refused_and_its_edges_are_not stdout ----
+thread 'ogg::tests::a_granule_the_packet_count_cannot_hold_is_refused_and_its_edges_are_not' (12736319) panicked at src/ogg.rs:263:9:
+---- ogg::tests::a_stream_the_walk_does_not_fully_understand_is_refused stdout ----
+thread 'ogg::tests::a_stream_the_walk_does_not_fully_understand_is_refused' (12736322) panicked at src/ogg.rs:252:13:
+assertion `left == right` failed: refused: a stream with no audio packet
+    ogg::tests::a_granule_the_packet_count_cannot_hold_is_refused_and_its_edges_are_not
+    ogg::tests::a_stream_the_walk_does_not_fully_understand_is_refused
+test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

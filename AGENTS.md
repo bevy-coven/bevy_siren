@@ -45,11 +45,15 @@ every Bevy feature and a hole in its own `[dependencies]` list cannot fail.
 - `src/play.rs` — `Play`, `Played`, `Refused`, `Refusal`, `Voice`, `Compensation`, `MixerVoice`, `Completes`,
   `Samples`, `StopVoice`, `StopCue`, `SirenChoices`, and `play_requests`.
 - `src/playback.rs` — `start_pending`: the only place a voice starts on the crate's own mixer once its bytes have
-  loaded.
+  loaded; and `trim_ogg_loops`, which tells **Bevy's** path how long an Ogg loop is (`PlaybackSettings::duration`) once the bytes are there.
+- `src/ogg.rs` — std-only, always compiled: `inspect` (one walk of an Ogg Vorbis file's pages → the length its last granule position declares, or `None` for anything it does not fully understand: chained, cut short,
+  not Vorbis, a packet count that cannot account for the granule) and `loop_length`/`take_duration` (the `Duration` that makes `rodio`'s `TakeDuration` emit exactly that many frames: `N·p + 1` ns, **not**
+  `frames / rate`). `semantic::decode`, `trim_ogg_loops` and the mixer's `Shape::of` all read it. `ogg::synthetic` (`cfg(test)`) builds Ogg streams by hand.
 - `src/output.rs` — `AudioOutput` (the trait a backend implements), `Output` (the boxed resource), `Backend` (which
   path is live).
 - `src/mixer/mod.rs` — behind `#[cfg(feature = "mixer")]`: one `rodio::Mixer` per bus, a `BusGain` and a `VoiceGain` source reading an `AtomicU32`, `MixerBackend` implementing
-  `AudioOutput`, and `once`/`looped`/`connect`, the one place a voice's chain is built (**a loop repeats the sample, then applies the gain**). Its unit tests pull samples through a real
+  `AudioOutput`, and `once`/`looped`/`connect`, the one place a voice's chain is built (**a loop repeats the sample, then applies the gain**; `Shape` is once, or a loop cut to the stream's declared length;
+  `OpenSpan` keeps a decoder that reports an empty first span from making an empty loop). Its unit tests pull samples through a real
   `rodio::Player` and bus `Mixer` offline — the only tests that read a sample the crate's own mixer produces.
 - `src/music.rs` — `MusicScore`, `MusicLayer`, `MusicLayers`, `When`, `Stinger`, `MusicState`, `MusicVoice`, and the
   systems `start_layers`, `adopt_layers`, `move_layers`, `play_stingers`.
@@ -127,8 +131,13 @@ function between frames; a duck takes time since it fired; a gain curve is a lin
   decodes a real fixture of each entry (`tests/fixtures/`, made with `ffmpeg`, commands in `tests/semantic_decode.rs`): add a format to the list
   and the test asks for its fixture. **Check a decoder against a reference through the whole pipeline** (`formats_parity.py` in iteration 112's
   evidence), and **use `libvorbis` (`soundfile`) as the Ogg reference, not `ffmpeg`**, which returns up to 128 frames fewer than the stream declares.
-  `symphonia` keeps the padding of an Ogg's last block (`decode` cuts it) and **clamps Vorbis output to ±1** — a table whose `peak` column is `1 + diff`
-  is clipping, not a decoder bug.
+  Vorbis is decoded by **`lewton`** (see the next trap): within 7e-7 of `libvorbis` and **not clamped**. Neither `rodio` Vorbis decoder cuts the padding of an Ogg's last block for every file (`decode` and `ogg::loop_length` do).
+- **The `rodio` line in `Cargo.toml` is not this crate's alone: Cargo unifies its features across a game, and `vorbis` (the `symphonia` backend) made a loop of any Ogg *silent*.** `rodio` reports a span of
+  length zero until a Vorbis decoder's first sample (the stream's first packet carries no audio), `Buffered` reads `Some(0)` as an empty source, and `repeat_infinite` — Bevy's own loop, `audio_output.rs:165`,
+  and the mixer's — produced **0 of 147 456 samples** on a real Ogg: the voice finished at once with `Played` already written. It was in the crate from the first `mixer` commit and no test saw it,
+  because every loop test used a WAV. `rodio` compiles `lewton` *out* when `symphonia-vorbis` is on, so the crate's feature also swapped the decoder of a game's **own** `AudioPlayer` (Bevy's `vorbis` is
+  `rodio/lewton`). The line now names `lewton`; `tests/ogg_loops.rs::the_duration_plays_exactly_the_streams_length_through_rodio_itself` fails on the old one, `tests/mixer.rs::an_ogg_loop_on_the_real_mixer_sounds_until_it_is_stopped`
+  needs a device, and `OpenSpan` protects the mixer's loops in a game that turns on Bevy's `symphonia-vorbis` itself. **A loop test needs a loop of every format the crate says it plays, and must compare a length, not just assert equality.**
 
 ## The two-way street, both ways
 

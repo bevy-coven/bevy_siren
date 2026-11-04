@@ -15,6 +15,7 @@ mod mixer;
 mod model;
 mod music;
 mod neutralised;
+mod ogg_loops;
 mod play;
 mod readme;
 mod render_shapes;

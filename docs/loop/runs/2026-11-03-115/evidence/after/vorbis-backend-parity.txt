@@ -1,0 +1,16 @@
+== symphonia vs libvorbis (soundfile), 254 files ==
+  rate mismatches: 0
+  frames returned minus the reference's: min 0 median 443 max 1019; longer in 253 files, shorter in 0, equal in 1
+  SNR against the reference over the shared frames: min 29.2 dB, median 135.7 dB
+  max |difference|: median 2.09e-07, worst 3.03e-01  (metalPot3.ogg)
+  files whose libvorbis peak exceeds 1.0: 25; of them the backend's worst max |difference| 0.303
+  loudest padding past the reference length: doorClose_001.ogg -3.5 dBFS (113 frames), spaceEngine_002.ogg -4.1 dBFS (42 frames), computerNoise_001.ogg -5.9 dBFS (44 frames)
+== lewton vs libvorbis (soundfile), 254 files ==
+  rate mismatches: 0
+  frames returned minus the reference's: min 0 median 0 max 936; longer in 51 files, shorter in 0, equal in 203
+  SNR against the reference over the shared frames: min 129.6 dB, median 131.7 dB
+  max |difference|: median 2.98e-07, worst 7.15e-07  (metalPot3.ogg)
+  files whose libvorbis peak exceeds 1.0: 25; of them the backend's worst max |difference| 0.000
+  loudest padding past the reference length: spaceEngineLow_003.ogg -6.0 dBFS (44 frames), spaceEngineSmall_000.ogg -8.2 dBFS (428 frames), computerNoise_002.ogg -9.3 dBFS (44 frames)
+== symphonia and lewton return the same number of frames for 39 of 254 files ==
+  symphonia minus lewton frames, extremes: [(4, 'jingles_SAX09.ogg'), (6, 'explosionCrunch_001.ogg'), (11, 'footstep05.ogg')] [(998, 'confirmation_002.ogg'), (1005, 'cloth2.ogg'), (1006, 'jingles_STEEL07.ogg')]

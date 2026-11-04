@@ -1,0 +1,68 @@
+//! SCRATCH, iteration 115: decodes every .ogg under a directory with the rodio build's Vorbis backend and writes the raw samples, so two backends can be compared.
+//! Deleted before the commit; its source is kept in `docs/loop/runs/2026-11-03-115/evidence/after/ogg-dump.rs.txt`.
+//!
+//!     cargo run --release --features mixer --example scratch_ogg_dump -- <kenney dir> <out dir>
+
+#[cfg(not(feature = "mixer"))]
+fn main() {
+    eprintln!("scratch_ogg_dump needs --features mixer");
+}
+
+#[cfg(feature = "mixer")]
+fn main() {
+    use std::path::{Path, PathBuf};
+    use std::time::Instant;
+
+    use rodio::Source;
+
+    fn files(dir: &Path, out: &mut Vec<PathBuf>) {
+        let mut entries: Vec<_> =
+            std::fs::read_dir(dir).expect("a directory").flatten().map(|e| e.path()).collect();
+        entries.sort();
+        for path in entries {
+            if path.is_dir() {
+                files(&path, out);
+            } else if path.extension().and_then(|e| e.to_str()) == Some("ogg") {
+                out.push(path);
+            }
+        }
+    }
+
+    let args: Vec<String> = std::env::args().collect();
+    let (input, output) = (PathBuf::from(&args[1]), PathBuf::from(&args[2]));
+    std::fs::create_dir_all(&output).expect("out dir");
+    let mut paths = Vec::new();
+    files(&input, &mut paths);
+    let (mut failed, mut samples_total) = (0usize, 0usize);
+    let started = Instant::now();
+    for path in &paths {
+        let name = path.file_name().unwrap().to_string_lossy().to_string();
+        let bytes = std::fs::read(path).expect("reads");
+        let decoder = match rodio::Decoder::new(std::io::Cursor::new(bytes)) {
+            Ok(d) => d,
+            Err(e) => {
+                println!("DECODE FAILED {name}: {e}");
+                failed += 1;
+                continue;
+            }
+        };
+        let (channels, rate) = (decoder.channels().get(), decoder.sample_rate().get());
+        let samples: Vec<f32> = decoder.collect();
+        samples_total += samples.len();
+        let mut raw = Vec::with_capacity(samples.len() * 4);
+        for s in &samples {
+            raw.extend_from_slice(&s.to_le_bytes());
+        }
+        std::fs::write(output.join(format!("{name}.f32")), raw).expect("writes");
+        std::fs::write(output.join(format!("{name}.meta")), format!("{channels} {rate}\n")).expect("writes");
+    }
+    let seconds = started.elapsed().as_secs_f64();
+    println!(
+        "{} files, {} failed to decode, {} samples in {:.2} s ({:.1} M samples/s)",
+        paths.len(),
+        failed,
+        samples_total,
+        seconds,
+        samples_total as f64 / seconds / 1e6
+    );
+}

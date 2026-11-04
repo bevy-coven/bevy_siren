@@ -167,8 +167,9 @@ impl AudioOutput for MixerBackend {
     fn play(&mut self, bus: &str, bytes: &Arc<[u8]>, db: f32, speed: f32, looping: bool) -> Option<usize> {
         let decoder = rodio::Decoder::new(std::io::Cursor::new(bytes.to_vec())).ok()?;
         let gain = Arc::new(AtomicU32::new(crate::model::db_to_gain(db).to_bits()));
+        let shape = Shape::of(bytes, looping);
         let track = self.bus_mut(bus);
-        let player = connect(&track.mixer, decoder, &gain, speed, looping);
+        let player = connect(&track.mixer, decoder, &gain, speed, shape);
 
         // **Reuse the first slot whose voice has ended.** Appending would retain one `rodio` player and its queues for
         // every sound a game has ever played; the vector's length is the peak *concurrent* count, which the budget
@@ -286,38 +287,106 @@ impl<S: Source> Source for VoiceGain<S> {
     }
 }
 
+/// **A source whose span is never reported empty while it still has samples.** `rodio`'s symphonia Vorbis decoder decodes a stream's first packet when it is built, that packet carries no audio, and the decoder
+/// sizes its span from it: `current_span_len() == Some(0)` until the first sample is pulled (`rodio-0.22.2/src/decoder/symphonia.rs:163`; upstream RustAudio/rodio#775, fixed on `master`, not released). `Buffered` —
+/// which `repeat_infinite` is built on — reads `Some(0)` as *a source with nothing in it* (`buffered.rs:104`), so a loop of such a decoder **produced no samples**: measured on a real Ogg, 0 of 147 456, with the
+/// voice finished at once and `Played` already written. `None` is rodio's word for a span whose length is not known, and is what the first span of such a decoder is.
+struct OpenSpan<S>(S);
+
+impl<S: Source> Iterator for OpenSpan<S> {
+    type Item = Sample;
+
+    fn next(&mut self) -> Option<Sample> {
+        self.0.next()
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.0.size_hint()
+    }
+}
+
+impl<S: Source> Source for OpenSpan<S> {
+    fn current_span_len(&self) -> Option<usize> {
+        self.0.current_span_len().filter(|len| *len > 0)
+    }
+
+    fn channels(&self) -> ChannelCount {
+        self.0.channels()
+    }
+
+    fn sample_rate(&self) -> SampleRate {
+        self.0.sample_rate()
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        self.0.total_duration()
+    }
+
+    fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
+        self.0.try_seek(pos)
+    }
+}
+
 /// **A voice that plays once**: the decoded sample, with the voice's gain applied to each sample as it is pulled.
 fn once<S: Source + Send + 'static>(sample: S, gain: Arc<AtomicU32>) -> impl Source + Send + 'static {
     VoiceGain { source: sample, gain }
 }
 
-/// **A looping voice**: the sample repeated, and *then* the voice's gain.
+/// **A looping voice**: the sample cut to `trim` when there is one, repeated, and *then* the voice's gain.
 ///
-/// The order is the whole point. `rodio`'s `repeat_infinite` **stores** what it is given — a span of up to 32 768 samples at a time, pulled out of
+/// The order of the last two is the whole point. `rodio`'s `repeat_infinite` **stores** what it is given — a span of up to 32 768 samples at a time, pulled out of
 /// the source in one go — and replays the stored values on every later pass (`rodio-0.22.2/src/source/{repeat,buffered}.rs`). A gain applied *inside*
 /// the repeat is therefore the gain of the instant the first pass was decoded, **for ever**: a music layer that starts silent never comes in, a fade
 /// is a click, and nothing refuses or logs, because `update_mix` did store the number. Applied *outside* it, the cache holds the sample at unity and
 /// the gain is read for every sample as it goes to the player, which is what a gain is.
-fn looped<S: Source + Send + 'static>(sample: S, gain: Arc<AtomicU32>) -> impl Source + Send + 'static {
+///
+/// The trim goes *inside* the repeat, because it is what makes a pass the length the stream declares: `repeat_infinite` starts pass two where its source *ends*. [`OpenSpan`] goes inside the trim, because
+/// `TakeDuration` reports its input's span length and would pass a decoder's `Some(0)` on.
+fn looped<S: Source + Send + 'static>(
+    sample: S,
+    gain: Arc<AtomicU32>,
+    trim: Option<Duration>,
+) -> impl Source + Send + 'static {
+    // Boxed so the two arms are one type; the box is read for the first pass only, every later pass replays the repeat's own buffer.
+    let sample: Box<dyn Source + Send> = match trim {
+        Some(length) => Box::new(OpenSpan(sample).take_duration(length)),
+        None => Box::new(OpenSpan(sample)),
+    };
     VoiceGain { source: sample.repeat_infinite(), gain }
 }
 
-/// **Connects a voice to its bus**: a `rodio::Player` on the bus's mixer, playing the decoded sample at `speed`, once or as a loop, with the voice's gain. It is everything `play` does to
+/// **How a voice runs**: once, or as a loop — and for a loop, the length one pass is cut to when that is shorter than where the decoder ends.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Shape {
+    /// The decoded sample, to its end.
+    Once,
+    /// The sample repeated. `trim` is the stream's own length (an Ogg's, which the decoder overshoots by a block — see [`crate::ogg`]), or `None` to repeat everything the decoder returns.
+    Loop { trim: Option<Duration> },
+}
+
+impl Shape {
+    /// The shape a voice of `bytes` runs in. **Only a loop exposes an Ogg's padding**: the decoder returns a block more than the stream declares, and a loop starts its next pass where the decoder *ends*.
+    /// A one-shot just ends there, so its bytes are not read — the walk is a few reads a page, and a one-shot would pay it on every play.
+    fn of(bytes: &[u8], looping: bool) -> Shape {
+        if looping { Shape::Loop { trim: crate::ogg::loop_length(bytes) } } else { Shape::Once }
+    }
+}
+
+/// **Connects a voice to its bus**: a `rodio::Player` on the bus's mixer, playing the decoded sample at `speed`, in `shape`, with the voice's gain. It is everything `play` does to
 /// make a sound except the slot bookkeeping, so the tests below build a voice the way the backend does.
 fn connect<S: Source + Send + 'static>(
     mixer: &Mixer,
     sample: S,
     gain: &Arc<AtomicU32>,
     speed: f32,
-    looping: bool,
+    shape: Shape,
 ) -> Player {
     let player = Player::connect_new(mixer);
     player.set_volume(1.0);
     player.set_speed(speed.clamp(1.0 / 16.0, 16.0));
-    if looping {
-        player.append(looped(sample, gain.clone()));
-    } else {
-        player.append(once(sample, gain.clone()));
+    match shape {
+        Shape::Once => player.append(once(sample, gain.clone())),
+        Shape::Loop { trim } => player.append(looped(sample, gain.clone(), trim)),
     }
     player
 }
@@ -393,7 +462,7 @@ mod tests {
     #[test]
     fn a_looping_voice_follows_its_gain_on_every_pass() {
         let gain = gain_of(1.0);
-        let mut voice = looped(ones(), gain.clone());
+        let mut voice = looped(ones(), gain.clone(), None);
 
         assert_eq!(wrong(&pull(&mut voice, LEN), 1.0), 0, "pass 1 is the sample at unity");
 
@@ -432,7 +501,7 @@ mod tests {
         }
         let (a, b) = (gain_of(1.0), gain_of(1.0));
         check(once(ones(), a.clone()), &a, "plays once");
-        check(looped(ones(), b.clone()), &b, "loops");
+        check(looped(ones(), b.clone(), None), &b, "loops");
     }
 
     /// The control: a voice that plays once never had the problem, and keeps following its gain to the last sample, then ends.
@@ -452,7 +521,7 @@ mod tests {
     fn a_looping_voice_through_a_player_and_a_bus_mixer_follows_its_gain() {
         let (mixer, mut bus) = rodio::mixer::mixer(NonZero::new(1).unwrap(), NonZero::new(48_000).unwrap());
         let gain = gain_of(1.0);
-        let _player = connect(&mixer, ones(), &gain, 1.0, true);
+        let _player = connect(&mixer, ones(), &gain, 1.0, Shape::Loop { trim: None });
 
         let first = pull(&mut bus, LEN);
         let latency = first.iter().take_while(|s| **s == 0.0).count();
@@ -483,7 +552,7 @@ mod tests {
         // 0.2 s of 1 kHz — 200 whole cycles, so the loop is seamless — decoded by the same `Decoder` `play` uses.
         let stem =
             rodio::Decoder::new(Cursor::new(wav(2, 44_100, 8_820, 1_000.0, 0.25))).expect("a WAV decodes");
-        let _player = connect(&mixer, stem, &gain, 1.0, true);
+        let _player = connect(&mixer, stem, &gain, 1.0, Shape::Loop { trim: None });
 
         // Three seconds of stereo: fifteen passes of the loop.
         let at_unity = rms(&pull(&mut bus, 2 * 144_000));
@@ -511,9 +580,171 @@ mod tests {
         let gain = gain_of(1.0);
         let empty = rodio::Decoder::new(Cursor::new(wav(1, 48_000, 0, 440.0, 0.25)))
             .expect("a WAV with no frames decodes");
-        let player = connect(&mixer, empty, &gain, 1.0, true);
+        let player = connect(&mixer, empty, &gain, 1.0, Shape::Loop { trim: None });
         let heard = pull(&mut bus, 4_800);
         assert_eq!(wrong(&heard, 0.0), 0, "nothing to repeat is silence");
         assert!(player.empty(), "the voice has ended, so `finished` is true and its slot is freed");
+    }
+
+    /// A mono 48 kHz "stream" as `rodio`'s Vorbis decoders hand it back: `frames` distinct values — a ramp from 0.1 to 0.9, so a pass that is one sample off shows — then `padding` frames at −80 dBFS, which is what an
+    /// Ogg's last block carries past the length it declares (`lewton`: 27 to 936 frames on 51 of 254 real files, a median peak of −49 dBFS). The ramp is returned too, as what a pass must be.
+    fn decoded(frames: usize, padding: usize) -> (SamplesBuffer, Vec<f32>) {
+        let stream: Vec<f32> = (0..frames).map(|n| 0.1 + 0.8 * n as f32 / frames as f32).collect();
+        let mut samples = stream.clone();
+        samples.extend(std::iter::repeat_n(1.0e-4, padding));
+        (SamplesBuffer::new(NonZero::new(1).unwrap(), NonZero::new(48_000).unwrap(), samples), stream)
+    }
+
+    /// **The bug, and the fix.** A loop repeats what its source returns, and the decoder returns a block of padding after the last frame an Ogg declares: the unfixed loop plays it at every wrap — a gap of
+    /// near-silence, 12 ms for 576 frames, four times what a listener hears — and every pass after the first starts that late. Cut to the declared length, the loop is the stream and nothing between its passes.
+    #[test]
+    fn a_loop_cut_to_its_declared_length_is_that_period_with_no_padding_at_the_wrap() {
+        const N: usize = 40_000; // more than one `Buffered` span (32 768), so a pass is two spans
+        const PADDING: usize = 576;
+        let (_, stream) = decoded(N, PADDING);
+
+        let cut = crate::ogg::take_duration(N as u64, 48_000, 1).expect("a duration");
+        let mut fixed = looped(decoded(N, PADDING).0, gain_of(1.0), Some(cut));
+        let heard = pull(&mut fixed, 3 * N);
+        for (pass, samples) in heard.chunks(N).enumerate() {
+            assert_eq!(samples, &stream[..], "pass {pass} is the stream, to the sample");
+        }
+
+        // The control, which is the loop as it was: the padding is heard where the second pass should begin.
+        let mut unfixed = looped(decoded(N, PADDING).0, gain_of(1.0), None);
+        let heard = pull(&mut unfixed, 2 * N);
+        assert_eq!(
+            &heard[N..N + PADDING],
+            &[1.0e-4; PADDING][..],
+            "the loop as it was: {PADDING} frames of padding between the passes"
+        );
+        assert_ne!(&heard[N..], &stream[..], "...so pass two starts {PADDING} samples late");
+    }
+
+    /// **The duration is exact against `rodio`'s own `TakeDuration`**, at every rate and channel count a stream can have: it emits exactly the frames the stream declares, not one sample more or fewer.
+    #[test]
+    fn the_duration_it_computes_takes_exactly_the_declared_frames_at_every_rate_and_channel_count() {
+        for rate in [8_000u32, 11_025, 22_050, 32_000, 44_100, 48_000, 96_000, 192_000] {
+            for channels in [1u16, 2, 6] {
+                for frames in [1u64, 999, 24_000, 100_001] {
+                    let padded = vec![0.5f32; (frames as usize + 576) * usize::from(channels)];
+                    let source = SamplesBuffer::new(
+                        NonZero::new(channels).unwrap(),
+                        NonZero::new(rate).unwrap(),
+                        padded,
+                    );
+                    let duration = crate::ogg::take_duration(frames, rate, channels).expect("a duration");
+                    assert_eq!(
+                        source.take_duration(duration).count(),
+                        frames as usize * usize::from(channels),
+                        "{frames} frames at {rate} Hz, {channels} channels"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The same through what the crate builds: a `rodio::Player` on a bus's `Mixer`, pulled offline — every pass the device would be handed is the stream, to the sample.
+    #[test]
+    fn a_trimmed_loop_through_a_player_and_a_bus_mixer_repeats_at_exactly_the_streams_length() {
+        const N: usize = 40_000;
+        let (mixer, mut bus) = rodio::mixer::mixer(NonZero::new(1).unwrap(), NonZero::new(48_000).unwrap());
+        let (sample, stream) = decoded(N, 576);
+        let trim = crate::ogg::take_duration(N as u64, 48_000, 1);
+        let _player = connect(&mixer, sample, &gain_of(1.0), 1.0, Shape::Loop { trim });
+
+        let heard = pull(&mut bus, 3 * N + 1_024);
+        let start = heard.iter().take_while(|s| **s == 0.0).count();
+        assert!(start < 1_024, "the player's first sample arrives after at most a block of silence: {start}");
+        for pass in 0..3 {
+            let at = start + pass * N;
+            assert_eq!(&heard[at..at + N], &stream[..], "pass {pass} through the player and the mixer");
+        }
+    }
+
+    /// **Which voices are cut.** Only a loop is told a length, and only for an Ogg that declares one: a one-shot, a loop of anything else and a loop of an Ogg the walk does not fully understand
+    /// run exactly as they always did.
+    #[test]
+    fn only_a_loop_of_an_ogg_that_declares_its_length_is_cut() {
+        use crate::ogg::synthetic::Spec;
+
+        let ogg = Spec::good().bytes(); // 99 000 frames at 48 kHz stereo
+        let length = crate::ogg::take_duration(99_000, 48_000, 2);
+        assert!(length.is_some());
+        assert_eq!(Shape::of(&ogg, true), Shape::Loop { trim: length });
+        assert_eq!(Shape::of(&ogg, false), Shape::Once, "a one-shot is not read");
+        assert_eq!(
+            Shape::of(&wav(2, 48_000, 100, 440.0, 0.25), true),
+            Shape::Loop { trim: None },
+            "a WAV is exact already"
+        );
+        let chained = [ogg.clone(), ogg].concat();
+        assert_eq!(Shape::of(&chained, true), Shape::Loop { trim: None }, "a chained file has no one length");
+    }
+
+    /// A source that reports what `rodio`'s symphonia Vorbis decoder reports until it has produced a sample: **a span of length zero**. The stream's first packet decodes to nothing, the decoder sizes
+    /// its span from it (`rodio-0.22.2/src/decoder/symphonia.rs:163`; upstream RustAudio/rodio#775, fixed on `master` and not released), and `Buffered` reads `Some(0)` as a source with nothing in it.
+    struct FreshSpan<S> {
+        inner: S,
+        started: bool,
+    }
+
+    impl<S: Source> Iterator for FreshSpan<S> {
+        type Item = Sample;
+
+        fn next(&mut self) -> Option<Sample> {
+            self.started = true;
+            self.inner.next()
+        }
+    }
+
+    impl<S: Source> Source for FreshSpan<S> {
+        fn current_span_len(&self) -> Option<usize> {
+            if self.started { self.inner.current_span_len() } else { Some(0) }
+        }
+
+        fn channels(&self) -> ChannelCount {
+            self.inner.channels()
+        }
+
+        fn sample_rate(&self) -> SampleRate {
+            self.inner.sample_rate()
+        }
+
+        fn total_duration(&self) -> Option<Duration> {
+            self.inner.total_duration()
+        }
+
+        fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
+            self.inner.try_seek(pos)
+        }
+    }
+
+    /// **A loop of a stream whose decoder starts with an empty span must still loop.** Measured on `tests/fixtures/tone.ogg` with the symphonia Vorbis backend, `decoder.repeat_infinite()` produced **0 of 147 456
+    /// samples**: the loop was empty, the player finished it at once, `Played` had been written, and nothing was heard. FLAC, MP3 and WAV were fine. Bevy's own path is `decoder.repeat_infinite()` too
+    /// (`bevy_audio-0.20.1/src/audio_output.rs:165`), which is why a build must not select that backend (`tests/ogg_loops.rs`); this voice is made robust against it whichever backend a game's graph selects.
+    ///
+    /// The control is the premise: if `rodio` fixes its decoder, a repeat of such a source stops being empty, this assertion fails, and `OpenSpan` can go.
+    #[test]
+    fn a_loop_whose_decoder_starts_with_an_empty_span_still_loops() {
+        const N: usize = 1_000;
+        let (_, stream) = decoded(N, 0);
+        let fresh = || FreshSpan { inner: decoded(N, 0).0, started: false };
+        assert_eq!(
+            fresh().repeat_infinite().take(3 * N).count(),
+            0,
+            "the premise: `repeat_infinite` of a source that starts with an empty span is empty"
+        );
+
+        let mut whole = looped(fresh(), gain_of(1.0), None);
+        let heard = pull(&mut whole, 3 * N);
+        assert_eq!(heard.len(), 3 * N, "an untrimmed loop of it produces three passes, not {}", heard.len());
+        assert!(heard.chunks(N).all(|pass| pass == &stream[..]), "and each is the stream");
+
+        let cut = crate::ogg::take_duration(N as u64, 48_000, 1);
+        let mut trimmed = looped(fresh(), gain_of(1.0), cut);
+        let heard = pull(&mut trimmed, 3 * N);
+        assert_eq!(heard.len(), 3 * N, "so does a trimmed one, not {}", heard.len());
+        assert!(heard.chunks(N).all(|pass| pass == &stream[..]), "and each is the stream");
     }
 }

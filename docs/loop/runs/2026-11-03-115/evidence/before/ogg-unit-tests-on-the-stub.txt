@@ -1,0 +1,49 @@
+
+running 5 tests
+test ogg::tests::a_granule_the_packet_count_cannot_hold_is_refused_and_its_edges_are_not ... FAILED
+test ogg::tests::a_stream_the_walk_does_not_fully_understand_is_refused ... FAILED
+test ogg::tests::a_stream_of_another_rate_and_one_channel_reports_both ... FAILED
+test ogg::tests::a_well_formed_stream_reports_its_declared_length_rate_and_channels ... FAILED
+test ogg::tests::a_loop_is_told_a_length_only_for_a_stream_that_is_understood ... FAILED
+
+failures:
+
+---- ogg::tests::a_granule_the_packet_count_cannot_hold_is_refused_and_its_edges_are_not stdout ----
+
+thread 'ogg::tests::a_granule_the_packet_count_cannot_hold_is_refused_and_its_edges_are_not' (12735035) panicked at src/ogg.rs:164:9:
+the longest a 100-packet stream can decode to is accepted
+
+---- ogg::tests::a_stream_the_walk_does_not_fully_understand_is_refused stdout ----
+
+thread 'ogg::tests::a_stream_the_walk_does_not_fully_understand_is_refused' (12735038) panicked at src/ogg.rs:116:9:
+the control: unmutated, it is understood
+
+---- ogg::tests::a_stream_of_another_rate_and_one_channel_reports_both stdout ----
+
+thread 'ogg::tests::a_stream_of_another_rate_and_one_channel_reports_both' (12735037) panicked at src/ogg.rs:174:9:
+assertion `left == right` failed
+  left: None
+ right: Some(Stream { frames: 50000, sample_rate: 44100, channels: 1 })
+
+---- ogg::tests::a_well_formed_stream_reports_its_declared_length_rate_and_channels stdout ----
+
+thread 'ogg::tests::a_well_formed_stream_reports_its_declared_length_rate_and_channels' (12735039) panicked at src/ogg.rs:108:53:
+a well-formed stream is understood
+
+---- ogg::tests::a_loop_is_told_a_length_only_for_a_stream_that_is_understood stdout ----
+
+thread 'ogg::tests::a_loop_is_told_a_length_only_for_a_stream_that_is_understood' (12735036) panicked at src/ogg.rs:179:9:
+assertion failed: loop_length(&Spec::good().bytes()).is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    ogg::tests::a_granule_the_packet_count_cannot_hold_is_refused_and_its_edges_are_not
+    ogg::tests::a_loop_is_told_a_length_only_for_a_stream_that_is_understood
+    ogg::tests::a_stream_of_another_rate_and_one_channel_reports_both
+    ogg::tests::a_stream_the_walk_does_not_fully_understand_is_refused
+    ogg::tests::a_well_formed_stream_reports_its_declared_length_rate_and_channels
+
+test result: FAILED. 0 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`

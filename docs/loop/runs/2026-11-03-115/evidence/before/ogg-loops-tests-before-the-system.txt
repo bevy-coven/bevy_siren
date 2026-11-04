@@ -1,0 +1,9 @@
+test ogg_loops::the_duration_plays_exactly_the_streams_length_through_rodio_itself ... FAILED
+test ogg_loops::a_looping_ogg_is_told_its_length_in_the_frame_it_is_played ... FAILED
+test ogg_loops::a_looping_ogg_whose_asset_arrives_later_is_told_when_it_arrives ... FAILED
+test ogg_loops::anything_but_a_looping_ogg_that_declares_its_length_is_told_nothing ... ok
+thread 'ogg_loops::the_duration_plays_exactly_the_streams_length_through_rodio_itself' (12738516) panicked at tests/ogg_loops.rs:109:66:
+thread 'ogg_loops::a_looping_ogg_is_told_its_length_in_the_frame_it_is_played' (12738513) panicked at tests/ogg_loops.rs:55:5:
+thread 'ogg_loops::a_looping_ogg_whose_asset_arrives_later_is_told_when_it_arrives' (12738514) panicked at tests/ogg_loops.rs:72:5:
+test result: FAILED. 1 passed; 3 failed; 0 ignored; 0 measured; 211 filtered out; finished in 0.74s
+error: test failed, to rerun pass `--test all`

@@ -1,0 +1,5 @@
+test mixer::tests::a_loop_whose_decoder_starts_with_an_empty_span_still_loops ... FAILED
+thread 'mixer::tests::a_loop_whose_decoder_starts_with_an_empty_span_still_loops' (12750360) panicked at src/mixer/mod.rs:696:9:
+assertion `left == right` failed: an untrimmed loop of it produces three passes, not 0
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.00s
+error: test failed, to rerun pass `--lib`

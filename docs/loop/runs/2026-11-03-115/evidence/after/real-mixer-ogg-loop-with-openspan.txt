@@ -1,0 +1,3 @@
+test mixer::a_loop_on_the_real_mixer_sounds_until_it_is_stopped ... ok
+test mixer::an_ogg_loop_on_the_real_mixer_sounds_until_it_is_stopped ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 214 filtered out; finished in 0.99s

@@ -1,0 +1,4 @@
+tone loop after:     I:         -21.8 LUFS
+tone loop after:     Peak:      -21.0 dBFS
+tone loop before:     I:         -21.9 LUFS
+tone loop before:     Peak:      -21.0 dBFS

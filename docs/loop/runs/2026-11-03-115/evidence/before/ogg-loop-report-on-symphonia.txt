@@ -1,0 +1,15 @@
+== The fixture: tests/fixtures/tone.ogg through Bevy's chain (decoder, repeat_infinite) ==
+declared: 24000 frames at 48000 Hz, 2 channels; loop_length = 499.968001ms
+decoder returns: 24576 frames (49152 samples), 576 frames past the declared length = 12.00 ms
+padding peak -56.6 dBFS; the stream's own peak -21.0 dBFS
+before.len() 0 (four passes would be 196608); after.len() 0 (four would be 192000); first current_span_len of a fresh decoder: Some(0); of one that has produced a sample: Some(2048)
+
+== Does a loop of each format's decoder produce samples? (decoder.repeat_infinite(), three passes asked for) ==
+tone.ogg      one pass   49152 samples; fresh decoder span Some(0); loop produced 0 of 147456
+tone-441.ogg  one pass   10240 samples; fresh decoder span Some(0); loop produced 0 of 30720
+tone.flac     one pass   24000 samples; fresh decoder span Some(1024); loop produced 72000 of 72000
+tone.mp3      one pass   24000 samples; fresh decoder span Some(47); loop produced 72000 of 72000
+
+thread 'main' (12764579) panicked at examples/scratch_ogg_loop.rs:152:40:
+a repeat
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

@@ -1,0 +1,6 @@
+test ogg::tests::a_well_formed_stream_reports_its_declared_length_rate_and_channels ... ok
+test ogg::tests::a_stream_of_another_rate_and_one_channel_reports_both ... ok
+test ogg::tests::a_loop_is_told_a_length_only_for_a_stream_that_is_understood ... ok
+test ogg::tests::a_granule_the_packet_count_cannot_hold_is_refused_and_its_edges_are_not ... ok
+test ogg::tests::a_stream_the_walk_does_not_fully_understand_is_refused ... ok
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

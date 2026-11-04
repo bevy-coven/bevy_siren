@@ -21,10 +21,10 @@ bevy_siren = { version = "0.1", features = ["semantic"] }
 ```
 
 Enabling it downloads ONNX Runtime at build time. A crate that does not enable it is unchanged: `cargo tree --edges
-normal` reads **413 lines** by default and **497** with `semantic`, 149 crates becoming 183 — the file decoders (`rodio`'s
-`symphonia` codecs for WAV, Ogg Vorbis, FLAC and MP3: 16 crates, counting what they pull in), the runtime, the resampler, the
+normal` reads **413 lines** by default and **493** with `semantic`, 149 crates becoming 185 — the file decoders (`rodio`'s
+`symphonia` codecs for WAV, FLAC and MP3 and `lewton` for Ogg Vorbis: 18 crates, counting what they pull in), the runtime, the resampler, the
 loudness analyser and `serde_json` — measured in this crate's own graph, which builds `bevy` with its defaults off; a game's
-graph already holds the formats its own `bevy` enables, Vorbis among them by default.
+graph already holds the formats its own `bevy` enables, Vorbis (through `lewton`) among them by default, so for Vorbis it adds none.
 
 ## Try it: `examples/semantic`
 
@@ -151,15 +151,18 @@ crate on the same file decoded by the reference, so a difference is the decoder'
 | WAV | — | the golden set's own format; the baseline |
 | FLAC | 2 000 ESC-50 clips as WAV and as FLAC, all 232 000 similarities | **identical** — a largest difference of 0.0 at six decimals |
 | MP3 | Kenney's 62 MP3 effects against `ffmpeg`'s decode, 12 descriptions | **identical** to the printed three decimals on all 259 pairs; every length exact |
-| Ogg Vorbis | 209 Kenney Ogg effects against `libvorbis` | samples agree to 1.8 × 10⁻⁷ relative rms; **the stream's end was returned up to 20 ms late in 59 of 209 files — now cut** (below) |
+| Ogg Vorbis | 254 Kenney Ogg effects against `libvorbis` (iteration 115, `lewton`) | samples agree to **7 × 10⁻⁷** at worst, hot masters included; **the stream's end came back up to 21 ms late in 51 of 254 files — cut** (below). On `symphonia`, which this crate used until iteration 115, 209 files agreed to 1.8 × 10⁻⁷ relative rms with the end late in 59 |
 
-**Ogg: the end is cut to the length the stream declares.** `symphonia` keeps the padding of the last Vorbis block, which the spec says to
-discard, so a short Ogg effect came back up to 20 ms long — near-silence (median peak −69 dBFS), but CLAP repeats a short clip to fill its 10 s
-input, and on the RPG pack's effects that tail alone moved a similarity by up to 0.085 and changed the top three of **all 12** descriptions tried.
-`decode` now cuts an Ogg that is one stream ending cleanly to its last page's granule position: against `libvorbis` the worst difference is 0.004. A
-chained or truncated file is left alone. (`mixer` plays through `rodio` directly and still gets the padding.) The same decoder **clamps its output to
-[−1, 1]**, where `libvorbis` returns the overshoot a hot master decodes to — 22 of 51 files in one pack, peaks to 1.3 — a design choice that moved a
-similarity by at most 0.004 and is left alone.
+**Ogg: the decoder is `lewton`, and the end is cut to the length the stream declares.** `rodio` has two Vorbis decoders and this crate's `Cargo.toml` picks `lewton` — the one Bevy's own `vorbis`
+feature selects. `symphonia`'s made **a loop of any Ogg silent** (`repeat_infinite` of it produced no samples: RustAudio/rodio#775) and, because Cargo unifies features, would have swapped the decoder of a game's
+*own* audio too; against `libvorbis` on 254 real files it also **clamped** hot masters to [−1, 1], off by up to 0.30 where `lewton` is within 7 × 10⁻⁷ (and, built with `Decoder::new` as the mixer builds it, returned more than the stream declares for 253 of them)
+(`docs/loop/runs/2026-11-03-115/evidence/after/vorbis-backend-parity.txt`). The Kenney golden benchmark with the real CLAP model **did not move on any metric** — zero-shot 0.3729, hit@1 0.3103, hit@3 0.5172, hit@10 0.6552,
+MRR 0.4418, mAP@10 0.2577, all `+0.0000` against the recorded baseline (`goldenbench-kenney-lewton.txt`).
+
+Neither decoder cuts the padding of the last Vorbis block, which the spec says to discard, for every file: with `lewton` 51 of 254 came back up to 936 frames late (21 ms at 44.1 kHz; the loudest padding at −6 dBFS, the median
+at −49), and CLAP repeats a short clip to fill its 10 s input — on the RPG pack's effects that tail alone moved a similarity by up to 0.085 and changed the top three of **all 12** descriptions tried. `decode` cuts an Ogg
+that is one stream ending cleanly to its last page's granule position: against `libvorbis` the worst difference is 0.004. A chained or truncated file is left alone. **`mixer` and Bevy's `AudioPlayer` cut a
+*loop* the same way** (`crate::ogg` is the one walk of the pages all three use, so what is indexed and what loops cannot disagree), because the padding is what sits between two passes; a one-shot just ends in it.
 
 **A lossy copy of a library is a different library.** The same 2 000 ESC-50 clips, re-encoded and put through the same benchmark:
 

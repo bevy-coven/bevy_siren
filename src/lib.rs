@@ -88,6 +88,7 @@ pub mod log;
 pub mod mix;
 pub mod model;
 pub mod music;
+mod ogg;
 pub mod output;
 pub mod play;
 pub mod playback;
@@ -179,7 +180,9 @@ impl Plugin for SirenPlugin {
                     // The seed is the mix table's, and it must settle before anything draws from the stream: the music
                     // starts layers in `Choose` too, and a seed change on that frame should reach them.
                     play::seed_choices.in_set(SirenSystems::Choose),
-                    (play::play_requests, playback::start_pending).chain().in_set(SirenSystems::Play),
+                    (play::play_requests, playback::start_pending, playback::trim_ogg_loops)
+                        .chain()
+                        .in_set(SirenSystems::Play),
                     (mix::update_mix, mix::apply_stopping, mix::retire_voices, mix::stop_requests)
                         .chain()
                         .in_set(SirenSystems::Mix),

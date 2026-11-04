@@ -7,6 +7,27 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **An Ogg Vorbis loop produced no samples — on the crate's own mixer, and on Bevy's path too whenever `mixer` or `semantic` was on.** The crate's `rodio` line named `vorbis`, which is `symphonia`'s decoder, and
+  `rodio` reports a span of length zero until that decoder's first sample (a Vorbis stream's first packet carries no audio); `Buffered`, which `repeat_infinite` is built on, reads a zero span as *an empty source*.
+  Measured on the real `tests/fixtures/tone.ogg`: `decoder.repeat_infinite()` — built the way Bevy builds its decoder (`Decoder::builder().with_byte_len(n)…`, `audio_output.rs:165`), **not** through a running `AudioPlugin` — yielded **0 of 147 456 samples**, and on the real `MixerBackend` a loop of a 0.1 s Ogg had **ended before 350 ms** — where a
+  WAV, FLAC or MP3 loop was fine. `Played` had been written, the voice was retired at once and nothing was heard. It was there from the first commit and no test saw it, because **every loop test used a
+  WAV**. Cargo unifies features and `rodio` compiles `lewton` *out* when `symphonia-vorbis` is on, so the same line also swapped the decoder of a game's **own** `AudioPlayer` (Bevy's `vorbis` is `lewton`),
+  whose loops are `repeat_infinite` too; Bevy's 0.18 → 0.19 migration guide lists *"looping"* among that backend's issues (RustAudio/rodio#775, open). The line now names **`lewton`**: against `libvorbis`
+  on 254 real Ogg effects it is within 7 × 10⁻⁷ everywhere (`symphonia` clamped 25 hot masters at ±1 and was off by up to 0.30), it decodes 1.8× slower (23 against 41 million samples a second), it adds
+  two crates net in this crate's own graph (`--features semantic`: 497 lines and 183 crates become 493 and 185; a game's graph already holds `lewton`), and **the Kenney golden benchmark with the real
+  CLAP model is unchanged to four decimals on all seven metrics**. The mixer's loops are also protected from a decoder that reports an empty first span (`OpenSpan`), for a game that turns on Bevy's
+  `symphonia-vorbis` itself. Red first: `tests/ogg_loops.rs::the_duration_plays_exactly_the_streams_length_through_rodio_itself` on the old line (the loop produced 0 of 48 000),
+  `tests/mixer.rs::an_ogg_loop_on_the_real_mixer_sounds_until_it_is_stopped` without `OpenSpan`, and a unit test over a source that starts with an empty span; `cues.yaml` case 35. Not listened to.
+- **A loop of an Ogg was longer than the stream declares, so a stem drifted off its bar.** The decoders return the padding of the last Vorbis block, which the spec says to discard: with `lewton`,
+  **51 of Kenney's 254 CC0 Ogg effects** came back 27 – 936 frames too long (a median of 9 ms, up to 21 ms, **the loudest padding at −6 dBFS**), and a loop starts its next pass where the decoder ends.
+  `tests/fixtures/tone.ogg` looped at **24 576 frames (512.0 ms) where it declares 24 000**: a 563-frame near-silent gap (11.7 ms, four times what a listener hears) at every wrap, and a broadband click in
+  its spectrogram. A new always-compiled module, `src/ogg.rs`, reads the length a stream declares from its last page — one walk of the pages, 0.03 µs for a typical effect and 8 µs for a 9 MB file — and refuses
+  anything it does not fully understand (a chained or grouped file, a file cut short, a first packet that is not Vorbis, a stream the packet count cannot account for); **both paths cut their loop to it**:
+  `trim_ogg_loops` sets `PlaybackSettings::duration` on Bevy's, `Shape::of` trims `looped` on the mixer. The duration is **not `frames / rate`**: `rodio`'s `TakeDuration` is exact for `N·p + 1` ns
+  (`p = ⌊10⁹ / (rate × channels)⌋`), and `frames / rate` was wrong in 77 of 108 rate × channel × length cells, by up to 158 samples. Now the period is exactly 24 000 frames with a 0-frame gap, **254 of 254 real files
+  decode to exactly their declared samples**, and the 21 cue WAVs are unchanged byte for byte. `semantic::decode` reads its declared length through the same walk. One-shots, WAV, FLAC and MP3, and a loop of an
+  Ogg the walk does not understand, are untouched. Five unit tests of the walk (mutating a guard reddens its row), five of the mixer's loops, four integration tests and a real-device test; `cues.yaml` case 36;
+  `docs/guide/music.md` says how long a loop is per format. Not listened to.
 - **A looping voice on the crate's own mixer ignored every gain change after its first pass.** `MixerBackend::play` built a loop as `VoiceGain { decoder }.repeat_infinite()`, and `rodio`'s
   `repeat_infinite` **stores what it is given** — a span of up to 32 768 samples at a time — and replays the stored values, so the gain was the gain of the instant the first pass was decoded,
   for ever. Through the real `Decoder`, a `Player` and a bus `Mixer`, pulled offline: **a stem commanded to 0.25 on pass 2 played at 1.0** (the worst sample was 0.094 from what was commanded, on a stem

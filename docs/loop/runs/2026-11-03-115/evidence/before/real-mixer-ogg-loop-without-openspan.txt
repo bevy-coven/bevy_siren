@@ -1,0 +1,5 @@
+test mixer::a_loop_on_the_real_mixer_sounds_until_it_is_stopped ... ok
+test mixer::an_ogg_loop_on_the_real_mixer_sounds_until_it_is_stopped ... FAILED
+thread 'mixer::an_ogg_loop_on_the_real_mixer_sounds_until_it_is_stopped' (12750999) panicked at tests/mixer.rs:426:5:
+three passes of a 0.1 s loop later it is still sounding
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 214 filtered out; finished in 0.96s

@@ -151,14 +151,22 @@ ron = { version = "0.12", optional = true }
 # indexed"*) and in `decode.rs`'s doc, and then refused as undecodable, because this list was `wav` and `vorbis` only.
 # `tests/semantic_decode.rs::every_extension_the_scan_calls_audio_has_a_decoder` now fails if the two drift apart again.
 #
-# `wav` and `vorbis` are what a game's effects and music arrive in — Vorbis is also Bevy's default audio format — and `flac` and
+# `wav` and Vorbis are what a game's effects and music arrive in — Vorbis is also Bevy's default audio format — and `flac` and
 # `mp3` are the other two a library arrives in (Gregory, *Game Engine Architecture*, §14.3.2.3, surveys the uncompressed, lossless
-# and lossy formats a game meets). All four are `symphonia` codecs in rodio 0.22 (`rodio-0.22.2/Cargo.toml`: `flac =
+# and lossy formats a game meets). `wav`, `flac` and `mp3` are `symphonia` codecs in rodio 0.22 (`rodio-0.22.2/Cargo.toml`: `flac =
 # ["symphonia-flac"]`, `mp3 = ["symphonia-mp3"]`), pure Rust, so the two added formats cost two crates and no C toolchain (measured
 # in `docs/loop/runs/2026-11-03-112/eval.md`). `Decoder::new` returns `UnrecognizedFormat` for anything else, which the backend
 # warns about rather than panicking on. Enabling them here rather than relying on the game's own `bevy/mp3` keeps the crate's
 # promises its own.
-rodio = { version = "0.22", default-features = false, features = ["playback", "wav", "vorbis", "flac", "mp3"], optional = true }
+#
+# **Vorbis is `lewton`, not `vorbis`.** `vorbis` is the `symphonia` backend, and **it makes a loop of any Ogg silent**: rodio reports a span of length zero until the first sample (the stream's first packet decodes to
+# nothing), `Buffered` reads that as an empty source, and `repeat_infinite` — which is Bevy's own loop, `bevy_audio-0.20.1/src/audio_output.rs:165` — produces no samples (0 of 147 456 on a real Ogg;
+# RustAudio/rodio#775, open; Bevy's 0.18 → 0.19 migration guide names "looping"). Cargo unifies features across the graph and rodio compiles `lewton` *out* when `symphonia-vorbis` is on
+# (`rodio-0.22.2/src/decoder/mod.rs:77`), so naming `vorbis` here swapped the decoder of a game's **own** `AudioPlayer` too, whose default `vorbis` feature is `rodio/lewton`. Against `libvorbis` on 254 real Ogg
+# effects (`docs/loop/runs/2026-11-03-115/evidence/after/vorbis-backend-parity.txt`) `lewton` is within 7e-7 of it everywhere and returns the declared length for 203 files; `symphonia` clamps a hot master at ±1 (off by 0.30)
+# and, built with `Decoder::new` as the mixer builds it, returns more than the stream declares for 253 (up to 1 019 frames; iteration 112 counted 59 of 209 building from a `File`). `lewton` decodes 1.8× slower — 23 against 41 million samples a second, 240 times real time for stereo at 48 kHz.
+# `tests/ogg_loops.rs` fails if this line selects a decoder whose loop is empty.
+rodio = { version = "0.22", default-features = false, features = ["playback", "wav", "lewton", "flac", "mp3"], optional = true }
 
 # **Tests and examples only.** `wav` is the format the examples synthesise, and the full umbrella here
 # cannot reach a consumer's dependency graph. `tests/leaf.rs` reads `[dependencies]` only, deliberately.

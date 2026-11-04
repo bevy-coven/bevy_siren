@@ -93,6 +93,18 @@ cargo build --release --features semantic --example goldenbench
 python3 docs/media/transcript_png.py docs/media/golden-kenney.txt docs/media/golden-kenney.png    # needs Pillow and macOS's Menlo
 ```
 
+## No clip: iteration 115, an Ogg loop sounds, and is as long as the stream says
+
+No clip: the change is **what a loop of an Ogg Vorbis file sounds like**, on Bevy's path and on the `mixer` backend, and `examples/render` renders no Ogg, so every rendered cue is byte-identical (21 of 21) and the
+pictures are the evidence program's own. They are in `runs/2026-11-03-115/evidence/`: `after/ogg-loop-report.txt` (the loop of the real `tone.ogg` through Bevy's decoder call, before and after — **period 24 576
+frames before, 24 000 after; a 563-frame near-silent gap at each wrap before, none after** — plus every `.ogg` of Kenney's CC0 library decoded with the trim: 254 of 254 exact), `spectrograms/tone-wrap-zoom-{before,after}.png`
+(the wrap, 70 ms across: **a 12 ms hole before, a continuous waveform after**), `spectrograms/tone-4-passes-{before,after}.png` (four passes: broadband clicks at the wraps before, a faint residue after),
+`spectrograms/worst-wrap-zoom-{before,after}.png` (the file with the longest padding, 21 ms) and `after/loop-{tone,worst}-{before,after}.wav`. **The larger finding has no picture, because it is silence**:
+with the `symphonia` Vorbis backend `decoder.repeat_infinite()` of a real Ogg produced **0 of 147 456 samples** (`before/ogg-loop-report-on-symphonia.txt`: the same program on that backend, which then panics where the loop is empty;
+`before/real-mixer-ogg-loop-without-openspan.txt`, `before/ogg-loops-guard-on-symphonia.txt`). The programs are `after/ogg-loop.rs.txt`, `after/ogg-dump.rs.txt` and `after/vorbis-backend-parity.py.txt`: put the first two back at `examples/scratch_ogg_*.rs` and run
+`cargo run --release --features mixer --example scratch_ogg_loop -- <evidence dir> <kenney dir> [long.ogg]` (they are not kept in `examples/`: `scratch_ogg_loop` includes `src/ogg.rs` by path). Tests: `src/ogg.rs::tests`,
+`src/mixer/mod.rs::tests` (behind `mixer`), `tests/ogg_loops.rs`, `tests/mixer.rs::an_ogg_loop_on_the_real_mixer_sounds_until_it_is_stopped` (needs a device).
+
 ## No clip: iteration 114, a looping voice on the mixer follows its gain
 
 No clip: the change is **what a looping voice sounds like on the `mixer` backend**, which `examples/render` does not run (it renders on Bevy's path), so every rendered cue is byte-identical (21 of 21) and

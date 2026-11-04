@@ -106,6 +106,16 @@ nobody had held against a file or a number.
 had ever read (the mixer's tests recorded the calls a fake `AudioOutput` received). Reading `MixerBackend::play` beside `rodio`'s `repeat_infinite` showed a looping voice ignored every gain change after its first pass:
 layered music, a fade and a stolen loop's fade were silent failures on `--features mixer`, and all 33 cue cases were green. When a claim is about **sound**, find the test that reads a sample; if there is none, that is the item.
 
+**A test of a thing that loops needs a loop of every format the crate says it plays, and must compare a length.** Iteration 115 set out to make an Ogg loop sample-exact and found the first measurement did not
+match the plan: `decoder.repeat_infinite()` of a real Ogg produced **0 of 147 456 samples**. `Cargo.toml` selected `rodio`'s `symphonia` Vorbis decoder, which reports a span of length zero until its first sample, and
+`repeat_infinite` — Bevy's own loop and the mixer's — reads that as an empty source: `Played` was written, the voice ended at once, nothing was heard, on both paths whenever `mixer` or `semantic` was on, from the first
+commit. Every loop test used a WAV. The claims audit had asked *"does any test read a loop's length?"*; the question that finds this is **"does any test loop a file of each format at all?"** (`grep` the tests for `Mode::Loop`
+and read what the sound is). And an assertion of `first == second` over a loop that is empty holds vacuously: **assert `first.len() == expected` first.** Cheap check for any future decoder or `rodio` change:
+`rodio::Decoder::builder().with_byte_len(n).with_data(Cursor::new(bytes)).build()?.repeat_infinite().take(3 * pass).count()` against `3 * pass`, on one real file of each format (`tests/ogg_loops.rs` does it for Ogg).
+
+**A number measured on one decoder is not a number about another.** Iteration 112's 59-of-209 Oggs decoded long was `symphonia`'s, built from a `File`; this iteration's 253-of-254 was `symphonia` built with `Decoder::new(Cursor)` and 51-of-254
+was `lewton`'s. A prediction that carried the first into a claim about the second was wrong (`runs/2026-11-03-115/research.md`, P5). Say which decoder, built how, on which set, every time a count goes into a doc.
+
 ## 3. Research first
 
 Use home-still before any code (`distill_search`; if the bridge answers `401 Refresh token expired`, use
