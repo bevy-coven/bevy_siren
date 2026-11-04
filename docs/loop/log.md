@@ -7,6 +7,94 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 111 — 2026-11-03 — the golden set, and the claim the first real measurement overturned
+
+**Change.** `#35`'s part that a machine can do: **recall, precision and the similarity floor, measured on 2 000 recordings people
+labelled.** `golden/esc50/` (a SHA-256 manifest of every file at a pinned commit, two files of 66 text queries each — the maintainer's
+wording and a paraphrase that avoids the class names — and a recorded baseline); `tools/fetch_esc50.py` (the clips fetched 16 at a time,
+each verified as it arrives: **79 s**; the `licences.csv` sidecar the crate already reads, failing unless every clip has a row);
+`semantic::golden` (a loader that refuses a mistake **by line**); `semantic::eval` (set-valued relevance, `floor_curve`,
+`score_bands` — additive); `examples/goldenbench` (the real model over all of it, with a baseline that refuses a different corpus,
+model or question set); ADR 0009; `docs/guide/golden-set.md`; 19 tests.
+
+**Rationale — the critical path, re-read.** Every open issue was read in full. `#32`–`#34` are the editor, built by `bevy_grimoire`'s own
+loop (none is filed there with `consumer:bevy_siren`); `#39` was never "blocked on a decision" — **ADR 0005 (accepted) already decided it
+does not ship** (MERT and MuQ are CC BY-NC), and the issue text had not caught up; `#35` is the first link of what is left (`#35` →
+`#39`, `#45`'s real corpus), and its text half was buildable once iteration 110 made the real model run. The guide still opened with
+*"recall against a labelled set is still the design defaults"*.
+
+**The first real measurement overturned a documented conclusion.** The default floor (`0.0`) was justified as *"a measurement, not
+timidity"*: six synthetic clips whose right and wrong bands overlapped, so *"no single threshold separates them"* and *"a floor of 0.5
+rejects every correct match"*. On 2 000 real recordings the right answers' median is **0.468** against the wrong answers' **0.070**; the
+bands overlap only in their tails; a floor on the top result separates a description the library can answer from one it cannot with an
+**AUC of 0.963**. The six synthetic tones' *best* match (0.429) is below the real median — **a floor calibrated on synthetic audio was
+calibrated on nothing.** The claim is corrected in `rank.rs`, `weights.rs`, `ensemble.rs`, the guide and `semantic-config.md`; the
+default is **unchanged** and is now `needs-decision/default-floor.md`. Four tests that pinned the old story are deleted (tautologies on
+literals; a default-pin whose stated reason — *"no labelled set exists yet"* — became false).
+
+**And then my own headline was refuted by a second wording.** The first numbers — hit@1 90 %, hit@3 **100 %**, and a floor of **0.45**
+as the knee — were measured on descriptions *I* wrote. The fresh-eyes pass asked the same 50 classes in a stranger's words (*"a furry
+pet yapping at the door"*, *"ah-choo"*): **hit@1 72 %, hit@3 84 %**, the weakest top result falls 0.492 → 0.405, and **0.45 already
+leaves two descriptions with no result**. The recommendation became **0.35**, and every "every description finds a right answer" in
+the README, guide, CHANGELOG and five doc comments now says in whose words. Had the second wording not been asked for, the friendly
+figures would have shipped.
+
+**Proved against the reference.** Zero-shot accuracy **87.8 %** (the paper: 88.0 – 91.0 % on an overlap-excluded subset — I had predicted
+"at or above"; it is a little under) — and an independent `transformers` run on the same **44.1 kHz** audio, resampled by scipy, gets
+**87.8 % too**. 232 000 similarities: mean difference 8 × 10⁻⁴, 99.9th percentile 0.03, **max 0.089** (a resampler against a
+resampler; not digital silence, Spearman −0.21; which is nearer the model's own pipeline is unmeasured). A Python implementation of
+every metric agrees with the Rust one to the printed precision. On the real sidecar the crate's provenance reads **1 770 licences that
+permit commercial use, 170 that do not, 60 unknown** — unknown never shown as permissive.
+
+**Found by running it.** The first download route (GitHub's archive) streamed at ~100 KB/s — two hours; killed after 30 minutes; the
+per-file route took 79 s. The dataset's own `LICENSE` has two quirks (`5-141683-Ad`, `[DrinkingCan[Norberd]](url)`) that the fetch's
+"every clip has a licence row" rule refused and now names. The baseline compared a different question set as a regression until its
+identity included the queries. A blind line-number edit broke a script I then repaired from a read. And `semantic/mod.rs`'s stage table
+said *"index and query: not yet"* — and its links resolved from the crate root, so `model` pointed at the wrong module.
+
+**Cost, corrected.** 2 000 five-second 44.1 kHz recordings index at **105 ms a clip** (9.5 clips/s, under load) — iteration 110's *five
+minutes for 5 000* was for one-second clips; the five-second figure is about nine. The extra 45 ms is not decomposed.
+
+**Not met, and not a machine's.** `#35`'s third criterion — anchor pairs judged by a person, with a reason. The guide says how to add
+them; the loader and the metric are deliberately not built (`eval::agreement` cannot score an anchor queried with itself), so they are
+decided with the first real judgements in hand. ESC-50 overlaps the model's training data, is one library of environmental sounds,
+and has no music; the guide's "what it cannot say" is the first thing to read.
+
+**Evidence.** [`runs/2026-11-03-111/`](runs/2026-11-03-111/) — `research.md`, `plan.md`, `eval.md`, `perf.md`, `review.md`;
+`evidence/after/` (`goldenbench-first-run.txt`, `goldenbench-run.txt`, `goldenbench-paraphrase.txt`, `goldenbench-edge-cases.txt`,
+`golden-parity.txt` + `golden_parity.py`, `floor-analysis*.txt` + `floor_analysis.py`, `fetch-repair.txt`, the render set),
+`evidence/spectrograms/`.
+
+**No clip:** the program prints text; `docs/media/golden.png` is its verbatim output drawn (commands in `docs/media/README.md`). Tests:
+`tests/semantic_golden.rs` (19).
+
+**Baseline:** red on **disk** — 4.6 GB free; `cargo clean -p bevy_siren` (this crate's artifacts, all built this session; 765 files,
+11.0 GiB) → 14 GB; twice more mid-iteration as the matrix filled it (once to 662 MB). Otherwise green: 199 / 208 / 209 / 109 + 482 / 109 + 506
+/ 6 doc. After: 199 / 208 / 209 / 109 lib + **497** semantic / **521** all-features / 6 doc; clippy, fmt, rustdoc clean; **render 21 of
+21 WAVs byte-identical** to 110's, −21.5 LUFS, −7.5 dBFS TP; per-frame 0.059 – 0.074 / 0.308 – 0.359 / 0.436 – 1.320 µs at 8 / 64 / 256
+voices under a load of 6 (one 8-voice sample 6 % above the old band; no claim). **The Cauldron's panel test was not run**: no disk for its
+14 GB target, and nothing the panel reads changed.
+
+**Verdicts.** Function **GREAT** (after four claims that outran their evidence), zoom **GREAT** (after three fixes), fresh eyes **GREAT**
+(after three, one of which rewrote the headline). **Commit** `9d9a67e`.
+
+**Top 5 remaining.**
+
+1. **The default-floor decision** — `needs-decision/default-floor.md`: keep `0.0`, or `0.35` (recommended), with the table for both
+   wordings. Waits on the owner; blocks nothing.
+2. **A second golden library** — the guide's "most useful next addition": game foley, music, speech. Every figure here is about ESC-50 until
+   one exists, and a per-library floor (option 6) needs it to be designed against. **A person's** second and third wording of the same
+   descriptions are the cheapest probe of all.
+3. **Resampler fidelity.** The crate's `rubato` and scipy's polyphase filter disagree by up to 0.03 mean cosine on ~1 % of clips; which is
+   nearer `librosa`'s `soxr` (what the model trained on) decides whether the crate has a small defect, and `goldenbench`'s baseline is
+   now the instrument that would show a fix. `pip install soxr` is the cheapest first step.
+4. **A clip's cost.** 105 ms for five seconds against 60 ms for one: decompose the extra 45 ms and the 26 ms mel stage, and a model-backed
+   `update_from_model` so one new file costs one clip, not 5 000.
+5. **Waiting on a person, another repository or hardware:** `#35`'s anchor pairs; `#32`–`#34` the editor (`bevy_grimoire`'s loop); `#39`
+   (decided not to ship, ADR 0005 — commented, left open for the owner to close); `#36`'s GPU figure; `find_compatible_*` speed; the
+   cross-process audition hop; `needs-decision/headless-discovery.md`; iteration 105's `#[non_exhaustive]`; and the CI gap — nothing runs
+   the benchmark or the export script.
+
 ## Iteration 110 — 2026-11-03 — the first real run, and what 109 tests could not say
 
 **Change.** `#38`: **`examples/semantic`** — index a folder, describe a sound, read the top results with the reason for each, and
