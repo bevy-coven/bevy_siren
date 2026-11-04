@@ -83,11 +83,11 @@ number per bus per frame). Both answer `Played`, `Refused` and `Voice` identical
 
 ## Try it
 
-**▶ [Listen to the three A/B pairs — 26 seconds](https://cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@main/docs/media/demo/tour.mp4)**
+**▶ [Listen to the three A/B pairs — 26 seconds](https://cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@b47053755020a5a58e51f90f1ca4b54c96562a27/docs/media/demo/tour.mp4)**
 (577 KB MP4, served as `video/mp4` so a browser plays it in place), or `cargo run --example demo` for the crate working
 live in a window.
 
-[![A frame of the tour: a large B beside "vignette 1: variant selection", the sentence "A is one recording played ten times at a walk's cadence — a machine gun. B is the same cue with three recordings and a no-repeat window", two waveforms marked A and B, and their levels at −43.4 and −42.8 dBFS](https://cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@main/docs/media/demo/tour-poster.png)](https://cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@main/docs/media/demo/tour.mp4)
+[![A frame of the tour: a large B beside "vignette 1: variant selection", the sentence "A is one recording played ten times at a walk's cadence — a machine gun. B is the same cue with three recordings and a no-repeat window", two waveforms marked A and B, and their levels at −43.4 and −42.8 dBFS](https://cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@b47053755020a5a58e51f90f1ca4b54c96562a27/docs/media/demo/tour-poster.png)](https://cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@b47053755020a5a58e51f90f1ca4b54c96562a27/docs/media/demo/tour.mp4)
 
 *The tour, mid-`B`. Click to play.*
 
