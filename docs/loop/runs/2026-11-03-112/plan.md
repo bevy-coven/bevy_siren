@@ -105,3 +105,30 @@ The plan was written before any real library had been run through the new decode
 
 And the decisions table above held except one row: *"a new `DecodeProblem` variant"* — still no; and *"tolerance on lossy length ±5 %, a 0.1 s Vorbis file may be ~30 % long"* —
 **no longer true**: after the end trim a Vorbis file is exactly its declared length, and the indexer test says 4 800 – 4 815 for a 0.1 s file, not up to 6 200.
+
+## The second golden library — the brief for the next iteration (so it does not have to be rediscovered)
+
+**Source.** Kenney's game audio, CC0 (author *Kenney*, licence `https://creativecommons.org/publicdomain/zero/1.0/` on each OpenGameArt page). `kenney.nl`'s
+`download-link` API answers 403 to a script and was **not** circumvented; OpenGameArt serves the same zips statically at
+`https://opengameart.org/sites/default/files/<zip>`. Fetched and unpacked in iteration 112 (14.5 MB, since deleted from `/tmp`):
+
+| zip | files | format | use |
+|---|---|---|---|
+| `RPGsounds_Kenney.zip` | 51 | Ogg, 48 kHz stereo | foley: footstep, door, creak, book, cloth, leather, knife, coins, metal clank |
+| `UI_SFX_Set.zip` | 51 | WAV | UI: switch, click, rollover, scroll, select, confirmation, error, navigate, glass |
+| `Digital_SFX_Set.zip` | 62 | **MP3**, 44.1 kHz mono | sci-fi / digital: laser (merged), power-up, phaser, impact |
+| `kenney_casino-audio.zip` | 54 | Ogg | playing cards, poker chips, dice |
+| `jingleSounds_Kenney.zip` | 85 | Ogg | chiptune, saxophone, steel drum, pizzicato — **not** the `HIT` jingles |
+| `kenney_interfaceSounds.zip` | 100 | Ogg | UI, again; stems are ambiguous, pick by reading |
+| `sci-fi_sounds.zip` | 73 | Ogg | scifi door, spaceship engine, explosion, force field, thruster, computer noise, metal impact |
+| `Voiceover%20Pack.zip`, `kenney_voiceoverFighter.zip` | 92, 46 | Ogg | **excluded** — speech is a different question |
+
+**Design.** About 35 describable classes with merged stems; two query wordings (the maintainer's and a paraphrase) and ~18 shared no-answer queries; a `labels.csv` checked
+in (CC0 allows it). Generalise `goldenbench` with `--set <name>` (paths under `golden/<set>/`, identity `"{set} @ {commit or fetched date} manifest {fnv} queries {fnv}"`,
+keeping ESC-50's string byte-identical so its baseline still matches; an optional `zero-shot.txt` template; a baseline whose metric list is read, not fixed). Add
+`eval::separation`: the AUC of the top score, of top − tenth and of **top − the library's median** (on ESC-50 the last was 0.968 against 0.963 absolute — the relative-floor
+hypothesis, option 6), plus the weakest answerable top and the strongest unanswerable top. **The question it answers:** are a game's correct scores near 0.2 (the 14-UI-sound
+demo) or near ESC-50's 0.47?
+
+**What iteration 112 already gives it:** MP3 and Ogg decode, and an Ogg is cut to its true length; `formats_parity.py` and the `libvorbis` reference recipe; the knowledge that
+a hit@1 change under ~8 points is within what re-encoding does.
