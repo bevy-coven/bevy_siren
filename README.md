@@ -83,20 +83,31 @@ number per bus per frame). Both answer `Played`, `Refused` and `Voice` identical
 
 ## Try it
 
-```sh
-cargo run --example demo
-```
+**▶ [Play the tour — 32 seconds, with sound](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/demo/tour.mp4)** (763 KB MP4), or
+`cargo run --example demo` for the same nine scenes in a window with a live panel and keys.
 
-Nine scenes, one feature each, in about half a minute: three footsteps from one cue, a burst with no decision in it, a
-looping bed and a music pad, a line of dialogue ducking the music by 8 dB and recovering, the combat layer entering on the
-bar, a stinger, six hits against a limit of three, the same sound at four metres and at sixteen, and a cue name that does
-not exist. A panel reads the crate's own `SirenMix`, `SirenLog` and `MusicState` while it runs; `Space` pauses, `R`
-restarts, `Esc` quits. Every sound is a real file under `assets/audio/demo`, made by `tools/make_demo_sounds.py` — the
-same arithmetic makes them, so a clone has them and a re-run reproduces them.
+[![The tour's fourth scene, mid-duck: the caption reads "a line of dialogue lowers Music by 8 dB and Effects by 4, then releases", and the bus meters show Music at −13.9 dB against its −6 dB rest, Effects at −6.9 against −3, Ambience and Dialogue flat](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/demo/tour-poster.png)](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/demo/tour.mp4)
 
-![Each bus's gain through the tour, drawn from the crate's own numbers: Music at −6 dB dipping to −14 dB while a line plays and recovering, Effects at −3 dB with the same duck, Ambience flat at −9, Dialogue at 0; the nine scenes numbered along the bottom](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/demo/bus-gain.png)
+*Frame 9.3 s of the video: a line of dialogue holding `Music` down by 8 dB and `Effects` by 4, the crate's own numbers. Click it to play.*
 
-*`docs/media/demo/bus-gain.png`, from `cargo run --release --example demo_render -- <dir>`. The dip is scene 4: the crate's duck, not a fade in the demo.*
+> **A README cannot hold a player, and this one does not pretend to.** GitHub strips `<audio>` and `<video>` from a README —
+> measured with GitHub's own renderer, both come back as an empty `<p>` — and `![x](a.mp3)` is rewritten to a broken
+> `<img>`. So the sound is behind the link and the poster above, and the player is the one your browser opens. The
+> picture is a frame of the video, not a diagram of it.
+
+**What the video shows, moment by moment** — each scene is a feature, and the sound is the crate's own output:
+
+| # | at | what you hear, and what it demonstrates |
+|---|---|---|
+| 1 | 0:00 | **Three footsteps from one cue.** Three recordings, and the picker never plays the same foot twice running. |
+| 2 | 0:03 | **A burst.** One sample at an exact pitch: a play with no decision in it, so it takes no draw from the seed. |
+| 3 | 0:05 | **A bed and a pad.** A looping ambience and a looping music layer, each on its own bus. |
+| 4 | 0:09 | **A line ducks the music.** `Dialogue` lowers `Music` by 8 dB and `Effects` by 4, holds, then releases — the meters show it. |
+| 5 | 0:13 | **The layer changes on the bar.** The combat stem comes in on a bar of 100 bpm, not on a frame. |
+| 6 | 0:17 | **A stinger.** It arrives at once and ducks the music it plays over. |
+| 7 | 0:20 | **The budget.** Six hits against a cue limit of three: three play, three are taken back, and the log names the cap. |
+| 8 | 0:24 | **Distance.** The same sound at 4 m and at 16 m: the attenuation law decides the level, not a volume knob. |
+| 9 | 0:28 | **A mistake.** A cue name that does not exist: refused, and the console says which without any code of yours. |
 
 **What the tour sounds like, measured** — `demo_render` records the crate's decisions through a real `AudioOutput` and
 writes a WAV per scene (`docs/media/demo/scenes.txt` is the run's own report):

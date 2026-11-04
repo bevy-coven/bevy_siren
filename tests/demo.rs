@@ -322,3 +322,57 @@ fn peak_and_rms(line: &str) -> Option<(String, String)> {
     let rms = line.split("rms ").nth(1)?.split(' ').next()?.to_owned();
     Some((peak, rms))
 }
+
+/// **The video that ships is the tour, and it carries the sound.** A README links it, so it is part of the crate's face;
+/// a re-render that drops the audio, shortens the tour or changes its size is a red test rather than a video nobody
+/// plays. Read with `ffprobe`, which is the same tool the media README's commands use.
+#[test]
+fn the_video_is_the_tour_and_carries_its_sound() {
+    let video = "docs/media/demo/tour.mp4";
+    let meta = std::fs::metadata(video).unwrap_or_else(|e| panic!("`{video}`: {e}"));
+    assert!(meta.len() > 200_000, "`{video}` is {} bytes — an empty or truncated encode", meta.len());
+    assert!(meta.len() < 4_000_000, "`{video}` is {} bytes — too heavy for a README link", meta.len());
+
+    let probe = std::process::Command::new("ffprobe")
+        .args([
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=codec_type,codec_name,width,height:format=duration",
+            "-of",
+            "default=nw=1",
+            video,
+        ])
+        .output()
+        .expect("ffprobe");
+    let text = String::from_utf8_lossy(&probe.stdout);
+    assert!(probe.status.success(), "ffprobe could not read `{video}`: {text}");
+    assert!(text.contains("codec_name=h264"), "no H.264 stream: {text}");
+    // **The sound is the point of the file**: a video with no audio track would play silently and demo nothing.
+    assert!(text.contains("codec_name=aac"), "no AAC audio stream — the tour would be silent: {text}");
+    assert!(text.contains("width=1280") && text.contains("height=720"), "not 720p: {text}");
+    let duration: f64 = text
+        .lines()
+        .find_map(|l| l.strip_prefix("duration="))
+        .and_then(|d| d.trim().parse().ok())
+        .unwrap_or_else(|| panic!("no duration: {text}"));
+    assert!((duration - 32.0).abs() < 1.0, "the tour is 32 s and the video is {duration}");
+
+    // The poster the README shows is a frame of this file, not a mock-up.
+    let poster = std::fs::metadata("docs/media/demo/tour-poster.png").expect("the poster");
+    assert!(poster.len() > 20_000, "the poster is {} bytes", poster.len());
+    let dims = std::process::Command::new("ffprobe")
+        .args([
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=width,height",
+            "-of",
+            "default=nw=1",
+            "docs/media/demo/tour-poster.png",
+        ])
+        .output()
+        .expect("ffprobe on the poster");
+    let dims = String::from_utf8_lossy(&dims.stdout);
+    assert!(dims.contains("width=1280") && dims.contains("height=720"), "the poster is not 720p: {dims}");
+}
