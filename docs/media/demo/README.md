@@ -38,14 +38,19 @@ BEVY_ASSET_ROOT=$PWD SIREN_SHOT=/tmp/demo.png SIREN_FRAMES=420 cargo run --examp
 | `<img src="…/tour.mp4">` | an `<img>` pointing at the MP4, i.e. a broken image |
 | `[▶ play](…/tour.mp4)` | a link — **works** |
 
+**What does work is the MIME type.** `raw.githubusercontent.com` serves an `.mp4` as `application/octet-stream`, so a
+browser downloads it; **`cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@main/…/tour.mp4` answers `content-type: video/mp4`**
+(measured: 200, 780 350 bytes, byte-identical to the committed file, `h264` + `aac`, 32.000 s), and a browser plays that
+in place. So the README links the jsDelivr URL and the poster's `<img>` links there too.
+
 The one form GitHub renders *with* a player is an attachment uploaded through its own flow
 (`https://github.com/user-attachments/assets/<uuid>`). The upload endpoint (`POST /upload/policies/assets`) refuses a
 token: it answered **422** to this repository's `gh` token, because that flow is the web editor's session, not the API. A
 release asset is the other candidate, and the repository has **no releases** and no plan to cut one in this iteration, so
 it is not a link a reader could follow today.
 
-So the README carries the poster (a real frame), a link that plays in the browser's own player, and the per-scene table
-that says what each moment demonstrates. If the tour is ever uploaded as a `user-attachments` video, its URL can replace
+So the README carries the poster (a real frame), a link whose MIME type makes the browser play it, and the per-scene
+table that says what each moment demonstrates. If the tour is ever uploaded as a `user-attachments` video, its URL can replace
 the link and the `<img>` of the poster in one line — the video is the same file either way.
 
 Regenerate, from the renderer's output:

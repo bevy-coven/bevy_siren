@@ -83,17 +83,19 @@ number per bus per frame). Both answer `Played`, `Refused` and `Voice` identical
 
 ## Try it
 
-**▶ [Play the tour — 32 seconds, with sound](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/demo/tour.mp4)** (763 KB MP4), or
+**▶ [Play the tour — 32 seconds, with sound](https://cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@main/docs/media/demo/tour.mp4)**
+(763 KB MP4; the link serves `video/mp4`, so a browser plays it in place rather than downloading it), or
 `cargo run --example demo` for the same nine scenes in a window with a live panel and keys.
 
-[![The tour's fourth scene, mid-duck: the caption reads "a line of dialogue lowers Music by 8 dB and Effects by 4, then releases", and the bus meters show Music at −13.9 dB against its −6 dB rest, Effects at −6.9 against −3, Ambience and Dialogue flat](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/demo/tour-poster.png)](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/demo/tour.mp4)
+[![The tour's fourth scene, mid-duck: the caption reads "a line of dialogue lowers Music by 8 dB and Effects by 4, then releases", and the bus meters show Music at −13.9 dB against its −6 dB rest, Effects at −6.9 against −3, Ambience and Dialogue flat](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/demo/tour-poster.png)](https://cdn.jsdelivr.net/gh/bevy-coven/bevy_siren@main/docs/media/demo/tour.mp4)
 
 *Frame 9.3 s of the video: a line of dialogue holding `Music` down by 8 dB and `Effects` by 4, the crate's own numbers. Click it to play.*
 
 > **A README cannot hold a player, and this one does not pretend to.** GitHub strips `<audio>` and `<video>` from a README —
 > measured with GitHub's own renderer, both come back as an empty `<p>` — and `![x](a.mp3)` is rewritten to a broken
-> `<img>`. So the sound is behind the link and the poster above, and the player is the one your browser opens. The
-> picture is a frame of the video, not a diagram of it.
+> `<img>`. The sound is therefore behind the link, which is served as `video/mp4` so your browser plays it in place, and
+> the picture above is a real frame of it. `docs/media/demo/README.md` has the measurements and the one line to change if
+> GitHub ever renders an upload.
 
 **What the video shows, moment by moment** — each scene is a feature, and the sound is the crate's own output:
 
