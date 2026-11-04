@@ -1,0 +1,89 @@
+Probe: examples/scratch_undecodable.rs (kept as ../after/undecodable.rs.txt), run on the UNCHANGED tree (HEAD e0e8a86), release build, this Mac (a real output device).
+Files in /tmp/siren-undecodable: ffmpeg made opus.ogg (libopus), adpcm.wav (adpcm_ms), mulaw.wav (pcm_mulaw), good16/float32/pcm24 WAVs, 30-second long.* in four formats
+(long.ogg by ffmpeg's native Vorbis encoder: this ffmpeg has no libvorbis); the program wrote lfs.ogg (a Git LFS pointer, 130 bytes), empty.ogg (0 bytes), cut.ogg (the first 40 bytes of tone.ogg).
+
+== PART 1: `play <file>` — SirenPlugin + the real AudioPlugin (opens this Mac's device) + the real AssetServer, the file loaded first, one Play of one cue, 20 frames inside catch_unwind.
+== One process per file. `frame N` lines are printed after each update; a panic inside update() stops them, so *no frame line before the PANIC means the panic was in the first update* (checked on lfs.ogg below).
+
+=== play tone.ogg        (control)
+loaded=true state=Some(Loaded)
+played   = ["probe -> tone.ogg"]
+refused  = []
+log      : 0.02s played `probe` (tone.ogg) on Effects at 0.00 dB
+log      : 0.55s stopped `probe`: ended
+RESULT: survived 20 frames
+=== play good16.wav      (control)
+loaded=true state=Some(Loaded)
+played   = ["probe -> good16.wav"]
+refused  = []
+log      : 0.05s played `probe` (good16.wav) on Effects at 0.00 dB
+log      : 0.37s stopped `probe`: ended
+RESULT: survived 20 frames
+=== play lfs.ogg
+loaded=true state=Some(Loaded)
+PANIC HOOK: panicked at /Users/rebekahbrittain/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_audio-0.20.1/src/audio_source.rs:101:14:
+called `Result::unwrap()` on an `Err` value: UnrecognizedFormat
+played   = ["probe -> lfs.ogg"]
+refused  = []
+log      : 0.01s played `probe` (lfs.ogg) on Effects at 0.00 dB
+RESULT: PANIC — called `Result::unwrap()` on an `Err` value: UnrecognizedFormat
+=== play empty.ogg   (same panic, same location, `played` written, `refused` empty)
+=== play cut.ogg     (same)
+=== play opus.ogg    (same)
+=== play adpcm.wav   (same)
+=== play mulaw.wav   (same)
+  [each of those five printed exactly: loaded=true state=Some(Loaded) / PANIC HOOK at audio_source.rs:101:14 / played = ["probe -> <file>"] / refused = [] / one `played` log line / RESULT: PANIC — called `Result::unwrap()` on an `Err` value: UnrecognizedFormat]
+
+== The same run of lfs.ogg with every frame line left in (the second run of the program): no `frame 1:` line precedes the PANIC HOOK. The panic is in the first update() after the Play
+== — the frame in which `Played` was written.
+
+== PART 2: `check` — the call Bevy makes (audio_source.rs:96-101), minus the unwrap, made through <AudioSource as Decodable>::Decoder (no `rodio` named), 200 calls per file, µs per call, release.
+
+=== DEFAULT BUILD (rodio with Bevy's features here: lewton for Vorbis, hound for WAV)
+file              bytes     µs/call  verdict
+tone.ogg           5764       699.4  Ok
+tone-441.ogg       4512       635.7  Ok
+good16.wav        26538         0.1  Ok
+float32.wav       53012         0.2  Ok
+pcm24.wav         39792         0.2  Ok
+lfs.ogg             130         0.2  Err: The format of the data has not been recognized.
+empty.ogg             0         0.2  Err: The format of the data has not been recognized.
+cut.ogg              40         0.1  Err: The format of the data has not been recognized.
+opus.ogg           3263         0.3  Err: The format of the data has not been recognized.
+adpcm.wav          7292         6.5  Err: The format of the data has not been recognized.
+mulaw.wav          2492         2.4  Err: The format of the data has not been recognized.
+tone.mp3           4460         4.2  Err: The format of the data has not been recognized.
+tone.flac         16819        15.7  Err: The format of the data has not been recognized.
+long.ogg         105784       645.1  Ok
+long.mp3         480905       142.7  Err: The format of the data has not been recognized.
+long.flac        473090       139.1  Err: The format of the data has not been recognized.
+long.wav        5292078         0.1  Ok
+
+=== `--features mixer` BUILD (rodio with wav, lewton, flac, mp3 — symphonia for the three)
+file              bytes     µs/call  verdict
+tone.ogg           5764       748.0  Ok
+tone-441.ogg       4512       748.3  Ok
+good16.wav        26538        35.1  Ok
+float32.wav       53012        66.5  Ok
+pcm24.wav         39792        48.0  Ok
+lfs.ogg             130         1.2  Err: The format of the data has not been recognized.
+empty.ogg             0         0.8  Err: The format of the data has not been recognized.
+cut.ogg              40         0.8  Err: The format of the data has not been recognized.
+opus.ogg           3263         6.8  Err: The format of the data has not been recognized.
+adpcm.wav          7292         8.1  Err: The format of the data has not been recognized.
+mulaw.wav          2492         5.3  Ok
+tone.mp3           4460        10.5  Ok
+tone.flac         16819        21.7  Ok
+long.ogg         105784       762.7  Ok
+long.mp3         480905       182.8  Ok
+long.flac        473090       171.9  Ok
+long.wav        5292078       181.9  Ok
+
+What this shows:
+ - six kinds of undecodable file, six `Played`, six panics at bevy_audio-0.20.1/src/audio_source.rs:101:14, in the first update after the play. `refused` is empty every time: the crate's own rule
+   (every play answers exactly one of Played/Refused, and nothing plays on a refusal) is false for these files on the default build.
+ - the decoder's words are identical for all six rows ("The format of the data has not been recognized."), so a refusal that says only that cannot tell an author that the file is a Git LFS pointer.
+ - what the decoder reads is a property of the BUILD: mulaw.wav is Err with hound (default) and Ok with symphonia's WAV (the mixer feature); mp3 and flac are Err in the default build and Ok with the mixer
+   feature. A check that asks the decoder inherits this; a table of formats would not.
+ - the cost of asking: a Vorbis decoder is 0.64 - 0.75 ms to construct whatever the length (setup-header codebooks), hound's WAV 0.1 - 0.2 µs, symphonia's WAV / MP3 / FLAC 10 - 180 µs
+   (growing with the file's size). Bevy pays the same on EVERY play; asking once per asset adds one construction per distinct sound.

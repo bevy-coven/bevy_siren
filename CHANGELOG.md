@@ -7,6 +7,23 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Bytes that load and cannot be decoded panicked the game on Bevy's path — the default build — and four sentences said the crate refused them.** Bevy's `AudioSource::decoder` is `….build().unwrap()`
+  (`bevy_audio-0.20.1/src/audio_source.rs:96-101`) and `play_queued_audio_system` calls it in `PostUpdate` for every voice with an `AudioPlayer`; the asset loader returns a file's bytes and stops, so a file that loads and is not
+  audio the build decodes is `Played` and then **panics in the same frame**, naming no file. Probed on the real `AudioPlugin` (this Mac's device), the real `AssetServer`, one process per file: a **Git LFS pointer**, an empty
+  file, a 40-byte cut of a real Ogg, an **Ogg Opus** file, an ADPCM WAV and a µ-law WAV — **six `Played`, no `Refused`, six panics at `audio_source.rs:101:14`, in the first update after the play**. It was invisible to every test
+  because a headless app has no device, so nothing runs Bevy's decoder; the crate's own mixer always refused such bytes (`start_pending`), and `Cargo.toml`, `playback.rs`, `play.rs` and `cues.md` said the crate did.
+  Now **the crate asks the decoder — the call Bevy makes, once per asset — before Bevy does**, through `Decodable`'s associated type, so `rodio` does **not** become a dependency of the default build: **a play of bytes the
+  decoder refuses is refused where it is asked** (`MissingSound { sound }`; no `Played`, no voice, no `AudioPlayer` for `PostUpdate` to be handed, nothing counted), and **a voice spawned while the bytes were still loading is
+  refused and despawned in the frame they arrive** — `Update`, before that frame's `PostUpdate` (`playback::refuse_unplayable_voices`, the renamed `refuse_failed_loads`; `Played`, then `Refused`, as for a failed load). The
+  log carries the decoder's words — *"the bytes of sound `click.ogg` cannot be decoded: The format of the data has not been recognized."* — and, for the three deliveries it can tell apart by their first bytes (a Git LFS pointer,
+  no bytes, `OpusHead`), **says what the file is**; a hint changes a sentence and never a decision. What is refused is **a property of the build** (an MP3 is refused where `rodio` has no decoder and played where it has one),
+  because the verdict is the decoder's own. **No new `Refusal` variant, no new public item** (option 4 of `needs-decision/undecodable-sound.md`); a game that prints `Refused::reason` still reads the one sentence. **Only Bevy's path
+  is asked**: with an `Output` the crate's mixer decodes in `start_pending` and answers as it always did (`Played`, then `Refused` in that frame). Cost: **first sight of a Vorbis 0.8 ms** (a decoder construction, held to *once* per
+  sound by a test — Bevy pays the same on *every* play of it) and 0.1 – 0.2 µs for a `hound` WAV, 10 – 180 µs for `symphonia`'s WAV, MP3 and FLAC; a memoised verdict **21 ns**; the system **0.06 – 0.11 µs a frame** with nothing waiting
+  (6.5 µs at 256 voices that can never start — a headless app). `tests/undecodable.rs` (four of five red on the unchanged tree, the control passes) holds, among other things, **that the crate refuses exactly the bytes
+  `AudioSource::decoder()` panics on**, in every feature set; each guard switched off in turn reddened its tests, and applying the check to the crate's own mixer reddened six existing `tests/mixer.rs` tests (which is why it does
+  not). **One existing test changed**: the `tests/ogg_loops.rs` rows that put undecodable bytes on Bevy's path (a state that can no longer exist; FLAC and MP3 rows now exist only where the build decodes them). `cues.yaml` case 38.
+  **Not changed**: a load that never resolves still waits; the crate's own mixer still answers `Played` then `Refused` where Bevy's path now refuses at the play.
 - **A play whose file failed to load was answered `Played`, and nothing ever sounded.** A handle exists, the asset server knows the load failed and says why (`LoadState::Failed`), and the crate waited for the bytes **for ever**:
   `Played` was written, the voice sat in the budget, and the log read as healthy. Probed on the real `AssetServer` with a misspelt file name and the default cue (`max_instances: 1`): **six plays, six `Played`, no `Refused`, a
   log of *played* and *stolen by ui.click (cue)* — each dead voice held until the next play stole it, which hides the leak, so nothing looked wrong**. It is the commonest authoring mistake there is, and the crate's own rule says
@@ -18,7 +35,7 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   a slow disk. Cost: the system **0.06 µs a frame** with no waiting voice, 0.06 with 256 running ones, **0.77** with 256 that never start (a headless app, the worst case); the check at a play **8.5 ns** for a loaded handle.
   `tests/failed_load.rs` (real server, a loader that waits at a gate the test opens and then succeeds or fails, so the order of events is the test's): three red on the unchanged tree, four with `mixer`, and each of the checks, switched off in turn, reddened the tests
   that guard it; `cues.yaml` case 37; `docs/media/failed-load.png`. Not listened to — there is nothing to hear. **Not changed**: a load that never resolves still waits; bytes that load and do not decode still panic Bevy's own path
-  (`AudioSource::decoder` unwraps) where the mixer refuses them.
+  (`AudioSource::decoder` unwraps) where the mixer refuses them — **fixed in the entry above**.
 - **An Ogg Vorbis loop produced no samples — on the crate's own mixer, and on Bevy's path too whenever `mixer` or `semantic` was on.** The crate's `rodio` line named `vorbis`, which is `symphonia`'s decoder, and
   `rodio` reports a span of length zero until that decoder's first sample (a Vorbis stream's first packet carries no audio); `Buffered`, which `repeat_infinite` is built on, reads a zero span as *an empty source*.
   Measured on the real `tests/fixtures/tone.ogg`: `decoder.repeat_infinite()` — built the way Bevy builds its decoder (`Decoder::builder().with_byte_len(n)…`, `audio_output.rs:165`), **not** through a running `AudioPlugin` — yielded **0 of 147 456 samples**, and on the real `MixerBackend` a loop of a 0.1 s Ogg had **ended before 350 ms** — where a

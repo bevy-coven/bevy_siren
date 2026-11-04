@@ -184,7 +184,7 @@ impl Plugin for SirenPlugin {
                         play::play_requests,
                         playback::start_pending,
                         playback::trim_ogg_loops,
-                        playback::refuse_failed_loads,
+                        playback::refuse_unplayable_voices,
                     )
                         .chain()
                         .in_set(SirenSystems::Play),

@@ -1,0 +1,181 @@
+//! SCRATCH (iteration 117): what happens to bytes that load and do not decode.
+//!
+//! `cargo run --example scratch_undecodable -- check`        the decoder call Bevy makes, on every file, with its cost
+//! `cargo run --example scratch_undecodable -- play <file>`  the real `AudioPlugin` (a device), one cue, one play
+//!
+//! Files live in /tmp/siren-undecodable (ffmpeg made the codec rows; this program writes the text and cut ones).
+
+use std::io::Cursor;
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::time::{Duration, Instant};
+
+use bevy::asset::AssetPlugin;
+use bevy::audio::{AudioPlugin, AudioSink, AudioSource, Decodable, SpatialAudioSink};
+use bevy::prelude::*;
+use bevy_siren::{
+    Cue, CueTable, Play, Played, Refused, SirenLog, SirenPlugin, SirenSounds, SoundSlot, Voice,
+};
+
+const DIR: &str = "/tmp/siren-undecodable";
+
+const FILES: &[&str] = &[
+    "tone.ogg",
+    "tone-441.ogg",
+    "good16.wav",
+    "float32.wav",
+    "pcm24.wav",
+    "lfs.ogg",
+    "empty.ogg",
+    "cut.ogg",
+    "opus.ogg",
+    "adpcm.wav",
+    "mulaw.wav",
+    "tone.mp3",
+    "tone.flac",
+    "long.ogg",
+    "long.mp3",
+    "long.flac",
+    "long.wav",
+];
+
+/// **Exactly the call `AudioSource::decoder` makes** (`bevy_audio-0.20.1/src/audio_source.rs:96-101`), minus the `unwrap`,
+/// made through the associated type so the program names no `rodio`.
+fn check(source: &AudioSource) -> Result<(), String> {
+    <AudioSource as Decodable>::Decoder::builder()
+        .with_byte_len(source.bytes.len() as u64)
+        .with_data(Cursor::new(source.clone()))
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+fn prepare() {
+    let dir = std::path::Path::new(DIR);
+    std::fs::create_dir_all(dir).expect("dir");
+    std::fs::write(
+        dir.join("lfs.ogg"),
+        b"version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 20838\n",
+    )
+    .expect("lfs");
+    std::fs::write(dir.join("empty.ogg"), b"").expect("empty");
+    let tone = std::fs::read("tests/fixtures/tone.ogg").expect("tone.ogg");
+    std::fs::write(dir.join("cut.ogg"), &tone[..40]).expect("cut");
+    std::fs::write(dir.join("tone.ogg"), &tone).expect("tone");
+    std::fs::copy("tests/fixtures/tone-441.ogg", dir.join("tone-441.ogg")).expect("tone-441");
+}
+
+fn checks() {
+    println!(
+        "{:<14} {:>8}  {:>10}  verdict (the call Bevy makes, without the unwrap)",
+        "file", "bytes", "µs/call"
+    );
+    for name in FILES {
+        let bytes = std::fs::read(format!("{DIR}/{name}")).expect("read");
+        let source = AudioSource { bytes: bytes.clone().into() };
+        let verdict = check(&source);
+        let runs = 200;
+        let start = Instant::now();
+        for _ in 0..runs {
+            let _ = std::hint::black_box(check(std::hint::black_box(&source)));
+        }
+        let micros = start.elapsed().as_secs_f64() * 1e6 / f64::from(runs);
+        println!(
+            "{:<14} {:>8}  {:>10.1}  {}",
+            name,
+            bytes.len(),
+            micros,
+            match verdict {
+                Ok(()) => "Ok".to_owned(),
+                Err(e) => format!("Err: {e}"),
+            }
+        );
+    }
+}
+
+#[derive(Resource, Default)]
+struct Tally {
+    played: Vec<String>,
+    refused: Vec<String>,
+}
+
+fn tally(mut played: MessageReader<Played>, mut refused: MessageReader<Refused>, mut t: ResMut<Tally>) {
+    for p in played.read() {
+        t.played.push(format!("{} -> {}", p.cue, p.sound));
+    }
+    for r in refused.read() {
+        t.refused.push(format!("{} : {}", r.cue, r.reason));
+    }
+}
+
+fn play(file: &str) {
+    std::panic::set_hook(Box::new(|info| {
+        eprintln!("PANIC HOOK: {info}");
+    }));
+
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        AssetPlugin { file_path: DIR.into(), ..default() },
+        AudioPlugin::default(),
+        SirenPlugin,
+    ));
+    app.init_resource::<Tally>().add_systems(PostUpdate, tally);
+    app.insert_resource(CueTable::new(vec![Cue { sounds: vec![SoundSlot::new(file)], ..Cue::new("probe") }]));
+    let handle = app.world().resource::<AssetServer>().load::<AudioSource>(file.to_owned());
+    app.world_mut().resource_mut::<SirenSounds>().insert(file, handle.clone());
+
+    // Frames until the bytes are in `Assets` (or the load fails): the play must come after them for the play-time path.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        app.update();
+        let loaded = app.world().resource::<Assets<AudioSource>>().get(&handle).is_some();
+        let state = app.world().resource::<AssetServer>().get_load_state(handle.id());
+        if loaded || matches!(state, Some(bevy::asset::LoadState::Failed(_))) || Instant::now() > deadline {
+            println!("loaded={loaded} state={state:?}");
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+
+    app.world_mut().write_message(Play::cue("probe"));
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        for frame in 1..=20 {
+            app.update();
+            std::thread::sleep(Duration::from_millis(5));
+            let world = app.world_mut();
+            let voices = world.query::<&Voice>().iter(world).count();
+            let sinks = world
+                .query_filtered::<(), Or<(With<AudioSink>, With<SpatialAudioSink>)>>()
+                .iter(world)
+                .count();
+            println!("frame {frame:>2}: voices={voices} sinks={sinks}");
+        }
+    }));
+    let t = app.world().resource::<Tally>();
+    println!("played   = {:?}", t.played);
+    println!("refused  = {:?}", t.refused);
+    for entry in app.world().resource::<SirenLog>().iter() {
+        println!("log      : {}", entry.line());
+    }
+    match result {
+        Ok(()) => println!("RESULT: survived 20 frames"),
+        Err(payload) => {
+            let message = payload
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+                .unwrap_or_else(|| "<non-string payload>".to_owned());
+            println!("RESULT: PANIC — {message}");
+        }
+    }
+}
+
+fn main() {
+    prepare();
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
+        ["check"] => checks(),
+        ["play", file] => play(file),
+        _ => eprintln!("usage: check | play <file>"),
+    }
+}

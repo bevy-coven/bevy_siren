@@ -61,6 +61,7 @@ mod semantic_wait;
 mod semantic_weights;
 #[cfg(feature = "serde")]
 mod table;
+mod undecodable;
 
 /// The files in `tests/` and the `mod` lines above are the same set.
 #[test]

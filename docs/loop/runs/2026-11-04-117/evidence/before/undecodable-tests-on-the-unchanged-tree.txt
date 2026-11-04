@@ -1,0 +1,53 @@
+   Compiling bevy_siren v0.1.0 (/Users/rebekahbrittain/bevy_siren)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.72s
+     Running tests/all.rs (target/debug/deps/all-bef009fc5a82eb4f)
+
+running 5 tests
+test undecodable::an_edit_to_the_file_is_asked_again ... FAILED
+test undecodable::a_play_of_bytes_the_decoder_refuses_is_refused_with_the_cause ... FAILED
+test undecodable::the_crate_refuses_exactly_the_bytes_bevys_own_decoder_panics_on ... FAILED
+test undecodable::bytes_that_arrive_after_the_play_are_refused_before_bevy_can_start_the_voice ... FAILED
+test undecodable::a_sound_the_decoder_reads_is_played_whether_its_bytes_are_there_or_arrive_later ... ok
+
+failures:
+
+---- undecodable::an_edit_to_the_file_is_asked_again stdout ----
+
+thread 'undecodable::an_edit_to_the_file_is_asked_again' (12889626) panicked at tests/undecodable.rs:281:5:
+assertion `left == right` failed: the pointer is refused
+  left: 0
+ right: 1
+
+---- undecodable::a_play_of_bytes_the_decoder_refuses_is_refused_with_the_cause stdout ----
+
+thread 'undecodable::a_play_of_bytes_the_decoder_refuses_is_refused_with_the_cause' (12889624) panicked at tests/undecodable.rs:97:9:
+a Git LFS pointer: nothing plays on a refusal, so nothing is announced as played
+
+---- undecodable::the_crate_refuses_exactly_the_bytes_bevys_own_decoder_panics_on stdout ----
+
+thread 'undecodable::the_crate_refuses_exactly_the_bytes_bevys_own_decoder_panics_on' (12889628) panicked at /Users/rebekahbrittain/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bevy_audio-0.20.1/src/audio_source.rs:101:14:
+called `Result::unwrap()` on an `Err` value: UnrecognizedFormat
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'undecodable::the_crate_refuses_exactly_the_bytes_bevys_own_decoder_panics_on' (12889628) panicked at tests/undecodable.rs:172:9:
+assertion `left == right` failed: a Git LFS pointer: refused exactly when Bevy's decoder panics (it would panic: true; played 1, refused 0)
+  left: false
+ right: true
+
+---- undecodable::bytes_that_arrive_after_the_play_are_refused_before_bevy_can_start_the_voice stdout ----
+
+thread 'undecodable::bytes_that_arrive_after_the_play_are_refused_before_bevy_can_start_the_voice' (12889627) panicked at tests/undecodable.rs:212:9:
+assertion `left == right` failed: a Git LFS pointer: refused in the frame the bytes arrive: []
+  left: 0
+ right: 1
+
+
+failures:
+    undecodable::a_play_of_bytes_the_decoder_refuses_is_refused_with_the_cause
+    undecodable::an_edit_to_the_file_is_asked_again
+    undecodable::bytes_that_arrive_after_the_play_are_refused_before_bevy_can_start_the_voice
+    undecodable::the_crate_refuses_exactly_the_bytes_bevys_own_decoder_panics_on
+
+test result: FAILED. 1 passed; 4 failed; 0 ignored; 0 measured; 208 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `--test all`

@@ -25,7 +25,7 @@ use crate::model::{
     Candidate, Rng, SILENT_DB, VariantPicker, backend_spatial_gain, chain_db, distance_gain, finite_or,
     gain_to_db, semitones_to_ratio, steal,
 };
-use crate::sounds::{Files, SirenSounds, cannot_load};
+use crate::sounds::{Files, SirenSounds, cannot_play};
 
 /// Ask for a cue to play.
 ///
@@ -124,12 +124,15 @@ pub enum Refusal {
     /// refused, or one whose **file failed to load**.
     ///
     /// Three causes, one sentence, because all mean the same thing to a project: **this sound cannot be played, and
-    /// here is the key to go and look at**. The missing-handle case is found when the play is answered; the
-    /// undecodable case when the bytes first load; a file the asset server says failed to load is found at the play
-    /// (the server already knows) or, for a voice spawned while the load was in flight, in the frame the server says
-    /// so — which is why this variant is produced from three places. **The log tells them apart** (a failed load names
-    /// the cause and the path the server looked for); the variant does not, so a game that prints
-    /// `Refused::reason` reads the one sentence (`docs/loop/needs-decision/undecodable-sound.md`).
+    /// here is the key to go and look at**. The missing-handle case is found when the play is answered. The
+    /// undecodable case is found **at the play** when the bytes are already loaded and Bevy's path owns the voice
+    /// (Bevy's own decoder unwraps, so a voice handed such bytes would panic the game), **in the frame the bytes arrive**
+    /// for a voice spawned while they loaded, and on the crate's own mixer in `start_pending` when it first decodes them.
+    /// A file the asset server says failed to load is found at the play (the server already knows) or, for a voice
+    /// spawned while the load was in flight, in the frame the server says so — which is why this variant is produced from
+    /// several places. **The log tells them apart** (a failed load names the cause and the path the server looked for;
+    /// undecodable bytes carry the decoder's words and, where the first bytes say what the file is, a hint); the variant
+    /// does not, so a game that prints `Refused::reason` reads the one sentence (`docs/loop/needs-decision/undecodable-sound.md`).
     MissingSound {
         /// The key a project maps to a file — never the cue's name.
         sound: String,
@@ -434,8 +437,8 @@ pub fn play_requests(
     voices: Query<(Entity, &Voice, Option<&crate::music::MusicVoice>), Without<Stopping>>,
     backend: Res<crate::output::Backend>,
     output: Option<Res<crate::output::Output>>,
-    // **The asset server and the asset table answer whether a picked file cannot be played because it failed to load** — the one fact a handle cannot say. One parameter, because this is the sixteenth, Bevy's maximum
-    // for a system; both are optional inside it, so a world with no `AssetPlugin` has no load to fail.
+    // **What the crate asks about a picked file** — whether the asset server says it failed to load, and whether the bytes the asset table holds are bytes the decoder refuses (what the decoder said is remembered in `SirenSounds`). One
+    // parameter, because this is the sixteenth, Bevy's maximum for a system; the server and the table are optional inside it, so a world with no `AssetPlugin` has no load to fail and nothing to decode.
     files: Files,
     mut played: MessageWriter<Played>,
     mut refused: MessageWriter<Refused>,
@@ -458,9 +461,27 @@ pub fn play_requests(
     // would let three requests in one frame each see an empty bus and all three play, which breaks a cap the
     // crate promises to keep; a voice this frame marked stopping no longer counts.
     let mut live: Vec<Live> = voices.iter().map(Live::of).collect();
+    // **A voice is mixer-owned only when a mixer is there to own it.** `Backend` is a public resource
+    // whose flag a host may set, and `Backend(true)` with no `Output` used to give a voice **no
+    // `AudioPlayer` and no mixer** - it could not sound, could not end, and could not be retired, so it
+    // held its budget slot for the life of the process while `Played` said it had played.
+    // `start_pending`'s doc already promises the fallback ("without an `Output` ... Bevy's `AudioPlayer`
+    // owns every voice"); this is what makes that promise true rather than a claim about a resource the
+    // spawn never read.
+    let mixer_owns = backend.0 && output.is_some();
     for request in requests.read() {
-        match answer(request, table.as_ref(), &sounds, &files, &settings, &mut choices, &listener, &live, now)
-        {
+        match answer(
+            request,
+            table.as_ref(),
+            &sounds,
+            &files,
+            !mixer_owns,
+            &settings,
+            &mut choices,
+            &listener,
+            &live,
+            now,
+        ) {
             Ok(started) => {
                 for (victim, cap) in &started.stolen {
                     // **Which cap took the voice, not only who asked.** A `footstep.grass` request can take a voice
@@ -475,14 +496,6 @@ pub fn play_requests(
                     }
                     live.retain(|v| v.entity != *victim);
                 }
-                // **A voice is mixer-owned only when a mixer is there to own it.** `Backend` is a public resource
-                // whose flag a host may set, and `Backend(true)` with no `Output` used to give a voice **no
-                // `AudioPlayer` and no mixer** - it could not sound, could not end, and could not be retired, so it
-                // held its budget slot for the life of the process while `Played` said it had played.
-                // `start_pending`'s doc already promises the fallback ("without an `Output` ... Bevy's `AudioPlayer`
-                // owns every voice"); this is what makes that promise true rather than a claim about a resource the
-                // spawn never read.
-                let mixer_owns = backend.0 && output.is_some();
                 let entity = spawn_voice(&mut commands, request, &started, now, mixer_owns);
                 // This frame's own voice counts against the next request in the list.
                 live.push(Live {
@@ -541,7 +554,7 @@ pub fn play_requests(
             Err(reason) => {
                 // **The cause, when the asset server knows it.** `MissingSound` carries only the key, so a file that failed to load reads the same as a key with no handle; the log says which, with the server's own
                 // sentence (the cause and the path). `needs-decision/undecodable-sound.md`, option 4: no variant is added, so no consumer's exhaustive `match` breaks.
-                let sentence = refusal_sentence(&reason, &sounds, &files);
+                let sentence = refusal_sentence(&reason, &sounds, &files, !mixer_owns);
                 log.push(Entry::Refused { at_s: now, cue: request.cue.clone(), reason: sentence });
                 refused.write(Refused { cue: request.cue.clone(), reason });
             }
@@ -549,13 +562,13 @@ pub fn play_requests(
     }
 }
 
-/// The log's sentence for a refusal: `reason`'s own, except that a [`Refusal::MissingSound`] whose file the asset server says **failed to load** names the cause and the path the server looked for.
-fn refusal_sentence(reason: &Refusal, sounds: &SirenSounds, files: &Files) -> String {
+/// The log's sentence for a refusal: `reason`'s own, except that a [`Refusal::MissingSound`] whose file the asset server says **failed to load**, or whose loaded bytes the decoder **refuses**, names the cause (and the path the server looked for, or the decoder's words).
+fn refusal_sentence(reason: &Refusal, sounds: &SirenSounds, files: &Files, bevy_decodes: bool) -> String {
     if let Refusal::MissingSound { sound } = reason
         && let Some(handle) = sounds.get(sound)
-        && let Some(error) = cannot_load(files, handle)
+        && let Some(unplayable) = cannot_play(files, sounds, handle, bevy_decodes)
     {
-        return crate::sounds::failed_to_load(sound, &error);
+        return unplayable.sentence(sound);
     }
     reason.to_string()
 }
@@ -566,6 +579,7 @@ fn answer(
     table: &CueTable,
     sounds: &SirenSounds,
     files: &Files,
+    bevy_decodes: bool,
     settings: &SirenSettings,
     choices: &mut SirenChoices,
     listener: &Query<(&GlobalTransform, &SpatialListener)>,
@@ -587,10 +601,10 @@ fn answer(
     let Some(handle) = sounds.get(&slot.sound) else {
         return Err(Refusal::MissingSound { sound: slot.sound.clone() });
     };
-    // **A file the asset server says failed to load, with nothing to play, is no better than no handle.** The handle exists and the bytes never will, and a voice spawned for it waits for ever: `Played` for a sound that
-    // cannot sound, a slot held against the budget, a log that reads as healthy. A load still in flight is *not* refused — it waits, as it always did; nothing is invented about a slow disk. And a file whose **reload** failed
-    // but whose previous bytes are loaded *can* be played, so it is (`sounds::cannot_load`).
-    if cannot_load(files, handle).is_some() {
+    // **A sound that cannot be played is no better than no handle.** *A file the asset server says failed to load*, with nothing to play: the handle exists and the bytes never will, and a voice spawned for it waits for ever — `Played` for a sound that
+    // cannot sound, a slot held against the budget, a log that reads as healthy (iteration 116). *Bytes the decoder refuses*, on Bevy's path: `AudioSource::decoder` unwraps, so a voice spawned for them is `Played` and then panics the game in
+    // `PostUpdate` (iteration 117). A load still in flight is *not* refused — it waits, as it always did — and a file whose **reload** failed but whose previous bytes are loaded *can* be played, so it is (`sounds::cannot_play`).
+    if cannot_play(files, sounds, handle, bevy_decodes).is_some() {
         return Err(Refusal::MissingSound { sound: slot.sound.clone() });
     }
     let bus = cue.bus_name().to_owned();

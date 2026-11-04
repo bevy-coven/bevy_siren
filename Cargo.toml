@@ -155,9 +155,10 @@ ron = { version = "0.12", optional = true }
 # `mp3` are the other two a library arrives in (Gregory, *Game Engine Architecture*, §14.3.2.3, surveys the uncompressed, lossless
 # and lossy formats a game meets). `wav`, `flac` and `mp3` are `symphonia` codecs in rodio 0.22 (`rodio-0.22.2/Cargo.toml`: `flac =
 # ["symphonia-flac"]`, `mp3 = ["symphonia-mp3"]`), pure Rust, so the two added formats cost two crates and no C toolchain (measured
-# in `docs/loop/runs/2026-11-03-112/eval.md`). `Decoder::new` returns `UnrecognizedFormat` for anything else, which the backend
-# warns about rather than panicking on. Enabling them here rather than relying on the game's own `bevy/mp3` keeps the crate's
-# promises its own.
+# in `docs/loop/runs/2026-11-03-112/eval.md`). `Decoder::new` returns `UnrecognizedFormat` for anything else, which **this backend** refuses
+# (`start_pending`: `Played`, then `Refused`). **Bevy's own `AudioSource::decoder` unwraps it** (`bevy_audio-0.20.1/src/audio_source.rs:101`), so on Bevy's path
+# `sounds::decoder_error` makes the same call, through `Decodable`'s associated type and without naming `rodio`, before Bevy does. Enabling them here rather than
+# relying on the game's own `bevy/mp3` keeps the crate's promises its own.
 #
 # **Vorbis is `lewton`, not `vorbis`.** `vorbis` is the `symphonia` backend, and **it makes a loop of any Ogg silent**: rodio reports a span of length zero until the first sample (the stream's first packet decodes to
 # nothing), `Buffered` reads that as an empty source, and `repeat_infinite` — which is Bevy's own loop, `bevy_audio-0.20.1/src/audio_output.rs:165` — produces no samples (0 of 147 456 on a real Ogg;

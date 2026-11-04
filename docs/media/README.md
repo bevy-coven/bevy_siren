@@ -112,6 +112,31 @@ python3 docs/media/transcript_png.py docs/media/failed-load.txt docs/media/faile
 
 Tests: `tests/failed_load.rs` — real server, real fixtures, a loader that waits at a gate the test opens and then succeeds or fails, so the order of events is the test's and not a race with the disk or a delay.
 
+## `undecodable.png` — bytes the decoder refuses are refused, not handed to Bevy to unwrap (iteration 117)
+
+![A Git LFS pointer and an Ogg Opus file played through the real AudioPlugin, before and after: Played, then a panic at audio_source.rs:101; then a refusal that names the sound, carries the decoder's words and says what the file is, and the app surviving; and a real Ogg playing with a sink as the control](undecodable.png)
+
+`undecodable.txt` is the verbatim output of one scratch program — `SirenPlugin` plus the **real `AudioPlugin`** (this Mac's output device) and the real `AssetServer`, the file loaded first, one `Play` of one cue, twenty frames inside
+`catch_unwind`, **one process per file** — run on the tree as it was (iteration 116) and with this change; the registry path of the panic is abbreviated to `…/`. **Before: `Played`, then a panic at `bevy_audio-0.20.1/src/audio_source.rs:101:14`
+in the first update after the play, naming no file. After: no `Played`, no voice, no sink, the app survives, and the log line names the sound, carries the decoder's words and — for a Git LFS pointer, an empty file and an Ogg Opus file — says
+what the file is.** The control, a real Ogg, is `Played` and given a sink in frame 1, as before. (The `Refused` message a game prints still reads the one `MissingSound` sentence; the cause is in the log — `needs-decision/undecodable-sound.md`, option 4.)
+The program is `runs/2026-11-04-117/evidence/after/undecodable.rs.txt`; the codec files are made by `ffmpeg` (this one has no `libvorbis`):
+
+```sh
+cp docs/loop/runs/2026-11-04-117/evidence/after/undecodable.rs.txt examples/scratch_undecodable.rs     # it is not kept in examples/
+mkdir -p /tmp/siren-undecodable && cd /tmp/siren-undecodable
+ffmpeg -f lavfi -i "sine=frequency=440:duration=0.3" -c:a libopus opus.ogg
+ffmpeg -f lavfi -i "sine=frequency=440:duration=0.3" -c:a adpcm_ms adpcm.wav
+ffmpeg -f lavfi -i "sine=frequency=440:duration=0.3" -ar 8000 -c:a pcm_mulaw mulaw.wav
+ffmpeg -f lavfi -i "sine=frequency=440:duration=0.3" -c:a pcm_s16le good16.wav
+cd - && cargo build --release --example scratch_undecodable
+for f in lfs.ogg opus.ogg tone.ogg; do target/release/examples/scratch_undecodable play $f; done     # the program writes lfs.ogg, empty.ogg, cut.ogg and tone.ogg itself
+rm examples/scratch_undecodable.rs
+python3 docs/media/transcript_png.py docs/media/undecodable.txt docs/media/undecodable.png             # needs Pillow and macOS's Menlo
+```
+
+Tests: `tests/undecodable.rs` (no device needed: the crate's answer before Bevy's decode could run, and that it refuses exactly what `AudioSource::decoder()` panics on) and `src/sounds.rs::tests`.
+
 ## No clip: iteration 115, an Ogg loop sounds, and is as long as the stream says
 
 No clip: the change is **what a loop of an Ogg Vorbis file sounds like**, on Bevy's path and on the `mixer` backend, and `examples/render` renders no Ogg, so every rendered cue is byte-identical (21 of 21) and the

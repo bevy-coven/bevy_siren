@@ -1,0 +1,48 @@
+$ cargo run --release --example scratch_undecodable -- play lfs.ogg     # a Git LFS pointer where the audio should be — before this change
+loaded=true state=Some(Loaded)
+PANIC HOOK: panicked at …/bevy_audio-0.20.1/src/audio_source.rs:101:14:
+called `Result::unwrap()` on an `Err` value: UnrecognizedFormat
+played   = ["probe -> lfs.ogg"]
+refused  = []
+log      : 0.01s played `probe` (lfs.ogg) on Effects at 0.00 dB
+RESULT: PANIC — called `Result::unwrap()` on an `Err` value: UnrecognizedFormat
+
+$ cargo run --release --example scratch_undecodable -- play opus.ogg     # an Ogg Opus file, which plays in a media player — before this change
+loaded=true state=Some(Loaded)
+PANIC HOOK: panicked at …/bevy_audio-0.20.1/src/audio_source.rs:101:14:
+called `Result::unwrap()` on an `Err` value: UnrecognizedFormat
+played   = ["probe -> opus.ogg"]
+refused  = []
+log      : 0.04s played `probe` (opus.ogg) on Effects at 0.00 dB
+RESULT: PANIC — called `Result::unwrap()` on an `Err` value: UnrecognizedFormat
+
+$ cargo run --release --example scratch_undecodable -- play lfs.ogg     # the same, with this change
+loaded=true state=Some(Loaded)
+frame  1: voices=0 sinks=0
+frame  2: voices=0 sinks=0
+frame  3: voices=0 sinks=0
+played   = []
+refused  = ["probe : no handle or undecodable bytes for sound `lfs.ogg`"]
+log      : 0.05s refused `probe`: the bytes of sound `lfs.ogg` cannot be decoded: The format of the data has not been recognized. — a Git LFS pointer, not the audio file
+RESULT: survived 20 frames
+
+$ cargo run --release --example scratch_undecodable -- play opus.ogg     # the same, with this change
+loaded=true state=Some(Loaded)
+frame  1: voices=0 sinks=0
+frame  2: voices=0 sinks=0
+frame  3: voices=0 sinks=0
+played   = []
+refused  = ["probe : no handle or undecodable bytes for sound `opus.ogg`"]
+log      : 0.01s refused `probe`: the bytes of sound `opus.ogg` cannot be decoded: The format of the data has not been recognized. — an Ogg Opus file, and this build decodes Ogg Vorbis, not Opus
+RESULT: survived 20 frames
+
+$ cargo run --release --example scratch_undecodable -- play tone.ogg     # a real Ogg Vorbis file — the control, with this change
+loaded=true state=Some(Loaded)
+frame  1: voices=1 sinks=1
+frame  2: voices=1 sinks=1
+frame  3: voices=1 sinks=1
+played   = ["probe -> tone.ogg"]
+refused  = []
+log      : 0.02s played `probe` (tone.ogg) on Effects at 0.00 dB
+log      : 0.52s stopped `probe`: ended
+RESULT: survived 20 frames

@@ -1,0 +1,31 @@
+Cost of the change as SHIPPED (the memo behind a Mutex in `SirenSounds`, shared by `play_requests` and `refuse_unplayable_voices`), measured in release on this Mac (shared; nothing else heavy running).
+The source as benchmarked — the memo, the key, the hints and the temporary `mod bench` — is sounds-with-bench.rs.txt (`cargo test --release --lib bench -- --ignored --nocapture`); the module was removed from
+src/sounds.rs afterwards. (An earlier run, with a memo per system in a `Local`, read 0.29 / 1.33 / 4.17 µs for the memo-hit column and 14.6 ns for a memoised verdict; the Mutex costs about 6 ns a call and 2 µs a
+frame at 256 voices — and it is what makes a sound's decoder construction happen ONCE and not twice: see `sounds::tests::a_sound_is_decoded_once_by_the_crate_however_often_it_is_played`, which reads 14 constructions
+where one is expected when the memo is defeated.)
+
+Method: a bare `World` and one `Schedule` with Bevy's SINGLE-THREADED executor holding only `playback::refuse_unplayable_voices`, run 20 000 times after 200 warm-up runs. (The first attempt used the default
+multi-threaded executor and read 7 – 8 µs a run at ZERO voices: that is the executor's setup for one system, not the system; nothing below includes it.)
+
+refuse_unplayable_voices, µs a frame:
+  voices | running (a MixerVoice: skipped by the archetype filter) | waiting, bytes present, AudioPlayer (a memo hit every frame) | waiting for bytes that have not arrived | the crate's mixer waiting (bytes present, no AudioPlayer)
+       0 |  0.110 |  0.080 |  0.110 |  0.112
+       8 |  0.081 |  0.349 |  0.069 |  0.086
+      64 |  0.071 |  1.773 |  0.242 |  0.258
+     256 |  0.056 |  6.461 |  0.814 |  0.779
+
+  - Nothing waiting: 0.06 – 0.11 µs a frame (iteration 116's system measured 0.055); the spread is noise on a shared machine.
+  - The expensive column is a state that does not occur with a device: Bevy starts a voice in the frame it is spawned and the next frame's query skips it. Headless, or on a machine whose device did not open,
+    every voice with bytes stays `waiting` for ever, and 256 of them are 6.5 µs a frame — about 25 ns a voice, the memoised verdict below plus the query. (A bus holds far fewer than 256.)
+
+Per call:
+  first sight of a 5.8 KB Ogg Vorbis (decoder_error + one insert):   815 µs   <- the price of knowing: one decoder construction per distinct asset. Bevy pays the SAME on every play of it.
+  (probe, evidence/before/…probe…: Vorbis 640 – 750 µs whatever the length; hound WAV 0.1 – 0.2 µs; symphonia WAV / MP3 / FLAC 10 – 180 µs, growing with the size.)
+  memoised verdict (Mutex lock + key + one HashMap get + compare):    21.1 ns
+  bytes_key alone:                                                     2.6 ns
+  explain() on a decodable Ogg (only ever called on a refusal): 1.4 ns (the earlier run)
+
+perfcheck (the mix's arithmetic; it cannot see this system) is in perfcheck.txt.
+
+Not measured: a debug build (unoptimised dependencies make a Vorbis construction many times slower, and Bevy's own decode on every play with it); the first-sight hitch of 20 distinct Oggs started in one frame
+(about 16 ms by arithmetic: 20 x 0.8 ms, on top of Bevy's own decode of the same frame).

@@ -1,0 +1,31 @@
+Each guard switched off in turn on the final code, the new tests (and the unit tests of the memo) run, the guard restored. What went red:
+
+A  play-time check off  (play.rs: `if false && cannot_play(files, handle, bevy_decodes).is_some()`)
+   RED    a_play_of_bytes_the_decoder_refuses_is_refused_with_the_cause
+          the_crate_refuses_exactly_the_bytes_bevys_own_decoder_panics_on
+          an_edit_to_the_file_is_asked_again
+   green  bytes_that_arrive_after_the_play_… (the in-flight system still refuses it, as Played then Refused), the control
+   2 passed; 3 failed
+
+B  in-flight check of the bytes off  (playback.rs: cannot_play(&mut files, &samples.0, false))
+   RED    bytes_that_arrive_after_the_play_are_refused_before_bevy_can_start_the_voice
+   green  the other four
+   4 passed; 1 failed
+
+C  the memo trusts a stored verdict whatever the buffer  (sounds.rs: `&& (*known == key || true)`)
+   RED    an_edit_to_the_file_is_asked_again (tests/undecodable.rs:284, the bad -> fixed edit)
+          sounds::tests::a_buffer_is_asked_once_and_an_edit_is_asked_again
+   4 + 2 passed; 1 + 1 failed
+
+D  the key forgets the buffer's address  (sounds.rs: `(0 * addr, len, head)`)
+   RED    an_edit_to_the_file_is_asked_again (tests/undecodable.rs:307, the one-flipped-byte file: same length, same first 16 bytes -> "left: 0, right: 1")
+          sounds::tests::a_buffer_is_asked_once_and_an_edit_is_asked_again (its edit keeps the length and the first 16 bytes — it did not, until this run found the unit test's comment false: "OggS-first" / "OggS-other" differ in the head)
+   green  the bad -> fixed half: the head alone distinguishes those; only an edit that keeps length AND head needs the address
+
+E  the check applied on the crate's own mixer path too  (play.rs: the call site's `!mixer_owns` -> `true`), `--features mixer`
+   RED    six EXISTING tests in tests/mixer.rs — the ones that put placeholder bytes (`vec![0u8; 4]`, `vec![0u8; 64]`) behind a fake `Output`:
+          a_despawned_owner_is_logged_once, a_one_shot_voice_ends_and_frees_its_slot, a_music_layer_moves_its_mixer_voice,
+          a_stopping_voice_is_not_retired_as_ended, a_despawned_voices_mixer_slot_is_freed, a_loop_voice_is_not_retired_when_its_source_ends
+   221 passed; 6 failed — which is why the check is Bevy's path only: with an `Output`, `start_pending` (the mixer's own decoder) is the authority, and those tests hold it.
+
+Restored after each; the final tree: fmt clean, clippy -D warnings exit 0, `cargo test` 213 (+8 lib), `--features mixer` 227 (+19 lib).

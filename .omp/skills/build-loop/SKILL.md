@@ -122,6 +122,16 @@ about a thing with **states** (an asset: loading, loaded, failed; a voice: waiti
 Make the state **deterministic** — a loader that **waits at a gate your test opens**, then succeeds or fails as told; not a file that is missing (a race with the disk), and not a sleep (a race with the next frame) — and measure the discovery on the real thing (the real `AssetServer`, the default cue)
 before writing a prediction.
 
+**A crash a headless app cannot show is still a crash, and the way to find it is to read the `unwrap`s of the code your entity is handed to.** Iteration 117: a voice is an `AudioPlayer`, and Bevy's `AudioSource::decoder` is
+`….build().unwrap()` (`bevy_audio-0.20.1/src/audio_source.rs:101`); a file that loads and is not audio the build decodes (a Git LFS pointer, an Ogg *Opus* file) was `Played` and then **panicked the game in the same frame** — on the default
+build, for the crate's whole life — while four sentences said it was refused, and no test could see it because a headless app has no device and so never runs Bevy's decoder. `grep -n "unwrap()\|expect(" <dependency>/src` over the path a
+spawned entity takes finds these in minutes. **To see one, run the real plugin on this Mac's device in a scratch program — one process per case, `catch_unwind` around `app.update()`, the panic hook printing the location.**
+**A verdict that is a property of the build is tested as a property, against an oracle, not as a table**: `tests/undecodable.rs` asserts the crate refuses a play *exactly when `AudioSource::decoder()` panics* (`catch_unwind`), for every file, so
+it is true with and without `mixer` (an MP3 is refused where `rodio` has no decoder for it and played where it has). And when a check must be *the same call* as the code it protects, **reach it through the trait's associated type** (`<AudioSource
+as Decodable>::Decoder::builder()`) before adding a dependency: it was the whole difference between a new dependency in every consumer's default build and none.
+**Run `cargo fmt && cargo clippy --all-targets --all-features -- -D warnings` after every edit, before any test and before the matrix** — it was the first red of the matrix in iterations 115 and 116, and the cargo output a tool summarises shows `Finished`
+and hides the warning that becomes the error.
+
 **Tool discipline is part of the loop, and the user has said so twice.** Read with `read`, `grep` and `glob`; bash runs **programs** (`cargo`, `ffmpeg`, `git`, `python3` as an analysis, `cp`/`rm` of your own scratch). Not `cat`,
 `head`, `tail`, `ls | awk`, `sed`/`perl`/`python` to edit (use `edit`), `tee` or `>` to keep output: a bare command's full output is `artifact://<id>` — `read` or `grep` it, and `cp artifact://<id> <evidence file>` keeps it. After
 `cargo fmt` the line numbers move: **re-read before the next `edit`**. A file read in the same turn as the bash that creates it can race it: read it again.

@@ -19,7 +19,9 @@ use crate::helpers::{app, sounds};
 
 const TONE_OGG: &[u8] = include_bytes!("fixtures/tone.ogg");
 const TONE_441_OGG: &[u8] = include_bytes!("fixtures/tone-441.ogg");
+#[cfg(any(feature = "mixer", feature = "semantic"))]
 const TONE_FLAC: &[u8] = include_bytes!("fixtures/tone.flac");
+#[cfg(any(feature = "mixer", feature = "semantic"))]
 const TONE_MP3: &[u8] = include_bytes!("fixtures/tone.mp3");
 
 /// A headless app whose one cue, `"loop"`, plays the sound `"s"` in `mode`, on Bevy's path. `"s"` points at nothing loaded yet.
@@ -82,6 +84,21 @@ fn a_looping_ogg_whose_asset_arrives_later_is_told_when_it_arrives() {
     );
 }
 
+/// FLAC and MP3 are bytes Bevy's decoder reads only where `rodio` has those decoders (`mixer`, `semantic`). Without them the crate refuses the play, and there is no voice to be told anything (`tests/undecodable.rs`) — so the rows exist
+/// only where the voice can. The same goes for bytes that are not audio: that row was a Bevy-path voice that would have panicked the game in `PostUpdate`, and it is gone.
+#[cfg(any(feature = "mixer", feature = "semantic"))]
+fn rows_only_a_build_with_those_decoders_can_have() -> Vec<(&'static str, Vec<u8>, Mode)> {
+    vec![
+        ("a looping FLAC (exact already)", TONE_FLAC.to_vec(), Mode::Loop),
+        ("a looping MP3", TONE_MP3.to_vec(), Mode::Loop),
+    ]
+}
+
+#[cfg(not(any(feature = "mixer", feature = "semantic")))]
+fn rows_only_a_build_with_those_decoders_can_have() -> Vec<(&'static str, Vec<u8>, Mode)> {
+    Vec::new()
+}
+
 /// **What is not told, and why each row matters**: a loop of anything but a stream that declares its length is left exactly as it was, and so is an Ogg that plays once — only a loop exposes the
 /// padding, and a one-shot would pay a page walk on every play.
 #[test]
@@ -89,14 +106,14 @@ fn anything_but_a_looping_ogg_that_declares_its_length_is_told_nothing() {
     let chained = [TONE_441_OGG, TONE_441_OGG].concat(); // two streams back to back: no single length
     let mut cut = TONE_OGG.to_vec();
     cut.truncate(cut.len() - 3); // a last page cut short
-    let rows: Vec<(&str, Vec<u8>, Mode)> = vec![
+    let rows: Vec<(&str, Vec<u8>, Mode)> = [
         ("an Ogg that plays once", TONE_OGG.to_vec(), Mode::Once),
-        ("a looping FLAC (exact already)", TONE_FLAC.to_vec(), Mode::Loop),
-        ("a looping MP3", TONE_MP3.to_vec(), Mode::Loop),
         ("a looping chained Ogg", chained, Mode::Loop),
         ("a looping Ogg cut short", cut, Mode::Loop),
-        ("a loop of bytes that are not audio", b"not audio at all".to_vec(), Mode::Loop),
-    ];
+    ]
+    .into_iter()
+    .chain(rows_only_a_build_with_those_decoders_can_have())
+    .collect();
     for (what, bytes, mode) in rows {
         let mut app = playing(&bytes, mode);
         play(&mut app);

@@ -47,3 +47,12 @@ a refusal at all — every play of it was answered `Played` and nothing sounded 
 cause and the path in the log** (*"the file for sound `x` failed to load: Path not found: /…/x.ogg"*). The limitation stands and is the argument for option 1: a game's own meter that prints `Refused::reason` reads the one sentence
 for all three, and **the three want different things from a project** — a missing key is a line to add, a corrupt file is a file to re-export, a failed load is a name or a path to fix, and only the last two have the server's own
 words to say. The recommendation is unchanged and a little stronger: **option 1, a variant, in the next minor version** — now for two new variants (`Undecodable`, `LoadFailed`), with `MissingSound` going back to one cause.
+
+## Iteration 117: the undecodable cause was only half true, and is now true on both paths
+
+The record above says *"a key whose bytes the decoder refused"* is refused. **That was true on the crate's own mixer only.** On Bevy's path — the default build — Bevy's `AudioSource::decoder` is `….build().unwrap()`, so bytes that load and
+do not decode were `Played` and then **panicked the game** in `PostUpdate` (`runs/2026-11-04-117/evidence/before/`: a Git LFS pointer, an empty file, a cut Ogg, an Ogg Opus file, an ADPCM WAV and a µ-law WAV; six `Played`, six
+panics at `audio_source.rs:101:14`). The crate now asks the decoder — the call Bevy makes, through `Decodable`'s associated type, so `rodio` is not a dependency of the default build — once per asset, at the play and for a voice
+whose bytes arrive later, and refuses with option 4's shape: **one variant, the decoder's words and (for a Git LFS pointer, an empty file and an Ogg Opus file) a hint in the log**. **No variant is added.** The limitation is the same
+and the argument for option 1 is the same, with one more fact to put in it: the three causes' remedies differ *and the hint is the thing a variant could carry* — `Undecodable { sound, what: Option<…> }` would let a panel say
+*"a Git LFS pointer"* without parsing a sentence. Recommendation unchanged: **option 1, in the next minor version**.

@@ -45,7 +45,7 @@ every Bevy feature and a hole in its own `[dependencies]` list cannot fail.
 - `src/play.rs` — `Play`, `Played`, `Refused`, `Refusal`, `Voice`, `Compensation`, `MixerVoice`, `Completes`,
   `Samples`, `StopVoice`, `StopCue`, `SirenChoices`, and `play_requests`.
 - `src/playback.rs` — `start_pending`: the only place a voice starts on the crate's own mixer once its bytes have
-  loaded; `trim_ogg_loops`, which tells **Bevy's** path how long an Ogg loop is (`PlaybackSettings::duration`) once the bytes are there; and `refuse_failed_loads`, which refuses and frees a voice whose file the asset server says failed to load.
+  loaded; `trim_ogg_loops`, which tells **Bevy's** path how long an Ogg loop is (`PlaybackSettings::duration`) once the bytes are there; and `refuse_unplayable_voices`, which refuses and frees a voice whose file the asset server says failed to load or — on Bevy's path — whose bytes the decoder refuses, in `Update`, before Bevy's `PostUpdate` decodes them.
 - `src/ogg.rs` — std-only, always compiled: `inspect` (one walk of an Ogg Vorbis file's pages → the length its last granule position declares, or `None` for anything it does not fully understand: chained, cut short,
   not Vorbis, a packet count that cannot account for the granule) and `loop_length`/`take_duration` (the `Duration` that makes `rodio`'s `TakeDuration` emit exactly that many frames: `N·p + 1` ns, **not**
   `frames / rate`). `semantic::decode`, `trim_ogg_loops` and the mixer's `Shape::of` all read it. `ogg::synthetic` (`cfg(test)`) builds Ogg streams by hand.
@@ -57,7 +57,7 @@ every Bevy feature and a hole in its own `[dependencies]` list cannot fail.
   `rodio::Player` and bus `Mixer` offline — the only tests that read a sample the crate's own mixer produces.
 - `src/music.rs` — `MusicScore`, `MusicLayer`, `MusicLayers`, `When`, `Stinger`, `MusicState`, `MusicVoice`, and the
   systems `start_layers`, `adopt_layers`, `move_layers`, `play_stingers`.
-- `src/sounds.rs` — `SirenSounds`: the key → handle map, `load_table`, `missing`, `failed`; and `load_error`, the one place the crate reads `LoadState::Failed` (`play::answer`, `refuse_failed_loads` and `failed` all ask it).
+- `src/sounds.rs` — `SirenSounds`: the key → handle map, `load_table`, `missing`, `failed`, **and a cache of what the decoder said about each asset's bytes** (a `Mutex` inside it, so the systems that ask hold it as a `Res`; a clone starts empty); `load_error`, the one place the crate reads `LoadState::Failed`; and `cannot_play`, **the one question *can this sound be played?*** (`play::answer`, `refusal_sentence` and `refuse_unplayable_voices` all ask it): a file that failed to load with nothing to play, or — on Bevy's path only — bytes `decoder_error` refuses (**the call Bevy's `AudioSource::decoder` makes, minus its `unwrap`**), asked once per buffer.
 - `src/log.rs` — `SirenLog` (256 entries) and `Entry`.
 - `src/semantic/server.rs` — behind `semantic`: the MCP tool host (`Host`, `SPECS`, `read_message`) as a library, so a test
   drives it with no process. `src/bin/siren-tools.rs` is the loop around it (ADR 0006, 0008); `serde_json` is its one
@@ -142,6 +142,12 @@ function between frames; a duck takes time since it fired; a gain curve is a lin
   this crate's life a file that **failed to load** was a state no test could build: `Played` was written, the voice waited for ever, and the log read *played* / *stolen by `x` (cue)* — a healthy sequence for a sound nobody heard
   (`docs/loop/runs/2026-11-04-116/`). Bevy's own start system never reads the state either (`audio_output.rs:109`). **To test a load in flight or failed deterministically**, register a loader for `.ogg` of your own that **waits at a
   gate your test opens** and then succeeds or fails as told (`tests/failed_load.rs::Gated`) over `tests/fixtures`, so the order of events is the test's — a loader that sleeps makes *"still loading"* a race between a delay and a frame, false on a starved machine. And **remove the `Output`** to force Bevy's path (`Backend(false)` alone is not read).
+- **Bevy's `AudioSource::decoder` is `….build().unwrap()`, and a headless app never calls it.** A file that loads and is not audio the build decodes (a Git LFS pointer, an empty file, an Ogg *Opus* file, an ADPCM WAV) was `Played` and then **panicked the game in
+  `PostUpdate`** — on the default build, naming no file — for the crate's whole life: the asset loader returns bytes and stops, the crate's mixer's refusal (`start_pending`) is another path, and no test had a device
+  (`docs/loop/runs/2026-11-04-117/`). `sounds::decoder_error` makes Bevy's call through `<AudioSource as Decodable>::Decoder` — **no `rodio` dependency in the default build** — once per asset (the cache in `SirenSounds`, keyed by buffer address, length and first
+  16 bytes, so an edit is asked again; **one cache, not one per system — with one each a sound's first play built two decoders**), and `tests/undecodable.rs` holds that the crate refuses **exactly** what `AudioSource::decoder()` panics on (`catch_unwind`), which makes it true in every feature set. **Only Bevy's path is asked**: with an `Output`,
+  `start_pending` decides, and six `tests/mixer.rs` tests with placeholder bytes behind a fake output hold that. **To see a crash a headless app cannot show**, run the real `AudioPlugin` on this Mac's device, one process per file, `catch_unwind` around
+  `app.update()` (`evidence/after/undecodable.rs.txt`); a decoder's cost is a property of the format (Vorbis 0.65 – 0.8 ms to construct whatever the length, `hound` WAV 0.1 µs).
 
 ## The two-way street, both ways
 
