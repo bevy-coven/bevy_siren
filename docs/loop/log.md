@@ -74,17 +74,22 @@ server with no model has no tool that returns an `asset_id`, so an agent cannot 
 **Baseline:** nothing red — 199 / 208 serde / 209 mixer / 109 lib + **436 semantic** / **460 all-features** / 6 doc. After:
 **479 semantic / 503 all-features**; clippy and fmt each caught one thing of mine, fixed.
 
-**Top 5 remaining.**
+**Top 5 remaining.** *(Each open issue was re-read this time rather than trusted from the old summary — the lesson of `#28`.)*
 
-1. **`needs-decision/headless-discovery.md`** — a model-free `siren-tools` cannot be started by an agent. Option 1, a bounded
-   `list_assets(category?, k)`, is recommended.
-2. **`search_music` against the real CLAP graph.** It has run only against a 16 KB fixture; the 501 MB graph is not on this Mac
+1. **`#38` the playable example — buildable here, and wrongly filed as waiting on the editor.** Its *"blocked by `#33`"* is an
+   ordering in the issue graph, not a technical dependency: everything in its scope (`examples/semantic.rs`, behind `semantic`;
+   no-model run that says what is missing and exits non-zero; an entry in `docs/media/README.md`) is this crate's. What it
+   cannot have on this Mac is a **real run**: that needs the CLAP **audio and text** graphs, and `tests/fixtures/` holds only the
+   text one. So the plumbing is verifiable here (an index crafted from the fixture model, a synthesised library, the
+   no-model refusal) and the README picture waits on a machine that has the graphs.
+2. **`needs-decision/headless-discovery.md`** — a model-free `siren-tools` cannot be started by an agent. Option 1, a bounded
+   `list_assets(category?, k)`, is recommended; it is a public-surface change, so it waits for the owner.
+3. **`search_music` against the real CLAP graph.** It has run only against a 16 KB fixture; the 501 MB graph is not on this Mac
    and `big` has no checkout. That run also gives the model-load and encode figures `hostbench` could not.
-3. **`#35` golden set**, **`#32`–`#34`/`#38`** (the editor, in `bevy_grimoire`), **`#39`** (a music encoder and a licence audit) —
-   each waits on a person, another repository, or an asset.
-4. **`find_compatible_*` speed** — 18 ms at 10 000 assets against a 10 ms budget; exact speedups (feature lookups, per-candidate
-   breakdowns) were not tried.
-5. **The cross-process audition hop** (ADR 0006's step 3), and iteration 105's **`#[non_exhaustive]`** decision.
+4. **Genuinely waiting on a person, another repository, or a model I do not have:** `#35` (a person judges at least 50 pairs and
+   writes 20 queries), `#32`/`#33`/`#34` (the editor panel, in `bevy_grimoire`), `#39` (a music encoder and its licence audit).
+5. **`find_compatible_*` speed** (18 ms at 10 000 assets against a 10 ms budget; exact speedups not tried), **the cross-process
+   audition hop** (ADR 0006's step 3), and iteration 105's **`#[non_exhaustive]`** decision.
 
 ## Iteration 108 — 2026-11-03 — a guard that fired, and a variant that got through anyway
 
