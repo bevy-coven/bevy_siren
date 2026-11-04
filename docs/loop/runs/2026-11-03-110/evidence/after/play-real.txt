@@ -1,0 +1,21 @@
+semantic: CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here — 14 assets in `/tmp/siren-demo-sounds`
+          model version transformers-4.57.6/torch-2.8.0/opset-17
+index:    14 assets, read from `siren-index` — current, so no audio graph was loaded
+text:     graph loaded in 0.2 s
+          encoded in 5.4 ms, ranked 14 assets in 0.01 ms
+
+"a short electronic beep"  — top 3
+  1. Sosumi.wav   score 0.206   similarity 0.206
+     semantic carried it (+0.206 from 0.20648861 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  2. Purr.wav   score 0.168   similarity 0.168
+     semantic carried it (+0.168 from 0.16776295 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  3. Ping.wav   score 0.158   similarity 0.158
+     semantic carried it (+0.158 from 0.15832542 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  (3 returned)
+
+playing the chosen result on the Music bus …
+Played    audition.89f4c994c2850cba on the Music bus at +0.0 dB, variant `Sosumi.wav`
+done

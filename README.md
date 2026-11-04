@@ -144,17 +144,29 @@ the first 32 footsteps and quietly stole or refused every one after that.
   measured always survives. **Tempo is estimated per track with a ±2 BPM floor that is a test over 80 known tempi**,
   and a non-rhythmic asset reports *no tempo* rather than a confident wrong one. **Key and mode are detected too** — Krumhansl-Schmuckler, 100 % exact on a 24-key synthetic corpus, with an
   atonal asset reporting *no key* rather than a confident wrong one; a build produces both without a caller supplying
-  them. The whole index is **binary, 10.28 MB for 5 000 clips** against 31.88 MB as text, and decoding one runs at
-  **~750 clips/s** — a 5 000-clip library costs seconds, not minutes. Off by default, and a crate that does not enable
-  it sees no change: `cargo tree` reads the same 413 lines either way. The pipeline and its rules are in
+  them. The whole index is **binary, 10.28 MB for 5 000 clips** against 31.88 MB as text. Decoding a clip runs at
+  **~750 clips/s**, but **inference is the bound**: the real audio tower, run end to end for the first time in iteration
+  110, indexed 280 clips at **16.6 clips/s on an M4 CPU** — 60 ms a clip, so a 5 000-clip library is **about five
+  minutes**. `incremental::update` pays only for what changed; `examples/semantic` rebuilds whole. Off by default: a
+  build that does not enable it is unchanged at **413 lines** of `cargo tree --edges normal`, and with it that is
+  **487**. The pipeline and its rules are in
   [semantic](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md); every authored number — each
   weight, threshold and variant distance, with its default and what it does at its extremes — is in
   [semantic-config](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic-config.md).
   **The crate does not ship the model.** A project loads an ONNX export of `laion/clap-htsat-fused` (MIT) itself, and the
   index records which export made its vectors so a mismatch is refused rather than ranked; the export this crate measured
-  is `transformers-5.22.1/torch-2.15.0/opset-17`. **An agent can drive all of it**: `siren-tools` is an MCP server over
+  is `transformers-5.22.1/torch-2.15.0/opset-17`, and `--model-version` (or `ModelStamp::clap`) names any other.
+  **Try it on your own files**: `tools/export_clap_onnx.py` makes both graphs from the weights in your Hugging Face cache,
+  and `examples/semantic` indexes a folder, takes a description, prints the best three with the reason for each and plays
+  one — [the guide](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md#try-it-examplessemantic).
+  **An agent can drive all of it**: `siren-tools` is an MCP server over
   stdio — six tools, one error shape, and a bad call is a result a model can read, not a protocol error it never sees —
   built with `--features semantic` and nothing else, in [the guide](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md#the-tool-server-siren-tools).
+
+  ![`examples/semantic` on a folder of fourteen WAV files, as a terminal transcript: the first run builds the index with the real CLAP audio tower in 1.1 s, ranks "a short electronic beep" with Sosumi first, and plays it through the Music bus; the second run reads the index it wrote, loads no audio graph, and ranks "a frog croaking" — a miss, with the reason printed under every result.](https://raw.githubusercontent.com/bevy-coven/bevy_siren/main/docs/media/semantic.png)
+
+  *`examples/semantic`, 1325 × 1056. The second query is a miss worth reading: CLAP ranks the system sound named `Frog`
+  eleventh of fourteen (cosine −0.02, below the floor) because it is a synthetic blip, not a frog.*
 - **Ship the sound as data, and edit it in the Cauldron** — with `serde`, the cue table, the mix table and the score
   are RON files; `bevy_grimoire`'s audio panel edits this crate's own types in
   `<project>/family/bevy_siren.ron`, never a second schema:

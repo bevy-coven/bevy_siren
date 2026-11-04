@@ -1,0 +1,17 @@
+start-up (spawn -> first reply, index read + 501 MB text graph loaded): 902 ms
+first search returned: {"asset_id": "89f4c994c2850cba", "score": 0.20648861, "similarity": 0.20648861}
+
+tool                   arguments                                      round trip  
+search_music           a short electronic beep                           5.55 ms  ok
+search_music           a deep sonar ping underwater                      4.93 ms  ok
+search_music           a glass being tapped                              4.56 ms  ok
+search_music           a short electronic beep                           4.72 ms  ok
+search_music           a deep sonar ping underwater                      5.32 ms  ok
+search_music           a glass being tapped                              5.06 ms  ok
+set_anchor             {"asset_id": "89f4c994c2850cba"}                  0.06 ms  ok
+find_compatible_sfx    {"k": 6}                                          0.20 ms  ok
+find_compatible_music  {"k": 3}                                          0.14 ms  ok
+explain_match          {"asset_id": "89f4c994c2850cba", "anchor": "      0.06 ms  ok
+
+exit status 0; stderr:
+siren-tools: 14 assets indexed from `/tmp/siren-demo-sounds`; search_music is on; reading JSON-RPC from stdin

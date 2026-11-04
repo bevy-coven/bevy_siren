@@ -1,0 +1,53 @@
+
+$ semantic /tmp/siren-demo-sounds a short electronic beep --pick 2 --bus Effects
+semantic: CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here — 14 assets in `/tmp/siren-demo-sounds`
+index:    14 assets, read from `siren-index` — current, so no audio graph was loaded
+  1. Sosumi.wav   score 0.206   similarity 0.206
+  2. Purr.wav   score 0.168   similarity 0.168
+  3. Ping.wav   score 0.158   similarity 0.158
+  (3 returned)
+Played    audition.b32a6185f7523b4d on the Effects bus at +0.0 dB, variant `Purr.wav`
+done
+exit: 0
+
+$ semantic /tmp/siren-demo-sounds a short electronic beep --bus Reverb
+semantic: CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here — 14 assets in `/tmp/siren-demo-sounds`
+index:    14 assets, read from `siren-index` — current, so no audio graph was loaded
+  1. Sosumi.wav   score 0.206   similarity 0.206
+  2. Purr.wav   score 0.168   similarity 0.168
+  3. Ping.wav   score 0.158   similarity 0.158
+  (3 returned)
+Refused   audition.89f4c994c2850cba: bus `Reverb` is not in the mix table
+exit: 1
+
+$ semantic /tmp/siren-demo-sounds a short electronic beep --k 5 --pick 6
+semantic: --pick must be between 1 and --k (5), and 6 is not
+usage: semantic <library-dir> "<description>" [--model clap-text.onnx --vocab tokenizer.json] [--audio-model clap-audio.onnx]
+                [--model-version <v>] [--k 3] [--pick 1] [--bus Music] [--no-play]
+exit: 2
+
+$ semantic /tmp/siren-demo-sounds  --no-play
+semantic: CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here — 14 assets in `/tmp/siren-demo-sounds`
+index:    14 assets, read from `siren-index` — current, so no audio graph was loaded
+semantic: that description cannot be searched: the description is empty
+exit: 2
+
+$ semantic /tmp/does-not-exist a beep --no-play
+semantic: `/tmp/does-not-exist` is not a directory
+exit: 2
+
+$ semantic /tmp/siren-empty-dir a beep --no-play
+semantic: no audio files in `/tmp/siren-empty-dir` (WAV and Ogg Vorbis are what the decoder reads)
+exit: 1
+
+$ semantic /tmp/siren-demo-sounds a short electronic beep --k 0 --no-play
+semantic: k must be between 1 and 100, and 0 is not. A k of 0 asks for nothing
+usage: semantic <library-dir> "<description>" [--model clap-text.onnx --vocab tokenizer.json] [--audio-model clap-audio.onnx]
+                [--model-version <v>] [--k 3] [--pick 1] [--bus Music] [--no-play]
+exit: 2
+
+$ semantic /tmp/siren-demo-sounds a short electronic beep --k 101 --no-play
+semantic: k must be between 1 and 100, and 101 is not. A k of 0 asks for nothing
+usage: semantic <library-dir> "<description>" [--model clap-text.onnx --vocab tokenizer.json] [--audio-model clap-audio.onnx]
+                [--model-version <v>] [--k 3] [--pick 1] [--bus Music] [--no-play]
+exit: 2

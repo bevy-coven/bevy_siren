@@ -1,0 +1,12 @@
+semantic: cannot run — 3 file(s) missing:
+  --model        the CLAP text graph, clap-text.onnx — not given (or set SIREN_MODEL)
+  --vocab        its tokenizer.json — not given (or set SIREN_VOCAB)
+  --audio-model  the CLAP audio graph, clap-audio.onnx (the folder has to be indexed) — not given (or set SIREN_AUDIO_MODEL)
+
+The crate does not ship the model (CLAP, laion/clap-htsat-fused, MIT). Make the files once, from the weights in
+your Hugging Face cache or by download:
+
+    python3 tools/export_clap_onnx.py <dir>
+
+It writes clap-text.onnx, clap-audio.onnx, tokenizer.json and clap-export.txt. This build runs the model on the CPU
+(CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here), so a machine with no GPU is fine; a machine with no model is not.

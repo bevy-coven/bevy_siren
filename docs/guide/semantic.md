@@ -18,7 +18,66 @@ bevy_siren = { version = "0.1", features = ["semantic"] }
 ```
 
 Enabling it downloads ONNX Runtime at build time. A crate that does not enable it is unchanged: `cargo tree --edges
-normal` reads the same **413 lines** with and without the feature, measured.
+normal` reads **413 lines** by default and **487** with `semantic` — the runtime, the resampler, the loudness analyser and
+`serde_json`, 149 crates becoming 181 — measured.
+
+## Try it: `examples/semantic`
+
+One command on a folder of WAV, Ogg or FLAC files: build (or reuse) the index, describe a sound, read the best three with
+the reason for each, and **hear** the first through the crate's own play path. The crate does not ship the model, so the
+first time is two steps:
+
+```sh
+# once: both graphs and the tokenizer, from the weights already in your Hugging Face cache (needs torch, transformers,
+# onnx and numpy; with laion/clap-htsat-fused cached and HF_HUB_OFFLINE=1, nothing is downloaded)
+HF_HUB_OFFLINE=1 python3 tools/export_clap_onnx.py ~/clap
+
+export SIREN_MODEL=~/clap/clap-text.onnx SIREN_VOCAB=~/clap/tokenizer.json SIREN_AUDIO_MODEL=~/clap/clap-audio.onnx \
+       SIREN_MODEL_VERSION="$(cat ~/clap/clap-export.txt)"
+cargo run --release --features semantic --example semantic -- <a folder of audio> "a short electronic beep"
+```
+
+![`examples/semantic` as a terminal transcript: the first run builds the index of fourteen files with the real CLAP audio tower and plays the best match for "a short electronic beep" through the Music bus; the second reads the index back and ranks "a frog croaking", a miss, with the reason under every result.](../media/semantic.png)
+
+Under each result are two lines. The first is **why it ranked**: *"semantic carried it … no value for acoustic, tempo, key"*
+means only the description's similarity counted, because an unanchored search has no sound to compare acoustic features,
+tempo or key with — name an anchor (`siren-tools`' `anchor` argument) and those terms join in. The second is **where it
+came from**: *"unknown, source not recorded"* is what a folder with no licence sidecar says, and the crate says *unknown*
+rather than leaving a reader to take silence for permission.
+
+**With nothing set up it says what is missing and stops.** There is no GPU path in this build — the model runs on the CPU
+in fp32 and the first line says so — so *no GPU* is not a failure; a missing file is. It lists every missing file
+(`--model`, `--vocab`, and `--audio-model` when the folder needs indexing) with how to make them, and exits with status
+**2** before it reads the library, writes an index or opens the output device.
+
+**The second run reads the index the first wrote**: *"14 assets, read from `siren-index` — current, so no audio graph was
+loaded"*. The example treats that file as a **cache**: a folder that gained or lost a file, or an index it cannot use
+(another export's, or a damaged one), is **rebuilt whole and written over**, saying so first — so adding one file to a
+5 000-clip library costs the full five minutes here, where `incremental::update` would embed one clip; the library has no
+model-backed form of that yet, only the closure it takes. `--model-version` (or `SIREN_MODEL_VERSION`) names the export that
+made the vectors — the line `clap-export.txt` holds — so an index from your torch is labelled as yours rather than refused
+as the measured one's; `siren-tools` takes the same flag. `--k`, `--pick`, `--bus` and `--no-play` are in the example's own
+usage line.
+
+**What the export script checks, and the trap it found.** The text graph is compared with `get_text_features` (largest
+difference **0.0**) and the audio graph with the audio tower on the path the crate runs (cosine **1.000000000**). That
+path is `is_longer = false`, and it is **not** `get_audio_features`' default: the extractor marks one clip of every fused
+batch `is_longer = True` — even a lone one-second clip — which turns on the local-mel fusion branch and moves the
+embedding by cosine **0.72–0.83** across the clips tried. The crate sends `false` for every window (it chunks anything
+past ten seconds, so none is "longer"), which is LAION-CLAP's own behaviour for a short clip. An export traced with the
+extractor's tensor baked the fusion branch in, and the crate's `false` then ran that branch on an empty batch — *"Input
+shape {0,96,64,3,21}, requested shape {0,96,64,-1}"* — so the first real run indexed **0 of 14** files. The example now
+refuses to write an index with nothing in it.
+
+**It agrees with `transformers`.** `docs/loop/runs/2026-11-03-110/evidence/after/parity.py` puts the same five phrases to
+the same 14 files through both and compares every similarity: the largest difference is **4.9 × 10⁻⁴** — the example
+prints three decimals, so that is the rounding — and the ranking order is identical for every phrase.
+
+**What it says about quality, honestly.** On fourteen macOS system sounds, "a short electronic beep" finds `Sosumi`
+(cosine 0.21) and "a frog croaking" does not find `Frog`: CLAP ranks it eleventh of fourteen, at −0.02, because it is a
+synthetic blip and not a frog. A cosine is a position on CLAP's own scale, and 0.2 is a good match
+([the floor](#the-floor-why-the-default-keeps-everything) has the measured bands); the three results are a short list for
+a person to choose from, which is what the paper measures — mAP@10 of 24.9 for text-to-audio on Freesound.
 
 ## The six steps, and what each one is
 
@@ -153,7 +212,11 @@ different take", and the other guess would leave the index describing audio that
 pipeline in two stages, because one number cannot name the bound: **decode** (scan, decode, downmix, resample and
 **loudness**) and **inference**. On an M4 the decode side runs at **2 400–2 700 clips/s**, so a 5 000-clip library costs
 **3 s** of decode. The real audio tower is a different scale — ADR 0002 measured **34.9 ms/clip** on a CPU — which is why
-inference, not decoding, is what a large library waits on.
+inference, not decoding, is what a large library waits on. **Measured end to end with the real graph** (`examples/semantic`,
+M4 CPU, fp32, 280 distinct clips of about a second, decode included): **16.6 clips/s, 60 ms a clip** — **35 ms the tower
+and 26 ms this crate's own mel spectrogram**, run one after the other — so a 5 000-clip library is about **five minutes**,
+once. The graph's input is a fixed ten-second window, so a short clip costs what a ten-second one does and a longer one
+is chunked into several windows; a GPU's figure is still unmeasured (`#36`).
 
 `update` never writes. That is deliberate: `indexer::write` owns the file, so a caller composes the two and puts its own
 lock around the write — and a caller that only wants to preview a run writes nothing at all.

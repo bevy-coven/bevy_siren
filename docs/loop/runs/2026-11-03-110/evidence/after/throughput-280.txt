@@ -1,0 +1,23 @@
+semantic: CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here — 280 assets in `/tmp/siren-demo-280`
+          model version transformers-4.57.6/torch-2.8.0/opset-17
+index:    none yet; building
+          audio graph loaded in 0.2 s
+          280 indexed in 16.9 s (16.6 clips/s)
+          written to `/tmp/siren-demo-280/siren-index`
+text:     graph loaded in 0.3 s
+          encoded in 5.7 ms, ranked 280 assets in 0.15 ms
+
+"a short electronic beep"  — top 3
+  1. Purr_17.wav   score 0.285   similarity 0.285
+     semantic carried it (+0.285 from 0.28512636 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  2. Purr_20.wav   score 0.279   similarity 0.279
+     semantic carried it (+0.279 from 0.2792448 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  3. Purr_18.wav   score 0.276   similarity 0.276
+     semantic carried it (+0.276 from 0.276231 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  (3 returned)
+  scores are CLAP cosines, not percentages — what a good one looks like is in docs/guide/semantic.md, "The floor"
+
+--no-play: nothing was played

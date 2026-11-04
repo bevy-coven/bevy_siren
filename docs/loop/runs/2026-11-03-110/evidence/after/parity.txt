@@ -1,0 +1,21 @@
+phrase                             file               crate reference      diff
+a frog croaking                    Purr.wav          0.1450    0.1454   4.2e-04
+a frog croaking                    Pop.wav           0.0870    0.0872   2.3e-04
+a frog croaking                    Funk.wav          0.0860    0.0862   2.1e-04
+   9 kept, 5 below the floor; max |crate - reference| = 4.21e-04; same ranking order: True
+a deep sonar ping underwater       Morse.wav         0.2560    0.2558   2.2e-04
+a deep sonar ping underwater       Hero.wav          0.2520    0.2516   3.6e-04
+a deep sonar ping underwater       Purr.wav          0.2040    0.2038   1.7e-04
+   13 kept, 1 below the floor; max |crate - reference| = 3.80e-04; same ranking order: True
+a glass being tapped               Glass.wav         0.0160    0.0155   4.7e-04
+   1 kept, 13 below the floor; max |crate - reference| = 4.65e-04; same ranking order: True
+a short electronic beep            Sosumi.wav        0.2060    0.2065   4.9e-04
+a short electronic beep            Purr.wav          0.1680    0.1678   2.4e-04
+a short electronic beep            Ping.wav          0.1580    0.1583   3.3e-04
+   11 kept, 3 below the floor; max |crate - reference| = 4.89e-04; same ranking order: True
+a bottle being blown across        Purr.wav          0.0810    0.0807   3.5e-04
+a bottle being blown across        Morse.wav         0.0270    0.0270   5.0e-05
+a bottle being blown across        Blow.wav          0.0210    0.0212   2.1e-04
+   3 kept, 11 below the floor; max |crate - reference| = 3.45e-04; same ranking order: True
+
+worst difference over every phrase and file: 4.89e-04

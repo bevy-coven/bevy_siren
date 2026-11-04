@@ -1,7 +1,47 @@
 # Media
 
-Every file here was captured from `examples/mixer` on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands
-below. A media file a published README names is never moved; a re-capture replaces it in place.
+Every file here was captured on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) with the commands below — from
+`examples/mixer`, except `semantic.png`, which is from `examples/semantic`. A media file a published README names is
+never moved; a re-capture replaces it in place.
+
+## `semantic.png` — index a folder, describe a sound, hear it (iteration 110, `#38`)
+
+![examples/semantic as a terminal transcript](semantic.png)
+
+A terminal transcript, drawn as a still: **no clip**, because the program prints text and ends. Everything in it is real —
+the CLAP audio tower indexed fourteen files, the text tower embedded the description, the ranking and its reasons are the
+library's own, and the `Played` line is `SirenPlugin`'s answer to a `Play` that went to the output device. `semantic.txt`
+is the example's verbatim output and the still is that text drawn, so nothing in the picture is composed. Timings differ
+from run to run; the similarities and the ranking do not.
+
+```sh
+# the library: fourteen macOS system sounds, as 48 kHz WAV (any folder of audio does)
+mkdir -p /tmp/siren-demo-sounds
+for f in Basso Blow Bottle Frog Funk Glass Hero Morse Ping Pop Purr Sosumi Submarine Tink; do
+  afconvert -f WAVE -d LEI16@48000 /System/Library/Sounds/$f.aiff /tmp/siren-demo-sounds/$f.wav
+done
+
+# the two graphs and the tokenizer, once (the guide's "Try it" says what the script checks)
+HF_HUB_OFFLINE=1 python3 tools/export_clap_onnx.py /tmp/siren-clap
+export SIREN_MODEL=/tmp/siren-clap/clap-text.onnx SIREN_VOCAB=/tmp/siren-clap/tokenizer.json \
+       SIREN_AUDIO_MODEL=/tmp/siren-clap/clap-audio.onnx SIREN_MODEL_VERSION="$(cat /tmp/siren-clap/clap-export.txt)"
+cargo build --release --features semantic --example semantic
+
+# the transcript: each command line above its own run, the first run building the index and the second reading it back
+rm -f /tmp/siren-demo-sounds/siren-index
+for q in "a short electronic beep" "a frog croaking"; do
+  echo "\$ cargo run --release --features semantic --example semantic -- /tmp/siren-demo-sounds \"$q\""
+  ./target/release/examples/semantic /tmp/siren-demo-sounds "$q" 2>&1 | grep -v E:onnxruntime
+  echo
+done > docs/media/semantic.txt
+
+# the still: needs Pillow and macOS's Menlo
+python3 docs/media/transcript_png.py docs/media/semantic.txt docs/media/semantic.png
+```
+
+The second query is a miss, kept on purpose: CLAP ranks the system sound named `Frog` eleventh of fourteen at a cosine of
+−0.02, below the floor, because it is a synthetic blip and not a frog. A picture of only the query that worked would say
+more about the library than the model has measured.
 
 ## No clip: iteration 28, a despawned voice frees its mixer slot
 

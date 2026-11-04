@@ -52,9 +52,19 @@ impl ModelStamp {
     /// The version names the measurement rather than a tag, because the spike did not pin a revision: it is
     /// [`crate::semantic::MEASURED_CLAP_VERSION`], and an index stamped with it is an index this crate has evidence for.
     pub fn measured_clap() -> Self {
+        ModelStamp::clap(crate::semantic::MEASURED_CLAP_VERSION)
+    }
+
+    /// A stamp for **a** CLAP export: `laion/clap-htsat-fused`, 48 kHz, 512 dimensions, and the `version` of the export that
+    /// made the vectors — what `tools/export_clap_onnx.py` writes to `clap-export.txt`.
+    ///
+    /// An index records which export made its vectors so that a vector from another export is refused instead of ranked. The
+    /// measured export is one string ([`ModelStamp::measured_clap`]); anyone else's torch and transformers are another, and
+    /// without this constructor a project could not say so — every index had to claim the measured version, or not load.
+    pub fn clap(version: impl Into<String>) -> Self {
         ModelStamp {
             model: "laion/clap-htsat-fused".to_string(),
-            version: crate::semantic::MEASURED_CLAP_VERSION.to_string(),
+            version: version.into(),
             sample_rate: crate::semantic::MODEL_SAMPLE_RATE,
             dimension: crate::semantic::EMBEDDING_DIM,
         }

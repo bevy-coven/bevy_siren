@@ -496,6 +496,39 @@ fn a_binary_index_from_another_model_is_refused() {
     assert!(matches!(err, IndexProblem::ModelMismatch(_)), "{err:?}");
 }
 
+/// **A stamp says which export made the vectors**, and the measured one is only the default. `ModelStamp::clap` is how a
+/// project whose torch and transformers are not the measured ones says so — before it, every index had to claim the measured
+/// version or fail to load, and `siren-tools` could serve no other export.
+#[test]
+fn a_stamp_names_the_export_that_made_the_vectors() {
+    use bevy_siren::semantic::{EMBEDDING_DIM, MEASURED_CLAP_VERSION, MODEL_SAMPLE_RATE};
+
+    let mine = ModelStamp::clap("transformers-4.57.6/torch-2.8.0/opset-17");
+    assert_eq!(mine.version, "transformers-4.57.6/torch-2.8.0/opset-17");
+    assert_eq!(
+        ModelStamp::measured_clap(),
+        ModelStamp::clap(MEASURED_CLAP_VERSION),
+        "the measured stamp is one version of it"
+    );
+    // Everything but the version is the model's, so two exports differ in exactly one field.
+    let measured = ModelStamp::measured_clap();
+    assert_eq!(
+        (mine.model.as_str(), mine.sample_rate, mine.dimension),
+        (measured.model.as_str(), MODEL_SAMPLE_RATE, EMBEDDING_DIM)
+    );
+    assert_ne!(mine, measured);
+
+    // And the loader treats them as the two models they are: an index from one export is refused by the other, naming both.
+    let index = Index::new(mine.clone());
+    let err = Index::from_bytes(&index.to_bytes(), &measured).expect_err("another export");
+    assert!(matches!(err, IndexProblem::ModelMismatch(_)), "{err:?}");
+    assert!(
+        err.to_string().contains("transformers-4.57.6") && err.to_string().contains(MEASURED_CLAP_VERSION),
+        "{err}"
+    );
+    assert!(Index::from_bytes(&index.to_bytes(), &mine).is_ok(), "the export that made it loads it");
+}
+
 /// **The two formats are distinguishable by their bytes**, not by their names, which is what ADR 0004 requires.
 #[test]
 fn a_file_says_which_format_it_is() {

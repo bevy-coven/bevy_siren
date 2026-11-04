@@ -1,7 +1,7 @@
 //! **`siren-tools`**: ADR 0006's tool server — an MCP host over stdio for choosing audio from an indexed library.
 //!
 //! ```sh
-//! cargo run --release --features semantic --bin siren-tools -- <library-dir> [--model <file.onnx> --vocab <tokenizer.json>]
+//! cargo run --release --features semantic --bin siren-tools -- <library-dir> [--model <file.onnx> --vocab <tokenizer.json>] [--model-version <v>]
 //! ```
 //!
 //! It reads **one JSON-RPC message per line on stdin** and writes **one per line on stdout**; everything else — the start-up
@@ -11,7 +11,9 @@
 //!
 //! `<library-dir>` is a directory holding the index file the indexer wrote (`indexer::INDEX_FILE`). With `--model` **and** `--vocab`,
 //! `search_music` embeds descriptions with that graph; without them it answers `unavailable` and says what to add, and the
-//! tools that need only the index (`set_anchor`, `find_compatible_*`, `explain_match`) work either way.
+//! tools that need only the index (`set_anchor`, `find_compatible_*`, `explain_match`) work either way. **`--model-version`** is
+//! the export that made the index's vectors (`tools/export_clap_onnx.py` writes it to `clap-export.txt`); it defaults to the
+//! one version this crate measured, and an index from any other export is **refused** unless it is given.
 
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -27,10 +29,12 @@ use bevy_siren::semantic::tokenizer::Vocabulary;
 
 fn usage() -> String {
     format!(
-        "usage: siren-tools <library-dir> [--model <file.onnx> --vocab <tokenizer.json>]\n\n  <library-dir>  the directory \
-         holding the `{}` file the indexer wrote\n  --model        the CLAP text graph, so `search_music` can embed a \
-         description\n  --vocab        that model's tokenizer.json (--model and --vocab go together)",
-        indexer::INDEX_FILE
+        "usage: siren-tools <library-dir> [--model <file.onnx> --vocab <tokenizer.json>] [--model-version <v>]\n\n  \
+         <library-dir>    the directory holding the `{}` file the indexer wrote\n  --model          the CLAP text graph, so \
+         `search_music` can embed a description\n  --vocab          that model's tokenizer.json (--model and --vocab go \
+         together)\n  --model-version  which export made the index's vectors (default: the measured one, `{}`)",
+        indexer::INDEX_FILE,
+        bevy_siren::semantic::MEASURED_CLAP_VERSION
     )
 }
 
@@ -49,15 +53,17 @@ impl Embed for Clap {
 struct Options {
     library: PathBuf,
     model: Option<(String, PathBuf)>,
+    version: Option<String>,
 }
 
 fn parse(args: impl Iterator<Item = String>) -> Result<Options, String> {
-    let (mut library, mut model, mut vocab) = (None, None, None);
+    let (mut library, mut model, mut vocab, mut version) = (None, None, None, None);
     let mut args = args;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--model" => model = Some(args.next().ok_or("--model needs a file")?),
             "--vocab" => vocab = Some(args.next().ok_or("--vocab needs a file")?),
+            "--model-version" => version = Some(args.next().ok_or("--model-version needs a version string")?),
             flag if flag.starts_with('-') => return Err(format!("unknown option `{flag}`")),
             dir if library.is_none() => library = Some(PathBuf::from(dir)),
             extra => return Err(format!("unexpected argument `{extra}`: one library directory only")),
@@ -73,7 +79,7 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Options, String> {
             ));
         }
     };
-    Ok(Options { library, model })
+    Ok(Options { library, model, version })
 }
 
 fn main() -> ExitCode {
@@ -85,9 +91,13 @@ fn main() -> ExitCode {
         }
     };
 
-    // **The index is checked against the one model this crate has evidence for.** A mismatch is refused by the loader, with
-    // its own sentence, rather than served: ranking across two vector spaces looks like a working feature doing a bad job.
-    let stamp = ModelStamp::measured_clap();
+    // **The index is checked against the export it names.** A mismatch is refused by the loader, with its own sentence,
+    // rather than served: ranking across two vector spaces looks like a working feature doing a bad job. The default is the
+    // one export this crate has evidence for; `--model-version` says which other one made the vectors.
+    let stamp = match &options.version {
+        Some(version) => ModelStamp::clap(version.as_str()),
+        None => ModelStamp::measured_clap(),
+    };
     let index = match indexer::read(&options.library, &stamp) {
         Ok(index) => index,
         Err(why) => {

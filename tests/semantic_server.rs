@@ -1268,6 +1268,55 @@ fn the_binary_refuses_to_start_without_an_index_and_prints_nothing_on_stdout() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("cannot load the model"));
 }
 
+/// **An index from another export is refused until its version is given.** The measured version is only the default: before
+/// `--model-version`, `siren-tools` could serve exactly one torch and one transformers — the author's — and the first real
+/// export on another machine (`transformers-4.57.6/torch-2.8.0/opset-17`) was a stamp mismatch with no way past it.
+#[test]
+fn an_index_from_another_export_is_served_once_its_version_is_given() {
+    let dir = Scratch::new("version");
+    let mut index = Index::new(ModelStamp::clap("my-export/1"));
+    for hash in [0xa0u64, 0xb0] {
+        index.insert(hash, vec![hash as f32; EMBEDDING_DIM]).expect("inserts");
+    }
+    indexer::write(&dir.0, &index).expect("the index is written");
+    let path = dir.0.to_str().expect("a UTF-8 path");
+
+    // Without the flag: refused, naming **both** versions, with nothing on stdout.
+    let refused = run(&[path], "");
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(refused.stdout.is_empty());
+    let log = String::from_utf8_lossy(&refused.stderr);
+    assert!(
+        log.contains("my-export/1") && log.contains(bevy_siren::semantic::MEASURED_CLAP_VERSION),
+        "{log}"
+    );
+
+    // With it: served, and the tools that need only the index work.
+    let input = request(
+        1,
+        "tools/call",
+        &json!({ "name": "set_anchor", "arguments": { "asset_id": "00000000000000a0" } }),
+    );
+    let served = run(&[path, "--model-version", "my-export/1"], &input);
+    assert!(served.status.success(), "{:?}", String::from_utf8_lossy(&served.stderr));
+    let replies = jsonl(&served.stdout);
+    assert_eq!(replies.len(), 1);
+    assert_eq!(replies[0]["result"]["isError"], false);
+    assert!(String::from_utf8_lossy(&served.stderr).contains("2 assets indexed"));
+
+    // A version that is not the one the index names is the same refusal in the other direction.
+    let wrong = run(&[path, "--model-version", "some-other-export"], "");
+    assert_eq!(wrong.status.code(), Some(1));
+    assert!(wrong.stdout.is_empty());
+
+    // And the usage says the flag exists and what its default is, so a person finds it from the refusal.
+    let usage = String::from_utf8_lossy(&run(&[], "").stderr).into_owned();
+    assert!(
+        usage.contains("--model-version") && usage.contains(bevy_siren::semantic::MEASURED_CLAP_VERSION),
+        "{usage}"
+    );
+}
+
 #[test]
 fn the_binary_says_what_it_takes_when_misused() {
     for (args, needle) in [
@@ -1277,6 +1326,7 @@ fn the_binary_says_what_it_takes_when_misused() {
         (vec!["a", "--vocab", "v.json"], "--model and --vocab go together"),
         (vec!["a", "--frobnicate"], "unknown option"),
         (vec!["a", "--model"], "--model needs a file"),
+        (vec!["a", "--model-version"], "--model-version needs a version string"),
     ] {
         let output = run(&args, "");
         assert_eq!(output.status.code(), Some(2), "{args:?}");

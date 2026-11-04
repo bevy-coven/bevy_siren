@@ -57,6 +57,10 @@ every Bevy feature and a hole in its own `[dependencies]` list cannot fail.
 - `src/semantic/server.rs` — behind `semantic`: the MCP tool host (`Host`, `SPECS`, `read_message`) as a library, so a test
   drives it with no process. `src/bin/siren-tools.rs` is the loop around it (ADR 0006, 0008); `serde_json` is its one
   dependency.
+- `examples/semantic.rs` and `tools/export_clap_onnx.py` — the one place the **real** CLAP graphs run: the script makes
+  them from a Hugging Face cache and checks itself against `transformers`; the example indexes a folder, ranks a
+  description and plays the answer. CI has no model, so **no test runs them** (clippy compiles the example) —
+  `docs/guide/semantic.md`, "Try it", is how to run them, and `docs/media/README.md` regenerates the picture.
 - `src/lib.rs` — the plugins, `SirenSystems::{Choose, Play, Mix}`, the re-exports, the quick start doctest.
 
 ## The loop, as a skill

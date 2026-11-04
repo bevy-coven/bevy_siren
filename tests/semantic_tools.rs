@@ -515,6 +515,25 @@ fn search_music_bounds_k() {
     }
 }
 
+/// **A bad `k` is explained by the case it is, not by the other one.** The message told a caller who had asked for 101 that *"a k
+/// of 0 asks for nothing"* — found by running `examples/semantic --k 101` — and an agent that asked for more cannot act on advice
+/// about less.
+#[test]
+fn a_bad_k_is_explained_by_its_own_case() {
+    use bevy_siren::semantic::tools::{MAX_K, check_k};
+
+    let zero = check_k(0).expect_err("zero is refused").to_string();
+    assert!(zero.contains("asks for nothing"), "{zero}");
+    assert!(!zero.contains("at most"), "{zero}");
+
+    let large = check_k(MAX_K + 1).expect_err("above the cap is refused").to_string();
+    assert!(
+        large.contains(&format!("at most {MAX_K}")) && large.contains(&(MAX_K + 1).to_string()),
+        "{large}"
+    );
+    assert!(!large.contains("k of 0"), "a caller that asked for more is not told about zero: {large}");
+}
+
 /// **`#31`: every tool's failure carries the same shape, and the bad-argument/refused split is real.**
 #[test]
 fn every_failure_has_a_code_and_only_bad_arguments_are_retryable() {

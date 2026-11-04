@@ -93,8 +93,13 @@ analysed libraries:
 | 1 000 | 2.05 MB | 3.4 ms | 0.2 ms | 0.70 ms | 0.55 ms | 0.02 ms |
 | 10 000 | 20.51 MB | 34.2 ms | 1.2 ms | **18.2 ms** | 5.3 ms | 0.02 ms |
 
-**Not measured: loading the 501 MB ONNX graph, and the text encode** — the graph is not on this machine. A host started
-without `--model` pays neither.
+**Measured with the real graph** (iteration 110: `laion/clap-htsat-fused`'s text tower exported by `tools/export_clap_onnx.py`,
+501 MB, 14-asset library, this Mac, release build, warm file cache, driven through a Python pipe so every figure includes
+that round trip): **start-up to the first reply is 0.9 s** — the index read and the graph load together — and
+**`search_music` is 4.6–5.6 ms a call**, of which the text encode is about 5 ms (`examples/semantic` prints 5.4–6.2 ms for
+the encode alone). `set_anchor`, `explain_match` and `find_compatible_*` took 0.06–0.2 ms a call. A **cold** load, from a
+disk that has not read the file recently, is not measured. A host started without `--model` pays neither the load nor the
+encode.
 
 `find_compatible_*` is 3.5× the cost of `search_music` at 10 000 assets because it scores **every** candidate with the
 ensemble before truncating to `k` (the hard rules and the weights reorder the result, so it cannot rank by cosine first the way

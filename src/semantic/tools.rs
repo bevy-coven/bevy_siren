@@ -78,7 +78,14 @@ impl core::fmt::Display for ToolProblem {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             ToolProblem::BadK { k, max } => {
-                write!(f, "k must be between 1 and {max}, and {k} is not. A k of 0 asks for nothing")
+                write!(f, "k must be between 1 and {max}, and {k} is not. ")?;
+                // The reason belongs to the case: a `k` of 101 used to be told *"a k of 0 asks for nothing"*, which an agent
+                // that asked for more, not less, cannot act on.
+                if *k == 0 {
+                    f.write_str("A k of 0 asks for nothing")
+                } else {
+                    write!(f, "k is a bound, not a page: a call returns at most {max}")
+                }
             }
             ToolProblem::NoAnchor => {
                 f.write_str("no anchor is set. Call `set_anchor(asset_id)` first, or pass one explicitly")

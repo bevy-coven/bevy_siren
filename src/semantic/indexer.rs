@@ -379,7 +379,8 @@ pub const INDEX_FILE: &str = "siren-index";
 /// | **decode target** | **700 clips/s** — the crate's own work: open, downmix, resample, loudness, spectral, tempo, key |
 /// | measured | **748 clips/s** at 400 clips on this Mac (`cargo run --release --features semantic --example indexbench -- <dir> 400`), and 750 at 300 in iteration 95 |
 /// | **what a "clip" is** | **0.5 s** of 48 kHz mono, which is what `indexbench` generates. The figure is **per clip**, so it is proportional to duration: a 4 s clip measures about **83 clips/s** on the same machine. Comparing a rate against this constant without matching the duration is comparing two different measurements — which is what a first draft of the test did |
-/// | **inference target** | **not set** — needs the ONNX graph on a GPU host, which this repository's CI does not have |
+/// | **inference, on a CPU** | **16.6 clips/s** end to end with the real audio tower — `examples/semantic` over 280 distinct ~1 s clips, M4, fp32, batch 1, decode included — so **60 ms a clip** and 5 000 clips take about **five minutes**. A measurement, not a target. Of the 60 ms, **35 ms is the tower and 26 ms is this crate's own mel spectrogram** (30 repetitions on one clip; the two run one after the other) |
+/// | **inference target** | **not set** — the GPU figure needs the ONNX graph on a GPU host, which this repository's CI does not have |
 /// | peak VRAM | **not measured**, for the same reason |
 ///
 /// # Why 700, when the measurement is 748
@@ -391,15 +392,16 @@ pub const INDEX_FILE: &str = "siren-index";
 /// # The bound
 ///
 /// **Decode is the bound on a machine with no model**, and **inference dominates on a CPU with one**: ADR 0002 measured
-/// the audio tower at **34.9 ms per clip** against a decode of **0.37 ms** — about 100×. So the interesting figure for a
-/// real library is the GPU one, and it is the one still owed. `indexbench`'s synthetic `embed` column is labelled as
-/// synthetic precisely so nobody reads it as the model.
+/// the audio tower at **34.9 ms per clip** against a decode of **0.37 ms** — about 100× — and the first end-to-end run with
+/// the real graph measured **60 ms a clip** all told, the tower's 35 ms plus 26 ms of this crate's mel spectrogram. So the
+/// interesting figure for a large library is the GPU one, and it is the one still owed. `indexbench`'s synthetic `embed`
+/// column is labelled as synthetic precisely so nobody reads it as the model.
 ///
 /// # What that implies
 ///
-/// At 748 clips/s the crate's own work for 5 000 clips is **7 s**; the projection including inference on a GPU needs the
-/// measurement that does not exist here. Stating *"3 s"* or *"30 min"* without that number would be the aspiration `#36`
-/// forbids.
+/// At 748 clips/s the crate's own work for 5 000 clips is **7 s**; with the real tower on a CPU the same library is about
+/// **five minutes** (60 ms a clip, measured end to end). The projection on a GPU needs the measurement that does not exist
+/// here, and stating *"3 s"* or *"30 min"* for it without that number would be the aspiration `#36` forbids.
 pub const INDEX_TARGET_CLIPS_PER_SEC: f64 = 700.0;
 
 /// The library size the target is stated for, matching the crate's other projections.

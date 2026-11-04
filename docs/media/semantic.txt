@@ -1,0 +1,51 @@
+$ cargo run --release --features semantic --example semantic -- /tmp/siren-demo-sounds "a short electronic beep"
+semantic: CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here — 14 assets in `/tmp/siren-demo-sounds`
+          model version transformers-4.57.6/torch-2.8.0/opset-17
+index:    none yet; building
+          audio graph loaded in 0.3 s
+          14 indexed in 1.1 s (12.7 clips/s)
+          written to `/tmp/siren-demo-sounds/siren-index`
+text:     graph loaded in 0.4 s
+          encoded in 5.9 ms, ranked 14 assets in 0.02 ms
+
+"a short electronic beep"  — top 3
+  1. Sosumi.wav   score 0.206   similarity 0.206
+     semantic carried it (+0.206 from 0.20648861 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  2. Purr.wav   score 0.168   similarity 0.168
+     semantic carried it (+0.168 from 0.16776295 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  3. Ping.wav   score 0.158   similarity 0.158
+     semantic carried it (+0.158 from 0.15832542 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  (3 returned)
+  scores are CLAP cosines, not percentages — what a good one looks like is in docs/guide/semantic.md, "The floor"
+
+playing the chosen result on the Music bus …
+Played    audition.89f4c994c2850cba on the Music bus at +0.0 dB, variant `Sosumi.wav`
+done
+
+$ cargo run --release --features semantic --example semantic -- /tmp/siren-demo-sounds "a frog croaking"
+semantic: CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here — 14 assets in `/tmp/siren-demo-sounds`
+          model version transformers-4.57.6/torch-2.8.0/opset-17
+index:    14 assets, read from `siren-index` — current, so no audio graph was loaded
+text:     graph loaded in 0.2 s
+          encoded in 6.8 ms, ranked 14 assets in 0.01 ms
+
+"a frog croaking"  — top 3
+  1. Purr.wav   score 0.145   similarity 0.145
+     semantic carried it (+0.145 from 0.14542109 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  2. Pop.wav   score 0.087   similarity 0.087
+     semantic carried it (+0.087 from 0.08723248 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  3. Funk.wav   score 0.086   similarity 0.086
+     semantic carried it (+0.086 from 0.0862062 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  (3 returned)
+  scores are CLAP cosines, not percentages — what a good one looks like is in docs/guide/semantic.md, "The floor"
+
+playing the chosen result on the Music bus …
+Played    audition.b32a6185f7523b4d on the Music bus at +0.0 dB, variant `Purr.wav`
+done
+

@@ -53,6 +53,12 @@ required-features = ["semantic"]
 name = "hostbench"
 required-features = ["semantic"]
 
+# #38's playable example: index a folder, describe a mood, hear the result. `semantic` is required for the same reason
+# `budget` carries `mixer`: CI runs `cargo build --examples`, and an example may not break a build that lacks its feature.
+[[example]]
+name = "semantic"
+required-features = ["semantic"]
+
 # ADR 0006's tool server: one `[[bin]]` in this crate, behind `semantic`. `required-features` is what makes
 # `cargo build` without the feature build no binary (`#28`'s fourth criterion), asserted by `tests/semantic_server.rs`.
 [[bin]]
