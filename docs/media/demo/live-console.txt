@@ -1,0 +1,21 @@
+2026-11-04T11:57:13.441665Z  INFO demo: the tour: 11 keys asked of `audio/demo/`
+2026-11-04T11:57:13.624413Z  INFO demo: 0.00s played `music.calm` (music_calm.ogg) on Music at -80.00 dB
+2026-11-04T11:57:13.624438Z  INFO demo: 0.00s played `music.combat` (music_combat.ogg) on Music at -80.00 dB
+2026-11-04T11:57:13.930513Z  INFO demo: 0.18s played `footstep.grass` (step_02.ogg) on Effects at -3.00 dB
+2026-11-04T11:57:13.937305Z  INFO demo: 0.48s stopped `footstep.grass`: ended
+2026-11-04T11:57:14.567572Z  INFO demo: 1.10s played `footstep.grass` (step_03.ogg) on Effects at -3.00 dB
+2026-11-04T11:57:14.830431Z  INFO demo: 1.34s stopped `footstep.grass`: ended
+2026-11-04T11:57:15.117206Z  INFO demo: 1.63s played `footstep.grass` (step_01.ogg) on Effects at -3.00 dB
+2026-11-04T11:57:15.346115Z  INFO demo: 1.86s stopped `footstep.grass`: ended
+2026-11-04T11:57:15.625385Z  INFO demo: 2.15s played `footstep.grass` (step_03.ogg) on Effects at -3.00 dB
+2026-11-04T11:57:15.813299Z  INFO demo: 2.33s stopped `footstep.grass`: ended
+2026-11-04T11:57:16.147388Z  INFO demo: 2.66s played `footstep.grass` (step_02.ogg) on Effects at -3.00 dB
+2026-11-04T11:57:16.409880Z  INFO demo: 2.93s stopped `footstep.grass`: ended
+2026-11-04T11:57:18.549897Z  INFO demo: 5.06s played `wind` (wind.ogg) on Ambience at -12.00 dB
+2026-11-04T11:57:22.545257Z  INFO demo: 9.06s dialogue.greeting ducked Music by -8.0 dB
+2026-11-04T11:57:22.545281Z  INFO demo: 9.06s dialogue.greeting ducked Effects by -4.0 dB
+2026-11-04T11:57:22.545286Z  INFO demo: 9.06s played `dialogue.greeting` (line_02.ogg) on Dialogue at 0.00 dB
+2026-11-04T11:57:23.029971Z  INFO demo: 9.54s stopped `dialogue.greeting`: ended
+2026-11-04T11:57:30.542657Z  INFO demo: 17.06s played `music.stinger` (stinger.ogg) on Music at 0.00 dB
+2026-11-04T11:57:30.542682Z  INFO demo: 17.06s stinger ducked Music by -6.0 dB
+2026-11-04T11:57:31.177111Z  INFO demo: 17.69s stopped `music.stinger`: ended

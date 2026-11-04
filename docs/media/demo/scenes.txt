@@ -1,0 +1,104 @@
+== 1 · three footsteps   3.0 s
+   peak -9.1 dBFS   rms -29.6 dBFS   at the rail 0
+   Ambience   deepest -9.0 dB
+   Dialogue   deepest 0.0 dB
+   Effects    deepest -3.0 dB
+   Music      deepest -6.0 dB
+   0.03s played `footstep.grass` (step_02.ogg) on Effects at -3.00 dB
+   0.54s played `footstep.grass` (step_01.ogg) on Effects at -3.00 dB
+   0.62s stopped `footstep.grass`: ended
+   0.99s stopped `footstep.grass`: ended
+   1.04s played `footstep.grass` (step_03.ogg) on Effects at -3.00 dB
+   1.47s stopped `footstep.grass`: ended
+   1.54s played `footstep.grass` (step_01.ogg) on Effects at -3.00 dB
+   2.00s stopped `footstep.grass`: ended
+   2.03s played `footstep.grass` (step_03.ogg) on Effects at -3.00 dB
+   2.45s stopped `footstep.grass`: ended
+   2.54s played `footstep.grass` (step_02.ogg) on Effects at -3.00 dB
+
+== 2 · a burst   2.0 s
+   peak -8.9 dBFS   rms -32.6 dBFS   at the rail 0
+   Ambience   deepest -9.0 dB
+   Dialogue   deepest 0.0 dB
+   Effects    deepest -3.0 dB
+   Music      deepest -6.0 dB
+   3.04s played `gun.burst` (hit_01.ogg) on Effects at -4.00 dB
+   3.09s stopped `footstep.grass`: ended
+   3.62s stopped `gun.burst`: ended
+
+== 3 · a bed and a pad   4.0 s
+   peak -13.8 dBFS   rms -23.2 dBFS   at the rail 0
+   Ambience   deepest -9.0 dB
+   Dialogue   deepest 0.0 dB
+   Effects    deepest -3.0 dB
+   Music      deepest -6.0 dB
+   5.04s played `wind` (wind.ogg) on Ambience at -12.00 dB
+   5.04s played `music.calm` (music_calm.ogg) on Music at 0.00 dB
+
+== 4 · a line ducks the music   4.0 s
+   peak -4.7 dBFS   rms -21.1 dBFS   at the rail 0
+   Ambience   deepest -9.0 dB
+   Dialogue   deepest 0.0 dB
+   Effects    deepest -7.0 dB
+   Music      deepest -14.0 dB
+   9.04s dialogue.greeting ducked Music by -8.0 dB
+   9.04s dialogue.greeting ducked Effects by -4.0 dB
+   9.04s played `dialogue.greeting` (line_02.ogg) on Dialogue at 0.00 dB
+   9.97s stopped `dialogue.greeting`: ended
+
+== 5 · the layer changes on the bar   4.0 s
+   peak -9.9 dBFS   rms -20.0 dBFS   at the rail 0
+   Ambience   deepest -9.0 dB
+   Dialogue   deepest 0.0 dB
+   Effects    deepest -7.0 dB
+   Music      deepest -14.0 dB
+   13.04s played `music.combat` (music_combat.ogg) on Music at 0.00 dB
+
+== 6 · a stinger   3.0 s
+   peak -7.5 dBFS   rms -19.1 dBFS   at the rail 0
+   Ambience   deepest -9.0 dB
+   Dialogue   deepest 0.0 dB
+   Effects    deepest -7.0 dB
+   Music      deepest -14.0 dB
+   17.04s played `music.stinger` (stinger.ogg) on Music at 0.00 dB
+   18.22s stopped `music.stinger`: ended
+
+== 7 · the budget   4.0 s
+   peak -3.8 dBFS   rms -20.5 dBFS   at the rail 0
+   Ambience   deepest -9.0 dB
+   Dialogue   deepest 0.0 dB
+   Effects    deepest -7.0 dB
+   Music      deepest -14.0 dB
+   20.45s played `hit` (hit_01.ogg) on Effects at -9.00 dB
+   20.45s played `hit` (hit_01.ogg) on Effects at -9.00 dB
+   20.45s played `hit` (hit_01.ogg) on Effects at -9.00 dB
+   20.45s stopped `hit`: stolen by hit (cue)
+   20.45s played `hit` (hit_01.ogg) on Effects at -9.00 dB
+   20.45s stopped `hit`: stolen by hit (cue)
+   20.45s played `hit` (hit_01.ogg) on Effects at -9.00 dB
+   20.45s stopped `hit`: stolen by hit (cue)
+   20.45s played `hit` (hit_01.ogg) on Effects at -9.00 dB
+   21.01s stopped `hit`: ended
+   21.01s stopped `hit`: ended
+   21.04s stopped `hit`: ended
+
+== 8 · distance   4.0 s
+   peak -3.4 dBFS   rms -20.2 dBFS   at the rail 0
+   Ambience   deepest -9.0 dB
+   Dialogue   deepest 0.0 dB
+   Effects    deepest -7.0 dB
+   Music      deepest -14.0 dB
+   24.45s played `bang` (hit_01.ogg) on Effects at 0.00 dB
+   24.45s played `bang` (hit_01.ogg) on Effects at -12.04 dB
+   24.99s stopped `bang`: ended
+   25.02s stopped `bang`: ended
+
+== 9 · a mistake   4.0 s
+   peak -9.5 dBFS   rms -20.2 dBFS   at the rail 0
+   Ambience   deepest -9.0 dB
+   Dialogue   deepest 0.0 dB
+   Effects    deepest -7.0 dB
+   Music      deepest -14.0 dB
+   28.45s refused `footstep.grss`: no cue of that name
+
+== the whole tour   32.0 s   peak -3.4 dBFS   rms -21.2 dBFS   at the rail 0

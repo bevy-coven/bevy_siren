@@ -6,6 +6,7 @@
 //! here, or `every_test_file_is_a_module` fails: an undeclared file is never compiled and its tests never run.
 
 mod console;
+mod demo;
 mod ensemble;
 mod failed_load;
 mod helpers;

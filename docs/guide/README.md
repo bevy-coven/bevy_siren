@@ -14,4 +14,8 @@ Every page here is about one thing a game does with sound, the way `bevy_siren` 
 - [The Cauldron](cauldron.md) — what `bevy_grimoire`'s audio panel reads and writes in
   `<project>/family/bevy_siren.ron`.
 
+**Start with the tour**: `cargo run --example demo` plays nine scenes in about half a minute — one per page below — with a
+panel showing the crate's own mix, music state and log. `examples/demo_render` writes the same scenes as WAVs plus a
+bus-gain plot and a report, which is how the numbers in the root README are measured.
+
 The design rules and their sources are in [the research note](../research/siren.md).

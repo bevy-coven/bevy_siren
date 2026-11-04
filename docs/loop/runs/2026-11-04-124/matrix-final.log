@@ -1,0 +1,66 @@
+# Iteration 124 (README + demos) — the final matrix, and the disk that stopped it
+
+**The tree**: `examples/demo.rs`, `examples/demo_render.rs`, `tools/make_demo_sounds.py`, `assets/audio/demo/` (11 CC0
+Ogg files), `tests/demo.rs` (8 tests), the README rewritten to the Coven standard, `docs/media/demo/`, `CHANGELOG.md`,
+`docs/guide/README.md`, `assets/README.md`, `docs/media/README.md`.
+
+## What passed, from a clean `target` (14.8 GB free at the start, `cargo clean` run with the owner's approval)
+
+| step | result |
+|---|---|
+| `cargo build` | **green** |
+| `cargo test` | **green** |
+| `cargo test --features serde` | **green** |
+| `cargo test --features semantic` | **green** |
+| `cargo test --features mixer` | **green** |
+| `cargo test --all-features --tests -j 1` | **green — 129 + 593** |
+| `cargo test --doc` | **green (7)** |
+| `cargo test --features readme-example --test all readme::` | **green (1)** |
+| `cargo clippy --all-targets --all-features -- -D warnings` | **green** (2 m 34 s — a full dependency rebuild) |
+| `cargo fmt --check` | **green** |
+| `cargo doc --no-deps --all-features` | **green** |
+| `cargo check --examples --all-features` | **green** — every example compiles with every feature |
+| `cargo build --examples` / `--examples --all-features` | **RED — the disk**, `ld: write() failed, errno=28` |
+
+**The suite before the disk filled**, from the same tree: **255 passed** in `all` (247 + the 8 in `tests/demo.rs`), and the
+demo's own tests were run on their own many times while it was built.
+
+## The disk, measured
+
+The volume is at 100 % and the five feature sets' debug artifacts are **13 GB of dependency rlibs** — five copies of
+`bevy_pbr` at 360 MB, five of `bevy_ui` at 186 MB, because Cargo unifies features per build and this crate's tests are run
+five ways. A clean `target` reached **14.8 GB free**, and the full matrix put it back to **0.17 GB free** by the example
+steps. From there every link fails, including the test binary's, with
+`rustc-LLVM ERROR: IO failure on output stream: No space left on device`.
+
+**What was cleaned, in order** (the last with the owner's explicit approval): this crate's artifacts (`cargo clean -p`,
+twice), today's example object files (`target/debug/examples/*.rcgu.o`), this session's own scratch binaries
+(`scratch_typo`, 2 × 520 MB; `scratch_refusals`, `scratch_draws`), and finally the whole `target/` (16.3 GiB) — which the
+owner approved on the understanding that the next build recompiles everything, which it did, in about fifteen minutes,
+and which then filled the volume again.
+
+**What was NOT deleted, and why**: `~/.cache/huggingface` (50 GB, the owner's, and the CLAP weights the semantic examples
+need); the stale `diag`/`zzdump`/`zz_demo_library` binaries from iterations 110 – 113 (they predate this session); the
+dependency caches inside `target/` a second time (the owner approved one clean, and a second would be the same question
+again).
+
+**Consequence for this iteration**: the code is verified — every test set green, clippy `-D warnings` green on all
+targets including both new examples, rustdoc green, `cargo check --examples --all-features` green — but the **example
+binaries could not be linked** at the end, so `cargo build --examples` and `cargo build --examples --all-features` are
+unproven on this tree by this machine's linker, not by its compiler. Both new examples *were* built and run earlier in the
+iteration, before the disk was exhausted: `examples/demo` ran on the real window and output device (its console and the
+duck/stinger lines are in `docs/media/demo/live-console.txt`), and `examples/demo_render` wrote the WAVs, the bus-gain
+plot and `scenes.txt` that the README's numbers come from.
+
+## Reproducing it elsewhere
+
+On a machine with room, from a clone:
+
+```sh
+cargo test --all-features --tests -j 1
+cargo build --examples --all-features
+cargo run --example demo
+CARGO_INCREMENTAL=0 cargo run --release --example demo_render -- /tmp/demo
+```
+
+The last two are the parts this volume could not finish; the first two are what CI runs.

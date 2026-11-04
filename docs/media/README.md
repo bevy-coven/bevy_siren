@@ -4,6 +4,45 @@ Every file here was captured on macOS (arm64, Bevy 0.20, `bevy_siren` 0.1.0) wit
 `examples/mixer`, except `semantic.png`, `golden.png` and `golden-kenney.png`, which are from `examples/semantic` and `examples/goldenbench`. A media
 file a published README names is never moved; a re-capture replaces it in place.
 
+## `demo/` — the tour, as pictures and as numbers (2026-11-04, iteration 123)
+
+**No GIF, and why.** The tour is a windowed example and its hero picture would be a capture of the panel; this machine
+could not take one when the demo was built — `screencapture` answered `could not create image from display` because the
+display was asleep, and even `examples/mixer`'s previously-good capture came back black (measured: 1 colour in a
+1280 × 720 PNG). Rather than ship a composed mock-up, the demo ships what it can prove: the crate's own bus gains as a
+line, the sum as a spectrogram, and the run's report. Re-capture the still with the command below when a display is awake
+and add it beside these.
+
+| file | what it is |
+|---|---|
+| `bus-gain.png`, `bus-gain.svg`, `bus-gain.csv` | each bus's gain through the 32 s tour, from the crate's `SirenMix` — Music dipping to −14 dB while a line plays, Effects to −7, Ambience and Dialogue flat |
+| `tour.png` | the whole tour's spectrogram, 32 s: nine scenes, the walk's transients, the bed and the pad, the hit cluster |
+| `duck.png` | scene 4's spectrogram, 4 s |
+| `scenes.txt` | every scene's peak, RMS, bus depths and **the crate's own log lines** |
+
+```sh
+# the sound set, once (deterministic; `--check` verifies the files on disk decode to the same samples)
+python3 tools/make_demo_sounds.py assets/audio/demo
+
+# the render: one WAV per scene, the whole tour, the bus-gain plot and the report
+CARGO_INCREMENTAL=0 cargo run --release --example demo_render -- /tmp/demo
+ffmpeg -y -i /tmp/demo/mix.wav -lavfi "showspectrumpic=s=1000x320:legend=1:scale=log:color=intensity" docs/media/demo/tour.png
+ffmpeg -y -i /tmp/demo/scene-4.wav -lavfi "showspectrumpic=s=900x280:legend=1:scale=log:color=intensity" docs/media/demo/duck.png
+cp /tmp/demo/bus-gain.{csv,svg} /tmp/demo/scenes.txt docs/media/demo/
+# bus-gain.png is the same CSV drawn: `examples/demo_render` writes the SVG, and the PNG beside it was drawn from the CSV
+# with Pillow at 1000 × 300 (the numbers are identical; the PNG exists because a tool that reads pictures cannot read SVG).
+
+# the loudness the README quotes
+ffmpeg -nostats -i /tmp/demo/mix.wav -af ebur128=peak=true -f null - 2>&1 | grep -E "^    (I|LRA|Peak):"
+
+# the still, when a display is awake (SIREN_FRAMES is a frame count at ~60 fps; 420 is scene 4)
+BEVY_ASSET_ROOT=$PWD SIREN_SHOT=/tmp/demo.png SIREN_FRAMES=420 cargo run --example demo
+```
+
+Tests: `tests/demo.rs` — the table has no `problems()`, every key has a file that decodes to sound, the recordings are
+the lengths the generator makes (read from the Ogg granule, not from the decoder's padded count), the loops are whole
+bars and join without a click, and the table holds the two `max_instances` lessons a real run found.
+
 ## `semantic.png` — index a folder, describe a sound, hear it (iteration 110, `#38`)
 
 ![examples/semantic as a terminal transcript](semantic.png)
