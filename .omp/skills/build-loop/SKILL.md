@@ -217,6 +217,15 @@ Write the verdicts in `runs/<dir>/review.md`, **three passes, each with a writte
 Verdicts are **GREAT, NOT YET, FAIL**; only GREAT passes. Any fix returns you to the earliest pass it could affect. After
 5 failed rounds, log the blocker in `log.md` and revert to the last GREAT state.
 
+**A measurement changes every sentence that quoted the old answer, and every count in prose is a claim** (iteration 113 paid for all four below in one review):
+
+- **Grep for the old answer before committing** — its number and its name — across `README.md`, `docs/guide/`, `docs/adr/`, the `src/` and `examples/` doc comments. A second golden library overturned
+  `0.35` and six places still offered it.
+- **Recompute every count you write by script from the evidence, never from memory of an earlier analysis.** Four counts typed into a guide were wrong (21 of 29 for 13; five classes for seven).
+- **A headline statistic over a few dozen questions gets an interval before it goes in a table**: resample the *questions* (a bootstrap), and a proportion gets a Wilson interval. 29 × 18 pairs of descriptions
+  are not 522 measurements; here the AUC did not separate the two libraries in one wording and a count did.
+- **Write the predictions down before the run and score them, wrong ones first.** Three of eight were wrong, all in the flattering direction.
+
 ## 7. Ship
 
 In this order: update the docs (`docs/guide/`, rustdoc, the README line, a `CHANGELOG.md` line with a `--sha`), commit,

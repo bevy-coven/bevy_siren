@@ -7,6 +7,61 @@ in [`cues.yaml`](cues.yaml); each iteration's own research, plan, evidence and t
 [`runs/YYYY-MM-DD-NN/`](runs/README.md), and a question the loop will not decide itself goes to
 [`needs-decision/`](needs-decision/README.md).
 
+## Iteration 113 — 2026-11-03 — the second golden library: game audio answers the floor question the other way
+
+**Change.** `#35`'s second library — **303 game sounds from Kenney's CC0 packs**, 29 classes, WAV, MP3 and Ogg Vorbis in one folder, 221 of the 303 under a second — run through the real CLAP
+model. `golden/kenney/` (a manifest pinning seven archives and 303 files by SHA-256, the labels, two files of 47 queries), `tools/fetch_kenney.py` (one command; a stray, damaged or wrong-bytes
+file is refused by name), **`goldenbench --set <name>`** with a baseline per set, and three additive public items: `semantic::eval::{centred, separation, Separation}`. The labels and queries were
+**committed before the model ran** (`c303915`), with eight predictions. 12 tests (`tests/semantic_golden.rs`), each red first. **ESC-50's identity string is byte-identical and its baseline still
+compares: no regression, all seven metrics +0.0000.**
+
+**Rationale.** Rank 1 of iteration 112's own list: the evidence the floor decision was waiting on, and the one question 112 raised — *are a game's correct scores near 0.2 or near ESC-50's 0.47?*
+
+**What it found** (maintainer's / stranger's wording; ESC-50 in brackets). Zero-shot **37.3 %** (87.8); hit@1 **31 / 31 %** (90 / 72); hit@3 **51.7 / 37.9 %** (100 / 84); the right answers' median cosine
+**0.191 / 0.193** (0.468 / 0.402); the weakest top result of an answerable description **0.261 / 0.238** (0.492 / 0.405). *A helicopter* finds an `engine` at **0.490**, above the best result of 27 of 29 answerable
+descriptions; one class is the first result for 22 of 47 descriptions (a hub, skewness 4.78 against ESC-50's 3.82). **13 of 29 descriptions have a best result under 0.35** (Wilson 95 %: 28 – 62 %; 6 of 29 in
+the stranger's wording) against **0 of 50** (0 – 7 %): iteration 111's `0.35`, free on ESC-50, **returns nothing at all** for them, and loses a fifth to a half of the hits. **0.20 is the largest floor that cost
+neither library an answer in either wording, and it silences no no-answer query** — the largest floor that cost nothing here, not a safe one. A floor *relative to the query* (`eval::centred`) *lowers* Kenney's
+AUC (0.759 → 0.626; the interval of the difference excludes zero in both wordings). The default stays `0.0`; `needs-decision/default-floor.md` **recommends keeping it** and withdraws `0.35` for good.
+
+**The retractions and catches, because the work was wrong first.** *Three of eight predictions were wrong and one half right*, all optimistic about the model on game audio (retrieval predicted 60 – 85 % at hit@1, measured 31 %; centring
+predicted to help, it hurt). *Four counts in the guide, typed from memory, were wrong* (21 of 29 → 13; five classes at 0 % → seven; a third to a half → a fifth to a half; "within one query" → exact, one, two) — caught by recomputing from the
+dumps before the commit. *The Python cross-check disagreed with the crate twice*: `np.median` against the crate's nearest rank, and an **`f32` AUC that printed an exact 0.9625 as 0.962** (now an `f64`). *The finding left six stale claims*
+(`semantic.md`, two doc comments, the README, the guide's own first section, ADR 0009): rewritten, and a grep for `0.35` is clean. *The plan's fallback — "a project sets a floor from its own no-answer queries" — was refuted by its
+own data* (the strongest no-answer top is above 27 of 29 answerable tops): the guide now says to use the answerable ones. And **a bootstrap over the descriptions, asked on reading `separation` rather than before,
+showed the AUC alone does not separate the two libraries in the stranger's wording** (Kenney 0.65 – 0.94, ESC-50 0.78 – 0.96); the count of descriptions under 0.35 does. The guide, the decision file, `semantic.md`, the CHANGELOG
+and the `#35` comment say so.
+
+**Checked by something else.** A Python recomputation agrees on the seven metrics, the separation and 55 floor cells on **each of four runs** (both libraries, both wordings); against `transformers` on all 303 files the
+48 kHz clips are **identical**, the 44.1 kHz ones differ by a resampler's amount (median 1.1 × 10⁻³, mean over all similarities 0.004), and hit@1 and hit@3 are exact. Padding (`pad` against the model's own `repeatpad`) gave **no
+consistent gain**, so nothing changed. Ten wrong uses of `goldenbench` (a partial library, a padded one, another set's labels, `--bless` with the wrong queries file …) each exit 2 with one sentence, writing nothing.
+
+**Evidence.** [`runs/2026-11-03-113/`](runs/2026-11-03-113/) — `research.md` (eight sources and the predictions), `plan.md`, `eval.md` (before and after), `perf.md`, `review.md`, `matrix.log`; `evidence/after/` (both `goldenbench` outputs
+per library and wording, the ESC-50 refactor proof, `kenney_parity.py` and its output, `normalisations.py` (hubness; the gallery-side normalisation, exploratory), `bootstrap.py`, `goldenbench-edge-cases.txt`, the render set,
+`spectrograms/`).
+
+**Clips:** none; the visible change is two terminal stills, [`golden-kenney.png`](../media/golden-kenney.png) and the re-captured [`golden.png`](../media/golden.png) (new sections 3b and 4b).
+
+**Baseline:** green on arrival — 200 / 209 / 505 + 109 / 210 / 529 + 109, 6 doc, 1 readme, clippy, fmt, rustdoc. After: **200 / 209 / 517 + 109 / 210 / 541 + 109**, 6 doc, 1 readme, clippy `-D warnings`, fmt, rustdoc `-D warnings`, examples
+both ways; **render 21 of 21 WAVs byte-identical** to 112's, −21.5 LUFS, −7.5 dBFS TP, two spectrograms read; per-frame 0.064 – 0.065 / 0.296 – 0.343 / 1.044 – 1.217 µs at 8 / 64 / 256 voices, three runs on a shared machine at
+load 2.4 (inside the band). **The Cauldron's panel test was not run**: the editor pins `82d227e`, ~216 commits back, and its 14 GB target does not fit.
+
+**Verdicts.** Function **GREAT** (after five claims that outran their evidence), zoom **GREAT**, fresh eyes **GREAT**. **Commit** `ee020d3`; comment on `#35`.
+
+**Recorded, not fixed.** The example still prints *"1 assets"* beside *"4 failed"* for a folder of broken files (112). `mixer` plays the near-silent Ogg padding and **nobody has listened** to an Ogg, FLAC or MP3 through it. The classes are
+the author's file names, grouped, and nobody has judged them. At least three bash calls in the last stretch read files with `sed`/`grep`/`ls` against the standing instruction (`review.md`).
+
+**Top 5 remaining.**
+
+1. **A hubness correction, measured with a bank held out from the evaluation** — on both libraries in both wordings, with the criterion written first: *some* threshold on the normalised score keeps every answerable description's top
+   result and silences a real share of the unanswerable. The exploratory result (Kenney AUC 0.76 → 0.93) used the set's own descriptions as the bank and is transductive. The crate change (an index-time statistic, a public type) is the owner's.
+2. **The default-floor decision** — `needs-decision/default-floor.md`: *keep `0.0`*; `0.20` is the only positive value the data supports and it is cosmetic. Owner's.
+3. **The mixer path**: listen to Ogg, FLAC and MP3 through `MixerBackend`; decide whether it should cut the Ogg padding too (a `Completes` timing question); the upstream report in `runs/2026-11-03-112/upstream-symphonia-vorbis.md` is ready to file.
+4. **Resampler fidelity at 44.1 kHz** (rubato against scipy and soxr, which is nearer what the model was trained on), a model-backed `update_from_model` so one new file costs one clip, and **a third library** of a different recording style to
+   tell *"the answer is about game audio"* from *"the answer is about Kenney"*.
+5. **Waiting on a person, another repository or hardware:** `#35`'s anchor pairs; `#32`–`#34` the editor (pinned ~216 commits back); `#39` (decided not to ship, ADR 0005); `#36`'s GPU figure; `find_compatible_*` speed;
+   `needs-decision/headless-discovery.md`; iteration 105's `#[non_exhaustive]`; and the CI gap — nothing runs the benchmark, so both baselines are compared by whoever runs `goldenbench`.
+
 ## Iteration 112 — 2026-11-03 — two of five formats could not be decoded, and nothing had ever tried
 
 **Change.** `library::AUDIO_EXTENSIONS` lists `wav ogg oga flac mp3` and calls them *"the formats the crate can decode"*; `rodio` was given
