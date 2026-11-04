@@ -1,0 +1,7 @@
+test mixer::tests::a_voice_that_plays_once_follows_its_gain_and_ends ... ok
+test mixer::tests::a_loop_of_an_empty_sample_ends_instead_of_repeating_nothing ... ok
+test mixer::tests::a_gain_stored_between_two_samples_is_on_the_next_one ... ok
+test mixer::tests::a_looping_voice_follows_its_gain_on_every_pass ... ok
+test mixer::tests::a_looping_voice_through_a_player_and_a_bus_mixer_follows_its_gain ... ok
+test mixer::tests::a_stem_in_another_rate_follows_its_gain_through_the_bus ... ok
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s

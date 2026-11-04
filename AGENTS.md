@@ -48,8 +48,9 @@ every Bevy feature and a hole in its own `[dependencies]` list cannot fail.
   loaded.
 - `src/output.rs` — `AudioOutput` (the trait a backend implements), `Output` (the boxed resource), `Backend` (which
   path is live).
-- `src/mixer/mod.rs` — behind `#[cfg(feature = "mixer")]`: one `rodio::Mixer` per bus, a `BusGain` and a `VoiceGain`
-  source reading an `AtomicU32`, and `MixerBackend` implementing `AudioOutput`.
+- `src/mixer/mod.rs` — behind `#[cfg(feature = "mixer")]`: one `rodio::Mixer` per bus, a `BusGain` and a `VoiceGain` source reading an `AtomicU32`, `MixerBackend` implementing
+  `AudioOutput`, and `once`/`looped`/`connect`, the one place a voice's chain is built (**a loop repeats the sample, then applies the gain**). Its unit tests pull samples through a real
+  `rodio::Player` and bus `Mixer` offline — the only tests that read a sample the crate's own mixer produces.
 - `src/music.rs` — `MusicScore`, `MusicLayer`, `MusicLayers`, `When`, `Stinger`, `MusicState`, `MusicVoice`, and the
   systems `start_layers`, `adopt_layers`, `move_layers`, `play_stingers`.
 - `src/sounds.rs` — `SirenSounds`: the key → handle map, `load_table`, `missing`, `failed`.
@@ -113,6 +114,13 @@ function between frames; a duck takes time since it fired; a gain curve is a lin
 - **A `Mode::Loop` voice has no end to notice.** `retire_voices` skips loops; they live until stopped.
 - **A rodio source cannot be re-positioned inside a `Player`.** That is why the `mixer` path applies spatial
   attenuation at play time, and why Bevy's path stays the default for moving emitters.
+- **`rodio`'s `repeat_infinite` stores what it is given and replays it, so anything applied *inside* it is frozen at the first pass.** A looping mixer voice had its `VoiceGain` inside the repeat
+  for the crate's whole life: a layer that started silent never came in and a fade was a click, and nothing refused or logged. No test noticed because the mixer's tests record the calls a fake
+  `AudioOutput` receives and none read a sample. The gain goes **after** the repeat (`mixer::looped`), and `src/mixer/mod.rs`'s tests pull three passes through a real `Player` and a bus `Mixer`.
+  **A claim about sound is held only by a test that reads samples.**
+- **Every test in `tests/all.rs` is one process, so a scratch directory named by a label and the process id is shared by every test that picks the label.** Two indexer tests both said `"formats"`, each one's
+  `Scratch::new` deleted the other's files, and `--features semantic` went red on a run that had been green three times — a flake in the baseline, found by the matrix and reproduced by running the two
+  tests together with `--test-threads=2`. Every `Scratch::new` now adds a counter. **A test that passes alone and fails in the suite is a shared name before it is a bug.**
 - **A format on `library::AUDIO_EXTENSIONS` is a claim about files, and `rodio`'s decoder features in `Cargo.toml` are the other half of it.**
   For most of this crate's life `mp3` and `flac` were on the list and not in the features, so a folder of them scanned as audio and then
   failed to decode — and no test noticed, because none had opened a file that was not a WAV. `every_extension_the_scan_calls_audio_has_a_decoder`

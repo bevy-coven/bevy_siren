@@ -284,3 +284,12 @@ cases:
     green_when: "`Some(n)` with `n` the live count at the refusal; `None` once that layer has a voice. A layer the score does not have answers `None`."
     source: "Gregory, Game Engine Architecture 3e §14.5.8 — `\"a virtual voice is a sound the game believes is playing but that has no hardware voice\"`"
     evidence: "runs/2026-11-03-44/review.md, tests/music.rs::a_refused_layer_start_is_tried_again_when_room_frees"
+
+  - id: 34
+    cue: track.combat
+    authored: { mode: Loop, mixer: true, gain: "0.0 on pass 1, 1.0 on pass 2, 0.25 on pass 3" }
+    behaviour: A looping voice on the crate's own mixer plays at the gain in force when each sample is pulled — on the first pass, on every later pass, and on the next sample after the gain is written.
+    observed_by: "The samples a `rodio::Player` on a bus `Mixer` produces, pulled offline across three wraps of a loop longer than one 32 768-sample span; and a two-stem score rendered through the real `Decoder`."
+    green_when: "Every sample is the sample × the gain stored before it was pulled (worst difference 0.000000 on every pass); a layer decoded silent is audible on pass 2; a gain stored between two samples is on the next one (0 samples late)."
+    source: "Khan et al. 2023, arXiv:2303.15734 (adaptive music is per-instrument gain keyed to game state); crate rule R6. `rodio-0.22.2/src/source/{repeat,buffered}.rs`: `repeat_infinite` stores what it is given."
+    evidence: "runs/2026-11-03-114/review.md, src/mixer/mod.rs::tests::{a_looping_voice_follows_its_gain_on_every_pass, a_gain_stored_between_two_samples_is_on_the_next_one, a_looping_voice_through_a_player_and_a_bus_mixer_follows_its_gain} (red on the unfixed order)"

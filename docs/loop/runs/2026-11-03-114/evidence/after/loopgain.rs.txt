@@ -1,0 +1,313 @@
+//! SCRATCH, deleted before the commit (its source is kept as `docs/loop/runs/2026-11-03-114/evidence/after/loopgain.rs.txt`).
+//!
+//!     cargo run --release --features mixer --example scratch_loopgain -- <out-dir>
+//!
+//! Builds a looping voice both ways with the real `rodio::Decoder`, as `MixerBackend::play` does, plays it through a real `rodio::Player` on a bus
+//! `rodio::mixer::mixer`, pulls the bus offline (what the device would be handed) while the gain is moved, and writes what came out as WAV.
+//! `VoiceGain` is copied from `src/mixer/mod.rs` verbatim. **Every output is checked against what the schedule commands**: the expected sample is
+//! `gain[n] x (the sample at n mod one pass)`, summed over the stems, so "the gain was heard" is a number and not an impression.
+
+#[cfg(feature = "mixer")]
+mod scratch {
+    use std::io::Cursor;
+    use std::num::NonZero;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::time::{Duration, Instant};
+
+    use rodio::source::Source;
+    use rodio::{ChannelCount, Player, Sample, SampleRate};
+
+    struct VoiceGain<S> {
+        source: S,
+        gain: Arc<AtomicU32>,
+    }
+
+    impl<S: Source> Iterator for VoiceGain<S> {
+        type Item = Sample;
+        fn next(&mut self) -> Option<Sample> {
+            let sample = self.source.next()?;
+            let gain = f32::from_bits(self.gain.load(Ordering::Relaxed));
+            Some(sample * gain as Sample)
+        }
+        fn size_hint(&self) -> (usize, Option<usize>) {
+            self.source.size_hint()
+        }
+    }
+
+    impl<S: Source> Source for VoiceGain<S> {
+        fn current_span_len(&self) -> Option<usize> {
+            self.source.current_span_len()
+        }
+        fn channels(&self) -> ChannelCount {
+            self.source.channels()
+        }
+        fn sample_rate(&self) -> SampleRate {
+            self.source.sample_rate()
+        }
+        fn total_duration(&self) -> Option<Duration> {
+            self.source.total_duration()
+        }
+        fn try_seek(&mut self, pos: Duration) -> Result<(), rodio::source::SeekError> {
+            self.source.try_seek(pos)
+        }
+    }
+
+    const RATE: u32 = 48_000;
+    const PASS: usize = 24_000; // 0.5 s: 220 cycles of 440 Hz, 330 cycles of 660 Hz — a whole number of each, so the loop is seamless
+    const CHUNK: usize = 48; // 1 ms: the gain is moved every chunk (a frame loop moves it every 16 ms; the finer step keeps the picture free of the staircase's own artefacts)
+    const CHUNKS: usize = PASS / CHUNK;
+
+    fn one() -> ChannelCount {
+        NonZero::new(1).unwrap()
+    }
+    fn rate() -> SampleRate {
+        NonZero::new(RATE).unwrap()
+    }
+
+    /// The chain the crate had: the gain inside the repeat.
+    fn before(bytes: &Arc<[u8]>, gain: Arc<AtomicU32>) -> impl Source + Send + 'static + use<> {
+        let decoder = rodio::Decoder::new(Cursor::new(bytes.to_vec())).expect("decodes");
+        VoiceGain { source: decoder, gain }.repeat_infinite()
+    }
+
+    /// The chain the crate has: the repeat, then the gain.
+    fn after(bytes: &Arc<[u8]>, gain: Arc<AtomicU32>) -> impl Source + Send + 'static + use<> {
+        let decoder = rodio::Decoder::new(Cursor::new(bytes.to_vec())).expect("decodes");
+        VoiceGain { source: decoder.repeat_infinite(), gain }
+    }
+
+    fn wav_bytes(samples: &[i16]) -> Vec<u8> {
+        let data: Vec<u8> = samples.iter().flat_map(|s| s.to_le_bytes()).collect();
+        let mut wav = Vec::new();
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&(36 + data.len() as u32).to_le_bytes());
+        wav.extend_from_slice(b"WAVEfmt ");
+        wav.extend_from_slice(&16u32.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes()); // PCM
+        wav.extend_from_slice(&1u16.to_le_bytes()); // mono
+        wav.extend_from_slice(&RATE.to_le_bytes());
+        wav.extend_from_slice(&(RATE * 2).to_le_bytes());
+        wav.extend_from_slice(&2u16.to_le_bytes());
+        wav.extend_from_slice(&16u16.to_le_bytes());
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        wav.extend_from_slice(&data);
+        wav
+    }
+
+    /// A 16-bit mono 48 kHz WAV of a sine, `PASS` samples long, at the fixture tone's amplitude (0.125).
+    fn sine_wav(hz: f32) -> Arc<[u8]> {
+        let samples: Vec<i16> =
+            (0..PASS).map(|n| ((n as f32 * hz * std::f32::consts::TAU / RATE as f32).sin() * 0.125 * 32767.0).round() as i16).collect();
+        wav_bytes(&samples).into()
+    }
+
+    fn write_wav(path: &std::path::Path, samples: &[f32]) {
+        let pcm: Vec<i16> = samples.iter().map(|s| (s.clamp(-1.0, 1.0) * 32767.0).round() as i16).collect();
+        std::fs::write(path, wav_bytes(&pcm)).expect("writes");
+    }
+
+    /// One pass of the stem, decoded at unity by the same `rodio::Decoder` the voices use.
+    fn base(bytes: &Arc<[u8]>) -> Vec<f32> {
+        rodio::Decoder::new(Cursor::new(bytes.to_vec())).expect("decodes").take(PASS).collect()
+    }
+
+    /// The level, in dBFS, of the component at exactly `cycles` cycles per pass (a whole bin of a `PASS`-point DFT): the amplitude of that sine.
+    fn level_db(pass: &[f32], cycles: usize) -> f32 {
+        let (mut re, mut im) = (0.0f64, 0.0f64);
+        for (n, x) in pass.iter().enumerate() {
+            let phase = std::f64::consts::TAU * (cycles * n) as f64 / pass.len() as f64;
+            re += *x as f64 * phase.cos();
+            im -= *x as f64 * phase.sin();
+        }
+        let amplitude = 2.0 * (re * re + im * im).sqrt() / pass.len() as f64;
+        if amplitude < 1e-9 { f32::NEG_INFINITY } else { (20.0 * amplitude.log10()) as f32 }
+    }
+
+    fn set(gain: &AtomicU32, value: f32) {
+        gain.store(value.to_bits(), Ordering::Relaxed);
+    }
+
+    /// What the schedule commands: the sum over the stems of `gain[n] x stem[n mod pass]`.
+    fn commanded(stems: &[(&[f32], &[f32])], len: usize) -> Vec<f32> {
+        (0..len).map(|n| stems.iter().map(|(gains, base)| gains[n] * base[n % PASS]).sum()).collect()
+    }
+
+    fn per_pass<T>(samples: &[f32], f: impl Fn(&[f32]) -> T) -> Vec<T> {
+        samples.chunks(PASS).map(f).collect()
+    }
+
+    fn rms(samples: &[f32]) -> f32 {
+        (samples.iter().map(|s| s * s).sum::<f32>() / samples.len().max(1) as f32).sqrt()
+    }
+
+    /// The largest distance, per pass, between what came out and what the schedule commands.
+    fn worst_error(out: &[f32], want: &[f32]) -> Vec<f32> {
+        out.chunks(PASS).zip(want.chunks(PASS)).map(|(o, w)| o.iter().zip(w).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max)).collect()
+    }
+
+    /// Scenario A: one stem, its gain **1.0 on pass 1, 0.25 on pass 2, a linear fade to 0 across pass 3**, moved every millisecond.
+    fn scenario_a<S: Source + Send + 'static>(make: impl Fn(&Arc<[u8]>, Arc<AtomicU32>) -> S, calm: &Arc<[u8]>) -> (Vec<f32>, Vec<f32>) {
+        let (mixer, mut bus) = rodio::mixer::mixer(one(), rate());
+        let gain = Arc::new(AtomicU32::new(1.0f32.to_bits()));
+        let player = Player::connect_new(&mixer);
+        player.set_volume(1.0);
+        player.set_speed(1.0);
+        player.append(make(calm, gain.clone()));
+        let (mut out, mut gains) = (Vec::new(), Vec::new());
+        for pass in 0..3 {
+            for chunk in 0..CHUNKS {
+                let g = match pass {
+                    0 => 1.0,
+                    1 => 0.25,
+                    _ => 1.0 - chunk as f32 / CHUNKS as f32,
+                };
+                set(&gain, g);
+                gains.extend(std::iter::repeat_n(g, CHUNK));
+                out.extend((0..CHUNK).map(|_| bus.next().expect("a bus never ends")));
+            }
+        }
+        (out, gains)
+    }
+
+    /// Scenario B: two stems on one bus, as a score is. **Calm** (440 Hz) at 1.0 until a 100 ms move to 0.25 on the first bar of pass 4; **combat** (660 Hz) decoded silent — the crate's
+    /// "a layer at `SILENT_DB` stays in the mix" — and moved to 1.0 over 100 ms on the first bar of pass 2.
+    fn scenario_b<S: Send + Source + 'static>(
+        make: impl Fn(&Arc<[u8]>, Arc<AtomicU32>) -> S,
+        calm: &Arc<[u8]>,
+        combat: &Arc<[u8]>,
+    ) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
+        let (mixer, mut bus) = rodio::mixer::mixer(one(), rate());
+        let (calm_gain, combat_gain) = (Arc::new(AtomicU32::new(1.0f32.to_bits())), Arc::new(AtomicU32::new(0.0f32.to_bits())));
+        let players: Vec<Player> = [(calm, &calm_gain), (combat, &combat_gain)]
+            .into_iter()
+            .map(|(bytes, gain)| {
+                let player = Player::connect_new(&mixer);
+                player.set_volume(1.0);
+                player.set_speed(1.0);
+                player.append(make(bytes, gain.clone()));
+                player
+            })
+            .collect();
+        let ramp = 100; // chunks: 100 ms
+        let (mut out, mut calm_gains, mut combat_gains) = (Vec::new(), Vec::new(), Vec::new());
+        for pass in 0..4 {
+            for chunk in 0..CHUNKS {
+                let t = (chunk.min(ramp) as f32) / ramp as f32;
+                let (gc, gb) = (if pass < 3 { 1.0 } else { 1.0 - 0.75 * t }, if pass == 0 { 0.0 } else if pass == 1 { t } else { 1.0 });
+                set(&calm_gain, gc);
+                set(&combat_gain, gb);
+                calm_gains.extend(std::iter::repeat_n(gc, CHUNK));
+                combat_gains.extend(std::iter::repeat_n(gb, CHUNK));
+                out.extend((0..CHUNK).map(|_| bus.next().expect("a bus never ends")));
+            }
+        }
+        drop(players);
+        (out, calm_gains, combat_gains)
+    }
+
+    /// The loop's samples: `1.0` throughout, so a sample *is* the gain it was multiplied by.
+    const UNITY: f32 = 1.0;
+
+    /// How many samples after a gain store a looping voice keeps the old gain, at a store `at` samples into the first pass.
+    fn lateness<S: Source>(mut voice: S, gain: &AtomicU32, at: usize) -> String {
+        for _ in 0..at {
+            voice.next();
+        }
+        set(gain, 0.5);
+        let mut late = 0usize;
+        loop {
+            let sample = voice.next().expect("a loop never ends");
+            if sample == 0.5 * UNITY {
+                return late.to_string();
+            }
+            late += 1;
+            if late > 70_000 {
+                return "never".to_owned();
+            }
+        }
+    }
+
+    fn ones(len: usize) -> rodio::buffer::SamplesBuffer {
+        rodio::buffer::SamplesBuffer::new(one(), rate(), vec![UNITY; len])
+    }
+
+    fn fmt(values: &[f32], digits: usize) -> String {
+        values.iter().map(|v| format!("{v:>9.digits$}")).collect::<Vec<_>>().join(" ")
+    }
+
+    pub fn main() {
+        let out_dir = std::path::PathBuf::from(std::env::args().nth(1).expect("an output directory"));
+        std::fs::create_dir_all(&out_dir).expect("creates the directory");
+        let calm: Arc<[u8]> = Arc::from(include_bytes!("../tests/fixtures/tone.flac").as_slice()); // 440 Hz, 24 000 mono samples, the fixture iteration 112 made
+        let combat = sine_wav(660.0);
+        let (calm_base, combat_base) = (base(&calm), base(&combat));
+
+        println!("## A. one stem — gain 1.0 on pass 1, 0.25 on pass 2, a linear fade to 0 across pass 3, moved every millisecond");
+        println!("   (the real `Decoder` on tests/fixtures/tone.flac, a `Player`, a bus mixer, pulled offline; pass 1 = 0.5 s)");
+        for (name, (out, gains)) in [("before", scenario_a(before, &calm)), ("after", scenario_a(after, &calm))] {
+            write_wav(&out_dir.join(format!("loop-gain-{name}.wav")), &out);
+            let want = commanded(&[(&gains, &calm_base)], out.len());
+            println!("{name:>7}:       rms per pass {}", fmt(&per_pass(&out, rms), 5));
+            println!("         commanded rms per pass {}", fmt(&per_pass(&want, rms), 5));
+            println!("         worst |heard - commanded| per pass {}", fmt(&worst_error(&out, &want), 6));
+            println!("         440 Hz level per pass (dBFS) {}", fmt(&per_pass(&out, |p| level_db(p, 220)), 2));
+        }
+
+        println!("\n## B. two stems on one bus — calm (440 Hz) at 1.0 until a 100 ms move to 0.25 on pass 4; combat (660 Hz, decoded silent) moved to 1.0 over 100 ms on pass 2");
+        for (name, (out, gc, gb)) in [("before", scenario_b(before, &calm, &combat)), ("after", scenario_b(after, &calm, &combat))] {
+            write_wav(&out_dir.join(format!("score-{name}.wav")), &out);
+            let want = commanded(&[(&gc, &calm_base), (&gb, &combat_base)], out.len());
+            println!("{name:>7}: 440 Hz (calm) per pass (dBFS)   {}", fmt(&per_pass(&out, |p| level_db(p, 220)), 2));
+            println!("         660 Hz (combat) per pass (dBFS) {}", fmt(&per_pass(&out, |p| level_db(p, 330)), 2));
+            println!("         commanded 440 Hz / 660 Hz        {}  /  {}", fmt(&per_pass(&want, |p| level_db(p, 220)), 2), fmt(&per_pass(&want, |p| level_db(p, 330)), 2));
+            println!("         worst |heard - commanded| per pass {}", fmt(&worst_error(&out, &want), 6));
+        }
+
+        println!("\n## C. how late is a gain change? A store `at` samples into the first pass of a 100 000-sample loop (three and a bit 32 768-sample spans)");
+        println!("{:>8} {:>10} {:>10}", "at", "before", "after");
+        for at in [1usize, 100, 1_000, 10_000, 20_000, 32_000, 32_767, 33_000, 70_000] {
+            let (gb, ga) = (Arc::new(AtomicU32::new(UNITY.to_bits())), Arc::new(AtomicU32::new(UNITY.to_bits())));
+            let b = lateness(VoiceGain { source: ones(100_000), gain: gb.clone() }.repeat_infinite(), &gb, at);
+            let a = lateness(VoiceGain { source: ones(100_000).repeat_infinite(), gain: ga.clone() }, &ga, at);
+            println!("{at:>8} {b:>10} {a:>10}");
+        }
+
+        println!("\n## D. cost per sample, steady state (the first pass is decoded and cached; then 20 x 10 s pulled), release build, best of 20, three runs each");
+        for run_number in 1..=3 {
+            let mut line = format!("run {run_number}:");
+            for (name, mut pull) in [
+                ("before", Box::new({
+                    let g = Arc::new(AtomicU32::new(UNITY.to_bits()));
+                    let mut v = VoiceGain { source: ones(24_000), gain: g }.repeat_infinite();
+                    move |n: usize| (0..n).map(|_| v.next().unwrap()).sum::<f32>()
+                }) as Box<dyn FnMut(usize) -> f32>),
+                ("after", Box::new({
+                    let g = Arc::new(AtomicU32::new(UNITY.to_bits()));
+                    let mut v = VoiceGain { source: ones(24_000).repeat_infinite(), gain: g };
+                    move |n: usize| (0..n).map(|_| v.next().unwrap()).sum::<f32>()
+                })),
+            ] {
+                pull(48_000); // the first pass
+                let mut best = f64::INFINITY;
+                let mut sink = 0.0f32;
+                for _ in 0..20 {
+                    let t = Instant::now();
+                    sink += pull(480_000);
+                    best = best.min(t.elapsed().as_nanos() as f64 / 480_000.0);
+                }
+                line.push_str(&format!("   {name} {best:.3} ns/sample (checksum {sink})"));
+            }
+            println!("{line}");
+        }
+    }
+}
+
+#[cfg(feature = "mixer")]
+fn main() {
+    scratch::main();
+}
+
+#[cfg(not(feature = "mixer"))]
+fn main() {}

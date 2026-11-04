@@ -1,0 +1,12 @@
+## score-before
+    I:         -21.8 LUFS
+    Peak:      -18.1 dBFS
+## score-after
+    I:         -19.7 LUFS
+    Peak:      -12.5 dBFS
+## loop-gain-before
+    I:         -21.8 LUFS
+    Peak:      -18.1 dBFS
+## loop-gain-after
+    I:         -25.3 LUFS
+    Peak:      -18.1 dBFS

@@ -93,6 +93,15 @@ cargo build --release --features semantic --example goldenbench
 python3 docs/media/transcript_png.py docs/media/golden-kenney.txt docs/media/golden-kenney.png    # needs Pillow and macOS's Menlo
 ```
 
+## No clip: iteration 114, a looping voice on the mixer follows its gain
+
+No clip: the change is **what a looping voice sounds like on the `mixer` backend**, which `examples/render` does not run (it renders on Bevy's path), so every rendered cue is byte-identical (21 of 21) and
+the pictures are the evidence program's own. They are in `runs/2026-11-03-114/evidence/`: `after/loopgain.txt` (three renders through the real `rodio::Decoder`, a `Player` and a bus mixer, each checked
+against what the gain schedule commands — **worst difference 0.000000 after; before, the second stem was never audible**), `spectrograms/score-{before,after}-spectrum.png` and
+`spectrograms/loop-gain-{before,after}-wave.png`. The program is `after/loopgain.rs.txt`: put it back at `examples/scratch_loopgain.rs` and run
+`cargo run --release --features mixer --example scratch_loopgain -- <dir>` (it is not kept in `examples/`: it holds a copy of a private type). Tests: `src/mixer/mod.rs::tests` (behind `mixer`; three of the
+four fail on the base commit — `evidence/before/unit-tests-on-the-old-order.txt`).
+
 ## No clip: iteration 28, a despawned voice frees its mixer slot
 
 No clip: the change is **which calls reach the mixer backend**, and every rendered cue is byte-identical (21 of 21) —

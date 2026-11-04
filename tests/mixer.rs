@@ -383,6 +383,32 @@ fn a_slot_is_reused_and_a_stale_index_addresses_nothing() {
     backend.stop_voice("Effects", stale);
 }
 
+/// **A loop on the real mixer keeps sounding until it is stopped.** `a_loop_voice_is_not_retired_when_its_source_ends` holds the rule on a fake output; this is the real one. The 64-sample
+/// WAV wraps about fifty times in the wait below, the voice is still not finished — `rodio`'s repeat never ends — and stopping it ends it. Before iteration 114 **no test had played a loop
+/// through the real `MixerBackend`** (`play` was called once in the whole suite, with `looping: false`), and the gain bug fixed there lived on exactly that path. It needs an audio
+/// device and returns early where there is none; it plays at −60 dB for 150 ms.
+#[test]
+fn a_loop_on_the_real_mixer_sounds_until_it_is_stopped() {
+    use bevy_siren::mixer::MixerBackend;
+
+    let Some(mut backend) = MixerBackend::open() else {
+        eprintln!("no audio device; a loop on the real mixer cannot be played here");
+        return;
+    };
+    let bytes: Arc<[u8]> = Arc::from(crate::helpers::tiny_wav());
+    let voice = backend.play("Ambience", &bytes, -60.0, 1.0, true).expect("the loop starts");
+    std::thread::sleep(std::time::Duration::from_millis(150));
+    assert!(
+        !backend.finished("Ambience", voice),
+        "a loop has no end: fifty passes later it is still sounding"
+    );
+
+    backend.set_voice_db("Ambience", voice, -70.0);
+    assert!(!backend.finished("Ambience", voice), "moving a loop's gain does not end it");
+    backend.stop_voice("Ambience", voice);
+    assert!(backend.finished("Ambience", voice), "a stopped loop is finished");
+}
+
 /// **A voice whose entity is despawned frees its mixer slot.**
 ///
 /// The mixer's number for a voice lives in a component on the voice entity, so despawning that entity — which is what

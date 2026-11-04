@@ -7,6 +7,21 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **A looping voice on the crate's own mixer ignored every gain change after its first pass.** `MixerBackend::play` built a loop as `VoiceGain { decoder }.repeat_infinite()`, and `rodio`'s
+  `repeat_infinite` **stores what it is given** — a span of up to 32 768 samples at a time — and replays the stored values, so the gain was the gain of the instant the first pass was decoded,
+  for ever. Through the real `Decoder`, a `Player` and a bus `Mixer`, pulled offline: **a stem commanded to 0.25 on pass 2 played at 1.0** (the worst sample was 0.094 from what was commanded, on a stem
+  whose peak is 0.125); **a layer decoded silent and moved to 1.0 on pass 2 was never audible** (−∞ dBFS at its frequency on all four passes, where −18.99 was commanded from
+  pass 2); a stem commanded 12 dB down stayed at −18.06 dBFS; and **inside the first pass a change reached the speaker 1 to 32 767 samples late**. Nothing refused and nothing logged — `SirenMix` and the
+  panel said the layer was at 0 dB — and it broke every layer change after a layer's first pass (layered music on the bar), a stop's 120 ms fade and a stolen loop's fade, on `--features mixer`. **Bevy's path was never affected** (a sink's volume sits
+  outside its repeat). The gain is now applied *after* the repeat (`mixer::looped`): the worst difference from what is commanded is **0.000000 on every pass**, a gain stored between two samples is on the next
+  one, and the cost is unchanged (3.21 – 3.24 ns a sample before and after, three runs). Six tests in `src/mixer/mod.rs` — the first in this crate to read a sample its own mixer produces; four fail on the
+  old order, among them a stereo 44.1 kHz stem on a 48 kHz bus — and a real-device test (`a_loop_on_the_real_mixer_sounds_until_it_is_stopped`: **no test had ever played a loop through the real `MixerBackend`**),
+  and `cues.yaml` case 34. The mixer's earlier tests recorded the calls a fake `AudioOutput` received, so all 33 cases were green over a mixer that did nothing audible with a loop's gain. Not listened to.
+- **Two indexer tests raced for one scratch directory, and the full matrix failed on it.** `Scratch::new(name)` in six test files named its directory `…_{name}_{pid}`, and every test is one process, so two
+  tests that chose the same label shared a directory and each one's `remove_dir_all` took the other's files away: `a_folder_of_every_format_the_scan_calls_audio_indexes` and
+  `a_written_index_is_binary_and_an_old_text_index_still_loads` both said `"formats"` and, run together on two threads, **failed ten times in ten**. In the whole suite they overlap only some of the
+  time, so the matrix passed on iterations 112 and 113 and on three runs of 114, and failed twice on the fourth. Each helper now adds a process-wide counter to its directory name, so a repeated label
+  cannot collide; the same ten runs pass.
 - **The golden set's one library told one story about the similarity floor, and a second library told another.** Iteration 111 recommended `0.35` from
   2 000 recordings; iteration 112 withdrew it on the strength of the repository's own demo (nothing scored above 0.256); **iteration 113 measured the second
   library, and the doubt was right by more than a doubt**: on 303 game sounds the right answers' median similarity is **0.191** against 0.468, the weakest answerable

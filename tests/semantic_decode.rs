@@ -37,7 +37,11 @@ struct Scratch(std::path::PathBuf);
 
 impl Scratch {
     fn new(name: &str) -> Self {
-        let p = std::env::temp_dir().join(format!("bevy_siren_decode_{name}_{}", std::process::id()));
+        // One directory per call, whatever the label (see `semantic_indexer.rs`: two tests that shared a label raced for one directory).
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let unique = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let p =
+            std::env::temp_dir().join(format!("bevy_siren_decode_{name}_{}_{unique}", std::process::id()));
         let _ = std::fs::remove_dir_all(&p);
         std::fs::create_dir_all(&p).expect("scratch");
         Scratch(p)

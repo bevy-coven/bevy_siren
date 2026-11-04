@@ -102,6 +102,10 @@ Iteration 112 found that two of the five formats the scan calls audio could not 
 no new crate"* was false by 16 crates, and that a recommendation (`0.35`) was contradicted by this repository's own earlier run — each was a sentence
 nobody had held against a file or a number.
 
+**A sentence held only by a fake is held by nothing.** Iteration 114 read the one sentence repeated in four files — *"both backends answer identically; only the sample path differs"* — against the *sample path*, which no test
+had ever read (the mixer's tests recorded the calls a fake `AudioOutput` received). Reading `MixerBackend::play` beside `rodio`'s `repeat_infinite` showed a looping voice ignored every gain change after its first pass:
+layered music, a fade and a stolen loop's fade were silent failures on `--features mixer`, and all 33 cue cases were green. When a claim is about **sound**, find the test that reads a sample; if there is none, that is the item.
+
 ## 3. Research first
 
 Use home-still before any code (`distill_search`; if the bridge answers `401 Refresh token expired`, use
@@ -183,7 +187,7 @@ Then produce and **look at**:
 ```sh
 # Per cue: spectrogram and waveform, zoomed on the attack and the tail.
 ffmpeg -y -i cue-<name>-0.wav -lavfi "showspectrumpic=s=900x300:legend=1:scale=log:color=intensity" spectrograms/<name>-spectrum.png
-ffmpeg -y -i cue-<name>-0.wav -lavfi "showwavespic=s=900x200:colors=white" spectrograms/<name>-wave.png
+ffmpeg -y -i cue-<name>-0.wav -lavfi "showwavespic=s=900x200:colors=blue" spectrograms/<name>-wave.png   # NOT colors=white: white on a transparent PNG is a blank image to `read`
 ffmpeg -y -i cue-<name>-0.wav -lavfi "atrim=0:0.05,showspectrumpic=s=900x300" spectrograms/<name>-attack.png
 ffmpeg -y -sseof -0.1 -i cue-<name>-0.wav -lavfi "showspectrumpic=s=900x300" spectrograms/<name>-tail.png
 

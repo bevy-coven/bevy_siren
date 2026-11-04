@@ -1,0 +1,18 @@
+# The two tests that share the scratch label "formats", run together on two threads (iteration 114, on the tree before the helpers were fixed)
+
+$ for i in 1..10: cargo test --features semantic --test all -- \
+      semantic_indexer::a_written_index_is_binary_and_an_old_text_index_still_loads \
+      semantic_indexer::a_folder_of_every_format_the_scan_calls_audio_indexes --test-threads=2
+
+      10 x  thread 'semantic_indexer::a_folder_of_every_format_the_scan_calls_audio_indexes' panicked at tests/semantic_indexer.rs:128:5
+      10 x  test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 515 filtered out
+
+Cause: `Scratch::new(name)` named its directory `bevy_siren_indexer_{name}_{pid}`, and every test in `tests/all.rs` is one process, so two tests that chose the same label (`"formats"`, at
+tests/semantic_indexer.rs lines 118 and 510) shared one directory: each one's `remove_dir_all` took the other's files away mid-test. Iteration 112's `a_folder_of_every_format...` introduced the
+second use of the label.
+
+In the full suite the two overlap only some of the time, so the matrix passed on iterations 112 and 113 and on three earlier runs of 114 (the baseline and two after the mixer change), and failed twice
+on the fourth (`--features semantic` and `--all-features`: matrix-red-flake.log), run on the same tree plus one more mixer unit test.
+
+The failing tests do not touch the mixer, and nothing in this iteration's diff reaches them: the cause is the label collision above, reproduced without any of this iteration's code by running the two
+tests together.

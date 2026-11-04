@@ -1,0 +1,37 @@
+## A. one stem — gain 1.0 on pass 1, 0.25 on pass 2, a linear fade to 0 across pass 3, moved every millisecond
+   (the real `Decoder` on tests/fixtures/tone.flac, a `Player`, a bus mixer, pulled offline; pass 1 = 0.5 s)
+ before:       rms per pass   0.08837   0.08837   0.08837
+         commanded rms per pass   0.08837   0.02209   0.05109
+         worst |heard - commanded| per pass  0.000000  0.093727  0.124720
+         440 Hz level per pass (dBFS)    -18.06    -18.06    -18.06
+  after:       rms per pass   0.08837   0.02209   0.05109
+         commanded rms per pass   0.08837   0.02209   0.05109
+         worst |heard - commanded| per pass  0.000000  0.000000  0.000000
+         440 Hz level per pass (dBFS)    -18.06    -30.10    -24.07
+
+## B. two stems on one bus — calm (440 Hz) at 1.0 until a 100 ms move to 0.25 on pass 4; combat (660 Hz, decoded silent) moved to 1.0 over 100 ms on pass 2
+ before: 440 Hz (calm) per pass (dBFS)      -18.06    -18.06    -18.06    -18.06
+         660 Hz (combat) per pass (dBFS)      -inf      -inf      -inf      -inf
+         commanded 440 Hz / 660 Hz           -18.06    -18.06    -18.06    -27.81  /       -inf    -18.99    -18.06    -18.06
+         worst |heard - commanded| per pass  0.000000  0.125000  0.125000  0.209198
+  after: 440 Hz (calm) per pass (dBFS)      -18.06    -18.06    -18.06    -27.81
+         660 Hz (combat) per pass (dBFS)      -inf    -18.99    -18.06    -18.06
+         commanded 440 Hz / 660 Hz           -18.06    -18.06    -18.06    -27.81  /       -inf    -18.99    -18.06    -18.06
+         worst |heard - commanded| per pass  0.000000  0.000000  0.000000  0.000000
+
+## C. how late is a gain change? A store `at` samples into the first pass of a 100 000-sample loop (three and a bit 32 768-sample spans)
+      at     before      after
+       1      32767          0
+     100      32668          0
+    1000      31768          0
+   10000      22768          0
+   20000      12768          0
+   32000        768          0
+   32767          1          0
+   33000      32536          0
+   70000      28304          0
+
+## D. cost per sample, steady state (the first pass is decoded and cached; then 20 x 10 s pulled), release build, best of 20, three runs each
+run 1:   before 3.243 ns/sample (checksum 9600000)   after 3.227 ns/sample (checksum 9600000)
+run 2:   before 3.233 ns/sample (checksum 9600000)   after 3.226 ns/sample (checksum 9600000)
+run 3:   before 3.215 ns/sample (checksum 9600000)   after 3.214 ns/sample (checksum 9600000)

@@ -1,0 +1,6 @@
+# The same two tests, the same command, ten runs, on the tree with one scratch directory per call in all six test helpers (tests/{library,semantic_decode,semantic_golden,semantic_incremental,semantic_indexer,semantic_server}.rs)
+
+      10 × test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 515 filtered out
+
+Fix: each `Scratch::new` adds a process-wide counter to its directory name (`static NEXT: AtomicUsize`), so no two calls can share a directory whatever label they pass. The one duplicated label in the suite
+was `"formats"` in `semantic_indexer.rs`; a scan of the other five files' labels found no other repeat, but the class — a label that two tests may choose — is closed in all six rather than left to the next duplicate.

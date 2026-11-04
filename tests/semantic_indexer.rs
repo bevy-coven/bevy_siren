@@ -22,7 +22,12 @@ impl Drop for Scratch {
 
 impl Scratch {
     fn new(name: &str) -> Self {
-        let p = std::env::temp_dir().join(format!("bevy_siren_indexer_{name}_{}", std::process::id()));
+        // **One directory per call, whatever the label.** Two tests that chose the same label shared one directory, and each one's `remove_dir_all` took the other's files away
+        // mid-test: `a_folder_of_every_format…` and `a_written_index_is_binary…` both said `"formats"` and, run together, failed ten times in ten.
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let unique = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let p =
+            std::env::temp_dir().join(format!("bevy_siren_indexer_{name}_{}_{unique}", std::process::id()));
         let _ = std::fs::remove_dir_all(&p);
         std::fs::create_dir_all(&p).expect("scratch");
         Scratch(p)
