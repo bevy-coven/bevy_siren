@@ -125,6 +125,38 @@ fn the_header_gives_the_rate_and_the_channels() {
     assert_eq!(found, vec![(Some(22050), Some(1)), (Some(48000), Some(2))]);
 }
 
+/// **The header of each format the scan calls audio is read from a real file of that format.** `read_header` had branches for Ogg and
+/// FLAC that were written from the formats' layouts and never run against a file: the Ogg branch read the sample rate three bytes
+/// late and the FLAC branch shifted the 20-bit rate field by the wrong amounts, so a 48 kHz FLAC reported 768 000 Hz. Both stayed
+/// invisible because only the WAV branch had a test, and because the indexer takes the rate from the decoder, not from here.
+///
+/// The files are `ffmpeg`'s, not hand-built — a header built from the same reading of the specification as the parser would agree
+/// with it whether or not that reading was right (`tests/fixtures/*`; the commands are in `tests/semantic_decode.rs`). Two rates and
+/// two channel counts, because 48 000 alone leaves a wrong shift able to hide in a nibble.
+#[test]
+fn the_header_of_each_format_gives_the_rate_and_the_channels_it_declares() {
+    let s = Scratch::new("formats");
+    s.file("tone.flac", include_bytes!("fixtures/tone.flac"));
+    s.file("tone-441.flac", include_bytes!("fixtures/tone-441.flac"));
+    s.file("tone.ogg", include_bytes!("fixtures/tone.ogg"));
+    s.file("tone-441.ogg", include_bytes!("fixtures/tone-441.ogg"));
+    s.file("tone.mp3", include_bytes!("fixtures/tone.mp3"));
+
+    let lib = scan(s.path());
+    let found: std::collections::BTreeMap<String, (Option<u32>, Option<u16>)> = lib
+        .assets
+        .values()
+        .map(|a| (a.paths[0].display().to_string(), (a.sample_rate, a.channels)))
+        .collect();
+
+    assert_eq!(found["tone.flac"], (Some(48_000), Some(1)), "FLAC, 48 kHz mono");
+    assert_eq!(found["tone-441.flac"], (Some(44_100), Some(2)), "FLAC, 44.1 kHz stereo");
+    assert_eq!(found["tone.ogg"], (Some(48_000), Some(2)), "Ogg Vorbis, 48 kHz stereo");
+    assert_eq!(found["tone-441.ogg"], (Some(44_100), Some(2)), "Ogg Vorbis, 44.1 kHz stereo");
+    // MP3 carries its rate in every frame header, which this scan does not parse: unknown is said, not guessed.
+    assert_eq!(found["tone.mp3"], (None, None), "an MP3 is audio whose numbers the scan leaves unknown");
+}
+
 #[test]
 fn two_identical_files_are_one_asset_with_two_paths() {
     let s = Scratch::new("dup");
@@ -230,9 +262,9 @@ fn the_semantic_feature_declares_no_dependency_of_its_own() {
     let rhs = line.split('=').nth(1).expect("a feature has a value").trim();
     // The feature names exactly these dependencies, and each has its argument in `tests/leaf.rs`:
     //   ort     — the inference runtime (ADR 0002).
-    //   rodio   — the decoder the crate already trusts, which costs no new crate: `bevy_audio` resolves rodio 0.22.2
-    //             in the default graph already, so this entry turns on this crate's own decoder features and adds
-    //             nothing. Measured: `cargo tree --edges normal` is 413 lines with no features.
+    //   rodio   — the decoder the crate already trusts: one `rodio`, the version `bevy_audio` resolves. Its decoders are not
+    //             in the default graph, so this entry adds them — 16 of the 34 crates `semantic` adds (`decode.rs` has the
+    //             decomposition). Measured: `cargo tree --edges normal` is 413 lines with no features and 497 with `semantic`.
     //   rubato  — the resampler, which turns a 44.1 kHz library from refused into converted. Measured: a 1 kHz tone
     //             keeps 0.5000 of its 0.5000 energy and a 1.000 s file becomes exactly 48000 samples.
     //   ebur128 — loudness and true peak (ADR 0003). **Pure Rust** despite the name: with `default-features = false`

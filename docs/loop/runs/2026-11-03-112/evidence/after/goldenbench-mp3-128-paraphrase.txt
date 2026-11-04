@@ -1,0 +1,66 @@
+goldenbench: esc50 @ 33c8ce9e manifest 50bf2b79f2e96d49 queries 182452f12497d58d — 2000 clips, 50 classes, 50 queries and 16 that should find nothing
+             CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here; model transformers-4.57.6/torch-2.8.0/opset-17
+index:       2000 clips, read from `siren-index` — current, so no audio graph was loaded
+licences:    1770 permit commercial use, 170 do not, 60 unknown or not recognised — a person decides those
+text:        66 descriptions and 50 prompts embedded in 1.2 s
+ranking:     66 queries over 2000 clips in 95.6 ms
+
+1. Zero-shot classification — the paper's protocol: each clip against "This is a sound of <class>.", top-1
+   accuracy  87.5 %   (1750 of 2000 clips)      paper: 88.0 – 91.0 % on the overlap-excluded subset; people score 81.3 %
+   weakest classes: cow 32 %, crickets 38 %, wind 42 %, water_drops 50 %, hen 68 %
+   most confused:   cow → sheep ×24, crickets → insects ×17, water_drops → pouring_water ×13, hen → rooster ×11, helicopter → airplane ×9
+
+2. Text-to-audio retrieval — 50 descriptions, every clip ranked, a right answer is any clip of the class
+   hit@1  74.0 %   hit@3  84.0 %   hit@10  92.0 %   precision@10  74.2 %   MRR 0.799   mAP@10 0.677
+   no right answer in the first 3: `the loud morning call of a male farmyard bird` (first right answer at 43), `water falling from the clouds onto a roof` (first right answer at 5), `surf rolling up a beach` (first right answer at 12), `summer evening chirping from the grass` (first right answer at 23), `ah-choo` (first right answer at 7), `rapping on timber` (first right answer at 7), `a button tick on a computer pointing device` (first right answer at 10), `rockets bursting in the night sky` (first right answer at 21)
+   best result wrong, by precision@10: `rockets bursting in the night sky` 0 %, `summer evening chirping from the grass` 0 %, `surf rolling up a beach` 0 %, `the loud morning call of a male farmyard bird` 0 %, `a button tick on a computer pointing device` 10 %, `a deep sleeper rattling the walls` 10 %, `rapping on timber` 10 %, `ah-choo` 20 %
+
+3. Scores — CLAP cosines, before any weighting
+                                  min     p05     p25  median     p75     p95     max        n
+   right answers               -0.062  +0.158  +0.312  +0.397  +0.476  +0.580  +0.662     2000
+   wrong answers               -0.439  -0.158  -0.040  +0.045  +0.131  +0.262  +0.639    98000
+   best of the no-answer set   +0.314  +0.317  +0.356  +0.450  +0.495  +0.532  +0.595       16
+   the queries that should find nothing, by the best clip they found:
+     a gunshot                            +0.595  fireworks
+     a violin playing a slow melody       +0.532  siren
+     a lion roaring                       +0.525  cow
+     a whale singing underwater           +0.516  wind
+     a horse galloping                    +0.495  footsteps
+     a choir singing in harmony           +0.466  siren
+     a cartoon spring boing               +0.459  water_drops
+     a trumpet fanfare                    +0.450  car_horn
+     a laser blaster firing               +0.421  water_drops
+     a piano playing chords               +0.398  water_drops
+     a printer printing a page            +0.375  clock_alarm
+     a cash register opening              +0.356  door_wood_creaks
+     a person talking in conversation     +0.329  frog
+     a drum kit solo                      +0.319  fireworks
+     a magic spell sparkle chime          +0.317  water_drops
+     an electric guitar riff              +0.314  engine
+
+4. The floor — what each keeps of the right answers and silences of the wrong ones
+    floor  top-1 kept  hit@3 kept   returned   precision      silent
+    -0.10      74.0 %      84.0 %     1760.1       2.3 %       0.0 %
+    -0.05      74.0 %      84.0 %     1562.4       2.6 %       0.0 %
+    +0.00      74.0 %      84.0 %     1290.6       3.1 %       0.0 %
+    +0.05      74.0 %      84.0 %      987.4       4.0 %       0.0 %
+    +0.10      74.0 %      84.0 %      690.9       5.7 %       0.0 %
+    +0.15      74.0 %      84.0 %      446.1       8.6 %       0.0 %
+    +0.20      74.0 %      84.0 %      263.9      13.9 %       0.0 %
+    +0.25      74.0 %      84.0 %      150.3      23.0 %       0.0 %
+    +0.30      74.0 %      84.0 %       86.4      35.9 %       0.0 %
+    +0.35      74.0 %      84.0 %       50.9      50.7 %      25.0 %
+    +0.40      74.0 %      84.0 %       30.6      64.1 %      43.8 %
+    +0.45      72.0 %      80.0 %       16.8      76.5 %      56.2 %
+    +0.50      64.0 %      68.0 %        8.8      86.9 %      75.0 %
+   (top-1 kept: descriptions whose best result is right and clears the floor; hit@3 kept: a right answer among the first three
+    that clear it; returned: results per query that clear the floor, of 2000; precision: the share of those that are right;
+    silent: the share of the 16 no-answer queries that return nothing)
+
+5. The tool path — `search_music` returns the same ten, with the same similarities, as the raw ranking: 50 of 50 queries
+
+6. Anchor judgements — none yet. `#35`'s third criterion (at least 50 pairs, each judged by a person with a reason) is a
+   person's listening; nothing here pretends otherwise. `docs/guide/golden-set.md` says how to add them.
+
+baseline:    recorded for `esc50 @ 33c8ce9e manifest 50bf2b79f2e96d49 queries 591257e670ee4f34` and `laion/clap-htsat-fused@transformers-4.57.6/torch-2.8.0/opset-17 48000Hz x512`; this run is `esc50 @ 33c8ce9e manifest 50bf2b79f2e96d49 queries 182452f12497d58d` and `laion/clap-htsat-fused@transformers-4.57.6/torch-2.8.0/opset-17 48000Hz x512`.
+             This run asked a different queries file, so nothing is compared; the baseline is for golden/esc50/queries.tsv.

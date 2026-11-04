@@ -1,0 +1,29 @@
+symphonia (the crate's decoder) against libvorbis over the stream's true length, per file; 'differs' = relative rms > 1e-5
+  rpg-ogg  22 of  51 files differ
+  jingles   0 of  85 files differ
+  scifi     0 of  73 files differ
+  total    22 of 209
+
+file           pack      rate ch  frames first bad  last bad   n bad max |diff|     peak
+metalPot3      rpg-ogg  48000  2   43536      3149     22580     799      0.303    1.303
+metalLatch     rpg-ogg  48000  2   12544      2114      2295      13      0.204    1.204
+metalPot2      rpg-ogg  48000  2   45013     16609     27736     421      0.194    1.194
+bookPlace3     rpg-ogg  48000  2   12544      1879      2102      53      0.123    1.123
+doorClose_3    rpg-ogg  48000  2   34269      1258     14737     242      0.175    1.175
+footstep08     rpg-ogg  48000  2   12268       493      1064      76      0.086    1.086
+metalPot1      rpg-ogg  48000  2   70102      4515     32247     125      0.234    1.234
+doorClose_1    rpg-ogg  48000  2   32402      9548     10681      75      0.160    1.160
+bookPlace2     rpg-ogg  48000  2   16972      3935      4559      60      0.079    1.079
+bookClose      rpg-ogg  48000  2   11069      3687      3785      28      0.105    1.105
+bookFlip1      rpg-ogg  48000  2   36895     28307     28342       7      0.056    1.056
+bookPlace1     rpg-ogg  48000  2   13282      3002      3378      25      0.092    1.092
+doorOpen_2     rpg-ogg  48000  2   67839     10488     10899      16      0.122    1.122
+footstep03     rpg-ogg  48000  2   12913      4866      4893       9      0.052    1.052
+chop           rpg-ogg  48000  2   11532      2427      2634      16      0.058    1.058
+knifeSlice2    rpg-ogg  48000  2   27302       966     13718       4      0.076    1.076
+doorOpen_1     rpg-ogg  48000  2   44110      7093      9806      14      0.069    1.069
+doorClose_4    rpg-ogg  48000  2   28962      5199      5306      19      0.041    1.041
+footstep00     rpg-ogg  48000  2   11945      1439      1447       4      0.039    1.039
+handleCoins    rpg-ogg  48000  2   40585      7393      7394       2      0.022    1.022
+footstep01     rpg-ogg  48000  2   13559      1760      2039      14      0.028    1.028
+footstep07     rpg-ogg  48000  2   12268      1311      1362       3      0.007    1.007

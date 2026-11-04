@@ -203,8 +203,11 @@ pub struct Floor {
     /// so a floor of **0.35** keeps every description's top result in both wordings, returns 55–66 results a query at ~50 % precision
     /// (not 1 300–1 440 at 3 %), and silences 4 of the 16 descriptions of sounds the library does not contain; **0.45** already loses
     /// answers in the stranger's wording. The caveats are as real: one library of environmental recordings that partly overlaps the
-    /// model's training data (`docs/guide/golden-set.md`). A default every consumer inherits is the owner's to change;
-    /// `docs/loop/needs-decision/default-floor.md` has the table, the options and a recommendation.
+    /// model's training data (`docs/guide/golden-set.md`) — and **the one other library this crate has run, fourteen macOS UI sounds,
+    /// scored nothing above 0.256 for any of five descriptions** (its right answer to "a short electronic beep" was 0.206), which both
+    /// floors named above would have emptied. A default every consumer inherits is the owner's to change;
+    /// `docs/loop/needs-decision/default-floor.md` has the table, the options and a recommendation, which iteration 112 revised from
+    /// `0.35` to *keep `0.0` until a second library is measured*.
     pub min_score: f32,
 }
 

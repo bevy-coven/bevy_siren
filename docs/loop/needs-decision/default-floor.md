@@ -42,6 +42,23 @@ paper excluded the overlap from its own figure), no music, no speech, no game fo
 correct answers score lower — stylised or synthesised sounds — would lose answers to a floor chosen on this one; the second wording is a
 small demonstration of how fast that happens.
 
+**And this repository already holds a counter-example, from iteration 110, that iteration 111 did not set against the numbers above.**
+On **fourteen macOS system sounds** five descriptions were run against the real model (`docs/loop/runs/2026-11-03-110/evidence/after/parity.txt`; the
+crate's scores agree with the `transformers` reference to 4.9 × 10⁻⁴, so they are the model's and not a bug), and **no result of any of
+them scored above 0.256**:
+
+| description | best result | score |
+|---|---|---|
+| "a deep sonar ping underwater" | `Morse.wav` (then `Hero.wav` 0.252) | 0.256 |
+| "a short electronic beep" | `Sosumi.wav` — the answer the guide calls a match | **0.206** |
+| "a frog croaking" | `Purr.wav` (`Frog.wav` itself ranks eleventh, at −0.02) | 0.145 |
+| "a bottle being blown across" | `Purr.wav` (`Blow.wav` third) | 0.081 (`Blow` 0.021) |
+| "a glass being tapped" | `Glass.wav`, by name | **0.016** |
+
+**Every positive floor in the table above — 0.30 and up — would have returned nothing for all five.** One small library of synthetic
+alert sounds, five casual descriptions, and a judgement of which result is right that is mine: a caveat, not a measurement. But it is the
+only second library this crate has run, it is the kind a game ships (synthetic UI sounds), and it points the opposite way from the table.
+
 ## Options
 
 1. **Keep `0.0`.** Cost: a description the library cannot answer returns `k` results that look like answers (`a lion roaring` → `cow`,
@@ -49,9 +66,10 @@ small demonstration of how fast that happens.
    change, no risk from library shift; a project that wants a floor sets one (`Weights::min_similarity`, `Ranked.floor`).
 2. **`0.30`.** Cost: at `k = 3` a person sees no difference and none of the 16 no-answer queries is silenced — it shortens a long list and
    nothing else. Benefit: the safest positive number (a 0.105 margin under the weakest top result in either wording).
-3. **`0.35`.** Cost: a 0.055 margin; 12 of the 16 no-answer queries still answer. Benefit: the list falls from ~1 300–1 440 results to
-   55–66 at ~50 % precision, 4 of 16 unanswerable descriptions are told *"no result scored high enough; N were below the floor"* — the
-   sentence `Answer::describe` already says — and **every description keeps its top result in both wordings**.
+3. **`0.35`.** Cost: a 0.055 margin on ESC-50 — and **the 14-UI-sound demo's right answer (0.206) would be silenced**; 12 of the 16 no-answer
+   queries still answer. Benefit: the list falls from ~1 300–1 440 results to 55–66 at ~50 % precision, 4 of 16 unanswerable descriptions
+   are told *"no result scored high enough; N were below the floor"* — the sentence `Answer::describe` already says — and **every
+   description keeps its top result in both wordings** *on ESC-50*.
 4. **`0.40`.** Cost: a **0.005** margin: the weakest top result of the stranger's wording is 0.405, so a third wording, or a library a
    little less friendly than ESC-50, loses answers. Benefit: 7 of 16 silenced and lists of ~33–43.
 5. **`0.45`.** The knee in the maintainer's wording (every description keeps a right answer in its first three; 9 of 16 silenced; lists of
@@ -63,19 +81,20 @@ small demonstration of how fast that happens.
 
 ## Recommendation
 
-**Option 3, `0.35`** — and treat the number as a starting point a project overrides, not a calibration.
+**Revised in iteration 112: keep `0.0` for now (option 1), and decide when the second library has been measured — the next iteration's
+work.** Iteration 111 recommended `0.35`. That number still holds for a library like ESC-50 and the table above has not changed; what
+changed is that ESC-50 was the only library measured, and the repository's other one (fourteen macOS UI sounds, above) puts a correct top
+result at **0.206**.
 
-- The crate's rule is *fail loud*: a floor that is too **high** is not silent here — `Tally::below_floor` counts what it dropped and
-  `describe()` says so — while a floor that is too **low** is exactly the silent failure (a confident-looking `cow` for a lion). That
-  asymmetry favours a positive default.
-- **`0.35`, not `0.45`, because the second wording changed the answer.** On the maintainer's own descriptions 0.45 looked like the knee;
-  on a stranger's it already deletes answers, and 0.40 is safe by five thousandths. 0.35 is the largest value with room to spare across
-  both, and it still shrinks a result list 22–24× and silences a quarter of the descriptions of sounds the library lacks.
-- **Revisit when a second library exists.** Music, speech and game foley are what the set cannot say anything about; the guide names a
-  second library as the most useful next addition, and option 6 should be designed against it.
-
-If the owner would rather not change a default on one library's evidence, option 1 with the tables in the guide is defensible — the cost
-is a sentence saying so, and it is the status quo.
+- **A floor that is too high is also a silent failure** for the library it silences: `Tally::below_floor` and `describe()` do say what was
+  dropped, but a game that never reads them sees an empty list. A default every consumer inherits has to survive the libraries the crate
+  was built for, and a game's UI sounds and synthesised effects are first among them.
+- **What would settle it:** a second library of game audio (UI, foley, sci-fi, jingles — `docs/loop/runs/2026-11-03-112/plan.md` names the
+  source, Kenney's CC0 packs, and the classes) with its own right-answer scores. If those sit near 0.2, the answer is option 6 (a floor
+  relative to the library) or no positive default; if they sit near ESC-50's, `0.35` stands, and nothing above is lost by waiting.
+- **If the owner would rather decide now, option 1 is safer than option 3.** The cost of `0.0` is a long list that looks like answers,
+  and the guide says so; the cost of `0.35` is an empty one for a kind of library this crate exists for.
+- **Why not `0.45`, if `0.35` is withdrawn?** Unchanged: on the stranger's wording `0.45` already deletes answers on ESC-50 itself.
 
 ## What is blocked
 

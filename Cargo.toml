@@ -143,13 +143,22 @@ ebur128 = { version = "0.1.11", default-features = false, optional = true }
 serde_json = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 ron = { version = "0.12", optional = true }
-# The `mixer` backend only. Same version as `bevy_audio`'s own, so the graph has one rodio.
+# The `mixer` backend, and the decoder the `semantic` feature reads files with. Same version as `bevy_audio`'s own, so the graph has
+# one rodio.
 #
-# `wav` and `vorbis` are the two formats a game's sounds arrive in — WAV for effects, Vorbis for music,
-# which is also Bevy's default audio format — and `Decoder::new` returns `UnrecognizedFormat` for
-# anything else, which the backend warns about rather than panicking on. Enabling them here rather than
-# relying on the game's `bevy/wav` keeps the backend's promises its own.
-rodio = { version = "0.22", default-features = false, features = ["playback", "wav", "vorbis"], optional = true }
+# **Every format `library::AUDIO_EXTENSIONS` calls audio has to be decodable here**, and for most of this crate's life two of the
+# five were not: `mp3` and `flac` were scanned as audio, named in `indexer`'s own error message (*"a library of `.mp3` files is
+# indexed"*) and in `decode.rs`'s doc, and then refused as undecodable, because this list was `wav` and `vorbis` only.
+# `tests/semantic_decode.rs::every_extension_the_scan_calls_audio_has_a_decoder` now fails if the two drift apart again.
+#
+# `wav` and `vorbis` are what a game's effects and music arrive in — Vorbis is also Bevy's default audio format — and `flac` and
+# `mp3` are the other two a library arrives in (Gregory, *Game Engine Architecture*, §14.3.2.3, surveys the uncompressed, lossless
+# and lossy formats a game meets). All four are `symphonia` codecs in rodio 0.22 (`rodio-0.22.2/Cargo.toml`: `flac =
+# ["symphonia-flac"]`, `mp3 = ["symphonia-mp3"]`), pure Rust, so the two added formats cost two crates and no C toolchain (measured
+# in `docs/loop/runs/2026-11-03-112/eval.md`). `Decoder::new` returns `UnrecognizedFormat` for anything else, which the backend
+# warns about rather than panicking on. Enabling them here rather than relying on the game's own `bevy/mp3` keeps the crate's
+# promises its own.
+rodio = { version = "0.22", default-features = false, features = ["playback", "wav", "vorbis", "flac", "mp3"], optional = true }
 
 # **Tests and examples only.** `wav` is the format the examples synthesise, and the full umbrella here
 # cannot reach a consumer's dependency graph. `tests/leaf.rs` reads `[dependencies]` only, deliberately.

@@ -1,0 +1,11 @@
+Ogg files compared: 209 (scifi + rpg-ogg + jingles)
+pair                   median rel      max rel    files with rel > 1e-5
+ffmpeg~libvorbis         1.55e-07     1.70e-07                  0 of 209
+crate~libvorbis          1.67e-07     3.46e-02                 22 of 209
+crate~ffmpeg             1.30e-07     3.46e-02                 22 of 209
+
+frames beyond libvorbis's: ffmpeg-libvorbis   min -128  median 0  max 0  (files with any extra: 8)
+frames beyond libvorbis's: crate-libvorbis    min 0  median 0  max 975  (files with any extra: 59)
+
+worst for crate~libvorbis: [(0.0345989353954792, 'metalPot3'), (0.026361973956227303, 'metalLatch'), (0.018232205882668495, 'metalPot2'), (0.017345819622278214, 'bookPlace3'), (0.014155426993966103, 'doorClose_3')]
+worst for ffmpeg~libvorbis: [(1.7048452605195052e-07, 'drawKnife1'), (1.7029057630679745e-07, 'jingles_PIZZA10'), (1.6926597368183138e-07, 'doorClose_000')]

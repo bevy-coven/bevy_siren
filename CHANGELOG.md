@@ -7,6 +7,38 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- **Two of the five formats the scan calls audio could not be decoded, and nothing had ever tried.** `library::AUDIO_EXTENSIONS` —
+  *"the formats the crate can decode"* — lists `wav ogg oga flac mp3`; `rodio` was given `wav` and `vorbis`; `indexer`'s own error says
+  *"a library of `.mp3` files is indexed"*. Every `.flac` and `.mp3` was scanned as audio and refused (*"The format of the data has
+  not been recognized"*) because **no test had opened a file that was not a WAV**. `rodio` now has `flac` and `mp3` — two pure-Rust crates:
+  `--features semantic` goes from 487 to **497** lines and 181 to **183** crates; the default build is unchanged at 413 and 149 — and
+  `every_extension_the_scan_calls_audio_has_a_decoder` fails if the list and the decoder drift again. **Checked against decoders that are
+  not this crate's, on real files, through the whole pipeline**: 2 000 ESC-50 clips as FLAC give *identical* similarities to the WAVs (all
+  232 000, largest difference 0.0); Kenney's 62 MP3 effects match `ffmpeg`'s decode on all 259 description–file pairs, every length exact;
+  209 Ogg effects match `libvorbis` to 1.8 × 10⁻⁷ relative rms. The claim in `decode.rs`, `tests/leaf.rs` and `tests/library.rs` that the
+  decoder *"costs no new crate"* was never true — `rodio` is in the default graph and its decoders are not, 16 of the 34 crates `semantic`
+  adds — and is corrected with the decomposition.
+- **`library::read_header` read the wrong bytes for Ogg and FLAC.** A 48 kHz mono FLAC reported **768 000 Hz** (the 20-bit rate field was
+  shifted by the wrong amounts) and an Ogg's rate was read three bytes late; only the WAV branch had a test. Fixed, and tested against
+  real `ffmpeg` files at two rates and two channel counts rather than a header built from the same reading of the spec as the parser.
+- **An Ogg Vorbis file decoded up to 20 ms too long**: `symphonia` keeps the padding of the last block, which the spec says to discard.
+  CLAP repeats a short clip to fill its input, so on the RPG pack's effects that tail alone moved a similarity by up to 0.085 and changed
+  the top three of **all 12** descriptions tried (59 of 209 files were affected, by up to 975 frames). `decode` now cuts an Ogg that is one
+  stream ending cleanly to the length its last page declares; against `libvorbis` the worst difference is 0.004. A chained file is left
+  alone, and a test fails if that guard is removed (checked by weakening it). `mixer` plays through `rodio` directly and is unchanged. The
+  same decoder clamps its Vorbis output to [−1, 1] — I first read the 22 of 51 files that differ as wrong samples, and was wrong: their
+  decoded peaks reach 1.3, and clamping `libvorbis`'s output the same way makes all 209 agree to 1.8 × 10⁻⁷. A design choice, left alone.
+- **`examples/semantic` cut a long compressed file off and said *done*.** It waited for a length estimated as 16-bit PCM from the header: a
+  10 s FLAC of a steady tone was waited 1.7 s for, a 15 s MP3 5.8 s. It now waits for the decoded length (9.9 s and 14.8 s).
+- **The recommendation in `needs-decision/default-floor.md` was contradicted by this repository's own second library, and was not revised.**
+  Iteration 111 recommended a floor of `0.35`; iteration 110's demo — fourteen macOS UI sounds — scored **nothing above 0.256** for any of five
+  descriptions ("a short electronic beep" → `Sosumi` 0.206, "a glass being tapped" → `Glass` 0.016), so every positive floor would have returned
+  an empty list. It now recommends keeping `0.0` until a second library of game audio is measured; the guide and two doc comments say so. The
+  default is unchanged.
+- **The golden set's baseline is the WAV encoding, and the encoding moves the answer** — stated where the numbers are. The same clips as FLAC
+  are identical; as MP3 at 128 / 64 kbit/s, hit@1 goes 90 → **94** / **98** %, zero-shot 87.8 → 87.5 / 87.2 %, and the stranger's hit@10 92 → 92 / 88 %.
+  The prediction written down before the run said hit@1 would move by at most two points; it moved four and eight, and the typical similarity by
+  0.005 and 0.033. A change in hit@1 under about eight points is within what re-encoding the library does.
 - **The documented basis for the similarity floor was false on real recordings.** `Floor::default()` is `0.0`, justified as *"a
   measurement, not timidity"*: six synthetic clips whose right and wrong score bands overlapped, so *"no single threshold separates
   them"* and *"a floor of 0.5 would reject every correct match"*. The first run of the golden set — **2 000 real recordings, 50

@@ -1,0 +1,22 @@
+# examples/semantic's wait for a file, on the example as it is at 7ddf91f plus the two new rodio features (the decoders exist; the wait is still the header-and-size estimate)
+
+## engine.flac: 644331 bytes, real duration 5.000000 s
+  1.40s            1 indexed in 0.1 s (13.0 clips/s)
+  1.72s  Played    audition.20e04e5e9e0ec8fe on the Music bus at +0.0 dB, variant `engine.flac`
+  6.75s  done
+
+## engine.mp3: 81127 bytes, real duration 5.000000 s
+  0.21s            1 indexed in 0.1 s (13.3 clips/s)
+  0.51s  Played    audition.b030c60761174789 on the Music bus at +0.0 dB, variant `engine.mp3`
+  5.47s  done
+
+## engine-15s.mp3: 241205 bytes, real duration 15.000000 s
+  0.31s            1 indexed in 0.2 s (6.0 clips/s)
+  0.65s  Played    audition.9011a47e677946fb on the Music bus at +0.0 dB, variant `engine-15s.mp3`
+  6.44s  done
+
+## hum-10s.flac: 171706 bytes (16-bit stereo 48 kHz; its PCM would be 1 920 000 bytes, so lossless compression made it 11x smaller), real duration 10.000000 s
+   estimate the example made: 171706 / (48000 Hz x 2 ch x 2 bytes) + 0.75 = 1.64 s; it said "done" 1.70 s after "Played" for a 10 s file
+  0.22s            1 indexed in 0.1 s (11.4 clips/s)
+  0.60s  Played    audition.48beb746a9dc3f5a on the Music bus at +0.0 dB, variant `hum-10s.flac`
+  2.30s  done

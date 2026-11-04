@@ -1,0 +1,77 @@
+goldenbench: esc50 @ 33c8ce9e manifest 50bf2b79f2e96d49 queries 591257e670ee4f34 — 2000 clips, 50 classes, 50 queries and 16 that should find nothing
+             CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here; model transformers-4.57.6/torch-2.8.0/opset-17
+index:       indexing 2000 clips with the real audio tower (about 60 ms a clip) …
+             2000 indexed, 2 not audio in 263.8 s (7.6 clips/s); 2000 licences attached
+             written to `/tmp/esc50-mp3-128/siren-index`
+licences:    1770 permit commercial use, 170 do not, 60 unknown or not recognised — a person decides those
+text:        66 descriptions and 50 prompts embedded in 0.9 s
+ranking:     66 queries over 2000 clips in 89.8 ms
+
+1. Zero-shot classification — the paper's protocol: each clip against "This is a sound of <class>.", top-1
+   accuracy  87.5 %   (1750 of 2000 clips)      paper: 88.0 – 91.0 % on the overlap-excluded subset; people score 81.3 %
+   weakest classes: cow 32 %, crickets 38 %, wind 42 %, water_drops 50 %, hen 68 %
+   most confused:   cow → sheep ×24, crickets → insects ×17, water_drops → pouring_water ×13, hen → rooster ×11, helicopter → airplane ×9
+
+2. Text-to-audio retrieval — 50 descriptions, every clip ranked, a right answer is any clip of the class
+   hit@1  94.0 %   hit@3 100.0 %   hit@10 100.0 %   precision@10  89.0 %   MRR 0.970   mAP@10 0.861
+   every description found a right answer within the first 3
+   best result wrong, by precision@10: `a cow mooing` 20 %, `flies and insects buzzing` 50 %, `a hen clucking` 80 %
+
+3. Scores — CLAP cosines, before any weighting
+                                  min     p05     p25  median     p75     p95     max        n
+   right answers               -0.037  +0.272  +0.389  +0.464  +0.532  +0.627  +0.791     2000
+   wrong answers               -0.442  -0.135  -0.016  +0.066  +0.150  +0.274  +0.637    98000
+   best of the no-answer set   +0.314  +0.317  +0.356  +0.450  +0.495  +0.532  +0.595       16
+   the queries that should find nothing, by the best clip they found:
+     a gunshot                            +0.595  fireworks
+     a violin playing a slow melody       +0.532  siren
+     a lion roaring                       +0.525  cow
+     a whale singing underwater           +0.516  wind
+     a horse galloping                    +0.495  footsteps
+     a choir singing in harmony           +0.466  siren
+     a cartoon spring boing               +0.459  water_drops
+     a trumpet fanfare                    +0.450  car_horn
+     a laser blaster firing               +0.421  water_drops
+     a piano playing chords               +0.398  water_drops
+     a printer printing a page            +0.375  clock_alarm
+     a cash register opening              +0.356  door_wood_creaks
+     a person talking in conversation     +0.329  frog
+     a drum kit solo                      +0.319  fireworks
+     a magic spell sparkle chime          +0.317  water_drops
+     an electric guitar riff              +0.314  engine
+
+4. The floor — what each keeps of the right answers and silences of the wrong ones
+    floor  top-1 kept  hit@3 kept   returned   precision      silent
+    -0.10      94.0 %     100.0 %     1830.8       2.2 %       0.0 %
+    -0.05      94.0 %     100.0 %     1668.4       2.4 %       0.0 %
+    +0.00      94.0 %     100.0 %     1423.2       2.8 %       0.0 %
+    +0.05      94.0 %     100.0 %     1122.9       3.6 %       0.0 %
+    +0.10      94.0 %     100.0 %      809.9       4.9 %       0.0 %
+    +0.15      94.0 %     100.0 %      530.4       7.5 %       0.0 %
+    +0.20      94.0 %     100.0 %      315.3      12.5 %       0.0 %
+    +0.25      94.0 %     100.0 %      178.4      21.6 %       0.0 %
+    +0.30      94.0 %     100.0 %      102.2      36.1 %       0.0 %
+    +0.35      94.0 %     100.0 %       63.0      53.4 %      25.0 %
+    +0.40      94.0 %     100.0 %       40.9      70.3 %      43.8 %
+    +0.45      94.0 %     100.0 %       26.6      83.1 %      56.2 %
+    +0.50      90.0 %      96.0 %       15.8      91.5 %      75.0 %
+   (top-1 kept: descriptions whose best result is right and clears the floor; hit@3 kept: a right answer among the first three
+    that clear it; returned: results per query that clear the floor, of 2000; precision: the share of those that are right;
+    silent: the share of the 16 no-answer queries that return nothing)
+
+5. The tool path — `search_music` returns the same ten, with the same similarities, as the raw ranking: 50 of 50 queries
+
+6. Anchor judgements — none yet. `#35`'s third criterion (at least 50 pairs, each judged by a person with a reason) is a
+   person's listening; nothing here pretends otherwise. `docs/guide/golden-set.md` says how to add them.
+
+dump:        116 rows × 2000 clips written to `/tmp/dump-mp3-128.tsv`
+
+baseline:                    recorded       now    change
+             zero_shot         0.8780    0.8750   -0.0030
+             hit_1             0.9000    0.9400   +0.0400
+             hit_3             1.0000    1.0000   +0.0000
+             hit_10            1.0000    1.0000   +0.0000
+             precision_10      0.8880    0.8900   +0.0020
+             mrr               0.9500    0.9700   +0.0200
+             map_10            0.8573    0.8610   +0.0037
+no regression (a fall of more than 0.005 is one)

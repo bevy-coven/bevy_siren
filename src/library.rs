@@ -19,6 +19,11 @@ use std::path::{Path, PathBuf};
 
 /// The formats the crate can decode with either backend. A scan reports anything else as [`SkipReason::NotAudio`]
 /// rather than silently ignoring it, so a library that is 90 % `.mp3` says so instead of indexing its `.wav` third.
+///
+/// **This list and `rodio`'s decoder features in `Cargo.toml` are one fact stated twice**, and they once disagreed: `mp3` and
+/// `flac` were here and not there, so a folder of them scanned as audio and then failed to decode.
+/// `tests/semantic_decode.rs::every_extension_the_scan_calls_audio_has_a_decoder` decodes a real file of each entry and fails if
+/// an entry is added without a decoder or without a fixture.
 pub const AUDIO_EXTENSIONS: &[&str] = &["wav", "ogg", "oga", "flac", "mp3"];
 
 /// One file in the library, identified by its bytes.
@@ -272,24 +277,28 @@ fn read_header(bytes: &[u8], extension: &str) -> Option<(Option<u32>, Option<u16
         // corrupt file, not a WAV with an unknown rate, and saying so is the whole point of `Skip`.
         return None;
     }
-    // Ogg: "OggS", then the identification header names the codec; Vorbis carries its rate and channels at a fixed
-    // offset inside the first packet.
+    // Ogg: "OggS", then the first packet's identification header names the codec. Vorbis's (Vorbis I, §4.2.2) is, after its
+    // seven-byte marker `\x01vorbis`: the version (4 bytes), the channel count (1), the sample rate (4, little-endian), and then
+    // three bitrates. Read from `p`, the byte after the marker: channels at `p + 4`, rate at `p + 5 ..= p + 8`.
     if bytes.len() >= 4 && &bytes[0..4] == b"OggS" {
         if let Some(i) = find(bytes, b"\x01vorbis") {
             let p = i + 7;
-            if p + 12 <= bytes.len() {
-                let channels = bytes[p + 4] as u16;
-                let rate = u32::from_le_bytes([bytes[p + 8], bytes[p + 9], bytes[p + 10], bytes[p + 11]]);
+            if p + 9 <= bytes.len() {
+                let channels = u16::from(bytes[p + 4]);
+                let rate = u32::from_le_bytes([bytes[p + 5], bytes[p + 6], bytes[p + 7], bytes[p + 8]]);
                 return Some((Some(rate), Some(channels)));
             }
         }
         return Some((None, None));
     }
-    // FLAC: "fLaC", then a STREAMINFO metadata block whose fields are bit-packed.
+    // FLAC: "fLaC", then the STREAMINFO metadata block (RFC 9639 §8.2): a four-byte block header, then 34 bytes that open with two
+    // 16-bit block sizes and two 24-bit frame sizes — ten bytes — and continue with the sample rate in **20 bits**, the channel
+    // count less one in **3**, and the bit depth less one in **5**. The rate therefore straddles three bytes: all of `s[10]`, all
+    // of `s[11]`, and the high nibble of `s[12]`.
     if bytes.len() >= 4 && &bytes[0..4] == b"fLaC" {
         if bytes.len() >= 4 + 4 + 18 {
             let s = &bytes[8..];
-            let rate = (u32::from(s[10] & 0x0f) << 16) | (u32::from(s[11]) << 8) | u32::from(s[12]);
+            let rate = (u32::from(s[10]) << 12) | (u32::from(s[11]) << 4) | (u32::from(s[12]) >> 4);
             let channels = u16::from((s[12] >> 1) & 0x07) + 1;
             return Some((Some(rate), Some(channels)));
         }

@@ -1,0 +1,28 @@
+# where do the Ogg differences come from? the crate's own decode, as a WAV, with and without the frames it returns beyond the stream's true length, against ffmpeg's exact decode
+# 'untrimmed' is what the crate returned before the end trim; 'trimmed' is the same frames cut to ffmpeg's length. What remains after the cut is NOT a
+# decode error (I first read it as one): it is the decoder clamping to [-1, 1] the 22 rpg-ogg files that decode above full scale (vorbis-clamp-explains-it.txt),
+# plus ffmpeg's own length being up to 128 frames short in 8 files (decode-three-way.txt), which on a 0.15 s clip is enough to move a similarity by 0.06.
+
+######## rpg-ogg, crate decode untrimmed
+rpg-ogg-crate-untrimmed: 0 files, against the same files decoded by ffmpeg
+worst difference: 8.5e-02;  88 of 207 pairs equal to the printed precision;  27 files kept on one side only;  top three equal for 0 of 12 phrases;  rank correlation min 0.7273, mean 0.8884
+
+######## rpg-ogg, crate decode trimmed
+rpg-ogg-crate-trimmed: 0 files, against the same files decoded by ffmpeg
+worst difference: 4.0e-03;  179 of 223 pairs equal to the printed precision;  0 files kept on one side only;  top three equal for 9 of 12 phrases;  rank correlation min 0.9977, mean 0.9994
+
+######## jingles, crate decode untrimmed
+jingles-crate-untrimmed: 0 files, against the same files decoded by ffmpeg
+worst difference: 5.4e-02;  220 of 290 pairs equal to the printed precision;  19 files kept on one side only;  top three equal for 4 of 12 phrases;  rank correlation min 0.8947, mean 0.9667
+
+######## jingles, crate decode trimmed
+jingles-crate-trimmed: 0 files, against the same files decoded by ffmpeg
+worst difference: 1.0e-03;  298 of 301 pairs equal to the printed precision;  0 files kept on one side only;  top three equal for 11 of 12 phrases;  rank correlation min 1.0000, mean 1.0000
+
+######## scifi, crate decode untrimmed
+scifi-crate-untrimmed: 0 files, against the same files decoded by ffmpeg
+worst difference: 2.1e-02;  426 of 436 pairs equal to the printed precision;  1 files kept on one side only;  top three equal for 11 of 12 phrases;  rank correlation min 0.9997, mean 0.9999
+
+######## scifi, crate decode trimmed
+scifi-crate-trimmed: 0 files, against the same files decoded by ffmpeg
+worst difference: 1.0e-03;  434 of 437 pairs equal to the printed precision;  0 files kept on one side only;  top three equal for 12 of 12 phrases;  rank correlation min 1.0000, mean 1.0000

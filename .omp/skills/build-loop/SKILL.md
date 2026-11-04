@@ -69,6 +69,9 @@ verdict — finish or revert it first; a new item on top of a broken one measure
   run is a blocker of the first order, ranking above every feature.** If the volume is still short after cleaning this
   crate, `~/.cache/huggingface` and other apps' caches are **the owner's to delete, not yours** — say what holds the
   space, in GB, and ask.
+- **`df -g` does not exist on this macOS** (`df: illegal option`), so a guard written with it fails *silently* and the baseline runs on a full disk.
+  Use `df -k ~ | awk 'NR==2{print int($4/1048576)}'` (GB). The five-feature-set test matrix leaves **~11.5 GB** of this crate's debug binaries; clean
+  this crate between sets when under ~5 GB free (iteration 112's matrix script does that with a `guard` after every command).
 
 ## 2. Choose the single most valuable item
 
@@ -92,6 +95,12 @@ hardest thing in a game to find. The `Refusal` variants are `UnknownCue`, `NoSou
 
 State in one sentence why the pick beats the runner-up, and record the ranked list in `runs/<dir>/plan.md`. Carve an
 oversized item to the most valuable slice and say what was carved off.
+
+**A claim a test never exercises is a defect candidate, and the cheapest way to find the next one is to grep for it.** Search `src/`, the guides and
+the README for *"can decode"*, *"is indexed"*, *"supports"*, *"costs no"*, *"the same"*, and ask of each: which test opens a real file of that kind?
+Iteration 112 found that two of the five formats the scan calls audio could not be decoded, that the header parse for two was wrong, that a doc's *"costs
+no new crate"* was false by 16 crates, and that a recommendation (`0.35`) was contradicted by this repository's own earlier run — each was a sentence
+nobody had held against a file or a number.
 
 ## 3. Research first
 

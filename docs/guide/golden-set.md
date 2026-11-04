@@ -87,7 +87,11 @@ The weakest **top result** of any of the fifty descriptions scores **0.492** —
 top score separates a description the library can answer from one it cannot with an **AUC of 0.963** (0.885 in the stranger's); a
 margin over the tenth result does not (0.496 — a coin). The largest floor that keeps every description's top result in *both* wordings
 is 0.40, by a margin of 0.005; **0.35 keeps it with 0.055 to spare**. That is the evidence the default floor was waiting for, and the
-reason it is now a decision file rather than a number in a doc comment: `docs/loop/needs-decision/default-floor.md`.
+reason it is now a decision file rather than a number in a doc comment: `docs/loop/needs-decision/default-floor.md`. **One library is not
+enough to set a default on, and iteration 112 found the repository's own counter-example**: on fourteen macOS UI sounds nothing any of
+five descriptions found scored above **0.256** ("a short electronic beep" → `Sosumi` at 0.206; "a glass being tapped" → `Glass` at 0.016),
+so every positive floor in this table would have returned an empty list — and the decision file now recommends keeping `0.0` until a
+second library of game audio has been measured.
 
 **The sixteen that should find nothing find *something*, and it is almost always the confound their rationale names.** A gunshot finds
 `fireworks` (0.593), a lion finds `cow` (0.530), a violin finds `siren` (0.529), a whale finds `wind` (0.507), a horse finds `footsteps`
@@ -116,8 +120,8 @@ more — and the floor curve moves with them:
 | 0.50 | 90 % / **64 %** | 98 % / **70 %** | 49 / **41** |
 
 **This is the most important caveat on every figure above.** The headline retrieval numbers describe friendly wording, and the floor of
-0.45 that looked like the knee in the maintainer's wording already deletes answers in the stranger's — which is why the recommendation in
-the decision file is 0.35 and not 0.45.
+0.45 that looked like the knee in the maintainer's wording already deletes answers in the stranger's — which is why the number the
+decision file weighed was 0.35 and not 0.45, before the UI-sound counter-example above made it "not yet" rather than "0.35".
 
 ## What it cannot say
 
@@ -125,6 +129,11 @@ the decision file is 0.35 and not 0.45.
   (399 in its training split alone) and the paper *excluded* them from its zero-shot figure. This set does not, so absolute scores
   here are optimistic for the shipped checkpoint. What it measures soundly is **agreement with the reference** and the **shape** of the
   floor curve; what it cannot is how a *new* sound will score.
+- **The baseline is the WAV encoding, and the encoding moves the answer.** The same 2 000 clips as FLAC give identical numbers (all 232 000
+  similarities equal); as MP3 they move hit@1 from 90 % to **94 %** at 128 kbit/s and **98 %** at 64, zero-shot from 87.8 % to 87.5 % and 87.2 %,
+  and the stranger's hit@10 from 92 % to 88 % at 64 (`docs/guide/semantic.md` §2b, `evidence/after/format-cost.txt`). So a change in hit@1 smaller than about
+  eight points — four of fifty queries — is within what *re-encoding the library* does, and is not evidence about a pipeline change. (ESC-50's own
+  `LICENSE` lists all 2 000 clips as `.ogg` files, so the WAVs are themselves decoded from a lossy original.)
 - **One library of environmental recordings.** No music, no speech, no long tracks, no stereo, nothing synthesised, no game foley
 (impacts, whooshes, UI blips). `#35`'s own pitfall: *a set drawn from one library measures that library*. Any floor is a number about
 ESC-50 until a game-like library says otherwise.

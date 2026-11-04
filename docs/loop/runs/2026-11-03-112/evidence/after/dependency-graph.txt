@@ -1,0 +1,17 @@
+# cargo tree --edges normal, measured at 7ddf91f (before) and with rodio's flac + mp3 features (after)
+
+            before  after
+default       413    413   lines   (149 crates, unchanged)
+semantic      487    497   lines   (181 -> 183 crates)
+mixer         450    460   lines
+
+# what `semantic` adds over the default graph, by the dependency that brings it (34 crates; bitflags and num-complex are shared)
+via rodio (through bevy_audio)  : 16  bitflags encoding_rs extended multiversion_no_op scopeguard simdutf8 symphonia symphonia-bundle-flac symphonia-bundle-mp3 symphonia-codec-pcm symphonia-codec-vorbis symphonia-core symphonia-format-ogg symphonia-format-riff symphonia-metadata symphonia-utils-xiph
+via ebur128                     :  3  bitflags dasp_frame ebur128
+via ort                         :  6  matrixmultiply ndarray num-complex ort ort-sys rawpointer
+via rubato                      :  7  num-complex primal-check realfft rubato rustfft strength_reduce transpose
+via serde_json                  :  4  itoa memchr serde_json zmij
+
+# the symphonia crates in each graph
+default:  0
+semantic: 10  (symphonia symphonia-bundle-flac symphonia-bundle-mp3 symphonia-codec-pcm symphonia-codec-vorbis symphonia-core symphonia-format-ogg symphonia-format-riff symphonia-metadata symphonia-utils-xiph )

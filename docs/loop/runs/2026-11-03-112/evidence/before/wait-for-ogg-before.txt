@@ -1,0 +1,13 @@
+$ semantic /tmp/kenney-lib/jingles "a saxophone jingle"      # the example as it is at 7ddf91f; 85 Ogg Vorbis files
+          85 indexed in 5.3 s (16.2 clips/s)
+  1. jingles_SAX03.ogg   score 0.330   similarity 0.330
+Played    audition.998385d28861d366 on the Music bus at +0.0 dB, variant `jingles_SAX03.ogg`
+done
+real 8.33
+user 11.25
+sys 1.15
+$ semantic /tmp/kenney-lib/scifi "a spaceship engine humming"      # the example as it is at 7ddf91f; index already built
+  1. thrusterFire_000.ogg   score 0.453   similarity 0.453
+Played    audition.fabfef9b8e578f1f on the Music bus at +0.0 dB, variant `thrusterFire_000.ogg`
+done
+real 5.48

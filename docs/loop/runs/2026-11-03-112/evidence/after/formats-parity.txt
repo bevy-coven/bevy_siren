@@ -1,0 +1,64 @@
+# the crate's decode of real MP3 and Ogg Vorbis files against ffmpeg's decode of the same files (float32 WAV control), every description against every file
+# READ THE SECTIONS AS: digital-mp3 is final (identical on all 259 pairs). The Ogg sections (scifi, jingles, rpg-ogg) are from BEFORE the end trim, kept as the
+# "before"; the same libraries after it are formats-parity-ogg-after-trim.txt (against ffmpeg) and formats-parity-ogg-vs-libvorbis.txt (against libvorbis, the
+# better control: ffmpeg agrees with libvorbis to 1.7e-7 relative rms on all 209 Ogg files but returns up to 128 frames fewer than the stream declares in 8 of them).
+
+digital-mp3: 62 files, against the same files decoded by ffmpeg
+phrase                         pairs  max diff mean diff identical  one-sided     rho top 3 the same
+a laser blast                     58   0.0e+00   0.0e+00   58/58      0 (0.000)  1.0000 True
+a short electronic beep           28   0.0e+00   0.0e+00   28/28      0 (0.000)  1.0000 True
+an explosion                      34   0.0e+00   0.0e+00   34/34      0 (0.000)  1.0000 True
+a spaceship engine humming         9   0.0e+00   0.0e+00    9/9       0 (0.000)  1.0000 True
+a door closing                    20   0.0e+00   0.0e+00   20/20      0 (0.000)  1.0000 True
+coins clinking                    28   0.0e+00   0.0e+00   28/28      0 (0.000)  1.0000 True
+footsteps on gravel                2   0.0e+00   0.0e+00    2/2       0 (0.000)  1.0000 True
+a saxophone jingle                21   0.0e+00   0.0e+00   21/21      0 (0.000)  1.0000 True
+a computer processing noise       20   0.0e+00   0.0e+00   20/20      0 (0.000)  1.0000 True
+a button click                    29   0.0e+00   0.0e+00   29/29      0 (0.000)  1.0000 True
+a book being closed                8   0.0e+00   0.0e+00    8/8       0 (0.000)  1.0000 True
+metal pots clanging                2   0.0e+00   0.0e+00    2/2       0 (0.000)  1.0000 True
+
+worst difference: 0.0e+00;  259 of 259 pairs equal to the printed precision;  0 files kept on one side only;  top three equal for 12 of 12 phrases;  rank correlation min 1.0000, mean 1.0000
+
+scifi: 73 files, against the same files decoded by ffmpeg
+phrase                         pairs  max diff mean diff identical  one-sided     rho top 3 the same
+a laser blast                     58   2.1e-02   6.7e-04   54/58      0 (0.000)  0.9998 False
+a short electronic beep           45   0.0e+00   0.0e+00   45/45      1 (0.001)  1.0000 True
+an explosion                      46   1.8e-02   6.7e-04   44/46      0 (0.000)  0.9999 True
+a spaceship engine humming        35   1.0e-03   2.9e-05   34/35      0 (0.000)  1.0000 True
+a door closing                    35   8.0e-03   2.3e-04   34/35      0 (0.000)  0.9997 True
+coins clinking                    33   0.0e+00   0.0e+00   33/33      0 (0.000)  1.0000 True
+footsteps on gravel               37   0.0e+00   0.0e+00   37/37      0 (0.000)  1.0000 True
+a saxophone jingle                15   1.0e-03   6.7e-05   14/15      0 (0.000)  1.0000 True
+a computer processing noise       44   0.0e+00   0.0e+00   44/44      0 (0.000)  1.0000 True
+a button click                    28   0.0e+00   0.0e+00   28/28      0 (0.000)  1.0000 True
+a book being closed               32   1.0e-03   3.1e-05   31/32      0 (0.000)  1.0000 True
+metal pots clanging               28   0.0e+00   0.0e+00   28/28      0 (0.000)  1.0000 True
+
+worst difference: 2.1e-02;  426 of 436 pairs equal to the printed precision;  1 files kept on one side only;  top three equal for 11 of 12 phrases;  rank correlation min 0.9997, mean 0.9999
+
+jingles: 85 files, against the same files decoded by ffmpeg
+phrase                         pairs  max diff mean diff identical  one-sided     rho top 3 the same
+a laser blast                     31   3.6e-02   2.8e-03   24/31      0 (0.000)  0.9669 True
+a short electronic beep           19   2.9e-02   5.5e-03   12/19      2 (0.012)  0.8947 True
+an explosion                      30   4.3e-02   3.9e-03   24/30      0 (0.000)  0.9368 True
+the example failed on /tmp/kenney-lib/jingles for 'a spaceship engine humming':
+
+
+rpg-ogg: 51 files, against the same files decoded by ffmpeg
+phrase                         pairs  max diff mean diff identical  one-sided     rho top 3 the same
+a laser blast                     19   8.5e-02   1.6e-02    6/19      3 (0.034)  0.9140 False
+a short electronic beep           21   4.4e-02   8.3e-03    7/21      2 (0.019)  0.7273 False
+an explosion                      20   3.5e-02   6.1e-03    9/20      4 (0.044)  0.9278 False
+a spaceship engine humming        20   2.2e-02   6.3e-03   10/20      0 (0.000)  0.9519 False
+a door closing                    17   4.0e-02   8.1e-03    6/17      3 (0.028)  0.8431 False
+coins clinking                    12   4.5e-02   6.7e-03    9/12      2 (0.015)  0.9790 False
+footsteps on gravel                7   2.1e-02   4.6e-03    5/7       2 (0.059)  0.8929 False
+a saxophone jingle                18   4.1e-02   8.9e-03   10/18      6 (0.036)  0.8204 False
+a computer processing noise        4   2.1e-02   1.1e-02    1/4       0 (0.000)  0.8000 False
+a button click                    32   3.6e-02   8.8e-03   11/32      1 (0.021)  0.9208 False
+a book being closed               24   5.0e-02   9.3e-03    8/24      2 (0.009)  0.8896 False
+metal pots clanging               13   5.4e-02   5.6e-03    6/13      2 (0.030)  0.9945 False
+
+worst difference: 8.5e-02;  88 of 207 pairs equal to the printed precision;  27 files kept on one side only;  top three equal for 0 of 12 phrases;  rank correlation min 0.7273, mean 0.8884
+

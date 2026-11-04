@@ -1,0 +1,21 @@
+# examples/semantic's wait for a file: the fix (wait for the decoded length). Same four files as evidence/before/wait-for-flac-mp3-before.txt
+
+## engine.flac: 644331 bytes, real duration 5.000000 s
+  1.38s            1 indexed in 0.1 s (13.3 clips/s)
+  1.69s  Played    audition.20e04e5e9e0ec8fe on the Music bus at +0.0 dB, variant `engine.flac`
+  6.70s  done
+
+## engine.mp3: 81127 bytes, real duration 5.000000 s
+  0.21s            1 indexed in 0.1 s (13.3 clips/s)
+  0.50s  Played    audition.b030c60761174789 on the Music bus at +0.0 dB, variant `engine.mp3`
+  5.46s  done
+
+## engine-15s.mp3: 241205 bytes, real duration 15.000000 s
+  0.30s            1 indexed in 0.2 s (6.0 clips/s)
+  0.60s  Played    audition.9011a47e677946fb on the Music bus at +0.0 dB, variant `engine-15s.mp3`
+ 15.35s  done
+
+## hum-10s.flac: 171706 bytes, real duration 10.000000 s
+  0.23s            1 indexed in 0.1 s (11.3 clips/s)
+  0.53s  Played    audition.48beb746a9dc3f5a on the Music bus at +0.0 dB, variant `hum-10s.flac`
+ 10.43s  done

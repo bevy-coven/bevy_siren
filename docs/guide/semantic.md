@@ -21,12 +21,14 @@ bevy_siren = { version = "0.1", features = ["semantic"] }
 ```
 
 Enabling it downloads ONNX Runtime at build time. A crate that does not enable it is unchanged: `cargo tree --edges
-normal` reads **413 lines** by default and **487** with `semantic` — the runtime, the resampler, the loudness analyser and
-`serde_json`, 149 crates becoming 181 — measured.
+normal` reads **413 lines** by default and **497** with `semantic`, 149 crates becoming 183 — the file decoders (`rodio`'s
+`symphonia` codecs for WAV, Ogg Vorbis, FLAC and MP3: 16 crates, counting what they pull in), the runtime, the resampler, the
+loudness analyser and `serde_json` — measured in this crate's own graph, which builds `bevy` with its defaults off; a game's
+graph already holds the formats its own `bevy` enables, Vorbis among them by default.
 
 ## Try it: `examples/semantic`
 
-One command on a folder of WAV, Ogg or FLAC files: build (or reuse) the index, describe a sound, read the best three with
+One command on a folder of WAV, Ogg Vorbis, FLAC or MP3 files: build (or reuse) the index, describe a sound, read the best three with
 the reason for each, and **hear** the first through the crate's own play path. The crate does not ship the model, so the
 first time is two steps:
 
@@ -136,6 +138,44 @@ down-sampling"* and a hand-rolled interpolator produces a plausible embedding fr
 | a 1 kHz tone | keeps **0.5000 of 0.5000** of its energy |
 | 15 kHz | survives; nothing folds to 9.1 kHz |
 | the resampler's own latency | **560** samples, skipped |
+
+### 2b. Formats: what each was checked against
+
+`library::AUDIO_EXTENSIONS` is `wav`, `ogg`, `oga`, `flac`, `mp3`, and **a test decodes a real file of every one of them** — for a long time
+two were on the list and could not be decoded at all, because nothing had ever opened a file that was not a WAV. Each was then checked
+against a decoder that is not this crate's, on real files, through the whole pipeline (`formats_parity.py`: the crate on the file against the
+crate on the same file decoded by the reference, so a difference is the decoder's alone):
+
+| format | checked against | result |
+|---|---|---|
+| WAV | — | the golden set's own format; the baseline |
+| FLAC | 2 000 ESC-50 clips as WAV and as FLAC, all 232 000 similarities | **identical** — a largest difference of 0.0 at six decimals |
+| MP3 | Kenney's 62 MP3 effects against `ffmpeg`'s decode, 12 descriptions | **identical** to the printed three decimals on all 259 pairs; every length exact |
+| Ogg Vorbis | 209 Kenney Ogg effects against `libvorbis` | samples agree to 1.8 × 10⁻⁷ relative rms; **the stream's end was returned up to 20 ms late in 59 of 209 files — now cut** (below) |
+
+**Ogg: the end is cut to the length the stream declares.** `symphonia` keeps the padding of the last Vorbis block, which the spec says to
+discard, so a short Ogg effect came back up to 20 ms long — near-silence (median peak −69 dBFS), but CLAP repeats a short clip to fill its 10 s
+input, and on the RPG pack's effects that tail alone moved a similarity by up to 0.085 and changed the top three of **all 12** descriptions tried.
+`decode` now cuts an Ogg that is one stream ending cleanly to its last page's granule position: against `libvorbis` the worst difference is 0.004. A
+chained or truncated file is left alone. (`mixer` plays through `rodio` directly and still gets the padding.) The same decoder **clamps its output to
+[−1, 1]**, where `libvorbis` returns the overshoot a hot master decodes to — 22 of 51 files in one pack, peaks to 1.3 — a design choice that moved a
+similarity by at most 0.004 and is left alone.
+
+**A lossy copy of a library is a different library.** The same 2 000 ESC-50 clips, re-encoded and put through the same benchmark:
+
+| | median change in a similarity | zero-shot | hit@1 (maintainer's / stranger's wording) | hit@10 (stranger's) |
+|---|---|---|---|---|
+| WAV | — | 87.8 % | 90 % / 72 % | 92 % |
+| FLAC | **0** | 87.8 % | 90 % / 72 % | 92 % |
+| MP3 128 kbit/s | 0.005 (mean 0.008, p99 0.057) | 87.5 % | 94 % / 74 % | 92 % |
+| MP3 64 kbit/s | 0.033 (mean 0.042, p99 0.16) | 87.2 % | 98 % / 78 % | 88 % |
+
+Re-encoding *moved* retrieval rather than costing it: **hit@1 rose** four to eight points in the maintainer's wording (two to four of fifty queries),
+while zero-shot accuracy fell 0.3 – 0.6 points and, at 64 kbit/s, the stranger's hit@10 fell four. Why hit@1 rose is not known [inference: CLAP's
+training audio is lossy, so a lossy clip may sit nearer it; untested]. What it means for a reader: **a retrieval number is a number about one
+encoding of one library**, and a change in hit@1 smaller than about eight points is within what re-encoding the same clips does. The silence ESC-50
+pads its clips with is not what moved the most-changed clips (clapping, sirens, church bells; their digital-silence share correlates 0.16 with the
+change). The baseline in `golden/esc50/baseline.txt` is the WAV copy and stays so.
 
 ### 3. The spectrogram is CLAP's, exactly
 
@@ -543,9 +583,13 @@ description the library can answer from one it cannot with an AUC of 0.963 (0.88
 Read the table with its caveats. **It is the maintainer's wording**: in a stranger's, a floor of 0.45 already loses two top results and
 0.50 loses nine, so the largest floor that is safe in both is 0.40 by a margin of 0.005 and **0.35 is the one with room to spare**. One
 library of environmental recordings that overlaps the model's training data, no music, speech or game foley, sixteen no-answer queries —
-and the ones a floor cannot silence are the ones with a real neighbour (a gunshot finds `fireworks` at 0.59). The lesson that matters
-more than any number: **synthetic tones understated a real match by a wide margin, so a floor calibrated on them was calibrated on
-nothing.**
+and the ones a floor cannot silence are the ones with a real neighbour (a gunshot finds `fireworks` at 0.59). **And the demo above is the
+other library: nothing any of its five descriptions found scored above 0.26 — "a short electronic beep" → `Sosumi` at 0.21, "a glass
+being tapped" → `Glass` at 0.02 — which is below every positive floor in this table**, so a floor calibrated here would return nothing
+for a game's UI sounds; the decision file recommends keeping `0.0` until a second library of game
+audio has been measured. The lesson that matters more than any number: **synthetic tones understated a real match by a wide margin, so a
+floor calibrated on them was calibrated on nothing — and a floor calibrated on environmental recordings may be calibrated on nothing for
+synthetic UI sounds.**
 
 ## The ensemble: a score that explains itself
 

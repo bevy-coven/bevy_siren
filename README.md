@@ -150,7 +150,7 @@ the first 32 footsteps and quietly stole or refused every one after that.
   five-second recordings at **9.5 clips/s, 105 ms a clip** (about nine minutes for 5 000, measured under load).
   `incremental::update` pays only for what changed; `examples/semantic` rebuilds whole. Off by default: a
   build that does not enable it is unchanged at **413 lines** of `cargo tree --edges normal`, and with it that is
-  **487**. The pipeline and its rules are in
+  **497**. The pipeline and its rules are in
   [semantic](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic.md); every authored number — each
   weight, threshold and variant distance, with its default and what it does at its extremes — is in
   [semantic-config](https://github.com/bevy-coven/bevy_siren/blob/main/docs/guide/semantic-config.md).

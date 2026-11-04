@@ -1,0 +1,7 @@
+The 22 'mid-file errors' are the decoder clamping its output to [-1, 1] (symphonia-codec-vorbis-0.5.5/src/dsp.rs:136: `*s = s.clamp(-1.0, 1.0);`).
+libvorbis returns unclipped floats, and these files decode above full scale. Test: clamp libvorbis's output the same way and compare with the crate's.
+
+pack     files files whose peak > 1.0     crate vs libvorbis crate vs clamp(libvorbis)
+rpg-ogg     51                     22          worst 3.5e-02          worst 1.8e-07
+jingles     85                      0          worst 1.8e-07          worst 1.8e-07
+scifi       73                      0          worst 1.8e-07          worst 1.8e-07

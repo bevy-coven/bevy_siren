@@ -1,0 +1,5 @@
+# every similarity goldenbench computes (50 descriptions + 16 with no answer + 50 class prompts, against 2 000 clips), the WAV library against the same clips re-encoded
+library vs WAV              rows     pairs  mean |d|    median       p99    max |d|
+flac                         116    232000   0.0e+00   0.0e+00   0.0e+00    0.0e+00
+mp3-128                      116    232000   8.4e-03   5.1e-03   5.7e-02    3.8e-01
+mp3-64                       116    232000   4.2e-02   3.3e-02   1.6e-01    4.1e-01

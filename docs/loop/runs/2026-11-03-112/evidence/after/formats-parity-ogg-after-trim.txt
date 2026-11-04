@@ -1,0 +1,53 @@
+# the crate's decode of real Ogg Vorbis files AFTER the end trim, against ffmpeg's exact decode of the same files (float32 WAV control)
+# before the trim (evidence/after/formats-parity.txt, section rpg-ogg etc.): rpg-ogg worst 8.5e-02, rank correlation min 0.727, top three equal for 0 of 12; jingles worst 5.4e-02 / 0.895 / 4 of 12; scifi 2.1e-02 / 0.9997 / 11 of 12
+
+rpg-ogg: 51 files, against the same files decoded by ffmpeg
+phrase                         pairs  max diff mean diff identical  one-sided     rho top 3 the same
+a laser blast                     22   4.0e-03   5.5e-04   14/22      0 (0.000)  0.9989 False
+a short electronic beep           22   2.0e-03   3.2e-04   17/22      1 (0.012)  0.9989 True
+an explosion                      22   3.0e-03   4.5e-04   16/22      0 (0.000)  0.9977 True
+a spaceship engine humming        20   1.0e-03   5.0e-05   19/20      0 (0.000)  1.0000 True
+a door closing                    19   1.0e-03   2.1e-04   15/19      0 (0.000)  0.9982 True
+coins clinking                    13   0.0e+00   0.0e+00   13/13      0 (0.000)  1.0000 True
+footsteps on gravel                8   1.4e-02   1.7e-03    7/8       0 (0.000)  1.0000 False
+a saxophone jingle                21   1.0e-03   9.5e-05   19/21      1 (0.012)  1.0000 True
+a computer processing noise        4   2.0e-03   1.0e-03    1/4       0 (0.000)  1.0000 False
+a button click                    33   6.4e-02   2.2e-03   26/33      0 (0.000)  0.9693 True
+a book being closed               24   2.0e-03   3.3e-04   17/24      0 (0.000)  1.0000 True
+metal pots clanging               15   1.0e-03   1.3e-04   13/15      0 (0.000)  1.0000 False
+
+worst difference: 6.4e-02;  177 of 223 pairs equal to the printed precision;  2 files kept on one side only;  top three equal for 8 of 12 phrases;  rank correlation min 0.9693, mean 0.9969
+
+jingles: 85 files, against the same files decoded by ffmpeg
+phrase                         pairs  max diff mean diff identical  one-sided     rho top 3 the same
+a laser blast                     30   1.4e-02   4.7e-04   29/30      1 (0.016)  0.9973 True
+a short electronic beep           19   6.2e-02   3.5e-03   17/19      0 (0.000)  0.8825 True
+an explosion                      30   7.0e-03   5.0e-04   27/30      0 (0.000)  0.9978 True
+a spaceship engine humming         0   (fewer than three files kept on both sides: not comparable; 0 kept on one side only)
+a door closing                     3   0.0e+00   0.0e+00    3/3       0 (0.000)  1.0000 True
+coins clinking                    49   1.0e-03   2.0e-05   48/49      0 (0.000)  1.0000 True
+footsteps on gravel                4   0.0e+00   0.0e+00    4/4       0 (0.000)  1.0000 True
+a saxophone jingle                69   1.0e-03   1.4e-05   68/69      0 (0.000)  1.0000 True
+a computer processing noise        9   0.0e+00   0.0e+00    9/9       0 (0.000)  1.0000 True
+a button click                    53   5.0e-03   9.4e-05   52/53      0 (0.000)  1.0000 True
+a book being closed                5   0.0e+00   0.0e+00    5/5       0 (0.000)  1.0000 True
+metal pots clanging               29   0.0e+00   0.0e+00   29/29      0 (0.000)  1.0000 True
+
+worst difference: 6.2e-02;  291 of 300 pairs equal to the printed precision;  1 files kept on one side only;  top three equal for 11 of 12 phrases;  rank correlation min 0.8825, mean 0.9889
+
+scifi: 73 files, against the same files decoded by ffmpeg
+phrase                         pairs  max diff mean diff identical  one-sided     rho top 3 the same
+a laser blast                     58   4.0e-02   1.5e-03   54/58      0 (0.000)  0.9996 False
+a short electronic beep           46   0.0e+00   0.0e+00   46/46      0 (0.000)  1.0000 True
+an explosion                      46   3.5e-02   1.2e-03   44/46      0 (0.000)  0.9989 True
+a spaceship engine humming        35   1.0e-03   2.9e-05   34/35      0 (0.000)  1.0000 True
+a door closing                    35   1.0e-03   2.9e-05   34/35      0 (0.000)  1.0000 True
+coins clinking                    33   0.0e+00   0.0e+00   33/33      0 (0.000)  1.0000 True
+footsteps on gravel               37   0.0e+00   0.0e+00   37/37      0 (0.000)  1.0000 True
+a saxophone jingle                15   1.0e-03   6.7e-05   14/15      0 (0.000)  1.0000 True
+a computer processing noise       44   0.0e+00   0.0e+00   44/44      0 (0.000)  1.0000 True
+a button click                    28   0.0e+00   0.0e+00   28/28      0 (0.000)  1.0000 True
+a book being closed               32   1.0e-03   3.1e-05   31/32      0 (0.000)  1.0000 True
+metal pots clanging               28   0.0e+00   0.0e+00   28/28      0 (0.000)  1.0000 True
+
+worst difference: 4.0e-02;  427 of 437 pairs equal to the printed precision;  0 files kept on one side only;  top three equal for 11 of 12 phrases;  rank correlation min 0.9989, mean 0.9999

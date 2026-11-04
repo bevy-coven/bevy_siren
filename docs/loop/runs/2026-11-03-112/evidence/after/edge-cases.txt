@@ -1,0 +1,45 @@
+# examples/semantic held wrong, with the release build at the end of iteration 112
+
+$ semantic /tmp/zz/edge/empty "a steady tone" --no-play
+semantic: no audio files in `empty` (the decoder reads: wav, ogg, oga, flac, mp3)
+exit: 1
+
+$ semantic /tmp/zz/edge/broken "a steady tone" --no-play
+semantic: CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here — 1 assets in `broken`
+          model version transformers-4.57.6/torch-2.8.0/opset-17
+index:    none yet; building
+          audio graph loaded in 0.2 s
+          0 indexed, 4 failed. First: `empty.wav`: audio extension but the header names no format it decodes in 0.0 s (0.0 clips/s)
+          could not index `empty.wav`: audio extension but the header names no format it decodes
+          could not index `noise.flac`: audio extension but the header names no format it decodes
+          could not index `notes.mp3`: audio extension but the header names no format it decodes
+          … and 1 more
+semantic: none of the 1 files could be indexed, so no index was written
+exit: 1
+
+$ semantic /tmp/zz/edge/mixed "a steady tone" --no-play
+semantic: CPU, fp32 — no CUDA device in this build; an index built on a GPU may rank differently here — 3 assets in `mixed`
+          model version transformers-4.57.6/torch-2.8.0/opset-17
+index:    none yet; building
+          audio graph loaded in 0.2 s
+          3 indexed, 1 failed. First: `notes.mp3`: audio extension but the header names no format it decodes in 0.2 s (13.4 clips/s)
+          could not index `notes.mp3`: audio extension but the header names no format it decodes
+          written to `mixed/siren-index`
+text:     graph loaded in 0.2 s
+          encoded in 6.7 ms, ranked 3 assets in 0.00 ms
+
+"a steady tone"  — top 3
+  1. tone.mp3   score 0.267   similarity 0.267
+     semantic carried it (+0.267 from 0.26652765 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  2. tone.flac   score 0.221   similarity 0.221
+     semantic carried it (+0.221 from 0.22071837 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  3. tone-441.ogg   score 0.134   similarity 0.134
+     semantic carried it (+0.134 from 0.1338726 raw at weight 1); no value for acoustic, tempo, key
+     unknown, source not recorded
+  (3 returned)
+  scores are CLAP cosines, not percentages — what a good one looks like is in docs/guide/semantic.md, "The floor"
+
+--no-play: nothing was played
+exit: 0

@@ -107,6 +107,43 @@ fn every_buffer_reaches_the_embedder_at_the_models_rate() {
     assert_eq!(seen, vec![24_000], "0.5 s at 44.1 kHz is 24000 samples at 48 kHz");
 }
 
+/// **A folder of every format the scan calls audio indexes.** The crate's own error message promises it — *"a library of `.mp3` files
+/// is indexed"* — and no test had ever built a folder of anything but WAV, so `.mp3` and `.flac` were scanned as audio and then
+/// refused as undecodable by a decoder that had never been given the features to read them.
+///
+/// Six files of six different byte contents (identical bytes would be one asset): the embedder must be handed every one of them, at
+/// the model's rate and the right duration for its length.
+#[test]
+fn a_folder_of_every_format_the_scan_calls_audio_indexes() {
+    let s = Scratch::new("formats");
+    s.file("a.wav", &wav(48_000, 440.0, 24_000));
+    s.file("b.ogg", include_bytes!("fixtures/tone.ogg"));
+    s.file("c.oga", include_bytes!("fixtures/tone-441.ogg"));
+    s.file("d.flac", include_bytes!("fixtures/tone.flac"));
+    s.file("e.mp3", include_bytes!("fixtures/tone.mp3"));
+    s.file("f.flac", include_bytes!("fixtures/tone-441.flac"));
+
+    let mut seen = Vec::new();
+    let built = build(s.path(), stamp(), recorder(&mut seen)).expect("builds");
+    assert!(built.failed.is_empty(), "every format the scan calls audio decodes: {:?}", built.failed);
+    assert_eq!(built.indexed(), 6, "six files, six records");
+
+    let (short, long): (Vec<usize>, Vec<usize>) = seen.iter().copied().partition(|n| *n < 10_000);
+    assert_eq!(short.len(), 2, "the two 0.1 s files (44.1 kHz, converted): {seen:?}");
+    // FLAC is exact (0.1 s at 48 kHz is 4800 samples); the Ogg stream declares 4416 frames at 44.1 kHz, which is 4807 at 48 kHz — and
+    // *not* the 5573 an uncut Vorbis tail gave (`semantic_decode::an_ogg_is_cut_to_the_length_its_last_page_declares`).
+    assert!(short.contains(&4_800), "the FLAC is exact: {short:?}");
+    assert!(
+        short.iter().all(|n| (4_795..=4_815).contains(n)),
+        "0.1 s at 48 kHz is ~4800 samples, no more: {short:?}"
+    );
+    assert_eq!(long.len(), 4, "the four 0.5 s files: {seen:?}");
+    assert!(
+        long.iter().all(|n| (22_800..=25_200).contains(n)),
+        "0.5 s at 48 kHz is 24000 samples, give or take codec padding: {long:?}"
+    );
+}
+
 #[test]
 fn a_corrupt_file_is_counted_not_swallowed() {
     // **The failure policy.** One bad file must not stop a good library, and must not vanish either.

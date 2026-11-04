@@ -16,9 +16,11 @@ use std::path::{Path, PathBuf};
 /// - `bevy` — the engine, trimmed to four features.
 /// - `serde`, `ron` — the tables as data, and the file format a project edits.
 /// - `rodio` — the crate's own mixer, behind `mixer`, **and the decoder the semantic feature uses**, behind
-///   `semantic`. The version `bevy_audio` itself resolves, so the graph has one. The `semantic` entry costs no new
-///   crate: `cargo tree -i rodio` reports `bevy_audio → bevy_internal → bevy → bevy_siren` already, so the entry
-///   turns on this crate's decoder features and adds nothing to the graph.
+///   `semantic`. The version `bevy_audio` itself resolves, so the graph has one `rodio`. **Its decoders are not already there,
+///   and this entry pays for them**: `cargo tree -i rodio` reports `bevy_audio → bevy_internal → bevy → bevy_siren`, but no
+///   `symphonia` crate is in the default graph, so enabling the feature adds the ten that read wav, vorbis, flac and mp3 — 16 of
+///   the 34 crates `semantic` adds, counting what they pull in (`src/semantic/decode.rs` has the decomposition). This entry
+///   said it "costs no new crate" until iteration 112; that was never true of the decoders.
 /// - `rubato` — the resampler, behind `semantic`. It earns its place the way `ort` does, by measurement: `rodio`'s own
 ///   converter discards samples when down-sampling, and a hand-rolled interpolator produced a plausible embedding from
 ///   a corrupted signal (removed in iteration 62). `rubato`'s FFT resampler keeps a 1 kHz tone at **0.5000 of 0.5000**

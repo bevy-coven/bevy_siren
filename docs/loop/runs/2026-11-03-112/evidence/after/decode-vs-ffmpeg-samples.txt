@@ -1,0 +1,26 @@
+file                   pack         rate ch  crate fr ffmpeg fr   extra   rms diff   max diff
+
+== scifi: 73 files
+   frames the crate returns beyond ffmpeg's: min 0  median 0  max 992  (files with any extra: 4 of 73)
+   rms difference / rms signal over the common frames: median 1.17e-07  max 1.41e-07;  max |sample diff| 4.17e-07
+   largest extra: laserSmall_004         rate 44100 ch 2  crate 19136 vs ffmpeg 18144 frames (+992 = 22.5 ms)
+   largest extra: laserSmall_003         rate 44100 ch 2  crate 14016 vs ffmpeg 13118 frames (+898 = 20.4 ms)
+   largest extra: laserSmall_000         rate 44100 ch 2  crate 10944 vs ffmpeg 10421 frames (+523 = 11.9 ms)
+== rpg-ogg: 51 files
+   frames the crate returns beyond ffmpeg's: min 0  median 236  max 975  (files with any extra: 30 of 51)
+   rms difference / rms signal over the common frames: median 1.38e-07  max 3.46e-02;  max |sample diff| 3.03e-01
+   largest extra: footstep03             rate 48000 ch 2  crate 13888 vs ffmpeg 12913 frames (+975 = 20.3 ms)
+   largest extra: drawKnife1             rate 48000 ch 2  crate 20160 vs ffmpeg 19186 frames (+974 = 20.3 ms)
+   largest extra: doorOpen_2             rate 48000 ch 2  crate 68800 vs ffmpeg 67839 frames (+961 = 20.0 ms)
+== jingles: 85 files
+   frames the crate returns beyond ffmpeg's: min 0  median 0  max 896  (files with any extra: 25 of 85)
+   rms difference / rms signal over the common frames: median 1.32e-07  max 1.39e-07;  max |sample diff| 2.38e-07
+   largest extra: jingles_NES03          rate 44100 ch 2  crate 27520 vs ffmpeg 26624 frames (+896 = 20.3 ms)
+   largest extra: jingles_NES14          rate 44100 ch 2  crate 17340 vs ffmpeg 16444 frames (+896 = 20.3 ms)
+   largest extra: jingles_NES16          rate 44100 ch 2  crate 23604 vs ffmpeg 22708 frames (+896 = 20.3 ms)
+== digital-mp3: 62 files
+   frames the crate returns beyond ffmpeg's: min 0  median 0  max 0  (files with any extra: 0 of 62)
+   rms difference / rms signal over the common frames: median 5.47e-07  max 8.00e-07;  max |sample diff| 4.62e-07
+   largest extra: highDown               rate 44100 ch 1  crate 19968 vs ffmpeg 19968 frames (+0 = 0.0 ms)
+   largest extra: highUp                 rate 44100 ch 1  crate 20992 vs ffmpeg 20992 frames (+0 = 0.0 ms)
+   largest extra: laser1                 rate 44100 ch 1  crate 69120 vs ffmpeg 69120 frames (+0 = 0.0 ms)

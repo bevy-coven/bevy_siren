@@ -36,6 +36,7 @@ use bevy::audio::{AudioPlugin, AudioSink, AudioSource};
 use bevy::prelude::*;
 use bevy_siren::library::{self, Library};
 use bevy_siren::semantic::ask::Embedder;
+use bevy_siren::semantic::decode::decode;
 use bevy_siren::semantic::index::{Index, ModelStamp};
 use bevy_siren::semantic::indexer;
 use bevy_siren::semantic::mel::Filterbank;
@@ -210,8 +211,9 @@ fn main() -> ExitCode {
     let library = library::scan(root);
     if library.assets.is_empty() {
         eprintln!(
-            "semantic: no audio files in `{}` (WAV and Ogg Vorbis are what the decoder reads)",
-            root.display()
+            "semantic: no audio files in `{}` (the decoder reads: {})",
+            root.display(),
+            library::AUDIO_EXTENSIONS.join(", ")
         );
         return ExitCode::from(1);
     }
@@ -441,13 +443,14 @@ fn name_of(library: &Library, found: &Found) -> String {
         .map_or_else(|| format!("{:016x}", found.hash), |p| p.display().to_string())
 }
 
-/// How long to wait for a file to sound: its length when the header says it, read as 16-bit PCM, else a few seconds.
-fn wait_for(library: &Library, hash: u64) -> f64 {
-    let estimate = library.assets.get(&hash).and_then(|a| {
-        let (rate, channels) = (f64::from(a.sample_rate?), f64::from(a.channels?));
-        Some(a.bytes as f64 / (rate * channels * 2.0))
-    });
-    (estimate.unwrap_or(5.0) + 0.75).clamp(1.0, LONGEST_WAIT_S)
+/// How long to wait for a file to sound: **its decoded length**, and a few seconds when it will not decode (the play says why).
+///
+/// This was the file's size read as 16-bit PCM at the header's rate — the right length only for a WAV. A lossless FLAC is several
+/// times smaller than its PCM and a lossy Ogg or MP3 ten or more, so a 10 s FLAC of a steady tone was waited 1.7 s for and a 15 s MP3
+/// 5.8 s, and the example said *done* over a sound still playing (`evidence/before/wait-for-flac-mp3-before.txt`).
+fn wait_for(path: &Path) -> f64 {
+    let seconds = decode(path).map_or(5.0, |d| d.seconds());
+    (seconds + 0.75).clamp(1.0, LONGEST_WAIT_S)
 }
 
 #[derive(Resource)]
@@ -491,7 +494,7 @@ fn play(root: &Path, library: &Library, index: &Index, chosen: &Found, bus: &str
     .insert_resource(SirenSettings::default())
     .insert_resource(CueTable::new(vec![audition.cue.clone()]))
     .insert_resource(Wait {
-        seconds: wait_for(library, chosen.hash),
+        seconds: wait_for(&root.join(relative)),
         started: -1.0,
         heard: false,
         warned: false,

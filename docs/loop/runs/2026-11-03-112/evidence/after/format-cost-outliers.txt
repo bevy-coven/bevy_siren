@@ -1,0 +1,20 @@
+== mp3-128: clips whose similarities moved most (mean |d| over the 116 rows)
+   clip                   class             mean |d|   max |d| exact-zero share
+   audio/5-221568-A-22    clapping             0.121     0.285           0.04
+   audio/2-43806-A-42     siren                0.114     0.295           0.09
+   audio/4-67358-A-42     siren                0.111     0.378           0.20
+   audio/3-126113-A-26    laughing             0.092     0.219           0.01
+   audio/4-186940-A-44    engine               0.076     0.203           0.23
+   audio/5-217158-A-0     dog                  0.076     0.164           0.00
+   Spearman(per-clip mean |d|, share of exactly-zero samples) = 0.16;  clips with >50% digital silence: 216, their mean |d| 0.0094 vs the others' 0.0083
+
+== mp3-64: clips whose similarities moved most (mean |d| over the 116 rows)
+   clip                   class             mean |d|   max |d| exact-zero share
+   audio/4-125825-B-46    church_bells         0.158     0.295           0.00
+   audio/4-125825-A-46    church_bells         0.152     0.328           0.00
+   audio/4-167155-A-32    keyboard_typing      0.152     0.386           0.00
+   audio/4-160036-B-33    door_wood_creaks     0.140     0.289           0.00
+   audio/1-30344-A-0      dog                  0.138     0.325           0.01
+   audio/5-217158-A-0     dog                  0.132     0.234           0.00
+   Spearman(per-clip mean |d|, share of exactly-zero samples) = 0.18;  clips with >50% digital silence: 216, their mean |d| 0.0412 vs the others' 0.0417
+

@@ -120,8 +120,9 @@ pub struct Weights {
     /// **Design default: `0.0`**, which is [`Floor::min_score`](super::rank::Floor)'s existing default moved onto a named
     /// field rather than a second policy. `0.0` keeps everything, and **that is under review**: it was chosen from six synthetic
     /// clips, and 2 000 real recordings say a floor of about 0.35 keeps every description's top result — in the maintainer's wording
-    /// and in a stranger's — while shrinking a result list ~22× (`Floor::min_score` has the numbers;
-    /// `docs/loop/needs-decision/default-floor.md` has the decision).
+    /// and in a stranger's — while shrinking a result list ~22×, **but fourteen UI sounds scored nothing above 0.256 for any of five
+    /// descriptions, which that floor would empty**, so the recommendation is to keep `0.0` until a second library is measured
+    /// (`Floor::min_score` has the numbers; `docs/loop/needs-decision/default-floor.md` has the decision).
     ///
     /// It exists because `tools::Toolset` hardcoded `Floor::default()` at its filter site: `Tally::below_floor` was
     /// documented, rendered in `describe()`, and **could never be non-zero**, and a caller had no way to set a stricter

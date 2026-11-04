@@ -109,6 +109,14 @@ function between frames; a duck takes time since it fired; a gain curve is a lin
 - **A `Mode::Loop` voice has no end to notice.** `retire_voices` skips loops; they live until stopped.
 - **A rodio source cannot be re-positioned inside a `Player`.** That is why the `mixer` path applies spatial
   attenuation at play time, and why Bevy's path stays the default for moving emitters.
+- **A format on `library::AUDIO_EXTENSIONS` is a claim about files, and `rodio`'s decoder features in `Cargo.toml` are the other half of it.**
+  For most of this crate's life `mp3` and `flac` were on the list and not in the features, so a folder of them scanned as audio and then
+  failed to decode — and no test noticed, because none had opened a file that was not a WAV. `every_extension_the_scan_calls_audio_has_a_decoder`
+  decodes a real fixture of each entry (`tests/fixtures/`, made with `ffmpeg`, commands in `tests/semantic_decode.rs`): add a format to the list
+  and the test asks for its fixture. **Check a decoder against a reference through the whole pipeline** (`formats_parity.py` in iteration 112's
+  evidence), and **use `libvorbis` (`soundfile`) as the Ogg reference, not `ffmpeg`**, which returns up to 128 frames fewer than the stream declares.
+  `symphonia` keeps the padding of an Ogg's last block (`decode` cuts it) and **clamps Vorbis output to ±1** — a table whose `peak` column is `1 + diff`
+  is clipping, not a decoder bug.
 
 ## The two-way street, both ways
 
